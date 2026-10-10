@@ -8,6 +8,8 @@ a coding agent keep a current summary and next-steps list so resuming is quick.
 - **Agents**: any [ACP](https://agentclientprotocol.com/) harness. OpenCode
   (`opencode acp`) and pi (`pi-acp`) are preconfigured; add more in Settings.
 - **Frontend**: Vue 3 + Vite, built as an installable PWA and served by the API.
+  Responsive down to phones: the problem list becomes an off-canvas drawer and
+  the detail view stacks into a single column.
 
 ## Concepts
 

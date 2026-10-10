@@ -14,3 +14,4 @@
 - The backend serves `backend/static` (the Vite build output) as the SPA; `frontend/vite.config.js` writes its build there directly.
 - SQLite runs with `PRAGMA foreign_keys=ON`, but SQLModel/SQLAlchemy does **not** order ORM `session.delete()` calls to satisfy FK constraints. Deletes that touch parents must use explicit, ordered `session.execute(sa_delete(...))` statements (see `routers/problems.py`).
 - `opencode acp` turn latency is variable (10s to 60s+ for a one-word reply); do not treat a run that is still `running` after a minute as hung.
+- Frontend is mobile-first below 760px: the sidebar becomes an off-canvas drawer toggled by `.topbar .menu-btn`. When adding a class that sets `display` on an element that also has `.btn`, scope it to `.topbar <class>` (or place it after `.btn`): `.btn { display: inline-flex }` otherwise wins on source order and the hidden element shows.

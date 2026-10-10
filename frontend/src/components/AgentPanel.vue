@@ -87,7 +87,7 @@ onMounted(loadRuns)
     <div class="panel-head"><h2>Agent</h2></div>
 
     <div class="row">
-      <select v-model="harnessId" class="select" style="width: 170px">
+      <select v-model="harnessId" class="select w-170">
         <option value="">Default harness</option>
         <option v-for="h in harnesses" :key="h.id" :value="h.id" :disabled="!h.available">
           {{ h.name }}{{ h.available ? '' : ' (unavailable)' }}
@@ -115,7 +115,7 @@ onMounted(loadRuns)
       </button>
       <button v-if="running" class="btn danger" @click="cancel">Cancel</button>
       <span v-if="running" class="faint">streaming…</span>
-      <span v-else class="faint">Ctrl+Enter to run</span>
+      <span v-else class="faint kbd-hint">Ctrl+Enter to run</span>
     </div>
 
     <div v-if="activeRun" class="row" style="margin-top: 12px; justify-content: space-between">

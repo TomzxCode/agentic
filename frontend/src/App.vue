@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { api } from './api'
 import { store, statusClass, timeAgo } from './store'
@@ -8,7 +8,12 @@ const route = useRoute()
 const router = useRouter()
 const search = ref('')
 const showNew = ref(false)
+const sidebarOpen = ref(false)
 const draft = ref({ title: '', description: '', priority: 2 })
+
+// Close the mobile drawer when navigating.
+watch(() => route.fullPath, () => (sidebarOpen.value = false))
+
 
 const filtered = computed(() => {
   const q = search.value.trim().toLowerCase()
@@ -46,9 +51,14 @@ onMounted(refresh)
 </script>
 
 <template>
-  <div class="app">
+  <div class="app" :class="{ 'sidebar-open': sidebarOpen }">
     <header class="topbar">
-      <div class="brand">
+      <button class="btn ghost menu-btn" aria-label="Toggle problem list" @click="sidebarOpen = !sidebarOpen">
+        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+          <path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none" />
+        </svg>
+      </button>
+      <router-link to="/" class="brand">
         <svg viewBox="0 0 512 512" aria-hidden="true">
           <path d="M160 168 L256 128 L352 168 M160 168 L160 288 L256 344 L352 288 L352 168 M160 288 L256 248 L352 288"
                 stroke="#6ee7b7" stroke-width="16" fill="none" stroke-linecap="round" />
@@ -60,11 +70,14 @@ onMounted(refresh)
           </g>
         </svg>
         <span>Agentic</span>
-      </div>
+      </router-link>
       <div class="grow"></div>
-      <router-link to="/" class="btn ghost sm" :class="{ primary: route.name === 'problems' }">Problems</router-link>
+      <router-link to="/" class="btn ghost sm nav-problems" :class="{ primary: route.name === 'problems' }">Problems</router-link>
       <router-link to="/settings" class="btn ghost sm" :class="{ primary: route.name === 'settings' }">Settings</router-link>
+      <button class="btn primary mobile-only" title="New problem" aria-label="New problem" @click="showNew = true">+</button>
     </header>
+
+    <div v-if="sidebarOpen" class="sidebar-backdrop" @click="sidebarOpen = false"></div>
 
     <aside class="sidebar">
       <div class="side-head">
@@ -79,6 +92,7 @@ onMounted(refresh)
         :to="`/p/${p.id}`"
         class="problem-card"
         :class="{ active: route.params.id === p.id }"
+        @click="sidebarOpen = false"
       >
         <span class="t">{{ p.title }}</span>
         <span class="s">{{ p.summary || p.description || 'No summary yet' }}</span>

@@ -104,7 +104,7 @@ async function refreshItem(itemId) {
 
     <div style="border-top: 1px solid var(--border); padding-top: 12px; margin-top: 4px">
       <div class="row">
-        <select v-model="draft.source" class="select" style="width: 150px">
+        <select v-model="draft.source" class="select w-150">
           <option v-for="s in SOURCES" :key="s.value" :value="s.value">{{ s.label }}</option>
         </select>
         <input v-model="draft.url" class="input grow" placeholder="Paste a URL (Slack thread, GitHub issue/PR, Drive doc…)" />

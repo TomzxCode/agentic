@@ -86,8 +86,8 @@ watch(() => props.id, async (val) => {
   <div v-if="loading" class="empty"><span class="spinner"></span></div>
   <div v-else-if="notFound" class="empty">Problem not found. <router-link to="/">Back</router-link></div>
   <div v-else>
-    <div class="row" style="justify-content: space-between; align-items: flex-start; margin-bottom: 16px">
-      <div style="min-width: 0">
+    <div class="row page-head" style="margin-bottom: 16px">
+      <div class="grow" style="min-width: 0">
         <h1 style="margin-bottom: 4px">{{ problem.title }}</h1>
         <div class="row">
           <span class="badge">{{ problem.status.replace('_', ' ') }}</span>
