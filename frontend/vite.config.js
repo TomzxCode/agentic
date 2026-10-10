@@ -1,0 +1,66 @@
+import { fileURLToPath, URL } from 'node:url'
+import { defineConfig } from 'vite'
+import vue from '@vitejs/plugin-vue'
+import { VitePWA } from 'vite-plugin-pwa'
+
+const API_TARGET = process.env.AGENTIC_API || 'http://127.0.0.1:8600'
+
+export default defineConfig({
+  plugins: [
+    vue(),
+    VitePWA({
+      registerType: 'autoUpdate',
+      includeAssets: ['icon.svg', 'maskable.svg'],
+      manifest: {
+        name: 'Agentic',
+        short_name: 'Agentic',
+        description: 'Track work as problems and collaborate with LLM coding agents.',
+        theme_color: '#0f1115',
+        background_color: '#0f1115',
+        display: 'standalone',
+        start_url: '/',
+        scope: '/',
+        icons: [
+          { src: 'icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' },
+          { src: 'maskable.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'maskable' },
+        ],
+      },
+      workbox: {
+        navigateFallbackDenylist: [/^\/api/],
+        runtimeCaching: [
+          {
+            urlPattern: ({ url }) => url.pathname.startsWith('/api'),
+            handler: 'NetworkOnly',
+          },
+        ],
+      },
+      devOptions: { enabled: false },
+    }),
+  ],
+  resolve: {
+    alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
+  },
+  server: {
+    allowedHosts: ['squirtle'],
+    port: 5173,
+    proxy: {
+      '/api': {
+        target: API_TARGET,
+        changeOrigin: true,
+        // Keep SSE streams flowing through the dev proxy.
+        configure: (proxy) => {
+          proxy.on('proxyRes', (proxyRes) => {
+            if ((proxyRes.headers['content-type'] || '').includes('text/event-stream')) {
+              proxyRes.headers['cache-control'] = 'no-cache'
+            }
+          })
+        },
+      },
+    },
+  },
+  build: {
+    outDir: '../backend/static',
+    emptyOutDir: true,
+    sourcemap: false,
+  },
+})

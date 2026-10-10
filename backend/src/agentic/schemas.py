@@ -1,0 +1,271 @@
+"""Pydantic request/response models for the HTTP API."""
+
+from __future__ import annotations
+
+from datetime import datetime
+from typing import Any
+
+from pydantic import BaseModel, ConfigDict
+
+from .models import (
+    AgentRun,
+    Harness,
+    Problem,
+    ProblemStatus,
+    Repository,
+    SourceItem,
+    TimelineEvent,
+    Worktree,
+)
+
+
+class ORMModel(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+
+# --- Repository ------------------------------------------------------------
+class RepositoryCreate(BaseModel):
+    name: str | None = None
+    path: str
+    remote_url: str | None = None
+    default_branch: str | None = None
+
+
+class RepositoryRead(ORMModel):
+    id: str
+    name: str
+    path: str
+    remote_url: str | None = None
+    default_branch: str | None = None
+    created_at: datetime
+
+
+# --- Harness ---------------------------------------------------------------
+class HarnessCreate(BaseModel):
+    name: str
+    description: str = ""
+    command: str
+    args: list[str] = []
+    env: dict[str, str] = {}
+    model: str | None = None
+    is_default: bool = False
+
+
+class HarnessRead(ORMModel):
+    id: str
+    name: str
+    description: str
+    command: str
+    args: list[str]
+    env: dict[str, str]
+    model: str | None = None
+    is_default: bool
+
+
+class HarnessStatus(BaseModel):
+    id: str
+    name: str
+    available: bool
+    detail: str = ""
+
+
+# --- SourceItem ------------------------------------------------------------
+class ItemCreate(BaseModel):
+    source: str
+    kind: str = ""
+    title: str = ""
+    url: str | None = None
+    external_id: str | None = None
+    content: str = ""
+    metadata_json: dict[str, Any] = {}
+    fetch: bool = True
+
+
+class ItemUpdate(BaseModel):
+    title: str | None = None
+    content: str | None = None
+    kind: str | None = None
+    metadata_json: dict[str, Any] | None = None
+
+
+class ItemRead(ORMModel):
+    id: str
+    source: str
+    kind: str
+    title: str
+    url: str | None = None
+    external_id: str | None = None
+    metadata_json: dict[str, Any]
+    content: str
+    fetched_at: datetime | None = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class AssociationRead(ORMModel):
+    id: str
+    problem_id: str
+    item_id: str
+    note: str
+    created_at: datetime
+
+
+class AssociationDetail(BaseModel):
+    id: str
+    note: str
+    created_at: datetime
+    item: ItemRead
+
+
+class AssociateRequest(BaseModel):
+    item_id: str | None = None
+    item: ItemCreate | None = None
+    note: str = ""
+
+
+# --- Problem ---------------------------------------------------------------
+class ProblemCreate(BaseModel):
+    title: str
+    description: str = ""
+    status: ProblemStatus = ProblemStatus.open
+    priority: int = 2
+    tags: list[str] = []
+    repository_id: str | None = None
+    harness_id: str | None = None
+
+
+class ProblemUpdate(BaseModel):
+    title: str | None = None
+    description: str | None = None
+    status: ProblemStatus | None = None
+    priority: int | None = None
+    tags: list[str] | None = None
+    repository_id: str | None = None
+    harness_id: str | None = None
+    summary: str | None = None
+    next_steps: list[dict[str, Any]] | None = None
+
+
+class ProblemRead(ORMModel):
+    id: str
+    title: str
+    description: str
+    status: ProblemStatus
+    priority: int
+    tags: list[str]
+    repository_id: str | None = None
+    harness_id: str | None = None
+    summary: str
+    next_steps: list[dict[str, Any]]
+    context_updated_at: datetime | None = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class WorktreeRead(ORMModel):
+    id: str
+    problem_id: str
+    repository_id: str
+    branch: str
+    path: str
+    status: str
+    created_at: datetime
+    removed_at: datetime | None = None
+
+
+class RunRead(ORMModel):
+    id: str
+    problem_id: str
+    harness_id: str | None = None
+    cwd: str | None = None
+    worktree_id: str | None = None
+    prompt: str
+    kind: str
+    status: str
+    session_id: str | None = None
+    stop_reason: str | None = None
+    error: str | None = None
+    created_at: datetime
+    started_at: datetime | None = None
+    ended_at: datetime | None = None
+
+
+class TimelineRead(ORMModel):
+    id: str
+    problem_id: str
+    type: str
+    message: str
+    data_json: dict[str, Any]
+    created_at: datetime
+
+
+class ProblemDetail(ProblemRead):
+    associations: list[AssociationDetail] = []
+    worktrees: list[WorktreeRead] = []
+    runs: list[RunRead] = []
+    timeline: list[TimelineRead] = []
+
+
+# --- Worktree --------------------------------------------------------------
+class WorktreeCreate(BaseModel):
+    repository_id: str | None = None
+    branch: str | None = None
+    base: str | None = None
+
+
+# --- Agent runs ------------------------------------------------------------
+class RunCreate(BaseModel):
+    prompt: str
+    harness_id: str | None = None
+    worktree_id: str | None = None
+    cwd: str | None = None
+
+
+class AgentEventRead(ORMModel):
+    id: int | None = None
+    run_id: str
+    seq: int
+    type: str
+    text: str
+    data_json: dict[str, Any]
+    created_at: datetime
+
+
+class ContextPreview(BaseModel):
+    problem_id: str
+    summary: str
+    next_steps: list[dict[str, Any]]
+    context_updated_at: datetime | None = None
+
+
+__all__ = [
+    "AgentEventRead",
+    "AgentRun",
+    "AssociateRequest",
+    "AssociationDetail",
+    "AssociationRead",
+    "ContextPreview",
+    "Harness",
+    "HarnessCreate",
+    "HarnessRead",
+    "HarnessStatus",
+    "ItemCreate",
+    "ItemRead",
+    "ItemUpdate",
+    "Problem",
+    "ProblemCreate",
+    "ProblemDetail",
+    "ProblemRead",
+    "ProblemUpdate",
+    "Repository",
+    "RepositoryCreate",
+    "RepositoryRead",
+    "RunCreate",
+    "RunRead",
+    "SourceItem",
+    "TimelineEvent",
+    "TimelineRead",
+    "Worktree",
+    "WorktreeCreate",
+    "WorktreeRead",
+]

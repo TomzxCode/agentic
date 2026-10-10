@@ -1,0 +1,129 @@
+<script setup>
+import { computed, reactive, ref } from 'vue'
+import { api } from '../api'
+import { store, timeAgo } from '../store'
+
+const props = defineProps({ problem: { type: Object, required: true } })
+const emit = defineEmits(['changed'])
+const expanded = ref({})
+const busy = ref(false)
+
+const SOURCES = [
+  { value: 'slack', label: 'Slack' },
+  { value: 'github', label: 'GitHub' },
+  { value: 'gdrive', label: 'Google Drive' },
+  { value: 'url', label: 'URL' },
+  { value: 'note', label: 'Note' },
+]
+
+const draft = reactive({ source: 'slack', url: '', title: '', content: '', note: '', showContent: false })
+
+const grouped = computed(() => {
+  const groups = {}
+  for (const assoc of props.problem.associations || []) {
+    ;(groups[assoc.item.source] ||= []).push(assoc)
+  }
+  return groups
+})
+
+function toggle(id) {
+  expanded.value[id] = !expanded.value[id]
+}
+
+async function addItem() {
+  if (!draft.url.trim() && !draft.content.trim() && !draft.title.trim()) return
+  busy.value = true
+  try {
+    const externalId = draft.source === 'github' ? undefined : undefined
+    await api.problems.associate(props.problem.id, {
+      note: draft.note,
+      item: {
+        source: draft.source,
+        url: draft.url || null,
+        title: draft.title,
+        content: draft.content,
+        external_id: externalId,
+        fetch: !draft.content,
+      },
+    })
+    draft.url = draft.title = draft.content = draft.note = ''
+    emit('changed')
+  } catch (e) {
+    store.notify(e.message, true)
+  } finally {
+    busy.value = false
+  }
+}
+
+async function remove(itemId) {
+  await api.problems.unassociate(props.problem.id, itemId)
+  emit('changed')
+}
+
+async function refreshItem(itemId) {
+  try {
+    await api.items.refresh(itemId)
+    emit('changed')
+  } catch (e) {
+    store.notify(e.message, true)
+  }
+}
+</script>
+
+<template>
+  <section class="panel">
+    <div class="panel-head"><h2>Items <span class="faint">{{ problem.associations?.length || 0 }}</span></h2></div>
+
+    <div v-if="!problem.associations?.length" class="faint" style="margin-bottom: 12px">
+      Nothing associated yet. Paste a Slack thread, GitHub issue/PR, Drive link, or a note.
+    </div>
+
+    <div v-for="(items, source) in grouped" :key="source" style="margin-bottom: 12px">
+      <h3 :class="`src-${source}`" style="margin-bottom: 6px">{{ source }}</h3>
+      <div v-for="assoc in items" :key="assoc.id" class="item">
+        <div class="item-top">
+          <span class="badge chip-source" :class="`src-${source}`">{{ source }}</span>
+          <a v-if="assoc.item.url" :href="assoc.item.url" target="_blank" class="title">{{ assoc.item.title || assoc.item.url }}</a>
+          <span v-else class="title">{{ assoc.item.title }}</span>
+          <button class="btn sm ghost" title="Refresh" @click="refreshItem(assoc.item.id)">↻</button>
+          <button class="btn sm ghost" title="Expand" @click="toggle(assoc.item.id)">
+            {{ expanded[assoc.item.id] ? '▾' : '▸' }}
+          </button>
+          <button class="btn sm danger" title="Remove" @click="remove(assoc.item.id)">✕</button>
+        </div>
+        <div v-if="assoc.note" class="faint" style="margin-top: 4px">{{ assoc.note }}</div>
+        <div v-if="assoc.item.content" class="content" :class="{ clamp: !expanded[assoc.item.id] }">
+          {{ assoc.item.content }}
+        </div>
+        <div class="faint" style="margin-top: 4px">
+          added {{ timeAgo(assoc.created_at) }}
+          <span v-if="assoc.item.fetched_at"> · fetched {{ timeAgo(assoc.item.fetched_at) }}</span>
+        </div>
+      </div>
+    </div>
+
+    <div style="border-top: 1px solid var(--border); padding-top: 12px; margin-top: 4px">
+      <div class="row">
+        <select v-model="draft.source" class="select" style="width: 150px">
+          <option v-for="s in SOURCES" :key="s.value" :value="s.value">{{ s.label }}</option>
+        </select>
+        <input v-model="draft.url" class="input grow" placeholder="Paste a URL (Slack thread, GitHub issue/PR, Drive doc…)" />
+      </div>
+      <div class="row" style="margin-top: 8px">
+        <input v-model="draft.title" class="input grow" placeholder="Title (optional)" />
+        <input v-model="draft.note" class="input grow" placeholder="Note (optional)" />
+        <button class="btn" @click="draft.showContent = !draft.showContent">+ text</button>
+        <button class="btn primary" :disabled="busy" @click="addItem">
+          <span v-if="busy" class="spinner"></span> Associate
+        </button>
+      </div>
+      <textarea
+        v-if="draft.showContent"
+        v-model="draft.content"
+        class="textarea"
+        style="margin-top: 8px"
+        placeholder="Paste content to keep with this item (skips fetching)."
+      ></textarea>
+    </div>
+  </section>
+</template>
