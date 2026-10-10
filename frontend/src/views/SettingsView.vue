@@ -3,6 +3,7 @@ import { onMounted, reactive, ref } from 'vue'
 import { api } from '../api'
 import { store } from '../store'
 import DirectoryPicker from '../components/DirectoryPicker.vue'
+import RepositoryGroupsPanel from '../components/RepositoryGroupsPanel.vue'
 
 const repoDraft = reactive({ path: '' })
 const harnessDraft = reactive({ name: '', command: '', args: '', description: '' })
@@ -220,5 +221,7 @@ onMounted(load)
       @close="showPicker = false"
       @add="addRepos"
     />
+
+    <RepositoryGroupsPanel :repositories="store.repositories" />
   </div>
 </template>

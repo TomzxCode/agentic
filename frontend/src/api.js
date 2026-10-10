@@ -55,6 +55,13 @@ export const api = {
     },
   },
 
+  groups: {
+    list: () => request('/groups'),
+    create: (body) => request('/groups', { method: 'POST', body }),
+    update: (id, body) => request(`/groups/${id}`, { method: 'PATCH', body }),
+    remove: (id) => request(`/groups/${id}`, { method: 'DELETE' }),
+  },
+
   harnesses: {
     list: () => request('/harnesses'),
     full: () => request('/harnesses/full'),

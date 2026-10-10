@@ -5,6 +5,7 @@ export const store = reactive({
   problems: [],
   harnesses: [],
   repositories: [],
+  groups: [],
   loading: false,
   toast: null,
 
@@ -16,6 +17,9 @@ export const store = reactive({
   },
   async loadRepositories() {
     this.repositories = await api.repositories.list()
+  },
+  async loadGroups() {
+    this.groups = await api.groups.list()
   },
   notify(message, isError = false) {
     this.toast = { message, isError }

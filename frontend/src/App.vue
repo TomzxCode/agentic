@@ -9,7 +9,7 @@ const router = useRouter()
 const search = ref('')
 const showNew = ref(false)
 const sidebarOpen = ref(false)
-const draft = ref({ title: '', description: '', priority: 2 })
+const draft = ref({ title: '', description: '', priority: 2, group_id: '' })
 
 // Close the mobile drawer when navigating.
 watch(() => route.fullPath, () => (sidebarOpen.value = false))
@@ -37,9 +37,9 @@ async function refresh() {
 async function createProblem() {
   if (!draft.value.title.trim()) return
   try {
-    const problem = await api.problems.create(draft.value)
+    const problem = await api.problems.create({ ...draft.value, group_id: draft.value.group_id || null })
     showNew.value = false
-    draft.value = { title: '', description: '', priority: 2 }
+    draft.value = { title: '', description: '', priority: 2, group_id: '' }
     await refresh()
     router.push(`/p/${problem.id}`)
   } catch (e) {
@@ -47,7 +47,10 @@ async function createProblem() {
   }
 }
 
-onMounted(refresh)
+onMounted(async () => {
+  await refresh()
+  await store.loadGroups().catch(() => {})
+})
 </script>
 
 <template>
@@ -126,6 +129,13 @@ onMounted(refresh)
             <option :value="1">Medium</option>
             <option :value="2">High</option>
             <option :value="3">Urgent</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Repository group (optional)</label>
+          <select v-model="draft.group_id" class="select">
+            <option value="">None</option>
+            <option v-for="group in store.groups" :key="group.id" :value="group.id">{{ group.name }}</option>
           </select>
         </div>
         <div class="row" style="justify-content: flex-end">

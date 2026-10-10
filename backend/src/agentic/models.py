@@ -58,6 +58,28 @@ class Repository(SQLModel, table=True):
     created_at: datetime = Field(default_factory=utcnow)
 
 
+class RepositoryGroup(SQLModel, table=True):
+    """A named set of repositories that a problem's agent should consider.
+
+    Groups tell the agent which checkouts may contain information relevant to a
+    problem, without the user having to spell it out in each prompt.
+    """
+
+    id: str = Field(default_factory=new_id, primary_key=True)
+    name: str
+    description: str = ""
+    created_at: datetime = Field(default_factory=utcnow)
+
+
+class RepositoryGroupMember(SQLModel, table=True):
+    __table_args__ = (UniqueConstraint("group_id", "repository_id", name="uq_group_repository"),)
+
+    id: str = Field(default_factory=new_id, primary_key=True)
+    group_id: str = Field(foreign_key="repositorygroup.id", index=True)
+    repository_id: str = Field(foreign_key="repository.id", index=True)
+    created_at: datetime = Field(default_factory=utcnow)
+
+
 class Problem(SQLModel, table=True):
     id: str = Field(default_factory=new_id, primary_key=True)
     title: str
@@ -66,6 +88,7 @@ class Problem(SQLModel, table=True):
     priority: int = 2  # 0 = low, 1 = medium, 2 = high, 3 = urgent
     tags: list[str] = Field(default_factory=list, sa_column=Column(JSON))
     repository_id: str | None = Field(default=None, foreign_key="repository.id")
+    group_id: str | None = Field(default=None, foreign_key="repositorygroup.id")
     harness_id: str | None = Field(default=None, foreign_key="harness.id")
 
     # Agent-maintained context. This is what makes coming back to a problem fast.

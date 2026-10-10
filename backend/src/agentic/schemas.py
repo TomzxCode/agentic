@@ -85,6 +85,27 @@ class RepositoryBulkResult(BaseModel):
     errors: list[dict[str, str]] = []
 
 
+# --- Repository groups -----------------------------------------------------
+class RepositoryGroupCreate(BaseModel):
+    name: str
+    description: str = ""
+    repository_ids: list[str] = []
+
+
+class RepositoryGroupUpdate(BaseModel):
+    name: str | None = None
+    description: str | None = None
+    repository_ids: list[str] | None = None
+
+
+class RepositoryGroupRead(ORMModel):
+    id: str
+    name: str
+    description: str
+    repository_ids: list[str] = []
+    created_at: datetime
+
+
 # --- Harness ---------------------------------------------------------------
 class HarnessCreate(BaseModel):
     name: str
@@ -189,6 +210,7 @@ class ProblemCreate(BaseModel):
     priority: int = 2
     tags: list[str] = []
     repository_id: str | None = None
+    group_id: str | None = None
     harness_id: str | None = None
 
 
@@ -199,6 +221,7 @@ class ProblemUpdate(BaseModel):
     priority: int | None = None
     tags: list[str] | None = None
     repository_id: str | None = None
+    group_id: str | None = None
     harness_id: str | None = None
     summary: str | None = None
     next_steps: list[dict[str, Any]] | None = None
@@ -212,6 +235,7 @@ class ProblemRead(ORMModel):
     priority: int
     tags: list[str]
     repository_id: str | None = None
+    group_id: str | None = None
     harness_id: str | None = None
     summary: str
     next_steps: list[dict[str, Any]]
@@ -323,6 +347,9 @@ __all__ = [
     "RepositoryBulkCreate",
     "RepositoryBulkResult",
     "RepositoryCreate",
+    "RepositoryGroupCreate",
+    "RepositoryGroupRead",
+    "RepositoryGroupUpdate",
     "RepositoryRead",
     "RunCreate",
     "RunRead",

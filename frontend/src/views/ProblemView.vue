@@ -39,6 +39,10 @@ const repositoryOptions = computed(() => [
   { value: '', label: 'no repository' },
   ...store.repositories.map((r) => ({ value: r.id, label: r.name })),
 ])
+const groupOptions = computed(() => [
+  { value: '', label: 'no group' },
+  ...store.groups.map((g) => ({ value: g.id, label: `group: ${g.name}` })),
+])
 
 async function load() {
   try {
@@ -65,6 +69,7 @@ async function update(field, value) {
     return
   }
   if (field === 'repository_id' && value === '') value = null
+  if (field === 'group_id' && value === '') value = null
   try {
     await api.problems.update(props.id, { [field]: value })
     await load()
@@ -91,6 +96,7 @@ function onChanged() {
 onMounted(async () => {
   await store.loadHarnesses().catch(() => {})
   await store.loadRepositories().catch(() => {})
+  await store.loadGroups().catch(() => {})
   await load()
   subscribe()
 })
@@ -138,6 +144,12 @@ watch(
             :options="repositoryOptions"
             title="Repository"
             @save="(value) => update('repository_id', value)"
+          />
+          <InlineSelect
+            :value="problem.group_id || ''"
+            :options="groupOptions"
+            title="Repository group"
+            @save="(value) => update('group_id', value)"
           />
         </div>
         <SessionLinks v-if="latestLinks.length" :links="latestLinks" compact />

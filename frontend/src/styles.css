@@ -122,6 +122,9 @@ h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: v
 .item .content { color: var(--muted); font-size: 12px; margin-top: 6px; max-height: 160px; overflow: auto; white-space: pre-wrap; }
 .item .content.clamp { max-height: 66px; overflow: hidden; -webkit-mask-image: linear-gradient(#000 60%, transparent); }
 .item .mono { overflow-wrap: anywhere; }
+.repo-check { display: flex; align-items: center; gap: 8px; padding: 5px 0; cursor: pointer; font-size: 13px; }
+.repo-check input[type=checkbox] { accent-color: var(--accent); flex: none; }
+.repo-check .mono { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* Next steps */
 .steps { list-style: none; margin: 0; padding: 0; }

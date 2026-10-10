@@ -189,6 +189,8 @@ Rules:
 - summary: at most 3 sentences (roughly 60 words). Prioritize what matters now.
 - next_steps: 2-5 concrete actions, most important first. Drop completed ones.
 - Be specific: name files, branches, issues, people where relevant.
+- If a repository group is listed, treat those repositories as potentially
+  relevant: consult them for context and say which one matters.
 - Do not invent facts that are not supported by the items.
 - Keep the JSON compact; do not exceed it.
 """
@@ -201,6 +203,15 @@ def build_context_prompt(problem: dict[str, Any], items: list[dict[str, Any]]) -
     lines.append(f"## Status\n{problem.get('status')}  (priority {problem.get('priority')})")
     if problem.get("repository"):
         lines += ["", f"## Repository\n{problem['repository']}"]
+    group = problem.get("group")
+    if group:
+        lines += ["", f"## Repository group: {group['name']}"]
+        if group.get("description"):
+            lines.append(group["description"])
+        repositories = group.get("repositories") or []
+        if repositories:
+            lines.append("These repositories may contain information relevant to this problem:")
+            lines += [f"- {path}" for path in repositories]
     if problem.get("worktrees"):
         lines += ["", "## Active worktrees"]
         lines += [f"- {w['branch']} at {w['path']}" for w in problem["worktrees"]]

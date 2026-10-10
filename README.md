@@ -36,6 +36,7 @@ virtualenv.
 | **Item** | Something external: a Slack thread, GitHub issue/PR, Drive doc, URL, note, or commit. Items are deduplicated by URL / external id. |
 | **Association** | A link between an item and a problem (many-to-many), with a note. |
 | **Worktree** | An isolated `git worktree` created for a problem from a registered repository. |
+| **Repository group** | A named set of repositories. Picking one on a problem tells the agent those checkouts may hold information relevant to it. |
 | **Agent run** | One prompt sent to a harness in a working directory. Events stream live to the UI. |
 | **Context refresh** | A special agent run that reads the problem + its items and writes the `summary` and `next_steps`. |
 
@@ -105,13 +106,15 @@ only expose this on a trusted network.
 
 ## Using it
 
-1. **Create a problem** (the `+` in the sidebar).
+1. **Create a problem** (the `+` in the sidebar); optionally pick a
+   **repository group** so the agent knows which checkouts to consider.
 2. **Associate items**: paste a Slack thread permalink, a GitHub issue/PR URL, a
    Drive doc, or write a note. GitHub and Slack/URL items are fetched on demand
    (via `gh` and `slackx` for Slack); you can also paste content directly.
 3. **Add repositories** in Settings. Use **Browse…** to pick folders on the
-   machine (select several at once); git repositories are marked. Then create a
-   **worktree** for the problem.
+   machine (select several at once); git repositories are marked. Group related
+   repositories (**Repository groups**) so a problem can point the agent at
+   them. Then create a **worktree** for the problem.
 4. **Refresh with agent** to generate the current summary and next steps.
 5. **Run an agent** against the problem; the transcript streams live.
 
@@ -206,6 +209,7 @@ GET                 /api/runs/{id}/stream               (SSE: agent transcript)
 GET/PATCH           /api/settings                        (session-link config)
 GET                 /api/fs/list                         (repository picker)
 POST                /api/repositories/bulk               (add several at once)
+GET/POST/PATCH/DELETE /api/groups                        (repository groups)
 GET/POST/PATCH      /api/harnesses   /api/repositories   /api/items
 ```
 

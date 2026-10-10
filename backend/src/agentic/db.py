@@ -38,12 +38,16 @@ def create_db_and_tables() -> None:
 def _ensure_columns() -> None:
     """Add columns introduced after the initial schema (SQLModel builds, not migrates)."""
     inspector = inspect(engine)
-    if "harness" not in inspector.get_table_names():
-        return
-    harness_columns = {column["name"] for column in inspector.get_columns("harness")}
-    if "resume_command" not in harness_columns:
-        with engine.begin() as connection:
-            connection.execute(text("ALTER TABLE harness ADD COLUMN resume_command VARCHAR"))
+    if "harness" in inspector.get_table_names():
+        harness_columns = {column["name"] for column in inspector.get_columns("harness")}
+        if "resume_command" not in harness_columns:
+            with engine.begin() as connection:
+                connection.execute(text("ALTER TABLE harness ADD COLUMN resume_command VARCHAR"))
+    if "problem" in inspector.get_table_names():
+        problem_columns = {column["name"] for column in inspector.get_columns("problem")}
+        if "group_id" not in problem_columns:
+            with engine.begin() as connection:
+                connection.execute(text("ALTER TABLE problem ADD COLUMN group_id VARCHAR"))
 
 
 def get_session() -> Iterator[Session]:

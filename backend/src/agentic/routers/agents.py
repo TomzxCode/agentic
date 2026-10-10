@@ -182,7 +182,7 @@ async def create_run(problem_id: str, payload: RunCreate, session: Session = Dep
 async def refresh_context(problem_id: str, session: Session = Depends(get_session)) -> RunRead:
     problem = get_problem_or_404(session, problem_id)
 
-    from ..models import Association, SourceItem
+    from ..models import Association, RepositoryGroup, RepositoryGroupMember, SourceItem
 
     assocs = session.exec(select(Association).where(Association.problem_id == problem_id)).all()
     items = []
@@ -195,12 +195,31 @@ async def refresh_context(problem_id: str, session: Session = Depends(get_sessio
         for w in session.exec(select(Worktree).where(Worktree.problem_id == problem_id)).all()
     ]
     repo = session.get(Repository, problem.repository_id) if problem.repository_id else None
+
+    group = None
+    if problem.group_id:
+        group_row = session.get(RepositoryGroup, problem.group_id)
+        if group_row is not None:
+            member_ids = [
+                member.repository_id
+                for member in session.exec(
+                    select(RepositoryGroupMember).where(RepositoryGroupMember.group_id == group_row.id)
+                ).all()
+            ]
+            paths = [r.path for r in (session.get(Repository, rid) for rid in member_ids) if r is not None]
+            group = {
+                "name": group_row.name,
+                "description": group_row.description,
+                "repositories": paths,
+            }
+
     problem_ctx = {
         "title": problem.title,
         "description": problem.description,
         "status": problem.status.value,
         "priority": problem.priority,
         "repository": repo.path if repo else None,
+        "group": group,
         "worktrees": worktrees,
     }
     prompt = build_context_prompt(problem_ctx, items)
