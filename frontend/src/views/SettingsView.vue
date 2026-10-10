@@ -214,6 +214,11 @@ onMounted(load)
       </div>
     </section>
 
-    <DirectoryPicker v-if="showPicker" @close="showPicker = false" @add="addRepos" />
+    <DirectoryPicker
+      v-if="showPicker"
+      :existing="store.repositories.map((r) => r.path)"
+      @close="showPicker = false"
+      @add="addRepos"
+    />
   </div>
 </template>
