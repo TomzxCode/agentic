@@ -49,6 +49,25 @@ def test_timeline_records_before_and_after():
         client.delete(f"/api/problems/{problem_id}")
 
 
+def test_timeline_labels_relationships(tmp_path):
+    with TestClient(app) as client:
+        repo_dir = tmp_path / "repo"
+        (repo_dir / ".git").mkdir(parents=True)
+        repo = client.post("/api/repositories", json={"path": str(repo_dir)}).json()
+
+        problem_id = client.post("/api/problems", json={"title": "T"}).json()["id"]
+        client.patch(f"/api/problems/{problem_id}", json={"repository_id": repo["id"]})
+
+        event = next(e for e in client.get(f"/api/problems/{problem_id}/timeline").json() if e["type"] == "updated")
+        assert event["message"] == "Updated: repository"  # friendly field name
+        change = event["data_json"]["changes"]["repository_id"]
+        assert change["to"] == repo["id"]
+        assert change["to_label"] == repo["name"]  # resolved name, not just an id
+
+        client.delete(f"/api/problems/{problem_id}")
+        client.delete(f"/api/repositories/{repo['id']}")
+
+
 def test_harnesses_are_seeded():
     with TestClient(app) as client:
         harnesses = client.get("/api/harnesses").json()

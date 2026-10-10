@@ -16,6 +16,14 @@ def jsonable(value: Any) -> Any:
     return value.value if isinstance(value, Enum) else value
 
 
+# Human-readable names for fields that hold a foreign key.
+FIELD_LABELS = {"repository_id": "repository", "group_id": "group", "harness_id": "harness"}
+
+
+def field_label(key: str) -> str:
+    return FIELD_LABELS.get(key, key.replace("_", " "))
+
+
 def get_problem_or_404(session: Session, problem_id: str) -> Problem:
     problem = session.get(Problem, problem_id)
     if problem is None:

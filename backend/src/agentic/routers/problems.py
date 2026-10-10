@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import delete as sa_delete
 from sqlmodel import Session, select
 
-from ..crud import add_timeline, get_problem_or_404, jsonable
+from ..crud import add_timeline, field_label, get_problem_or_404, jsonable
 from ..db import get_session
 from ..events import bus
 from ..links import run_read
@@ -17,8 +17,10 @@ from ..models import (
     AgentEvent,
     AgentRun,
     Association,
+    Harness,
     Problem,
     Repository,
+    RepositoryGroup,
     SourceItem,
     TimelineEvent,
     Worktree,
@@ -131,17 +133,33 @@ async def update_problem(problem_id: str, payload: ProblemUpdate, session: Sessi
     session.refresh(problem)
 
     # Record the actual before/after for each field that changed (skip no-ops).
+    # Relationship fields also carry a resolved label so the timeline reads in
+    # names, not ids, for the UI, the CLI, and agents alike.
+    relation_models = {"repository_id": Repository, "group_id": RepositoryGroup, "harness_id": Harness}
+
+    def relation_label(field: str, value: object) -> str | None:
+        model = relation_models.get(field)
+        if model is None or value in (None, ""):
+            return None
+        related = session.get(model, value)
+        return related.name if related is not None else None
+
     changes = {}
     for key in data:
         old, new = before[key], jsonable(getattr(problem, key))
-        if old != new:
-            changes[key] = {"from": old, "to": new}
+        if old == new:
+            continue
+        entry: dict[str, object] = {"from": old, "to": new}
+        if key in relation_models:
+            entry["from_label"] = relation_label(key, old)
+            entry["to_label"] = relation_label(key, new)
+        changes[key] = entry
     if changes and (set(changes) - {"summary", "next_steps"}):
         add_timeline(
             session,
             problem.id,
             "updated",
-            f"Updated: {', '.join(sorted(changes))}",
+            f"Updated: {', '.join(sorted(field_label(key) for key in changes))}",
             {"changes": changes},
         )
     await bus.publish(f"problem:{problem.id}", {"kind": "problem", "action": "updated"})
