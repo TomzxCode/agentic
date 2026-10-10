@@ -26,6 +26,7 @@ dev = [
 
 [project.scripts]
 agentic = "agentic.cli:main"
+agentic-server = "agentic.server_cli:main"
 
 [build-system]
 requires = ["hatchling"]

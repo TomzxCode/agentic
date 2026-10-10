@@ -1,8 +1,11 @@
-"""Agentic CLI.
+"""Agentic user CLI.
 
 A thin, scriptable client over the Agentic HTTP API, meant to be driven by
-people and by agents. Commands return data; use ``--format json`` (or pipe the
-output, which selects json automatically) for machine-readable results.
+people and by agents. This is the user-facing client; the backend (running the
+server) lives in ``agentic.server_cli``.
+
+Commands return data; use ``--format json`` (or pipe the output, which selects
+json automatically) for machine-readable results.
 
     agentic problem create --title "Fix flaky tests"
     agentic link add <problem> --source github --url https://github.com/o/r/issues/1
@@ -145,15 +148,7 @@ def _launcher(
     return app(tokens)
 
 
-# --- serve ----------------------------------------------------------------
-@app.command(name="serve")
-def serve(host: str = "127.0.0.1", port: int = 8600, reload: bool = False) -> None:
-    """Run the Agentic API server (and serve the built SPA if present)."""
-    import uvicorn
-
-    uvicorn.run("agentic.main:app", host=host, port=port, reload=reload)
-
-
+# --- health ---------------------------------------------------------------
 @app.command(name="health")
 @safe
 def health() -> str:

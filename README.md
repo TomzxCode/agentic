@@ -12,6 +12,7 @@ a coding agent keep a current summary and next-steps list so resuming is quick.
   the detail view stacks into a single column.
 - **CLI**: `agentic` drives the whole API (problems, links, worktrees, runs,
   context) with JSON output, so agents can create and maintain the content.
+  `agentic-server` runs and inspects the backend itself.
 
 ## Concepts
 
@@ -56,7 +57,7 @@ least one harness on your `PATH` (`opencode` and/or `pi-acp`).
 # 1. Backend (API on :8600)
 cd backend
 uv sync
-uv run agentic serve --host 127.0.0.1 --port 8600 --reload
+uv run agentic-server serve --host 127.0.0.1 --port 8600 --reload
 
 # 2. Frontend (dev server on :5173, proxies /api to :8600)
 cd frontend
@@ -72,7 +73,7 @@ Build the SPA into `backend/static` and let FastAPI serve everything:
 
 ```bash
 cd frontend && npm run build      # writes ../backend/static
-cd ../backend && uv run agentic serve --host 127.0.0.1 --port 8600
+cd ../backend && uv run agentic-server serve --host 127.0.0.1 --port 8600
 ```
 
 Open http://127.0.0.1:8600. The PWA installs from there.
@@ -123,8 +124,13 @@ the stored override wins over the environment variable.
 
 ## CLI
 
-`agentic` doubles as the server command and a full API client, so agents can
-drive the app's content without touching the database.
+Two command-line tools are installed:
+
+- **`agentic`** — the user client. Talks to a running API over HTTP, so agents
+  can drive the app's content without touching the database.
+- **`agentic-server`** — the backend. Runs the server and reports its config.
+
+### User client
 
 ```bash
 agentic --help                       # everything, grouped by resource
@@ -148,7 +154,15 @@ AGENTIC_API_URL=http://box:8600 agentic problem list | jq '.[].id'
 ```
 
 Resources: `problem`, `item`, `link`, `repository`, `worktree`, `run`,
-`context`, `harness`, `settings`, plus `health` and `serve`.
+`context`, `harness`, `settings`, plus `health`.
+
+### Backend
+
+```bash
+agentic-server                  # start the server (same as: agentic-server serve)
+agentic-server serve --reload
+agentic-server info             # data dir, database, harness availability
+```
 
 ## API sketch
 
@@ -174,7 +188,7 @@ make build       # build the SPA into backend/static
 make run         # serve API + built SPA on :8600
 ```
 
-`make run` uses `agentic serve`; the same binary is the CLI client.
+`make run` uses `agentic-server serve`; `agentic` is the separate client.
 
 ## Limitations (v1)
 

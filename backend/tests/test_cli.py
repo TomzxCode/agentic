@@ -1,6 +1,6 @@
 import json
 
-from agentic import cli
+from agentic import cli, server_cli
 
 
 def test_emit_json_is_parseable_and_ignores_text():
@@ -21,8 +21,8 @@ def test_emit_text_preserves_brackets():
         cli.CONTEXT["format"] = "auto"
 
 
-def test_cli_help_lists_commands():
-    # Parsing the root help should not raise and should mention sub-apps.
-    helptext = cli.app.help_format  # attribute exists; ensure app is well-formed
-    assert helptext is None or isinstance(helptext, str)
+def test_user_and_server_clis_are_separate():
     assert "problem" in cli.app
+    assert "serve" not in cli.app  # serving belongs to the backend CLI
+    assert "serve" in server_cli.app
+    assert "info" in server_cli.app
