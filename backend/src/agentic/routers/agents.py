@@ -18,6 +18,7 @@ from ..config import settings
 from ..crud import add_timeline, get_problem_or_404
 from ..db import engine, get_session
 from ..events import bus, runs
+from ..links import run_read
 from ..models import AgentEvent, AgentRun, Harness, Problem, Repository, RunStatus, Worktree
 from ..schemas import (
     AgentEventRead,
@@ -25,6 +26,7 @@ from ..schemas import (
     HarnessCreate,
     HarnessRead,
     HarnessStatus,
+    HarnessUpdate,
     RunCreate,
     RunRead,
 )
@@ -69,6 +71,19 @@ def create_harness(payload: HarnessCreate, session: Session = Depends(get_sessio
     return harness
 
 
+@router.patch("/harnesses/{harness_id}", response_model=HarnessRead)
+def update_harness(harness_id: str, payload: HarnessUpdate, session: Session = Depends(get_session)) -> Harness:
+    harness = session.get(Harness, harness_id)
+    if harness is None:
+        raise HTTPException(status_code=404, detail="Harness not found")
+    for key, value in payload.model_dump(exclude_unset=True).items():
+        setattr(harness, key, value)
+    session.add(harness)
+    session.commit()
+    session.refresh(harness)
+    return harness
+
+
 @router.delete("/harnesses/{harness_id}", status_code=204)
 def delete_harness(harness_id: str, session: Session = Depends(get_session)) -> None:
     harness = session.get(Harness, harness_id)
@@ -105,13 +120,12 @@ def _resolve_cwd(session: Session, problem: Problem, payload: RunCreate) -> str:
 
 
 @router.get("/problems/{problem_id}/runs", response_model=list[RunRead])
-def list_runs(problem_id: str, session: Session = Depends(get_session)) -> list[AgentRun]:
+def list_runs(problem_id: str, session: Session = Depends(get_session)) -> list[RunRead]:
     get_problem_or_404(session, problem_id)
-    return list(
-        session.exec(
-            select(AgentRun).where(AgentRun.problem_id == problem_id).order_by(AgentRun.created_at.desc())
-        ).all()
-    )
+    rows = session.exec(
+        select(AgentRun).where(AgentRun.problem_id == problem_id).order_by(AgentRun.created_at.desc())
+    ).all()
+    return [run_read(session, run) for run in rows]
 
 
 def _spawn(
@@ -141,7 +155,7 @@ def _spawn(
 
 
 @router.post("/problems/{problem_id}/runs", response_model=RunRead, status_code=201)
-async def create_run(problem_id: str, payload: RunCreate, session: Session = Depends(get_session)) -> AgentRun:
+async def create_run(problem_id: str, payload: RunCreate, session: Session = Depends(get_session)) -> RunRead:
     problem = get_problem_or_404(session, problem_id)
     if not payload.prompt.strip():
         raise HTTPException(status_code=400, detail="Prompt is required")
@@ -161,11 +175,11 @@ async def create_run(problem_id: str, payload: RunCreate, session: Session = Dep
         execute_run(run_id=run.id, harness_id=run.harness_id, cwd=cwd, prompt=payload.prompt, cancel_event=cancel_event)
     )
     await bus.publish(f"problem:{problem_id}", {"kind": "problem", "action": "run_started", "run_id": run.id})
-    return run
+    return run_read(session, run)
 
 
 @router.post("/problems/{problem_id}/context/refresh", response_model=RunRead, status_code=201)
-async def refresh_context(problem_id: str, session: Session = Depends(get_session)) -> AgentRun:
+async def refresh_context(problem_id: str, session: Session = Depends(get_session)) -> RunRead:
     problem = get_problem_or_404(session, problem_id)
 
     from ..models import Association, SourceItem
@@ -207,15 +221,15 @@ async def refresh_context(problem_id: str, session: Session = Depends(get_sessio
         )
     )
     await bus.publish(f"problem:{problem_id}", {"kind": "problem", "action": "context_refreshing", "run_id": run.id})
-    return run
+    return run_read(session, run)
 
 
 @router.get("/runs/{run_id}", response_model=RunRead)
-def get_run(run_id: str, session: Session = Depends(get_session)) -> AgentRun:
+def get_run(run_id: str, session: Session = Depends(get_session)) -> RunRead:
     run = session.get(AgentRun, run_id)
     if run is None:
         raise HTTPException(status_code=404, detail="Run not found")
-    return run
+    return run_read(session, run)
 
 
 @router.get("/runs/{run_id}/events", response_model=list[AgentEventRead])
@@ -224,13 +238,13 @@ def get_run_events(run_id: str, session: Session = Depends(get_session)) -> list
 
 
 @router.post("/runs/{run_id}/cancel", response_model=RunRead)
-async def cancel_run(run_id: str, session: Session = Depends(get_session)) -> AgentRun:
+async def cancel_run(run_id: str, session: Session = Depends(get_session)) -> RunRead:
     run = session.get(AgentRun, run_id)
     if run is None:
         raise HTTPException(status_code=404, detail="Run not found")
     # Must run on the event loop: asyncio.Event.set() is not thread-safe.
     runs.cancel(run_id)
-    return run
+    return run_read(session, run)
 
 
 def _sse(event: dict) -> dict:

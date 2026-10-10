@@ -1,7 +1,8 @@
 <script setup>
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { api, openRunStream } from '../api'
 import { store, timeAgo } from '../store'
+import SessionLinks from './SessionLinks.vue'
 
 const props = defineProps({ problem: { type: Object, required: true }, harnesses: { type: Array, default: () => [] } })
 const emit = defineEmits(['changed'])
@@ -31,6 +32,8 @@ function handleEvent(ev) {
   if (ev.type === 'run_finished') {
     running.value = false
     activeRunId.value = ''
+    // Session id (and therefore its links) is recorded when the run ends.
+    if (activeRun.value) api.runs.get(activeRun.value.id).then((fresh) => (activeRun.value = fresh))
     loadRuns()
     emit('changed')
     return
@@ -70,7 +73,7 @@ async function cancel() {
 }
 
 async function viewRun(run) {
-  activeRun.value = run
+  activeRun.value = await api.runs.get(run.id)
   activeRunId.value = run.id
   events.value = await api.runs.events(run.id)
   if (run.status === 'running') {
@@ -122,6 +125,7 @@ onMounted(loadRuns)
       <h3>{{ activeRun.kind === 'refresh_context' ? 'Context refresh' : 'Transcript' }}</h3>
       <span class="badge" :class="{ run: activeRun.status === 'running' }">{{ activeRun.status }}</span>
     </div>
+    <SessionLinks v-if="activeRun" :links="activeRun.links" />
     <div v-if="activeRun" class="transcript" style="margin-top: 6px">
       <div v-if="!events.length" class="faint">Waiting for the agent…</div>
       <div v-for="(ev, i) in events" :key="i" class="ev" :class="ev.type">
@@ -143,6 +147,9 @@ onMounted(loadRuns)
           {{ run.prompt.slice(0, 90) }}
         </span>
         <span class="faint">{{ timeAgo(run.created_at) }}</span>
+      </div>
+      <div v-if="run.links?.length" @click.stop>
+        <SessionLinks :links="run.links" compact />
       </div>
     </div>
   </section>

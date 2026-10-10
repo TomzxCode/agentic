@@ -85,6 +85,22 @@ Open http://127.0.0.1:8600. The PWA installs from there.
 4. **Refresh with agent** to generate the current summary and next steps.
 5. **Run an agent** against the problem; the transcript streams live.
 
+## Open a session in a terminal or OpenChamber
+
+When a run has a session id, the app shows links to reopen that session:
+
+- **Open in OpenChamber** opens `<openchamber_url><openchamber_session_path>`,
+  defaulting to `http://your-host:3001/?session=<id>`. For the native app use
+  base `openchamber://session` with path `/{session}`.
+- **Open in terminal** opens your configured `terminal_url_template` (any URL
+  scheme, or a web terminal).
+- **Copy resume command** copies something like
+  `cd <worktree> && opencode --session <id>` for pasting into a shell.
+
+Configure the base URLs on the **Settings** page (persisted locally) or with
+environment variables. Each harness has an editable resume command template.
+Placeholders: `{session}`, `{cwd}`, `{harness}`.
+
 ## Configuration
 
 Environment variables (prefix `AGENTIC_`) or `backend/.env`:
@@ -96,6 +112,12 @@ Environment variables (prefix `AGENTIC_`) or `backend/.env`:
 | `AGENTIC_STATIC_DIR` | `backend/static` | Built SPA to serve. |
 | `AGENTIC_DEFAULT_HARNESS` | `opencode` | Harness used when a problem doesn't pick one. |
 | `AGENTIC_AUTO_APPROVE_PERMISSIONS` | `true` | Auto-approve ACP permission requests. |
+| `AGENTIC_OPENCHAMBER_URL` | (unset) | Base URL for "Open in OpenChamber" links. |
+| `AGENTIC_OPENCHAMBER_SESSION_PATH` | `/?session={session}` | Path appended to the base. |
+| `AGENTIC_TERMINAL_URL_TEMPLATE` | (unset) | URL template for "Open in terminal" links. |
+
+All three session-link settings can also be overridden on the Settings page;
+the stored override wins over the environment variable.
 
 ## API sketch
 
@@ -108,7 +130,8 @@ POST                /api/problems/{id}/runs
 POST                /api/problems/{id}/context/refresh
 GET                 /api/problems/{id}/stream           (SSE: problem changes)
 GET                 /api/runs/{id}/stream               (SSE: agent transcript)
-GET/POST            /api/harnesses   /api/repositories   /api/items
+GET/PATCH           /api/settings                        (session-link config)
+GET/POST/PATCH      /api/harnesses   /api/repositories   /api/items
 ```
 
 ## Development

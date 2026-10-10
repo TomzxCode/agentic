@@ -41,6 +41,7 @@ HARNESS_PRESETS: list[dict[str, Any]] = [
         "description": "OpenCode's built-in ACP server (`opencode acp`).",
         "command": "opencode",
         "args": ["acp"],
+        "resume_command": "opencode --session {session}",
         "is_default": True,
     },
     {
@@ -49,26 +50,40 @@ HARNESS_PRESETS: list[dict[str, Any]] = [
         "description": "The pi coding agent, via the pi-acp adapter.",
         "command": "pi-acp",
         "args": [],
+        "resume_command": "pi --session {session}",
         "is_default": False,
     },
 ]
 
+RESUME_DEFAULTS = {"opencode": "opencode --session {session}", "pi": "pi --session {session}"}
+
 
 def seed_harnesses(session: Session) -> None:
-    if session.exec(select(Harness)).first() is not None:
-        return
-    for preset in HARNESS_PRESETS:
-        session.add(
-            Harness(
-                id=preset["id"],
-                name=preset["name"],
-                description=preset["description"],
-                command=preset["command"],
-                args=preset["args"],
-                is_default=preset["is_default"],
+    if session.exec(select(Harness)).first() is None:
+        for preset in HARNESS_PRESETS:
+            session.add(
+                Harness(
+                    id=preset["id"],
+                    name=preset["name"],
+                    description=preset["description"],
+                    command=preset["command"],
+                    args=preset["args"],
+                    resume_command=preset.get("resume_command"),
+                    is_default=preset["is_default"],
+                )
             )
-        )
-    session.commit()
+        session.commit()
+    # Backfill resume commands for harnesses created before the column existed.
+    changed = False
+    for harness in session.exec(select(Harness)).all():
+        if not harness.resume_command:
+            fallback = RESUME_DEFAULTS.get(harness.id) or RESUME_DEFAULTS.get(harness.name.lower())
+            if fallback:
+                harness.resume_command = fallback
+                session.add(harness)
+                changed = True
+    if changed:
+        session.commit()
 
 
 def get_harness(session: Session, harness_id: str | None) -> Harness:

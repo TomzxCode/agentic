@@ -23,6 +23,27 @@ class ORMModel(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class SessionLink(BaseModel):
+    """A way to open an agent session: a URL and/or a copyable command."""
+
+    id: str  # openchamber | terminal | command
+    label: str
+    url: str | None = None
+    command: str | None = None
+
+
+class SettingsRead(BaseModel):
+    effective: dict[str, str]
+    overrides: dict[str, str]
+    defaults: dict[str, str]
+
+
+class SettingsUpdate(BaseModel):
+    openchamber_url: str | None = None
+    openchamber_session_path: str | None = None
+    terminal_url_template: str | None = None
+
+
 # --- Repository ------------------------------------------------------------
 class RepositoryCreate(BaseModel):
     name: str | None = None
@@ -48,7 +69,19 @@ class HarnessCreate(BaseModel):
     args: list[str] = []
     env: dict[str, str] = {}
     model: str | None = None
+    resume_command: str | None = None
     is_default: bool = False
+
+
+class HarnessUpdate(BaseModel):
+    name: str | None = None
+    description: str | None = None
+    command: str | None = None
+    args: list[str] | None = None
+    env: dict[str, str] | None = None
+    model: str | None = None
+    resume_command: str | None = None
+    is_default: bool | None = None
 
 
 class HarnessRead(ORMModel):
@@ -59,6 +92,7 @@ class HarnessRead(ORMModel):
     args: list[str]
     env: dict[str, str]
     model: str | None = None
+    resume_command: str | None = None
     is_default: bool
 
 
@@ -188,6 +222,7 @@ class RunRead(ORMModel):
     created_at: datetime
     started_at: datetime | None = None
     ended_at: datetime | None = None
+    links: list[SessionLink] = []
 
 
 class TimelineRead(ORMModel):
@@ -249,6 +284,7 @@ __all__ = [
     "HarnessCreate",
     "HarnessRead",
     "HarnessStatus",
+    "HarnessUpdate",
     "ItemCreate",
     "ItemRead",
     "ItemUpdate",
@@ -262,6 +298,9 @@ __all__ = [
     "RepositoryRead",
     "RunCreate",
     "RunRead",
+    "SessionLink",
+    "SettingsRead",
+    "SettingsUpdate",
     "SourceItem",
     "TimelineEvent",
     "TimelineRead",

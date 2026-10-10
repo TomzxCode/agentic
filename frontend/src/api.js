@@ -48,7 +48,13 @@ export const api = {
     list: () => request('/harnesses'),
     full: () => request('/harnesses/full'),
     create: (body) => request('/harnesses', { method: 'POST', body }),
+    update: (id, body) => request(`/harnesses/${id}`, { method: 'PATCH', body }),
     remove: (id) => request(`/harnesses/${id}`, { method: 'DELETE' }),
+  },
+
+  settings: {
+    get: () => request('/settings'),
+    update: (body) => request('/settings', { method: 'PATCH', body }),
   },
 
   worktrees: {

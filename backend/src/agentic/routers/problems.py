@@ -12,6 +12,7 @@ from sqlmodel import Session, select
 from ..crud import add_timeline, get_problem_or_404
 from ..db import get_session
 from ..events import bus
+from ..links import run_read
 from ..models import (
     AgentEvent,
     AgentRun,
@@ -31,7 +32,6 @@ from ..schemas import (
     ProblemDetail,
     ProblemRead,
     ProblemUpdate,
-    RunRead,
     TimelineRead,
     WorktreeRead,
 )
@@ -74,7 +74,7 @@ def _detail(session: Session, problem: Problem) -> ProblemDetail:
         **ProblemRead.model_validate(problem).model_dump(),
         associations=details,
         worktrees=[WorktreeRead.model_validate(w) for w in worktrees],
-        runs=[RunRead.model_validate(r) for r in runs],
+        runs=[run_read(session, r) for r in runs],
         timeline=[TimelineRead.model_validate(t) for t in timeline],
     )
 

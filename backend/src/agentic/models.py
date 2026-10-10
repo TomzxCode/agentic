@@ -126,8 +126,19 @@ class Harness(SQLModel, table=True):
     args: list[str] = Field(default_factory=list, sa_column=Column(JSON))
     env: dict[str, str] = Field(default_factory=dict, sa_column=Column(JSON))
     model: str | None = None
+    # Template for resuming a session in a terminal, e.g.
+    # "opencode --session {session}". Placeholders: {session} {cwd} {harness}.
+    resume_command: str | None = None
     is_default: bool = False
     created_at: datetime = Field(default_factory=utcnow)
+
+
+class Setting(SQLModel, table=True):
+    """Key/value app settings that override environment defaults."""
+
+    key: str = Field(primary_key=True)
+    value: str = ""
+    updated_at: datetime = Field(default_factory=utcnow)
 
 
 class AgentRun(SQLModel, table=True):

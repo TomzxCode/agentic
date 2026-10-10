@@ -26,6 +26,16 @@ class Settings(BaseSettings):
     # Default harness used when a problem does not specify one.
     default_harness: str = "opencode"
 
+    # Session links. These are defaults; the Settings page can override them,
+    # and overrides are stored in the database.
+    # OpenChamber opens a session at "<base><path>" (default: /?session=<id>).
+    openchamber_url: str = ""
+    openchamber_session_path: str = "/?session={session}"
+    # Optional URL template for opening a session in a terminal, e.g.
+    # "opencode://session/{session}" or "http://localhost:7681/?cwd={cwd}".
+    # Placeholders: {session} {cwd} {harness}.
+    terminal_url_template: str = ""
+
     # Auto-approve ACP permission requests (single-user local tool). When false,
     # permission requests are surfaced to the UI and the run waits.
     auto_approve_permissions: bool = True

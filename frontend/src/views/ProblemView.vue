@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { api, openProblemStream } from '../api'
 import { store } from '../store'
 import ContextPanel from '../components/ContextPanel.vue'
@@ -7,6 +7,7 @@ import ItemsPanel from '../components/ItemsPanel.vue'
 import WorktreesPanel from '../components/WorktreesPanel.vue'
 import AgentPanel from '../components/AgentPanel.vue'
 import TimelinePanel from '../components/TimelinePanel.vue'
+import SessionLinks from '../components/SessionLinks.vue'
 
 const props = defineProps({ id: { type: String, required: true } })
 const emit = defineEmits(['changed'])
@@ -17,6 +18,9 @@ const notFound = ref(false)
 const editing = ref(false)
 const draft = ref({ title: '', description: '', status: 'open', priority: 2 })
 let closeStream = null
+
+// Links from the most recent run that produced a session.
+const latestLinks = computed(() => problem.value?.runs?.find((run) => run.links?.length)?.links || [])
 
 async function load() {
   try {
@@ -96,6 +100,7 @@ watch(() => props.id, async (val) => {
             {{ store.repositories.find((r) => r.id === problem.repository_id)?.name || 'repo' }}
           </span>
         </div>
+        <SessionLinks v-if="latestLinks.length" :links="latestLinks" compact />
       </div>
       <div class="row">
         <button class="btn sm" @click="startEdit">Edit</button>

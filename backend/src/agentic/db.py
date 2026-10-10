@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 
-from sqlalchemy import event
+from sqlalchemy import event, inspect, text
 from sqlmodel import Session, SQLModel, create_engine
 
 from .config import settings
@@ -32,6 +32,18 @@ def create_db_and_tables() -> None:
     settings.data_dir.mkdir(parents=True, exist_ok=True)
     settings.worktree_root.mkdir(parents=True, exist_ok=True)
     SQLModel.metadata.create_all(engine)
+    _ensure_columns()
+
+
+def _ensure_columns() -> None:
+    """Add columns introduced after the initial schema (SQLModel builds, not migrates)."""
+    inspector = inspect(engine)
+    if "harness" not in inspector.get_table_names():
+        return
+    harness_columns = {column["name"] for column in inspector.get_columns("harness")}
+    if "resume_command" not in harness_columns:
+        with engine.begin() as connection:
+            connection.execute(text("ALTER TABLE harness ADD COLUMN resume_command VARCHAR"))
 
 
 def get_session() -> Iterator[Session]:

@@ -16,6 +16,7 @@ from .agents import seed_harnesses
 from .config import settings
 from .db import create_db_and_tables, engine
 from .routers import agents, items, problems, repositories, worktrees
+from .routers import settings as settings_router
 
 log = structlog.get_logger(__name__)
 
@@ -39,7 +40,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-for module in (repositories, items, problems, worktrees, agents):
+for module in (repositories, items, problems, worktrees, agents, settings_router):
     app.include_router(module.router)
 
 
