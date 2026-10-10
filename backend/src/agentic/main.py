@@ -1,8 +1,7 @@
-"""FastAPI application and CLI entrypoint."""
+"""FastAPI application."""
 
 from __future__ import annotations
 
-import argparse
 from contextlib import asynccontextmanager
 
 import structlog
@@ -69,19 +68,3 @@ def _mount_frontend() -> None:
 
 
 _mount_frontend()
-
-
-def cli() -> None:
-    parser = argparse.ArgumentParser(prog="agentic", description="Run the Agentic backend.")
-    parser.add_argument("--host", default="127.0.0.1")
-    parser.add_argument("--port", type=int, default=8600)
-    parser.add_argument("--reload", action="store_true")
-    args = parser.parse_args()
-
-    import uvicorn
-
-    uvicorn.run("agentic.main:app", host=args.host, port=args.port, reload=args.reload)
-
-
-if __name__ == "__main__":
-    cli()

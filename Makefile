@@ -14,7 +14,7 @@ install:
 	cd frontend && npm install
 
 dev-backend:
-	cd backend && uv run agentic --host 127.0.0.1 --port 8600 --reload
+	cd backend && uv run agentic serve --host 127.0.0.1 --port 8600 --reload
 
 dev-frontend:
 	cd frontend && npm run dev
@@ -29,4 +29,4 @@ build:
 	cd frontend && npm run build
 
 run:
-	cd backend && uv run agentic --host 127.0.0.1 --port 8600
+	cd backend && uv run agentic serve --host 127.0.0.1 --port 8600
