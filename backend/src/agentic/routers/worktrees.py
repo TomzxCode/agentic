@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import anyio
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
 
@@ -40,7 +41,7 @@ async def create_problem_worktree(
     branch = payload.branch or f"agentic/{slugify(problem.title)}-{problem.id[:4]}"
     path = worktree_path(problem.id, branch)
     try:
-        create_worktree(repo.path, branch, path, base=payload.base or repo.default_branch)
+        await anyio.to_thread.run_sync(create_worktree, repo.path, branch, path, payload.base or repo.default_branch)
     except RuntimeError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -60,7 +61,7 @@ async def delete_worktree(problem_id: str, worktree_id: str, session: Session = 
         raise HTTPException(status_code=404, detail="Worktree not found")
     repo = session.get(Repository, worktree.repository_id)
     if repo is not None:
-        remove_worktree(repo.path, worktree.path)
+        await anyio.to_thread.run_sync(remove_worktree, repo.path, worktree.path)
     worktree.status = WorktreeStatus.removed
     worktree.removed_at = utcnow()
     session.add(worktree)

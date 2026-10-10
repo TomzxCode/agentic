@@ -307,25 +307,32 @@ async def execute_run(
 ) -> None:
     """Background entrypoint: run a harness and persist the transcript."""
     from .events import bus
+    from .events import runs as run_registry
 
-    with Session(engine) as session:
-        run = session.get(AgentRun, run_id)
-        if run is None:
-            return
-        run.status = RunStatus.running
-        run.started_at = utcnow()
-        session.add(run)
-        session.commit()
-        problem_id = run.problem_id
-        harness = get_harness(session, harness_id)
+    problem_id: str | None = None
 
     async def publish(event: dict[str, Any]) -> None:
-        with Session(engine) as s:
-            persist_event(s, run_id, event)
+        try:
+            with Session(engine) as s:
+                persist_event(s, run_id, event)
+        except Exception as exc:  # noqa: BLE001 - a persist hiccup must not kill the run
+            log.warning("failed to persist agent event", run_id=run_id, error=str(exc))
         await bus.publish(f"run:{run_id}", event)
-        await bus.publish(f"problem:{problem_id}", {"kind": "run", "run_id": run_id, **event})
+        if problem_id:
+            await bus.publish(f"problem:{problem_id}", {"kind": "run", "run_id": run_id, **event})
 
     try:
+        with Session(engine) as session:
+            run = session.get(AgentRun, run_id)
+            if run is None:
+                return
+            problem_id = run.problem_id
+            run.status = RunStatus.running
+            run.started_at = utcnow()
+            session.add(run)
+            session.commit()
+            harness = get_harness(session, harness_id)
+
         summary = await run_agent(
             run_id=run_id, harness=harness, cwd=cwd, prompt=prompt, publish=publish, cancel_event=cancel_event
         )
@@ -340,7 +347,7 @@ async def execute_run(
                 s.commit()
     except Exception as exc:  # noqa: BLE001
         log.warning("agent run failed", run_id=run_id, error=str(exc))
-        with Session(engine) as s:
+        with contextlib.suppress(Exception), Session(engine) as s:
             run = s.get(AgentRun, run_id)
             if run is not None:
                 run.status = RunStatus.failed
@@ -348,9 +355,13 @@ async def execute_run(
                 run.ended_at = utcnow()
                 s.add(run)
                 s.commit()
-        await publish({"seq": 10_000, "type": "error", "text": f"{type(exc).__name__}: {exc}", "data": {}})
+        with contextlib.suppress(Exception):
+            await publish({"seq": 10_000, "type": "error", "text": f"{type(exc).__name__}: {exc}", "data": {}})
     finally:
+        run_registry.unregister(run_id)
         await bus.publish(f"run:{run_id}", {"type": "run_finished", "text": "", "data": {"run_id": run_id}})
+        if problem_id:
+            await bus.publish(f"problem:{problem_id}", {"kind": "problem", "action": "run_finished", "run_id": run_id})
 
 
 async def execute_context_refresh(
@@ -371,6 +382,7 @@ async def execute_context_refresh(
 
     await execute_run(run_id=run_id, harness_id=harness_id, cwd=cwd, prompt=prompt, cancel_event=cancel_event)
 
+    parsed = False
     with Session(engine) as session:
         events = session.exec(select(AgentEvent).where(AgentEvent.run_id == run_id).order_by(AgentEvent.seq)).all()
         # Prefer the agent's answer; only fall back to thoughts if it said nothing.
@@ -386,6 +398,7 @@ async def execute_context_refresh(
             session.add(problem)
             session.commit()
             add_timeline(session, problem_id, "context_updated", "Context and next steps refreshed", {"run_id": run_id})
+            parsed = True
         else:
             add_timeline(
                 session,
@@ -394,4 +407,7 @@ async def execute_context_refresh(
                 "Could not parse context from the agent reply",
                 {"run_id": run_id},
             )
-    await bus.publish(f"problem:{problem_id}", {"kind": "problem", "action": "context_updated", "run_id": run_id})
+    await bus.publish(
+        f"problem:{problem_id}",
+        {"kind": "problem", "action": "context_updated" if parsed else "context_refresh_failed", "run_id": run_id},
+    )

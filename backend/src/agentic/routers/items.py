@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import delete as sa_delete
 from sqlmodel import Session, select
 
 from ..db import get_session
-from ..models import SourceItem, utcnow
+from ..models import Association, SourceItem, utcnow
 from ..schemas import ItemCreate, ItemRead, ItemUpdate
 from ..services import fetch_source
 
@@ -75,6 +76,8 @@ def update_item(item_id: str, payload: ItemUpdate, session: Session = Depends(ge
     if item is None:
         raise HTTPException(status_code=404, detail="Item not found")
     for key, value in payload.model_dump(exclude_unset=True).items():
+        if value is None and key == "metadata_json":
+            continue
         setattr(item, key, value)
     item.updated_at = utcnow()
     session.add(item)
@@ -105,7 +108,8 @@ def delete_item(item_id: str, session: Session = Depends(get_session)) -> None:
     item = session.get(SourceItem, item_id)
     if item is None:
         raise HTTPException(status_code=404, detail="Item not found")
-    session.delete(item)
+    session.execute(sa_delete(Association).where(Association.item_id == item_id))
+    session.execute(sa_delete(SourceItem).where(SourceItem.id == item_id))
     session.commit()
 
 

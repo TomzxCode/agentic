@@ -8,6 +8,8 @@ from collections.abc import AsyncIterator
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import delete as sa_delete
+from sqlalchemy import update as sa_update
 from sqlmodel import Session, select
 from sse_starlette.sse import EventSourceResponse
 
@@ -29,6 +31,16 @@ from ..schemas import (
 from ..services import build_context_prompt
 
 router = APIRouter(prefix="/api", tags=["agents"])
+
+# Strong references to in-flight run tasks so they are not garbage-collected
+# mid-execution (asyncio only keeps weak references to running tasks).
+_run_tasks: set[asyncio.Task] = set()
+
+
+def _dispatch(coro) -> None:
+    task = asyncio.create_task(coro)
+    _run_tasks.add(task)
+    task.add_done_callback(_run_tasks.discard)
 
 
 # --- harnesses ------------------------------------------------------------
@@ -62,7 +74,9 @@ def delete_harness(harness_id: str, session: Session = Depends(get_session)) -> 
     harness = session.get(Harness, harness_id)
     if harness is None:
         raise HTTPException(status_code=404, detail="Harness not found")
-    session.delete(harness)
+    session.execute(sa_update(Problem).where(Problem.harness_id == harness.id).values(harness_id=None))
+    session.execute(sa_update(AgentRun).where(AgentRun.harness_id == harness.id).values(harness_id=None))
+    session.execute(sa_delete(Harness).where(Harness.id == harness.id))
     session.commit()
 
 
@@ -72,7 +86,7 @@ def _resolve_cwd(session: Session, problem: Problem, payload: RunCreate) -> str:
         return str(Path(payload.cwd).expanduser())
     if payload.worktree_id:
         worktree = session.get(Worktree, payload.worktree_id)
-        if worktree is None:
+        if worktree is None or worktree.problem_id != problem.id:
             raise HTTPException(status_code=404, detail="Worktree not found")
         return worktree.path
     active = session.exec(
@@ -143,7 +157,7 @@ async def create_run(problem_id: str, payload: RunCreate, session: Session = Dep
     )
     add_timeline(session, problem_id, "run_started", f"Agent run: {payload.prompt[:120]}", {"run_id": run.id})
     cancel_event = runs.register(run.id)
-    asyncio.create_task(
+    _dispatch(
         execute_run(run_id=run.id, harness_id=run.harness_id, cwd=cwd, prompt=payload.prompt, cancel_event=cancel_event)
     )
     await bus.publish(f"problem:{problem_id}", {"kind": "problem", "action": "run_started", "run_id": run.id})
@@ -181,7 +195,7 @@ async def refresh_context(problem_id: str, session: Session = Depends(get_sessio
     add_timeline(session, problem_id, "context_refresh", "Requested context refresh", {"run_id": run.id})
     cancel_event = runs.register(run.id)
     ctx = {"title": problem.title, "description": problem.description}
-    asyncio.create_task(
+    _dispatch(
         execute_context_refresh(
             run_id=run.id,
             problem_id=problem_id,
@@ -210,10 +224,11 @@ def get_run_events(run_id: str, session: Session = Depends(get_session)) -> list
 
 
 @router.post("/runs/{run_id}/cancel", response_model=RunRead)
-def cancel_run(run_id: str, session: Session = Depends(get_session)) -> AgentRun:
+async def cancel_run(run_id: str, session: Session = Depends(get_session)) -> AgentRun:
     run = session.get(AgentRun, run_id)
     if run is None:
         raise HTTPException(status_code=404, detail="Run not found")
+    # Must run on the event loop: asyncio.Event.set() is not thread-safe.
     runs.cancel(run_id)
     return run
 
@@ -227,23 +242,29 @@ def _sse(event: dict) -> dict:
 @router.get("/runs/{run_id}/stream")
 async def stream_run(run_id: str) -> EventSourceResponse:
     async def generator() -> AsyncIterator[dict]:
-        with Session(engine) as session:
-            run = session.get(AgentRun, run_id)
-            if run is None:
-                yield {"event": "message", "data": json.dumps({"type": "error", "error": "run not found"})}
-                return
-            finished = run.status in (RunStatus.succeeded, RunStatus.failed, RunStatus.cancelled)
-            replay = list(
-                session.exec(select(AgentEvent).where(AgentEvent.run_id == run_id).order_by(AgentEvent.seq)).all()
-            )
-        for row in replay:
-            yield _sse({"seq": row.seq, "type": row.type, "text": row.text, "data": row.data_json})
-        if finished:
-            yield _sse({"type": "run_finished", "data": {"run_id": run_id}})
-            return
+        # Subscribe before reading state so no event can slip between the replay
+        # and the subscription; dedupe replayed events against the live stream.
         async with bus.subscribe(f"run:{run_id}") as queue:
+            with Session(engine) as session:
+                run = session.get(AgentRun, run_id)
+                if run is None:
+                    yield {"event": "message", "data": json.dumps({"type": "error", "error": "run not found"})}
+                    return
+                finished = run.status in (RunStatus.succeeded, RunStatus.failed, RunStatus.cancelled)
+                replay = list(
+                    session.exec(select(AgentEvent).where(AgentEvent.run_id == run_id).order_by(AgentEvent.seq)).all()
+                )
+            last_seq = 0
+            for row in replay:
+                last_seq = row.seq
+                yield _sse({"seq": row.seq, "type": row.type, "text": row.text, "data": row.data_json})
+            if finished:
+                yield _sse({"type": "run_finished", "data": {"run_id": run_id}})
+                return
             while True:
                 event = await queue.get()
+                if isinstance(event.get("seq"), int) and event["seq"] <= last_seq:
+                    continue
                 yield _sse(event)
                 if event.get("type") == "run_finished":
                     return
@@ -252,7 +273,9 @@ async def stream_run(run_id: str) -> EventSourceResponse:
 
 
 @router.get("/problems/{problem_id}/stream")
-async def stream_problem(problem_id: str) -> EventSourceResponse:
+async def stream_problem(problem_id: str, session: Session = Depends(get_session)) -> EventSourceResponse:
+    get_problem_or_404(session, problem_id)
+
     async def generator() -> AsyncIterator[dict]:
         async with bus.subscribe(f"problem:{problem_id}") as queue:
             while True:

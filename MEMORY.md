@@ -12,3 +12,5 @@
 - After the prompt turn completes, terminate the harness process (`process.terminate()` + bounded `wait`). Waiting for it to exit on its own hangs: `opencode acp` stays alive until stdin closes.
 - `pkill -f "agentic --host"` matches the invoking shell's own command line and kills it. Kill the server by PID discovered from the listening port instead.
 - The backend serves `backend/static` (the Vite build output) as the SPA; `frontend/vite.config.js` writes its build there directly.
+- SQLite runs with `PRAGMA foreign_keys=ON`, but SQLModel/SQLAlchemy does **not** order ORM `session.delete()` calls to satisfy FK constraints. Deletes that touch parents must use explicit, ordered `session.execute(sa_delete(...))` statements (see `routers/problems.py`).
+- `opencode acp` turn latency is variable (10s to 60s+ for a one-word reply); do not treat a run that is still `running` after a minute as hung.

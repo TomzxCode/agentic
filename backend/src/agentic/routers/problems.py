@@ -2,16 +2,22 @@
 
 from __future__ import annotations
 
+import contextlib
+
+import anyio
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import delete as sa_delete
 from sqlmodel import Session, select
 
 from ..crud import add_timeline, get_problem_or_404
 from ..db import get_session
 from ..events import bus
 from ..models import (
+    AgentEvent,
     AgentRun,
     Association,
     Problem,
+    Repository,
     SourceItem,
     TimelineEvent,
     Worktree,
@@ -29,6 +35,7 @@ from ..schemas import (
     TimelineRead,
     WorktreeRead,
 )
+from ..services import remove_worktree
 from .items import _upsert_item
 
 router = APIRouter(prefix="/api/problems", tags=["problems"])
@@ -131,14 +138,26 @@ async def update_problem(problem_id: str, payload: ProblemUpdate, session: Sessi
 @router.delete("/{problem_id}", status_code=204)
 async def delete_problem(problem_id: str, session: Session = Depends(get_session)) -> None:
     problem = get_problem_or_404(session, problem_id)
-    for model, field in (
-        (Association, Association.problem_id),
-        (Worktree, Worktree.problem_id),
-        (TimelineEvent, TimelineEvent.problem_id),
-    ):
-        for row in session.exec(select(model).where(field == problem.id)).all():
-            session.delete(row)
-    session.delete(problem)
+
+    # Remove worktrees from disk (best effort) before dropping their rows.
+    repo_cache: dict[str, Repository] = {}
+    for worktree in session.exec(select(Worktree).where(Worktree.problem_id == problem.id)).all():
+        repo = repo_cache.get(worktree.repository_id) or session.get(Repository, worktree.repository_id)
+        if repo is not None:
+            repo_cache[repo.id] = repo
+            with contextlib.suppress(Exception):
+                await anyio.to_thread.run_sync(remove_worktree, repo.path, worktree.path)
+
+    # Explicit, ordered deletes: SQLite enforces FKs (PRAGMA foreign_keys=ON),
+    # so children must go before the problem row.
+    run_ids = [r.id for r in session.exec(select(AgentRun).where(AgentRun.problem_id == problem.id)).all()]
+    if run_ids:
+        session.execute(sa_delete(AgentEvent).where(AgentEvent.run_id.in_(run_ids)))
+    session.execute(sa_delete(AgentRun).where(AgentRun.problem_id == problem.id))
+    session.execute(sa_delete(Association).where(Association.problem_id == problem.id))
+    session.execute(sa_delete(Worktree).where(Worktree.problem_id == problem.id))
+    session.execute(sa_delete(TimelineEvent).where(TimelineEvent.problem_id == problem.id))
+    session.execute(sa_delete(Problem).where(Problem.id == problem.id))
     session.commit()
     await bus.publish("problems", {"kind": "problem", "action": "deleted", "id": problem_id})
 
@@ -149,7 +168,8 @@ async def associate_item(
 ) -> AssociationDetail:
     get_problem_or_404(session, problem_id)
     if payload.item is not None:
-        item = _upsert_item(session, payload.item)
+        # Fetching (network/CLI) happens here; keep it off the event loop.
+        item = await anyio.to_thread.run_sync(_upsert_item, session, payload.item)
     elif payload.item_id is not None:
         item = session.get(SourceItem, payload.item_id)
         if item is None:

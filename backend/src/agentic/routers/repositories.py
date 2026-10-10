@@ -2,15 +2,19 @@
 
 from __future__ import annotations
 
+import contextlib
 from pathlib import Path
 
+import anyio
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import delete as sa_delete
+from sqlalchemy import update as sa_update
 from sqlmodel import Session, select
 
 from ..db import get_session
-from ..models import Repository
+from ..models import Problem, Repository, Worktree
 from ..schemas import RepositoryCreate, RepositoryRead
-from ..services import detect_default_branch, detect_remote_url
+from ..services import detect_default_branch, detect_remote_url, remove_worktree
 
 router = APIRouter(prefix="/api/repositories", tags=["repositories"])
 
@@ -46,9 +50,14 @@ def get_repository(repository_id: str, session: Session = Depends(get_session)) 
 
 
 @router.delete("/{repository_id}", status_code=204)
-def delete_repository(repository_id: str, session: Session = Depends(get_session)) -> None:
+async def delete_repository(repository_id: str, session: Session = Depends(get_session)) -> None:
     repo = session.get(Repository, repository_id)
     if repo is None:
         raise HTTPException(status_code=404, detail="Repository not found")
-    session.delete(repo)
+    for worktree in session.exec(select(Worktree).where(Worktree.repository_id == repo.id)).all():
+        with contextlib.suppress(Exception):
+            await anyio.to_thread.run_sync(remove_worktree, repo.path, worktree.path)
+    session.execute(sa_delete(Worktree).where(Worktree.repository_id == repo.id))
+    session.execute(sa_update(Problem).where(Problem.repository_id == repo.id).values(repository_id=None))
+    session.execute(sa_delete(Repository).where(Repository.id == repo.id))
     session.commit()
