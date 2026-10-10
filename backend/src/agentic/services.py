@@ -211,14 +211,14 @@ def _fetch_url(url: str, result: dict[str, Any]) -> None:
 
 
 # --- agent context prompt -------------------------------------------------
-CONTEXT_INSTRUCTIONS = """You are maintaining the living context for a tracked problem.
+CONTEXT_INSTRUCTIONS = """You are maintaining the living context for a tracked task.
 
-Given the problem and its associated items below, produce a concise, current
+Given the task and its associated items below, produce a concise, current
 context so someone can resume in under a minute. Respond with ONLY a JSON
 object (no prose, no code fences) of this exact form:
 
 {
-  "summary": "2-5 sentence current state of the problem: what it is, what has happened, what matters now",
+  "summary": "2-5 sentence current state of the task: what it is, what has happened, what matters now",
   "next_steps": [
     {"text": "a concrete, actionable next step", "done": false}
   ]
@@ -235,25 +235,25 @@ Rules:
 """
 
 
-def build_context_prompt(problem: dict[str, Any], items: list[dict[str, Any]]) -> str:
-    lines = [CONTEXT_INSTRUCTIONS, "", f"# Problem: {problem['title']}", ""]
-    if problem.get("description"):
-        lines += ["## Description", problem["description"], ""]
-    lines.append(f"## Status\n{problem.get('status')}  (priority {problem.get('priority')})")
-    if problem.get("repository"):
-        lines += ["", f"## Repository\n{problem['repository']}"]
-    group = problem.get("group")
+def build_context_prompt(task: dict[str, Any], items: list[dict[str, Any]]) -> str:
+    lines = [CONTEXT_INSTRUCTIONS, "", f"# Task: {task['title']}", ""]
+    if task.get("description"):
+        lines += ["## Description", task["description"], ""]
+    lines.append(f"## Status\n{task.get('status')}  (priority {task.get('priority')})")
+    if task.get("repository"):
+        lines += ["", f"## Repository\n{task['repository']}"]
+    group = task.get("group")
     if group:
         lines += ["", f"## Repository group: {group['name']}"]
         if group.get("description"):
             lines.append(group["description"])
         repositories = group.get("repositories") or []
         if repositories:
-            lines.append("These repositories may contain information relevant to this problem:")
+            lines.append("These repositories may contain information relevant to this task:")
             lines += [f"- {path}" for path in repositories]
-    if problem.get("worktrees"):
+    if task.get("worktrees"):
         lines += ["", "## Active worktrees"]
-        lines += [f"- {w['branch']} at {w['path']}" for w in problem["worktrees"]]
+        lines += [f"- {w['branch']} at {w['path']}" for w in task["worktrees"]]
     lines += ["", f"## Associated items ({len(items)})"]
     for item in items:
         lines.append(f"\n### [{item['source']}] {item.get('title') or item.get('url')}")
@@ -372,5 +372,5 @@ def extract_context_json(text: str) -> dict[str, Any] | None:
     return None
 
 
-def worktree_path(problem_id: str, branch: str) -> str:
-    return str(settings.worktree_root / problem_id / slugify(branch))
+def worktree_path(task_id: str, branch: str) -> str:
+    return str(settings.worktree_root / task_id / slugify(branch))

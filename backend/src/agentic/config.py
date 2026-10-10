@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     data_dir: Path = Path.home() / ".agentic"
     database_url: str | None = None
 
-    # Where git worktrees are created for problems.
+    # Where git worktrees are created for tasks.
     worktree_root: Path = Path.home() / ".agentic" / "worktrees"
 
     # Root the repository picker may browse. Defaults to the home directory;
@@ -27,7 +27,7 @@ class Settings(BaseSettings):
     # CORS origins for the Vite dev server.
     cors_origins: list[str] = ["http://localhost:5173", "http://127.0.0.1:5173"]
 
-    # Default harness used when a problem does not specify one.
+    # Default harness used when a task does not specify one.
     default_harness: str = "opencode"
 
     # Session links. These are defaults; the Settings page can override them,

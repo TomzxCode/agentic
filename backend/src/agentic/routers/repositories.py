@@ -1,4 +1,4 @@
-"""Repositories: local git checkouts that problems create worktrees from."""
+"""Repositories: local git checkouts that tasks create worktrees from."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ from sqlalchemy import update as sa_update
 from sqlmodel import Session, select
 
 from ..db import get_session
-from ..models import Problem, Repository, RepositoryGroupMember, Worktree
+from ..models import Repository, RepositoryGroupMember, Task, Worktree
 from ..schemas import (
     RepositoryBulkCreate,
     RepositoryBulkResult,
@@ -97,6 +97,6 @@ async def delete_repository(repository_id: str, session: Session = Depends(get_s
             await anyio.to_thread.run_sync(remove_worktree, repo.path, worktree.path)
     session.execute(sa_delete(Worktree).where(Worktree.repository_id == repo.id))
     session.execute(sa_delete(RepositoryGroupMember).where(RepositoryGroupMember.repository_id == repo.id))
-    session.execute(sa_update(Problem).where(Problem.repository_id == repo.id).values(repository_id=None))
+    session.execute(sa_update(Task).where(Task.repository_id == repo.id).values(repository_id=None))
     session.execute(sa_delete(Repository).where(Repository.id == repo.id))
     session.commit()

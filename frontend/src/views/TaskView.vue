@@ -1,6 +1,6 @@
 <script setup>
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
-import { api, openProblemStream } from '../api'
+import { api, openTaskStream } from '../api'
 import { store } from '../store'
 import ContextPanel from '../components/ContextPanel.vue'
 import ItemsPanel from '../components/ItemsPanel.vue'
@@ -14,13 +14,13 @@ import InlineSelect from '../components/InlineSelect.vue'
 const props = defineProps({ id: { type: String, required: true } })
 const emit = defineEmits(['changed'])
 
-const problem = ref(null)
+const task = ref(null)
 const loading = ref(true)
 const notFound = ref(false)
 let closeStream = null
 
 // Links from the most recent run that produced a session.
-const latestLinks = computed(() => problem.value?.runs?.find((run) => run.links?.length)?.links || [])
+const latestLinks = computed(() => task.value?.runs?.find((run) => run.links?.length)?.links || [])
 
 const STATUS_OPTIONS = [
   { value: 'open', label: 'open' },
@@ -46,7 +46,7 @@ const groupOptions = computed(() => [
 
 async function load() {
   try {
-    problem.value = await api.problems.get(props.id)
+    task.value = await api.tasks.get(props.id)
   } catch (e) {
     notFound.value = true
   } finally {
@@ -56,8 +56,8 @@ async function load() {
 
 function subscribe() {
   closeStream?.()
-  closeStream = openProblemStream(props.id, (ev) => {
-    if (ev.kind === 'problem') load()
+  closeStream = openTaskStream(props.id, (ev) => {
+    if (ev.kind === 'task') load()
   })
 }
 
@@ -71,7 +71,7 @@ async function update(field, value) {
   if (field === 'repository_id' && value === '') value = null
   if (field === 'group_id' && value === '') value = null
   try {
-    await api.problems.update(props.id, { [field]: value })
+    await api.tasks.update(props.id, { [field]: value })
     await load()
     emit('changed')
   } catch (e) {
@@ -80,9 +80,9 @@ async function update(field, value) {
   }
 }
 
-async function removeProblem() {
-  if (!confirm('Delete this problem? This cannot be undone.')) return
-  await api.problems.remove(props.id)
+async function removeTask() {
+  if (!confirm('Delete this task? This cannot be undone.')) return
+  await api.tasks.remove(props.id)
   emit('changed')
   window.history.pushState({}, '', '/')
   location.reload()
@@ -115,38 +115,38 @@ watch(
 
 <template>
   <div v-if="loading" class="empty"><span class="spinner"></span></div>
-  <div v-else-if="notFound" class="empty">Problem not found. <router-link to="/">Back</router-link></div>
+  <div v-else-if="notFound" class="empty">Task not found. <router-link to="/">Back</router-link></div>
   <div v-else>
     <div class="row page-head" style="margin-bottom: 16px">
       <div class="grow" style="min-width: 0">
         <EditableText
           as="h1"
           style="margin-bottom: 4px"
-          :value="problem.title"
-          placeholder="Untitled problem"
+          :value="task.title"
+          placeholder="Untitled task"
           @save="(value) => update('title', value)"
         />
         <div class="row">
           <InlineSelect
-            :value="problem.status"
+            :value="task.status"
             :options="STATUS_OPTIONS"
             title="Status"
             @save="(value) => update('status', value)"
           />
           <InlineSelect
-            :value="problem.priority"
+            :value="task.priority"
             :options="PRIORITY_OPTIONS"
             title="Priority"
             @save="(value) => update('priority', Number(value))"
           />
           <InlineSelect
-            :value="problem.repository_id || ''"
+            :value="task.repository_id || ''"
             :options="repositoryOptions"
             title="Repository"
             @save="(value) => update('repository_id', value)"
           />
           <InlineSelect
-            :value="problem.group_id || ''"
+            :value="task.group_id || ''"
             :options="groupOptions"
             title="Repository group"
             @save="(value) => update('group_id', value)"
@@ -155,7 +155,7 @@ watch(
         <SessionLinks v-if="latestLinks.length" :links="latestLinks" compact />
       </div>
       <div class="row">
-        <button class="btn sm danger" @click="removeProblem">Delete</button>
+        <button class="btn sm danger" @click="removeTask">Delete</button>
       </div>
     </div>
 
@@ -163,20 +163,20 @@ watch(
       class="muted"
       as="p"
       multiline
-      :value="problem.description"
+      :value="task.description"
       placeholder="Add a description…"
       @save="(value) => update('description', value)"
     />
 
     <div class="grid-2" style="margin-top: 16px">
       <div>
-        <ContextPanel :problem="problem" @changed="onChanged" />
-        <AgentPanel :problem="problem" :harnesses="store.harnesses" @changed="onChanged" />
-        <ItemsPanel :problem="problem" @changed="onChanged" />
+        <ContextPanel :task="task" @changed="onChanged" />
+        <AgentPanel :task="task" :harnesses="store.harnesses" @changed="onChanged" />
+        <ItemsPanel :task="task" @changed="onChanged" />
       </div>
       <div>
-        <WorktreesPanel :problem="problem" :repositories="store.repositories" @changed="onChanged" />
-        <TimelinePanel :events="problem.timeline" />
+        <WorktreesPanel :task="task" :repositories="store.repositories" @changed="onChanged" />
+        <TimelinePanel :events="task.timeline" />
       </div>
     </div>
   </div>

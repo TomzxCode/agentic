@@ -55,7 +55,7 @@ async function saveEdit(id) {
 }
 
 async function remove(id) {
-  if (!confirm('Delete this group? Problems using it keep working, just without a group.')) return
+  if (!confirm('Delete this group? Tasks using it keep working, just without a group.')) return
   await api.groups.remove(id)
   await load()
   emit('changed')
@@ -72,7 +72,7 @@ onMounted(load)
   <section class="panel">
     <div class="panel-head"><h2>Repository groups</h2></div>
     <p class="faint" style="margin-top: 0">
-      Name a set of repositories. Pick a group on a problem so the agent knows those checkouts may
+      Name a set of repositories. Pick a group on a task so the agent knows those checkouts may
       hold information relevant to it.
     </p>
 

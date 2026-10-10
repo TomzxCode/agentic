@@ -19,11 +19,11 @@ uv sync            # from the repository root
 
 ```bash
 agentic --help
-agentic problem create --title "Fix flaky tests"
-agentic link add <problem> --url https://github.com/o/r/issues/1
-agentic worktree create <problem>
-agentic context refresh <problem>
-agentic run create <problem> --prompt "Investigate the failure"
+agentic task create --title "Fix flaky tests"
+agentic link add <task> --url https://github.com/o/r/issues/1
+agentic worktree create <task>
+agentic context refresh <task>
+agentic run create <task> --prompt "Investigate the failure"
 agentic run wait <run-id>
 ```
 

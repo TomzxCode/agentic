@@ -2,15 +2,15 @@ import { reactive } from 'vue'
 import { api } from './api'
 
 export const store = reactive({
-  problems: [],
+  tasks: [],
   harnesses: [],
   repositories: [],
   groups: [],
   loading: false,
   toast: null,
 
-  async loadProblems() {
-    this.problems = await api.problems.list()
+  async loadTasks() {
+    this.tasks = await api.tasks.list()
   },
   async loadHarnesses() {
     this.harnesses = await api.harnesses.list()

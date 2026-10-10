@@ -17,8 +17,8 @@ watch(() => route.fullPath, () => (sidebarOpen.value = false))
 
 const filtered = computed(() => {
   const q = search.value.trim().toLowerCase()
-  if (!q) return store.problems
-  return store.problems.filter(
+  if (!q) return store.tasks
+  return store.tasks.filter(
     (p) => p.title.toLowerCase().includes(q) || (p.summary || '').toLowerCase().includes(q),
   )
 })
@@ -26,7 +26,7 @@ const filtered = computed(() => {
 async function refresh() {
   store.loading = true
   try {
-    await store.loadProblems()
+    await store.loadTasks()
   } catch (e) {
     store.notify(e.message, true)
   } finally {
@@ -34,14 +34,14 @@ async function refresh() {
   }
 }
 
-async function createProblem() {
+async function createTask() {
   if (!draft.value.title.trim()) return
   try {
-    const problem = await api.problems.create({ ...draft.value, group_id: draft.value.group_id || null })
+    const task = await api.tasks.create({ ...draft.value, group_id: draft.value.group_id || null })
     showNew.value = false
     draft.value = { title: '', description: '', priority: 2, group_id: '' }
     await refresh()
-    router.push(`/p/${problem.id}`)
+    router.push(`/task/${task.id}`)
   } catch (e) {
     store.notify(e.message, true)
   }
@@ -56,7 +56,7 @@ onMounted(async () => {
 <template>
   <div class="app" :class="{ 'sidebar-open': sidebarOpen }">
     <header class="topbar">
-      <button class="btn ghost menu-btn" aria-label="Toggle problem list" @click="sidebarOpen = !sidebarOpen">
+      <button class="btn ghost menu-btn" aria-label="Toggle task list" @click="sidebarOpen = !sidebarOpen">
         <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
           <path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none" />
         </svg>
@@ -75,25 +75,25 @@ onMounted(async () => {
         <span>Agentic</span>
       </router-link>
       <div class="grow"></div>
-      <router-link to="/" class="btn ghost sm nav-problems" :class="{ primary: route.name === 'problems' }">Problems</router-link>
+      <router-link to="/" class="btn ghost sm nav-tasks" :class="{ primary: route.name === 'tasks' }">Tasks</router-link>
       <router-link to="/settings" class="btn ghost sm" :class="{ primary: route.name === 'settings' }">Settings</router-link>
-      <button class="btn primary mobile-only" title="New problem" aria-label="New problem" @click="showNew = true">+</button>
+      <button class="btn primary mobile-only" title="New task" aria-label="New task" @click="showNew = true">+</button>
     </header>
 
     <div v-if="sidebarOpen" class="sidebar-backdrop" @click="sidebarOpen = false"></div>
 
     <aside class="sidebar">
       <div class="side-head">
-        <input v-model="search" class="input grow" placeholder="Search problems…" />
-        <button class="btn primary" @click="showNew = true" title="New problem">+</button>
+        <input v-model="search" class="input grow" placeholder="Search tasks…" />
+        <button class="btn primary" @click="showNew = true" title="New task">+</button>
       </div>
-      <div v-if="store.loading && !store.problems.length" class="empty"><span class="spinner"></span></div>
-      <div v-else-if="!filtered.length" class="empty">No problems yet.</div>
+      <div v-if="store.loading && !store.tasks.length" class="empty"><span class="spinner"></span></div>
+      <div v-else-if="!filtered.length" class="empty">No tasks yet.</div>
       <router-link
         v-for="p in filtered"
         :key="p.id"
-        :to="`/p/${p.id}`"
-        class="problem-card"
+        :to="`/task/${p.id}`"
+        class="task-card"
         :class="{ active: route.params.id === p.id }"
         @click="sidebarOpen = false"
       >
@@ -113,10 +113,10 @@ onMounted(async () => {
 
     <div v-if="showNew" class="modal-backdrop" @click.self="showNew = false">
       <div class="modal">
-        <h1 style="margin-bottom: 14px">New problem</h1>
+        <h1 style="margin-bottom: 14px">New task</h1>
         <div class="field">
           <label>Title</label>
-          <input v-model="draft.title" class="input" placeholder="What needs to be solved?" @keyup.enter="createProblem" />
+          <input v-model="draft.title" class="input" placeholder="What needs to be solved?" @keyup.enter="createTask" />
         </div>
         <div class="field">
           <label>Description</label>
@@ -140,7 +140,7 @@ onMounted(async () => {
         </div>
         <div class="row" style="justify-content: flex-end">
           <button class="btn ghost" @click="showNew = false">Cancel</button>
-          <button class="btn primary" :disabled="!draft.title.trim()" @click="createProblem">Create</button>
+          <button class="btn primary" :disabled="!draft.title.trim()" @click="createTask">Create</button>
         </div>
       </div>
     </div>

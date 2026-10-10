@@ -10,10 +10,10 @@ from pydantic import BaseModel, ConfigDict
 from .models import (
     AgentRun,
     Harness,
-    Problem,
-    ProblemStatus,
     Repository,
     SourceItem,
+    Task,
+    TaskStatus,
     TimelineEvent,
     Worktree,
 )
@@ -183,7 +183,7 @@ class ItemRead(ORMModel):
 
 class AssociationRead(ORMModel):
     id: str
-    problem_id: str
+    task_id: str
     item_id: str
     note: str
     created_at: datetime
@@ -202,11 +202,11 @@ class AssociateRequest(BaseModel):
     note: str = ""
 
 
-# --- Problem ---------------------------------------------------------------
-class ProblemCreate(BaseModel):
+# --- Task ---------------------------------------------------------------
+class TaskCreate(BaseModel):
     title: str
     description: str = ""
-    status: ProblemStatus = ProblemStatus.open
+    status: TaskStatus = TaskStatus.open
     priority: int = 2
     tags: list[str] = []
     repository_id: str | None = None
@@ -214,10 +214,10 @@ class ProblemCreate(BaseModel):
     harness_id: str | None = None
 
 
-class ProblemUpdate(BaseModel):
+class TaskUpdate(BaseModel):
     title: str | None = None
     description: str | None = None
-    status: ProblemStatus | None = None
+    status: TaskStatus | None = None
     priority: int | None = None
     tags: list[str] | None = None
     repository_id: str | None = None
@@ -227,11 +227,11 @@ class ProblemUpdate(BaseModel):
     next_steps: list[dict[str, Any]] | None = None
 
 
-class ProblemRead(ORMModel):
+class TaskRead(ORMModel):
     id: str
     title: str
     description: str
-    status: ProblemStatus
+    status: TaskStatus
     priority: int
     tags: list[str]
     repository_id: str | None = None
@@ -246,7 +246,7 @@ class ProblemRead(ORMModel):
 
 class WorktreeRead(ORMModel):
     id: str
-    problem_id: str
+    task_id: str
     repository_id: str
     branch: str
     path: str
@@ -257,7 +257,7 @@ class WorktreeRead(ORMModel):
 
 class RunRead(ORMModel):
     id: str
-    problem_id: str
+    task_id: str
     harness_id: str | None = None
     cwd: str | None = None
     worktree_id: str | None = None
@@ -275,14 +275,14 @@ class RunRead(ORMModel):
 
 class TimelineRead(ORMModel):
     id: str
-    problem_id: str
+    task_id: str
     type: str
     message: str
     data_json: dict[str, Any]
     created_at: datetime
 
 
-class ProblemDetail(ProblemRead):
+class TaskDetail(TaskRead):
     associations: list[AssociationDetail] = []
     worktrees: list[WorktreeRead] = []
     runs: list[RunRead] = []
@@ -315,7 +315,7 @@ class AgentEventRead(ORMModel):
 
 
 class ContextPreview(BaseModel):
-    problem_id: str
+    task_id: str
     summary: str
     next_steps: list[dict[str, Any]]
     context_updated_at: datetime | None = None
@@ -338,11 +338,11 @@ __all__ = [
     "ItemCreate",
     "ItemRead",
     "ItemUpdate",
-    "Problem",
-    "ProblemCreate",
-    "ProblemDetail",
-    "ProblemRead",
-    "ProblemUpdate",
+    "Task",
+    "TaskCreate",
+    "TaskDetail",
+    "TaskRead",
+    "TaskUpdate",
     "Repository",
     "RepositoryBulkCreate",
     "RepositoryBulkResult",

@@ -7,11 +7,11 @@ server) lives in ``agentic.server_cli``.
 Commands return data; use ``--format json`` (or pipe the output, which selects
 json automatically) for machine-readable results.
 
-    agentic problem create --title "Fix flaky tests"
-    agentic link add <problem> --source github --url https://github.com/o/r/issues/1
-    agentic worktree create <problem>
-    agentic context refresh <problem>
-    agentic run create <problem> --prompt "Investigate the failure"
+    agentic task create --title "Fix flaky tests"
+    agentic link add <task> --source github --url https://github.com/o/r/issues/1
+    agentic worktree create <task>
+    agentic context refresh <task>
+    agentic run create <task> --prompt "Investigate the failure"
     agentic run wait <run-id>
 """
 
@@ -35,7 +35,7 @@ CONTEXT: dict[str, Any] = {
     "timeout": float(os.environ.get("AGENTIC_TIMEOUT", "60")),
 }
 
-ProblemStatus = Literal["open", "in_progress", "blocked", "done", "archived"]
+TaskStatus = Literal["open", "in_progress", "blocked", "done", "archived"]
 Source = Literal["slack", "github", "gdrive", "url", "note", "commit", "file"]
 
 
@@ -79,15 +79,15 @@ def _join(rows: list, render) -> str:
     return "\n".join(render(row) for row in rows) if rows else "(none)"
 
 
-def _problem_line(problem: dict) -> str:
-    return f"{problem['id']}  [{problem['status']}] p{problem['priority']}  {problem['title']}"
+def _task_line(task: dict) -> str:
+    return f"{task['id']}  [{task['status']}] p{task['priority']}  {task['title']}"
 
 
-def _problem_text(problem: dict) -> str:
-    lines = [_problem_line(problem)]
-    if problem.get("summary"):
-        lines.append(f"  summary: {problem['summary']}")
-    for step in problem.get("next_steps") or []:
+def _task_text(task: dict) -> str:
+    lines = [_task_line(task)]
+    if task.get("summary"):
+        lines.append(f"  summary: {task['summary']}")
+    for step in task.get("next_steps") or []:
         lines.append(f"  [{'x' if step.get('done') else ' '}] {step.get('text')}")
     return "\n".join(lines)
 
@@ -118,7 +118,7 @@ _CONSOLE = Console(markup=False, highlight=False, soft_wrap=True)
 
 app = App(
     name="agentic",
-    help="Drive the Agentic app (problems, items, agents) from the command line.",
+    help="Drive the Agentic app (tasks, items, agents) from the command line.",
     console=_CONSOLE,
 )
 app.meta.console = _CONSOLE
@@ -158,43 +158,43 @@ def health() -> str:
     return emit(data, f"{data.get('status')} ({data.get('service')}) at {CONTEXT['api_url']}")
 
 
-# --- problems -------------------------------------------------------------
-problem_app = App(name="problem", help="Create and manage problems.")
-app.command(problem_app)
+# --- tasks -------------------------------------------------------------
+task_app = App(name="task", help="Create and manage tasks.")
+app.command(task_app)
 
 
-@problem_app.command(name="list")
+@task_app.command(name="list")
 @safe
-def problem_list(status: ProblemStatus | None = None, q: str | None = None) -> str:
-    """List problems, newest first."""
+def task_list(status: TaskStatus | None = None, q: str | None = None) -> str:
+    """List tasks, newest first."""
     with _client() as client:
-        problems = client.list_problems(status=status, q=q)
-    return emit(problems, _join(problems, _problem_line))
+        tasks = client.list_tasks(status=status, q=q)
+    return emit(tasks, _join(tasks, _task_line))
 
 
-@problem_app.command(name="get")
+@task_app.command(name="get")
 @safe
-def problem_get(problem_id: str) -> str:
-    """Show a problem with its items, worktrees, runs, and timeline."""
+def task_get(task_id: str) -> str:
+    """Show a task with its items, worktrees, runs, and timeline."""
     with _client() as client:
-        problem = client.get_problem(problem_id)
-    return emit(problem, _problem_text(problem))
+        task = client.get_task(task_id)
+    return emit(task, _task_text(task))
 
 
-@problem_app.command(name="create")
+@task_app.command(name="create")
 @safe
-def problem_create(
+def task_create(
     title: str,
     description: str = "",
     priority: int = 2,
-    status: ProblemStatus = "open",
+    status: TaskStatus = "open",
     tags: list[str] | None = None,
     repository_id: str | None = None,
     harness_id: str | None = None,
 ) -> str:
-    """Create a problem."""
+    """Create a task."""
     with _client() as client:
-        problem = client.create_problem(
+        task = client.create_task(
             title=title,
             description=description,
             priority=priority,
@@ -203,26 +203,26 @@ def problem_create(
             repository_id=repository_id,
             harness_id=harness_id,
         )
-    return emit(problem, f"created {problem['id']}  {problem['title']}")
+    return emit(task, f"created {task['id']}  {task['title']}")
 
 
-@problem_app.command(name="update")
+@task_app.command(name="update")
 @safe
-def problem_update(
-    problem_id: str,
+def task_update(
+    task_id: str,
     title: str | None = None,
     description: str | None = None,
-    status: ProblemStatus | None = None,
+    status: TaskStatus | None = None,
     priority: int | None = None,
     tags: list[str] | None = None,
     repository_id: str | None = None,
     harness_id: str | None = None,
     summary: str | None = None,
 ) -> str:
-    """Update a problem's fields."""
+    """Update a task's fields."""
     with _client() as client:
-        problem = client.update_problem(
-            problem_id,
+        task = client.update_task(
+            task_id,
             title=title,
             description=description,
             status=status,
@@ -232,24 +232,24 @@ def problem_update(
             harness_id=harness_id,
             summary=summary,
         )
-    return emit(problem, f"updated {problem['id']}  {_problem_line(problem)}")
+    return emit(task, f"updated {task['id']}  {_task_line(task)}")
 
 
-@problem_app.command(name="delete")
+@task_app.command(name="delete")
 @safe
-def problem_delete(problem_id: str) -> str:
-    """Delete a problem and everything attached to it."""
+def task_delete(task_id: str) -> str:
+    """Delete a task and everything attached to it."""
     with _client() as client:
-        client.delete_problem(problem_id)
-    return emit({"deleted": problem_id}, f"deleted {problem_id}")
+        client.delete_task(task_id)
+    return emit({"deleted": task_id}, f"deleted {task_id}")
 
 
-@problem_app.command(name="timeline")
+@task_app.command(name="timeline")
 @safe
-def problem_timeline(problem_id: str) -> str:
-    """Show a problem's timeline."""
+def task_timeline(task_id: str) -> str:
+    """Show a task's timeline."""
     with _client() as client:
-        events = client.problem_timeline(problem_id)
+        events = client.task_timeline(task_id)
     text = _join(events, lambda e: f"{e['created_at'][:19]}  {e['type']:<18} {e['message']}")
     return emit(events, text)
 
@@ -314,14 +314,14 @@ def item_delete(item_id: str) -> str:
 
 
 # --- links ----------------------------------------------------------------
-link_app = App(name="link", help="Associate items with problems.")
+link_app = App(name="link", help="Associate items with tasks.")
 app.command(link_app)
 
 
 @link_app.command(name="add")
 @safe
 def link_add(
-    problem_id: str,
+    task_id: str,
     item_id: str | None = None,
     source: Source | None = None,
     url: str | None = None,
@@ -331,7 +331,7 @@ def link_add(
     note: str = "",
     fetch: bool = True,
 ) -> str:
-    """Associate an existing item (--item-id) or a new one (--url/--content) with a problem."""
+    """Associate an existing item (--item-id) or a new one (--url/--content) with a task."""
     item = None
     if item_id is None:
         if not (url or content or title):
@@ -346,17 +346,17 @@ def link_add(
             "fetch": fetch,
         }
     with _client() as client:
-        association = client.associate(problem_id, item_id=item_id, item=item, note=note)
-    return emit(association, f"linked {association['item']['id']} to {problem_id}")
+        association = client.associate(task_id, item_id=item_id, item=item, note=note)
+    return emit(association, f"linked {association['item']['id']} to {task_id}")
 
 
 @link_app.command(name="remove")
 @safe
-def link_remove(problem_id: str, item_id: str) -> str:
-    """Remove an item's association with a problem."""
+def link_remove(task_id: str, item_id: str) -> str:
+    """Remove an item's association with a task."""
     with _client() as client:
-        client.unassociate(problem_id, item_id)
-    return emit({"unlinked": item_id}, f"unlinked {item_id} from {problem_id}")
+        client.unassociate(task_id, item_id)
+    return emit({"unlinked": item_id}, f"unlinked {item_id} from {task_id}")
 
 
 # --- repositories ---------------------------------------------------------
@@ -392,39 +392,39 @@ def repository_remove(repository_id: str) -> str:
 
 
 # --- worktrees ------------------------------------------------------------
-worktree_app = App(name="worktree", help="Create isolated git worktrees for problems.")
+worktree_app = App(name="worktree", help="Create isolated git worktrees for tasks.")
 app.command(worktree_app)
 
 
 @worktree_app.command(name="list")
 @safe
-def worktree_list(problem_id: str) -> str:
-    """List a problem's worktrees."""
+def worktree_list(task_id: str) -> str:
+    """List a task's worktrees."""
     with _client() as client:
-        worktrees = client.list_worktrees(problem_id)
+        worktrees = client.list_worktrees(task_id)
     return emit(worktrees, _join(worktrees, lambda w: f"{w['id']}  [{w['status']}] {w['branch']}  {w['path']}"))
 
 
 @worktree_app.command(name="create")
 @safe
 def worktree_create(
-    problem_id: str,
+    task_id: str,
     repository_id: str | None = None,
     branch: str | None = None,
     base: str | None = None,
 ) -> str:
-    """Create a worktree for a problem."""
+    """Create a worktree for a task."""
     with _client() as client:
-        worktree = client.create_worktree(problem_id, repository_id=repository_id, branch=branch, base=base)
+        worktree = client.create_worktree(task_id, repository_id=repository_id, branch=branch, base=base)
     return emit(worktree, f"created worktree {worktree['id']}  {worktree['branch']}  {worktree['path']}")
 
 
 @worktree_app.command(name="remove")
 @safe
-def worktree_remove(problem_id: str, worktree_id: str) -> str:
+def worktree_remove(task_id: str, worktree_id: str) -> str:
     """Remove a worktree from disk and stop tracking it."""
     with _client() as client:
-        client.remove_worktree(problem_id, worktree_id)
+        client.remove_worktree(task_id, worktree_id)
     return emit({"removed": worktree_id}, f"removed worktree {worktree_id}")
 
 
@@ -435,10 +435,10 @@ app.command(run_app)
 
 @run_app.command(name="list")
 @safe
-def run_list(problem_id: str) -> str:
-    """List a problem's agent runs."""
+def run_list(task_id: str) -> str:
+    """List a task's agent runs."""
     with _client() as client:
-        runs = client.list_runs(problem_id)
+        runs = client.list_runs(task_id)
     return emit(runs, _join(runs, _run_line))
 
 
@@ -464,15 +464,15 @@ def run_events(run_id: str) -> str:
 @run_app.command(name="create")
 @safe
 def run_create(
-    problem_id: str,
+    task_id: str,
     prompt: str,
     harness_id: str | None = None,
     worktree_id: str | None = None,
     cwd: str | None = None,
 ) -> str:
-    """Start an agent run against a problem."""
+    """Start an agent run against a task."""
     with _client() as client:
-        run = client.create_run(problem_id, prompt, harness_id=harness_id, worktree_id=worktree_id, cwd=cwd)
+        run = client.create_run(task_id, prompt, harness_id=harness_id, worktree_id=worktree_id, cwd=cwd)
     return emit(run, f"started run {run['id']} ({run['status']}) in {run.get('cwd')}")
 
 
@@ -517,16 +517,16 @@ def run_stream(run_id: str) -> None:
 
 
 # --- context --------------------------------------------------------------
-context_app = App(name="context", help="Read or refresh a problem's agent-maintained context.")
+context_app = App(name="context", help="Read or refresh a task's agent-maintained context.")
 app.command(context_app)
 
 
 @context_app.command(name="get")
 @safe
-def context_get(problem_id: str) -> str:
-    """Show a problem's current summary and next steps."""
+def context_get(task_id: str) -> str:
+    """Show a task's current summary and next steps."""
     with _client() as client:
-        context = client.get_context(problem_id)
+        context = client.get_context(task_id)
     text = context.get("summary", "")
     for step in context.get("next_steps") or []:
         text += f"\n- [{'x' if step.get('done') else ' '}] {step.get('text')}"
@@ -535,10 +535,10 @@ def context_get(problem_id: str) -> str:
 
 @context_app.command(name="refresh")
 @safe
-def context_refresh(problem_id: str) -> str:
+def context_refresh(task_id: str) -> str:
     """Ask an agent to rewrite the summary and next steps."""
     with _client() as client:
-        run = client.refresh_context(problem_id)
+        run = client.refresh_context(task_id)
     return emit(run, f"context refresh started: run {run['id']}")
 
 

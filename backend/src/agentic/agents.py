@@ -324,7 +324,7 @@ async def execute_run(
     from .events import bus
     from .events import runs as run_registry
 
-    problem_id: str | None = None
+    task_id: str | None = None
 
     async def publish(event: dict[str, Any]) -> None:
         try:
@@ -333,15 +333,15 @@ async def execute_run(
         except Exception as exc:  # noqa: BLE001 - a persist hiccup must not kill the run
             log.warning("failed to persist agent event", run_id=run_id, error=str(exc))
         await bus.publish(f"run:{run_id}", event)
-        if problem_id:
-            await bus.publish(f"problem:{problem_id}", {"kind": "run", "run_id": run_id, **event})
+        if task_id:
+            await bus.publish(f"task:{task_id}", {"kind": "run", "run_id": run_id, **event})
 
     try:
         with Session(engine) as session:
             run = session.get(AgentRun, run_id)
             if run is None:
                 return
-            problem_id = run.problem_id
+            task_id = run.task_id
             run.status = RunStatus.running
             run.started_at = utcnow()
             session.add(run)
@@ -375,24 +375,24 @@ async def execute_run(
     finally:
         run_registry.unregister(run_id)
         await bus.publish(f"run:{run_id}", {"type": "run_finished", "text": "", "data": {"run_id": run_id}})
-        if problem_id:
-            await bus.publish(f"problem:{problem_id}", {"kind": "problem", "action": "run_finished", "run_id": run_id})
+        if task_id:
+            await bus.publish(f"task:{task_id}", {"kind": "task", "action": "run_finished", "run_id": run_id})
 
 
 async def execute_context_refresh(
     *,
     run_id: str,
-    problem_id: str,
+    task_id: str,
     harness_id: str | None,
     cwd: str,
     prompt: str,
     cancel_event: asyncio.Event,
-    problem_ctx: dict[str, Any] | None = None,
+    task_ctx: dict[str, Any] | None = None,
 ) -> None:
     """Run a context-refresh turn, then store the parsed summary and next steps."""
     from .crud import add_timeline
     from .events import bus
-    from .models import Problem
+    from .models import Task
     from .services import extract_context_json
 
     await execute_run(run_id=run_id, harness_id=harness_id, cwd=cwd, prompt=prompt, cancel_event=cancel_event)
@@ -405,24 +405,24 @@ async def execute_context_refresh(
         if not text.strip():
             text = "".join(e.text for e in events if e.type == "thought")
         data = extract_context_json(text)
-        problem = session.get(Problem, problem_id)
-        if data and problem is not None:
-            problem.summary = data.get("summary", problem.summary)
-            problem.next_steps = data.get("next_steps", problem.next_steps)
-            problem.context_updated_at = utcnow()
-            session.add(problem)
+        task = session.get(Task, task_id)
+        if data and task is not None:
+            task.summary = data.get("summary", task.summary)
+            task.next_steps = data.get("next_steps", task.next_steps)
+            task.context_updated_at = utcnow()
+            session.add(task)
             session.commit()
-            add_timeline(session, problem_id, "context_updated", "Context and next steps refreshed", {"run_id": run_id})
+            add_timeline(session, task_id, "context_updated", "Context and next steps refreshed", {"run_id": run_id})
             parsed = True
         else:
             add_timeline(
                 session,
-                problem_id,
+                task_id,
                 "context_refresh_failed",
                 "Could not parse context from the agent reply",
                 {"run_id": run_id},
             )
     await bus.publish(
-        f"problem:{problem_id}",
-        {"kind": "problem", "action": "context_updated" if parsed else "context_refresh_failed", "run_id": run_id},
+        f"task:{task_id}",
+        {"kind": "task", "action": "context_updated" if parsed else "context_refresh_failed", "run_id": run_id},
     )

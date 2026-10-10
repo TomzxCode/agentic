@@ -1,10 +1,10 @@
 """SQLModel tables for the Agentic app.
 
-The core idea: work is organized around *problems*. Anything external (a Slack
+The core idea: work is organized around *tasks*. Anything external (a Slack
 thread, a GitHub issue, a Drive doc, a URL, a note, a commit) becomes a
-``SourceItem`` that can be associated to one or more problems. Worktrees and
-agent runs also hang off a problem, and every meaningful change writes a
-``TimelineEvent`` so a problem's evolution is visible at a glance.
+``SourceItem`` that can be associated to one or more tasks. Worktrees and
+agent runs also hang off a task, and every meaningful change writes a
+``TimelineEvent`` so a task's evolution is visible at a glance.
 """
 
 from __future__ import annotations
@@ -26,7 +26,7 @@ def utcnow() -> datetime:
     return datetime.now(UTC)
 
 
-class ProblemStatus(StrEnum):
+class TaskStatus(StrEnum):
     open = "open"
     in_progress = "in_progress"
     blocked = "blocked"
@@ -48,7 +48,7 @@ class WorktreeStatus(StrEnum):
 
 
 class Repository(SQLModel, table=True):
-    """A local git checkout that problems can create worktrees from."""
+    """A local git checkout that tasks can create worktrees from."""
 
     id: str = Field(default_factory=new_id, primary_key=True)
     name: str
@@ -59,10 +59,10 @@ class Repository(SQLModel, table=True):
 
 
 class RepositoryGroup(SQLModel, table=True):
-    """A named set of repositories that a problem's agent should consider.
+    """A named set of repositories that a task's agent should consider.
 
     Groups tell the agent which checkouts may contain information relevant to a
-    problem, without the user having to spell it out in each prompt.
+    task, without the user having to spell it out in each prompt.
     """
 
     id: str = Field(default_factory=new_id, primary_key=True)
@@ -80,18 +80,18 @@ class RepositoryGroupMember(SQLModel, table=True):
     created_at: datetime = Field(default_factory=utcnow)
 
 
-class Problem(SQLModel, table=True):
+class Task(SQLModel, table=True):
     id: str = Field(default_factory=new_id, primary_key=True)
     title: str
     description: str = ""
-    status: ProblemStatus = ProblemStatus.open
+    status: TaskStatus = TaskStatus.open
     priority: int = 2  # 0 = low, 1 = medium, 2 = high, 3 = urgent
     tags: list[str] = Field(default_factory=list, sa_column=Column(JSON))
     repository_id: str | None = Field(default=None, foreign_key="repository.id")
     group_id: str | None = Field(default=None, foreign_key="repositorygroup.id")
     harness_id: str | None = Field(default=None, foreign_key="harness.id")
 
-    # Agent-maintained context. This is what makes coming back to a problem fast.
+    # Agent-maintained context. This is what makes coming back to a task fast.
     summary: str = ""
     next_steps: list[dict[str, Any]] = Field(default_factory=list, sa_column=Column(JSON))
     context_updated_at: datetime | None = None
@@ -101,7 +101,7 @@ class Problem(SQLModel, table=True):
 
 
 class SourceItem(SQLModel, table=True):
-    """Something external that can be associated to problems."""
+    """Something external that can be associated to tasks."""
 
     __table_args__ = (UniqueConstraint("source", "external_id", name="uq_source_external_id"),)
 
@@ -119,10 +119,10 @@ class SourceItem(SQLModel, table=True):
 
 
 class Association(SQLModel, table=True):
-    """Links a SourceItem to a Problem (many-to-many) with provenance."""
+    """Links a SourceItem to a Task (many-to-many) with provenance."""
 
     id: str = Field(default_factory=new_id, primary_key=True)
-    problem_id: str = Field(foreign_key="problem.id", index=True)
+    task_id: str = Field(foreign_key="task.id", index=True)
     item_id: str = Field(foreign_key="sourceitem.id", index=True)
     note: str = ""
     created_at: datetime = Field(default_factory=utcnow)
@@ -130,7 +130,7 @@ class Association(SQLModel, table=True):
 
 class Worktree(SQLModel, table=True):
     id: str = Field(default_factory=new_id, primary_key=True)
-    problem_id: str = Field(foreign_key="problem.id", index=True)
+    task_id: str = Field(foreign_key="task.id", index=True)
     repository_id: str = Field(foreign_key="repository.id")
     branch: str
     path: str
@@ -166,7 +166,7 @@ class Setting(SQLModel, table=True):
 
 class AgentRun(SQLModel, table=True):
     id: str = Field(default_factory=new_id, primary_key=True)
-    problem_id: str = Field(foreign_key="problem.id", index=True)
+    task_id: str = Field(foreign_key="task.id", index=True)
     harness_id: str | None = Field(default=None, foreign_key="harness.id")
     cwd: str | None = None
     worktree_id: str | None = Field(default=None, foreign_key="worktree.id")
@@ -195,7 +195,7 @@ class AgentEvent(SQLModel, table=True):
 
 class TimelineEvent(SQLModel, table=True):
     id: str = Field(default_factory=new_id, primary_key=True)
-    problem_id: str = Field(foreign_key="problem.id", index=True)
+    task_id: str = Field(foreign_key="task.id", index=True)
     type: str
     message: str = ""
     data_json: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))

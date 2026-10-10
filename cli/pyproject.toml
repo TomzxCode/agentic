@@ -1,7 +1,7 @@
 [project]
 name = "agentic-cli"
 version = "0.1.0"
-description = "Command-line client for the Agentic app (problems, items, worktrees, agent runs)."
+description = "Command-line client for the Agentic app (tasks, items, worktrees, agent runs)."
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [

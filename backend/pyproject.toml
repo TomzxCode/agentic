@@ -1,7 +1,7 @@
 [project]
 name = "agentic"
 version = "0.1.0"
-description = "Track work as problems and collaborate with LLM coding agents across Slack, GitHub, and Google Drive."
+description = "Track work as tasks and collaborate with LLM coding agents across Slack, GitHub, and Google Drive."
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [

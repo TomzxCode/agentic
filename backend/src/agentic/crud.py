@@ -8,7 +8,7 @@ from typing import Any
 from fastapi import HTTPException
 from sqlmodel import Session
 
-from .models import Problem, TimelineEvent
+from .models import Task, TimelineEvent
 
 
 def jsonable(value: Any) -> Any:
@@ -24,21 +24,21 @@ def field_label(key: str) -> str:
     return FIELD_LABELS.get(key, key.replace("_", " "))
 
 
-def get_problem_or_404(session: Session, problem_id: str) -> Problem:
-    problem = session.get(Problem, problem_id)
-    if problem is None:
-        raise HTTPException(status_code=404, detail="Problem not found")
-    return problem
+def get_task_or_404(session: Session, task_id: str) -> Task:
+    task = session.get(Task, task_id)
+    if task is None:
+        raise HTTPException(status_code=404, detail="Task not found")
+    return task
 
 
 def add_timeline(
     session: Session,
-    problem_id: str,
+    task_id: str,
     type_: str,
     message: str = "",
     data: dict[str, Any] | None = None,
 ) -> TimelineEvent:
-    event = TimelineEvent(problem_id=problem_id, type=type_, message=message, data_json=data or {})
+    event = TimelineEvent(task_id=task_id, type=type_, message=message, data_json=data or {})
     session.add(event)
     session.commit()
     session.refresh(event)

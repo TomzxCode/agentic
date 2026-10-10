@@ -3,7 +3,7 @@ import { computed, reactive, ref } from 'vue'
 import { api } from '../api'
 import { store, timeAgo } from '../store'
 
-const props = defineProps({ problem: { type: Object, required: true } })
+const props = defineProps({ task: { type: Object, required: true } })
 const emit = defineEmits(['changed'])
 const expanded = ref({})
 const busy = ref(false)
@@ -13,7 +13,7 @@ const draft = reactive({ url: '', title: '', content: '', note: '', showContent:
 
 const grouped = computed(() => {
   const groups = {}
-  for (const assoc of props.problem.associations || []) {
+  for (const assoc of props.task.associations || []) {
     ;(groups[assoc.item.source] ||= []).push(assoc)
   }
   return groups
@@ -27,7 +27,7 @@ async function addItem() {
   if (!draft.url.trim() && !draft.content.trim() && !draft.title.trim()) return
   busy.value = true
   try {
-    await api.problems.associate(props.problem.id, {
+    await api.tasks.associate(props.task.id, {
       note: draft.note,
       item: {
         url: draft.url || null,
@@ -47,7 +47,7 @@ async function addItem() {
 }
 
 async function remove(itemId) {
-  await api.problems.unassociate(props.problem.id, itemId)
+  await api.tasks.unassociate(props.task.id, itemId)
   emit('changed')
 }
 
@@ -63,9 +63,9 @@ async function refreshItem(itemId) {
 
 <template>
   <section class="panel">
-    <div class="panel-head"><h2>Items <span class="faint">{{ problem.associations?.length || 0 }}</span></h2></div>
+    <div class="panel-head"><h2>Items <span class="faint">{{ task.associations?.length || 0 }}</span></h2></div>
 
-    <div v-if="!problem.associations?.length" class="faint" style="margin-bottom: 12px">
+    <div v-if="!task.associations?.length" class="faint" style="margin-bottom: 12px">
       Nothing associated yet. Paste a Slack thread, GitHub issue/PR, Drive link, or a note.
     </div>
 

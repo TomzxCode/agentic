@@ -16,18 +16,18 @@ async function request(path, { method = 'GET', body } = {}) {
 export const api = {
   health: () => request('/health'),
 
-  problems: {
+  tasks: {
     list: (params = {}) => {
       const qs = new URLSearchParams(Object.entries(params).filter(([, v]) => v)).toString()
-      return request(`/problems${qs ? `?${qs}` : ''}`)
+      return request(`/tasks${qs ? `?${qs}` : ''}`)
     },
-    get: (id) => request(`/problems/${id}`),
-    create: (body) => request('/problems', { method: 'POST', body }),
-    update: (id, body) => request(`/problems/${id}`, { method: 'PATCH', body }),
-    remove: (id) => request(`/problems/${id}`, { method: 'DELETE' }),
-    timeline: (id) => request(`/problems/${id}/timeline`),
-    associate: (id, body) => request(`/problems/${id}/items`, { method: 'POST', body }),
-    unassociate: (id, itemId) => request(`/problems/${id}/items/${itemId}`, { method: 'DELETE' }),
+    get: (id) => request(`/tasks/${id}`),
+    create: (body) => request('/tasks', { method: 'POST', body }),
+    update: (id, body) => request(`/tasks/${id}`, { method: 'PATCH', body }),
+    remove: (id) => request(`/tasks/${id}`, { method: 'DELETE' }),
+    timeline: (id) => request(`/tasks/${id}/timeline`),
+    associate: (id, body) => request(`/tasks/${id}/items`, { method: 'POST', body }),
+    unassociate: (id, itemId) => request(`/tasks/${id}/items/${itemId}`, { method: 'DELETE' }),
   },
 
   items: {
@@ -76,17 +76,17 @@ export const api = {
   },
 
   worktrees: {
-    list: (problemId) => request(`/problems/${problemId}/worktrees`),
-    create: (problemId, body) => request(`/problems/${problemId}/worktrees`, { method: 'POST', body }),
-    remove: (problemId, worktreeId) =>
-      request(`/problems/${problemId}/worktrees/${worktreeId}`, { method: 'DELETE' }),
+    list: (taskId) => request(`/tasks/${taskId}/worktrees`),
+    create: (taskId, body) => request(`/tasks/${taskId}/worktrees`, { method: 'POST', body }),
+    remove: (taskId, worktreeId) =>
+      request(`/tasks/${taskId}/worktrees/${worktreeId}`, { method: 'DELETE' }),
   },
 
   runs: {
-    list: (problemId) => request(`/problems/${problemId}/runs`),
-    create: (problemId, body) => request(`/problems/${problemId}/runs`, { method: 'POST', body }),
-    refreshContext: (problemId) => request(`/problems/${problemId}/context/refresh`, { method: 'POST' }),
-    context: (problemId) => request(`/problems/${problemId}/context`),
+    list: (taskId) => request(`/tasks/${taskId}/runs`),
+    create: (taskId, body) => request(`/tasks/${taskId}/runs`, { method: 'POST', body }),
+    refreshContext: (taskId) => request(`/tasks/${taskId}/context/refresh`, { method: 'POST' }),
+    context: (taskId) => request(`/tasks/${taskId}/context`),
     get: (runId) => request(`/runs/${runId}`),
     events: (runId) => request(`/runs/${runId}/events`),
     cancel: (runId) => request(`/runs/${runId}/cancel`, { method: 'POST' }),
@@ -114,13 +114,13 @@ export function openRunStream(runId, onEvent, onClose) {
   return () => es.close()
 }
 
-export function openProblemStream(problemId, onEvent) {
-  const es = new EventSource(`${API}/problems/${problemId}/stream`)
+export function openTaskStream(taskId, onEvent) {
+  const es = new EventSource(`${API}/tasks/${taskId}/stream`)
   es.onmessage = (e) => {
     try {
       onEvent(JSON.parse(e.data))
     } catch (err) {
-      console.warn('bad problem event', err)
+      console.warn('bad task event', err)
     }
   }
   return () => es.close()

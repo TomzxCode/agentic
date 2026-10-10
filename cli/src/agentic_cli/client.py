@@ -58,29 +58,29 @@ class AgenticClient:
     def health(self) -> dict[str, Any]:
         return self._request("GET", "/api/health")
 
-    # --- problems ---------------------------------------------------------
-    def list_problems(self, status: str | None = None, q: str | None = None) -> list[dict]:
+    # --- tasks ---------------------------------------------------------
+    def list_tasks(self, status: str | None = None, q: str | None = None) -> list[dict]:
         params = {k: v for k, v in {"status": status, "q": q}.items() if v}
-        return self._request("GET", "/api/problems", params=params)
+        return self._request("GET", "/api/tasks", params=params)
 
-    def get_problem(self, problem_id: str) -> dict:
-        return self._request("GET", f"/api/problems/{problem_id}")
+    def get_task(self, task_id: str) -> dict:
+        return self._request("GET", f"/api/tasks/{task_id}")
 
-    def create_problem(self, **fields: Any) -> dict:
-        return self._request("POST", "/api/problems", json=_compact(fields))
+    def create_task(self, **fields: Any) -> dict:
+        return self._request("POST", "/api/tasks", json=_compact(fields))
 
-    def update_problem(self, problem_id: str, **fields: Any) -> dict:
-        return self._request("PATCH", f"/api/problems/{problem_id}", json=_compact(fields))
+    def update_task(self, task_id: str, **fields: Any) -> dict:
+        return self._request("PATCH", f"/api/tasks/{task_id}", json=_compact(fields))
 
-    def delete_problem(self, problem_id: str) -> None:
-        self._request("DELETE", f"/api/problems/{problem_id}")
+    def delete_task(self, task_id: str) -> None:
+        self._request("DELETE", f"/api/tasks/{task_id}")
 
-    def problem_timeline(self, problem_id: str) -> list[dict]:
-        return self._request("GET", f"/api/problems/{problem_id}/timeline")
+    def task_timeline(self, task_id: str) -> list[dict]:
+        return self._request("GET", f"/api/tasks/{task_id}/timeline")
 
     def associate(
         self,
-        problem_id: str,
+        task_id: str,
         *,
         item_id: str | None = None,
         item: dict | None = None,
@@ -91,10 +91,10 @@ class AgenticClient:
             body["item_id"] = item_id
         if item is not None:
             body["item"] = _compact(item)
-        return self._request("POST", f"/api/problems/{problem_id}/items", json=body)
+        return self._request("POST", f"/api/tasks/{task_id}/items", json=body)
 
-    def unassociate(self, problem_id: str, item_id: str) -> None:
-        self._request("DELETE", f"/api/problems/{problem_id}/items/{item_id}")
+    def unassociate(self, task_id: str, item_id: str) -> None:
+        self._request("DELETE", f"/api/tasks/{task_id}/items/{item_id}")
 
     # --- items ------------------------------------------------------------
     def list_items(self, source: str | None = None) -> list[dict]:
@@ -140,28 +140,28 @@ class AgenticClient:
         self._request("DELETE", f"/api/harnesses/{harness_id}")
 
     # --- worktrees --------------------------------------------------------
-    def list_worktrees(self, problem_id: str) -> list[dict]:
-        return self._request("GET", f"/api/problems/{problem_id}/worktrees")
+    def list_worktrees(self, task_id: str) -> list[dict]:
+        return self._request("GET", f"/api/tasks/{task_id}/worktrees")
 
     def create_worktree(
         self,
-        problem_id: str,
+        task_id: str,
         repository_id: str | None = None,
         branch: str | None = None,
         base: str | None = None,
     ) -> dict:
         return self._request(
             "POST",
-            f"/api/problems/{problem_id}/worktrees",
+            f"/api/tasks/{task_id}/worktrees",
             json=_compact({"repository_id": repository_id, "branch": branch, "base": base}),
         )
 
-    def remove_worktree(self, problem_id: str, worktree_id: str) -> None:
-        self._request("DELETE", f"/api/problems/{problem_id}/worktrees/{worktree_id}")
+    def remove_worktree(self, task_id: str, worktree_id: str) -> None:
+        self._request("DELETE", f"/api/tasks/{task_id}/worktrees/{worktree_id}")
 
     # --- runs -------------------------------------------------------------
-    def list_runs(self, problem_id: str) -> list[dict]:
-        return self._request("GET", f"/api/problems/{problem_id}/runs")
+    def list_runs(self, task_id: str) -> list[dict]:
+        return self._request("GET", f"/api/tasks/{task_id}/runs")
 
     def get_run(self, run_id: str) -> dict:
         return self._request("GET", f"/api/runs/{run_id}")
@@ -171,7 +171,7 @@ class AgenticClient:
 
     def create_run(
         self,
-        problem_id: str,
+        task_id: str,
         prompt: str,
         harness_id: str | None = None,
         worktree_id: str | None = None,
@@ -179,7 +179,7 @@ class AgenticClient:
     ) -> dict:
         return self._request(
             "POST",
-            f"/api/problems/{problem_id}/runs",
+            f"/api/tasks/{task_id}/runs",
             json=_compact({"prompt": prompt, "harness_id": harness_id, "worktree_id": worktree_id, "cwd": cwd}),
         )
 
@@ -199,11 +199,11 @@ class AgenticClient:
                     yield json.loads(payload)
 
     # --- context ----------------------------------------------------------
-    def get_context(self, problem_id: str) -> dict:
-        return self._request("GET", f"/api/problems/{problem_id}/context")
+    def get_context(self, task_id: str) -> dict:
+        return self._request("GET", f"/api/tasks/{task_id}/context")
 
-    def refresh_context(self, problem_id: str) -> dict:
-        return self._request("POST", f"/api/problems/{problem_id}/context/refresh")
+    def refresh_context(self, task_id: str) -> dict:
+        return self._request("POST", f"/api/tasks/{task_id}/context/refresh")
 
     # --- settings ---------------------------------------------------------
     def get_settings(self) -> dict:

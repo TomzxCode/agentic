@@ -1,6 +1,6 @@
 # Agentic
 
-Track work as **problems**, associate the Slack threads, GitHub issues/PRs, and
+Track work as **tasks**, associate the Slack threads, GitHub issues/PRs, and
 Google Drive docs that feed them, spin up git worktrees to work on them, and let
 a coding agent keep a current summary and next-steps list so resuming is quick.
 
@@ -8,9 +8,9 @@ a coding agent keep a current summary and next-steps list so resuming is quick.
 - **Agents**: any [ACP](https://agentclientprotocol.com/) harness. OpenCode
   (`opencode acp`) and pi (`pi-acp`) are preconfigured; add more in Settings.
 - **Frontend**: Vue 3 + Vite, built as an installable PWA and served by the API.
-  Responsive down to phones: the problem list becomes an off-canvas drawer and
+  Responsive down to phones: the task list becomes an off-canvas drawer and
   the detail view stacks into a single column.
-- **CLI**: `agentic` drives the whole API (problems, links, worktrees, runs,
+- **CLI**: `agentic` drives the whole API (tasks, links, worktrees, runs,
   context) with JSON output, so agents can create and maintain the content.
   `agentic-server` runs and inspects the backend itself.
 
@@ -32,15 +32,15 @@ virtualenv.
 
 | Concept | What it is |
 | --- | --- |
-| **Problem** | The unit of work. Everything hangs off it. Carries an agent-maintained `summary` and `next_steps`. |
+| **Task** | The unit of work. Everything hangs off it. Carries an agent-maintained `summary` and `next_steps`. |
 | **Item** | Something external: a Slack thread, GitHub issue/PR, Drive doc, URL, note, or commit. Items are deduplicated by URL / external id. |
-| **Association** | A link between an item and a problem (many-to-many), with a note. |
-| **Worktree** | An isolated `git worktree` created for a problem from a registered repository. |
-| **Repository group** | A named set of repositories. Picking one on a problem tells the agent those checkouts may hold information relevant to it. |
+| **Association** | A link between an item and a task (many-to-many), with a note. |
+| **Worktree** | An isolated `git worktree` created for a task from a registered repository. |
+| **Repository group** | A named set of repositories. Picking one on a task tells the agent those checkouts may hold information relevant to it. |
 | **Agent run** | One prompt sent to a harness in a working directory. Events stream live to the UI. |
-| **Context refresh** | A special agent run that reads the problem + its items and writes the `summary` and `next_steps`. |
+| **Context refresh** | A special agent run that reads the task + its items and writes the `summary` and `next_steps`. |
 
-Every meaningful change writes a **Timeline event**, so a problem's evolution is
+Every meaningful change writes a **Timeline event**, so a task's evolution is
 visible at a glance.
 
 ## How agents are wired
@@ -106,7 +106,7 @@ only expose this on a trusted network.
 
 ## Using it
 
-1. **Create a problem** (the `+` in the sidebar); optionally pick a
+1. **Create a task** (the `+` in the sidebar); optionally pick a
    **repository group** so the agent knows which checkouts to consider.
 2. **Associate items**: paste a Slack thread permalink, a GitHub issue/PR URL, a
    Drive doc, or write a note. The source (Slack/GitHub/Drive/URL/note) is
@@ -114,10 +114,10 @@ only expose this on a trusted network.
    (via `gh` and `slackx` for Slack); you can also paste content directly.
 3. **Add repositories** in Settings. Use **Browse…** to pick folders on the
    machine (select several at once); git repositories are marked. Group related
-   repositories (**Repository groups**) so a problem can point the agent at
-   them. Then create a **worktree** for the problem.
+   repositories (**Repository groups**) so a task can point the agent at
+   them. Then create a **worktree** for the task.
 4. **Refresh with agent** to generate the current summary and next steps.
-5. **Run an agent** against the problem; the transcript streams live.
+5. **Run an agent** against the task; the transcript streams live.
 
 ## Open a session in a terminal or OpenChamber
 
@@ -145,7 +145,7 @@ Environment variables (prefix `AGENTIC_`) or `backend/.env`:
 | `AGENTIC_WORKTREE_ROOT` | `~/.agentic/worktrees` | Where worktrees are created. |
 | `AGENTIC_FS_ROOT` | `~` | Root the repository picker may browse (`/` for anywhere). |
 | `AGENTIC_STATIC_DIR` | `backend/static` | Built SPA to serve. |
-| `AGENTIC_DEFAULT_HARNESS` | `opencode` | Harness used when a problem doesn't pick one. |
+| `AGENTIC_DEFAULT_HARNESS` | `opencode` | Harness used when a task doesn't pick one. |
 | `AGENTIC_AUTO_APPROVE_PERMISSIONS` | `true` | Auto-approve ACP permission requests. |
 | `AGENTIC_OPENCHAMBER_URL` | (unset) | Base URL for "Open in OpenChamber" links. |
 | `AGENTIC_OPENCHAMBER_SESSION_PATH` | `/?session={session}` | Path appended to the base. |
@@ -166,13 +166,13 @@ Two command-line tools are installed:
 
 ```bash
 agentic --help                       # everything, grouped by resource
-agentic problem create --title "Fix the flaky ingest test"
-agentic problem list --status open
-agentic link add <problem> --url https://github.com/o/r/issues/482
-agentic link add <problem> --item-id <item>
-agentic worktree create <problem>
-agentic context refresh <problem>    # agent rewrites summary + next steps
-agentic run create <problem> --prompt "Investigate the failure"
+agentic task create --title "Fix the flaky ingest test"
+agentic task list --status open
+agentic link add <task> --url https://github.com/o/r/issues/482
+agentic link add <task> --item-id <item>
+agentic worktree create <task>
+agentic context refresh <task>    # agent rewrites summary + next steps
+agentic run create <task> --prompt "Investigate the failure"
 agentic run wait <run-id>            # block until it finishes
 agentic run stream <run-id>          # live transcript
 ```
@@ -182,10 +182,10 @@ human-readable text otherwise (`--format text`). Point it elsewhere with
 `--api-url` or `AGENTIC_API_URL`:
 
 ```bash
-AGENTIC_API_URL=http://box:8600 agentic problem list | jq '.[].id'
+AGENTIC_API_URL=http://box:8600 agentic task list | jq '.[].id'
 ```
 
-Resources: `problem`, `item`, `link`, `repository`, `worktree`, `run`,
+Resources: `task`, `item`, `link`, `repository`, `worktree`, `run`,
 `context`, `harness`, `settings`, plus `health`.
 
 ### Backend
@@ -199,13 +199,13 @@ agentic-server info             # data dir, database, harness availability
 ## API sketch
 
 ```
-GET/POST            /api/problems
-GET/PATCH/DELETE    /api/problems/{id}
-POST                /api/problems/{id}/items            (associate)
-POST                /api/problems/{id}/worktrees
-POST                /api/problems/{id}/runs
-POST                /api/problems/{id}/context/refresh
-GET                 /api/problems/{id}/stream           (SSE: problem changes)
+GET/POST            /api/tasks
+GET/PATCH/DELETE    /api/tasks/{id}
+POST                /api/tasks/{id}/items            (associate)
+POST                /api/tasks/{id}/worktrees
+POST                /api/tasks/{id}/runs
+POST                /api/tasks/{id}/context/refresh
+GET                 /api/tasks/{id}/stream           (SSE: task changes)
 GET                 /api/runs/{id}/stream               (SSE: agent transcript)
 GET/PATCH           /api/settings                        (session-link config)
 GET                 /api/fs/list                         (repository picker)

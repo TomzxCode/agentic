@@ -1,4 +1,4 @@
-"""Problems: the unit of work everything else hangs off."""
+"""Tasks: the unit of work everything else hangs off."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import delete as sa_delete
 from sqlmodel import Session, select
 
-from ..crud import add_timeline, field_label, get_problem_or_404, jsonable
+from ..crud import add_timeline, field_label, get_task_or_404, jsonable
 from ..db import get_session
 from ..events import bus
 from ..links import run_read
@@ -18,10 +18,10 @@ from ..models import (
     AgentRun,
     Association,
     Harness,
-    Problem,
     Repository,
     RepositoryGroup,
     SourceItem,
+    Task,
     TimelineEvent,
     Worktree,
     utcnow,
@@ -30,22 +30,22 @@ from ..schemas import (
     AssociateRequest,
     AssociationDetail,
     ItemRead,
-    ProblemCreate,
-    ProblemDetail,
-    ProblemRead,
-    ProblemUpdate,
+    TaskCreate,
+    TaskDetail,
+    TaskRead,
+    TaskUpdate,
     TimelineRead,
     WorktreeRead,
 )
 from ..services import remove_worktree
 from .items import _upsert_item
 
-router = APIRouter(prefix="/api/problems", tags=["problems"])
+router = APIRouter(prefix="/api/tasks", tags=["tasks"])
 
 
-def _detail(session: Session, problem: Problem) -> ProblemDetail:
+def _detail(session: Session, task: Task) -> TaskDetail:
     associations = session.exec(
-        select(Association).where(Association.problem_id == problem.id).order_by(Association.created_at.desc())
+        select(Association).where(Association.task_id == task.id).order_by(Association.created_at.desc())
     ).all()
     details: list[AssociationDetail] = []
     for assoc in associations:
@@ -61,19 +61,19 @@ def _detail(session: Session, problem: Problem) -> ProblemDetail:
             )
         )
     worktrees = session.exec(
-        select(Worktree).where(Worktree.problem_id == problem.id).order_by(Worktree.created_at.desc())
+        select(Worktree).where(Worktree.task_id == task.id).order_by(Worktree.created_at.desc())
     ).all()
     runs = session.exec(
-        select(AgentRun).where(AgentRun.problem_id == problem.id).order_by(AgentRun.created_at.desc()).limit(20)
+        select(AgentRun).where(AgentRun.task_id == task.id).order_by(AgentRun.created_at.desc()).limit(20)
     ).all()
     timeline = session.exec(
         select(TimelineEvent)
-        .where(TimelineEvent.problem_id == problem.id)
+        .where(TimelineEvent.task_id == task.id)
         .order_by(TimelineEvent.created_at.desc())
         .limit(100)
     ).all()
-    return ProblemDetail(
-        **ProblemRead.model_validate(problem).model_dump(),
+    return TaskDetail(
+        **TaskRead.model_validate(task).model_dump(),
         associations=details,
         worktrees=[WorktreeRead.model_validate(w) for w in worktrees],
         runs=[run_read(session, r) for r in runs],
@@ -81,56 +81,56 @@ def _detail(session: Session, problem: Problem) -> ProblemDetail:
     )
 
 
-@router.get("", response_model=list[ProblemRead])
-def list_problems(
+@router.get("", response_model=list[TaskRead])
+def list_tasks(
     status: str | None = None,
     q: str | None = None,
     session: Session = Depends(get_session),
-) -> list[Problem]:
-    query = select(Problem).order_by(Problem.updated_at.desc())
+) -> list[Task]:
+    query = select(Task).order_by(Task.updated_at.desc())
     if status:
-        query = query.where(Problem.status == status)
-    problems = list(session.exec(query).all())
+        query = query.where(Task.status == status)
+    tasks = list(session.exec(query).all())
     if q:
         needle = q.lower()
-        problems = [
+        tasks = [
             p
-            for p in problems
+            for p in tasks
             if needle in p.title.lower()
             or needle in (p.description or "").lower()
             or needle in (p.summary or "").lower()
         ]
-    return problems
+    return tasks
 
 
-@router.post("", response_model=ProblemRead, status_code=201)
-async def create_problem(payload: ProblemCreate, session: Session = Depends(get_session)) -> Problem:
-    problem = Problem(**payload.model_dump())
-    session.add(problem)
+@router.post("", response_model=TaskRead, status_code=201)
+async def create_task(payload: TaskCreate, session: Session = Depends(get_session)) -> Task:
+    task = Task(**payload.model_dump())
+    session.add(task)
     session.commit()
-    session.refresh(problem)
-    add_timeline(session, problem.id, "created", f"Problem created: {problem.title}")
-    await bus.publish(f"problem:{problem.id}", {"kind": "problem", "action": "created"})
-    return problem
+    session.refresh(task)
+    add_timeline(session, task.id, "created", f"Task created: {task.title}")
+    await bus.publish(f"task:{task.id}", {"kind": "task", "action": "created"})
+    return task
 
 
-@router.get("/{problem_id}", response_model=ProblemDetail)
-def get_problem(problem_id: str, session: Session = Depends(get_session)) -> ProblemDetail:
-    problem = get_problem_or_404(session, problem_id)
-    return _detail(session, problem)
+@router.get("/{task_id}", response_model=TaskDetail)
+def get_task(task_id: str, session: Session = Depends(get_session)) -> TaskDetail:
+    task = get_task_or_404(session, task_id)
+    return _detail(session, task)
 
 
-@router.patch("/{problem_id}", response_model=ProblemRead)
-async def update_problem(problem_id: str, payload: ProblemUpdate, session: Session = Depends(get_session)) -> Problem:
-    problem = get_problem_or_404(session, problem_id)
+@router.patch("/{task_id}", response_model=TaskRead)
+async def update_task(task_id: str, payload: TaskUpdate, session: Session = Depends(get_session)) -> Task:
+    task = get_task_or_404(session, task_id)
     data = payload.model_dump(exclude_unset=True)
-    before = {key: jsonable(getattr(problem, key)) for key in data}
+    before = {key: jsonable(getattr(task, key)) for key in data}
     for key, value in data.items():
-        setattr(problem, key, value)
-    problem.updated_at = utcnow()
-    session.add(problem)
+        setattr(task, key, value)
+    task.updated_at = utcnow()
+    session.add(task)
     session.commit()
-    session.refresh(problem)
+    session.refresh(task)
 
     # Record the actual before/after for each field that changed (skip no-ops).
     # Relationship fields also carry a resolved label so the timeline reads in
@@ -146,7 +146,7 @@ async def update_problem(problem_id: str, payload: ProblemUpdate, session: Sessi
 
     changes = {}
     for key in data:
-        old, new = before[key], jsonable(getattr(problem, key))
+        old, new = before[key], jsonable(getattr(task, key))
         if old == new:
             continue
         entry: dict[str, object] = {"from": old, "to": new}
@@ -157,22 +157,22 @@ async def update_problem(problem_id: str, payload: ProblemUpdate, session: Sessi
     if changes and (set(changes) - {"summary", "next_steps"}):
         add_timeline(
             session,
-            problem.id,
+            task.id,
             "updated",
             f"Updated: {', '.join(sorted(field_label(key) for key in changes))}",
             {"changes": changes},
         )
-    await bus.publish(f"problem:{problem.id}", {"kind": "problem", "action": "updated"})
-    return problem
+    await bus.publish(f"task:{task.id}", {"kind": "task", "action": "updated"})
+    return task
 
 
-@router.delete("/{problem_id}", status_code=204)
-async def delete_problem(problem_id: str, session: Session = Depends(get_session)) -> None:
-    problem = get_problem_or_404(session, problem_id)
+@router.delete("/{task_id}", status_code=204)
+async def delete_task(task_id: str, session: Session = Depends(get_session)) -> None:
+    task = get_task_or_404(session, task_id)
 
     # Remove worktrees from disk (best effort) before dropping their rows.
     repo_cache: dict[str, Repository] = {}
-    for worktree in session.exec(select(Worktree).where(Worktree.problem_id == problem.id)).all():
+    for worktree in session.exec(select(Worktree).where(Worktree.task_id == task.id)).all():
         repo = repo_cache.get(worktree.repository_id) or session.get(Repository, worktree.repository_id)
         if repo is not None:
             repo_cache[repo.id] = repo
@@ -180,24 +180,24 @@ async def delete_problem(problem_id: str, session: Session = Depends(get_session
                 await anyio.to_thread.run_sync(remove_worktree, repo.path, worktree.path)
 
     # Explicit, ordered deletes: SQLite enforces FKs (PRAGMA foreign_keys=ON),
-    # so children must go before the problem row.
-    run_ids = [r.id for r in session.exec(select(AgentRun).where(AgentRun.problem_id == problem.id)).all()]
+    # so children must go before the task row.
+    run_ids = [r.id for r in session.exec(select(AgentRun).where(AgentRun.task_id == task.id)).all()]
     if run_ids:
         session.execute(sa_delete(AgentEvent).where(AgentEvent.run_id.in_(run_ids)))
-    session.execute(sa_delete(AgentRun).where(AgentRun.problem_id == problem.id))
-    session.execute(sa_delete(Association).where(Association.problem_id == problem.id))
-    session.execute(sa_delete(Worktree).where(Worktree.problem_id == problem.id))
-    session.execute(sa_delete(TimelineEvent).where(TimelineEvent.problem_id == problem.id))
-    session.execute(sa_delete(Problem).where(Problem.id == problem.id))
+    session.execute(sa_delete(AgentRun).where(AgentRun.task_id == task.id))
+    session.execute(sa_delete(Association).where(Association.task_id == task.id))
+    session.execute(sa_delete(Worktree).where(Worktree.task_id == task.id))
+    session.execute(sa_delete(TimelineEvent).where(TimelineEvent.task_id == task.id))
+    session.execute(sa_delete(Task).where(Task.id == task.id))
     session.commit()
-    await bus.publish("problems", {"kind": "problem", "action": "deleted", "id": problem_id})
+    await bus.publish("tasks", {"kind": "task", "action": "deleted", "id": task_id})
 
 
-@router.post("/{problem_id}/items", response_model=AssociationDetail, status_code=201)
+@router.post("/{task_id}/items", response_model=AssociationDetail, status_code=201)
 async def associate_item(
-    problem_id: str, payload: AssociateRequest, session: Session = Depends(get_session)
+    task_id: str, payload: AssociateRequest, session: Session = Depends(get_session)
 ) -> AssociationDetail:
-    get_problem_or_404(session, problem_id)
+    get_task_or_404(session, task_id)
     if payload.item is not None:
         # Fetching (network/CLI) happens here; keep it off the event loop.
         item = await anyio.to_thread.run_sync(_upsert_item, session, payload.item)
@@ -209,9 +209,9 @@ async def associate_item(
         raise HTTPException(status_code=400, detail="Provide item_id or item")
 
     existing = session.exec(
-        select(Association).where(Association.problem_id == problem_id, Association.item_id == item.id)
+        select(Association).where(Association.task_id == task_id, Association.item_id == item.id)
     ).first()
-    assoc = existing or Association(problem_id=problem_id, item_id=item.id, note=payload.note)
+    assoc = existing or Association(task_id=task_id, item_id=item.id, note=payload.note)
     if existing:
         assoc.note = payload.note or assoc.note
     session.add(assoc)
@@ -219,38 +219,36 @@ async def associate_item(
     session.refresh(assoc)
     add_timeline(
         session,
-        problem_id,
+        task_id,
         "item_added",
         f"Associated [{item.source}] {item.title or item.url or item.id}",
         {"item_id": item.id},
     )
-    await bus.publish(f"problem:{problem_id}", {"kind": "problem", "action": "items_changed"})
+    await bus.publish(f"task:{task_id}", {"kind": "task", "action": "items_changed"})
     return AssociationDetail(
         id=assoc.id, note=assoc.note, created_at=assoc.created_at, item=ItemRead.model_validate(item)
     )
 
 
-@router.delete("/{problem_id}/items/{item_id}", status_code=204)
-async def unassociate_item(problem_id: str, item_id: str, session: Session = Depends(get_session)) -> None:
+@router.delete("/{task_id}/items/{item_id}", status_code=204)
+async def unassociate_item(task_id: str, item_id: str, session: Session = Depends(get_session)) -> None:
     assoc = session.exec(
-        select(Association).where(Association.problem_id == problem_id, Association.item_id == item_id)
+        select(Association).where(Association.task_id == task_id, Association.item_id == item_id)
     ).first()
     if assoc is None:
         raise HTTPException(status_code=404, detail="Association not found")
     session.delete(assoc)
     session.commit()
-    add_timeline(session, problem_id, "item_removed", "Item unassociated", {"item_id": item_id})
-    await bus.publish(f"problem:{problem_id}", {"kind": "problem", "action": "items_changed"})
+    add_timeline(session, task_id, "item_removed", "Item unassociated", {"item_id": item_id})
+    await bus.publish(f"task:{task_id}", {"kind": "task", "action": "items_changed"})
 
 
-@router.get("/{problem_id}/timeline", response_model=list[TimelineRead])
-def get_timeline(problem_id: str, session: Session = Depends(get_session)) -> list[TimelineEvent]:
-    get_problem_or_404(session, problem_id)
+@router.get("/{task_id}/timeline", response_model=list[TimelineRead])
+def get_timeline(task_id: str, session: Session = Depends(get_session)) -> list[TimelineEvent]:
+    get_task_or_404(session, task_id)
     return list(
         session.exec(
-            select(TimelineEvent)
-            .where(TimelineEvent.problem_id == problem_id)
-            .order_by(TimelineEvent.created_at.desc())
+            select(TimelineEvent).where(TimelineEvent.task_id == task_id).order_by(TimelineEvent.created_at.desc())
         ).all()
     )
 

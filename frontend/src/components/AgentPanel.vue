@@ -4,7 +4,7 @@ import { api, openRunStream } from '../api'
 import { store, timeAgo } from '../store'
 import SessionLinks from './SessionLinks.vue'
 
-const props = defineProps({ problem: { type: Object, required: true }, harnesses: { type: Array, default: () => [] } })
+const props = defineProps({ task: { type: Object, required: true }, harnesses: { type: Array, default: () => [] } })
 const emit = defineEmits(['changed'])
 
 const prompt = ref('')
@@ -18,14 +18,14 @@ const runs = ref([])
 let closeStream = null
 
 const liveCwd = computed(() => {
-  const w = props.problem.worktrees?.find((x) => x.id === worktreeId.value)
+  const w = props.task.worktrees?.find((x) => x.id === worktreeId.value)
   if (w) return w.path
-  const active = props.problem.worktrees?.find((x) => x.status === 'active')
-  return active?.path || '(problem repository)'
+  const active = props.task.worktrees?.find((x) => x.status === 'active')
+  return active?.path || '(task repository)'
 })
 
 async function loadRuns() {
-  runs.value = await api.runs.list(props.problem.id)
+  runs.value = await api.runs.list(props.task.id)
 }
 
 function handleEvent(ev) {
@@ -50,7 +50,7 @@ async function start() {
     const body = { prompt: prompt.value }
     if (harnessId.value) body.harness_id = harnessId.value
     if (worktreeId.value) body.worktree_id = worktreeId.value
-    const run = await api.runs.create(props.problem.id, body)
+    const run = await api.runs.create(props.task.id, body)
     activeRun.value = run
     activeRunId.value = run.id
     prompt.value = ''
@@ -98,7 +98,7 @@ onMounted(loadRuns)
       </select>
       <select v-model="worktreeId" class="select grow">
         <option value="">Auto working directory</option>
-        <option v-for="w in (problem.worktrees || []).filter((x) => x.status === 'active')" :key="w.id" :value="w.id">
+        <option v-for="w in (task.worktrees || []).filter((x) => x.status === 'active')" :key="w.id" :value="w.id">
           {{ w.branch }}
         </option>
       </select>
@@ -109,7 +109,7 @@ onMounted(loadRuns)
       v-model="prompt"
       class="textarea"
       :disabled="running"
-      placeholder="Ask the agent to work on this problem…"
+      placeholder="Ask the agent to work on this task…"
       @keydown.ctrl.enter="start"
     ></textarea>
     <div class="row" style="margin-top: 8px">

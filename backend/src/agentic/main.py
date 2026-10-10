@@ -14,7 +14,7 @@ from sqlmodel import Session
 from .agents import seed_harnesses
 from .config import settings
 from .db import create_db_and_tables, engine
-from .routers import agents, fs, groups, items, problems, repositories, worktrees
+from .routers import agents, fs, groups, items, repositories, tasks, worktrees
 from .routers import settings as settings_router
 
 log = structlog.get_logger(__name__)
@@ -39,7 +39,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-for module in (repositories, groups, items, problems, worktrees, agents, settings_router, fs):
+for module in (repositories, groups, items, tasks, worktrees, agents, settings_router, fs):
     app.include_router(module.router)
 
 

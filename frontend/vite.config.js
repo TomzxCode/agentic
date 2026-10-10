@@ -14,7 +14,7 @@ export default defineConfig({
       manifest: {
         name: 'Agentic',
         short_name: 'Agentic',
-        description: 'Track work as problems and collaborate with LLM coding agents.',
+        description: 'Track work as tasks and collaborate with LLM coding agents.',
         theme_color: '#0f1115',
         background_color: '#0f1115',
         display: 'standalone',

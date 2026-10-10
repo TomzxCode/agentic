@@ -57,15 +57,15 @@ h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: v
 
 /* Sidebar list */
 .side-head { display: flex; gap: 8px; margin-bottom: 12px; }
-.problem-card {
+.task-card {
   display: block; padding: 10px 12px; border-radius: var(--radius); border: 1px solid transparent;
   background: var(--bg-2); margin-bottom: 8px; cursor: pointer;
 }
-.problem-card:hover { border-color: var(--border); background: var(--bg-3); text-decoration: none; }
-.problem-card.active { border-color: var(--accent-2); }
-.problem-card .t { color: var(--text); font-weight: 600; display: block; margin-bottom: 3px; }
-.problem-card .s { color: var(--muted); font-size: 12px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.problem-card .meta { display: flex; gap: 6px; align-items: center; margin-top: 6px; flex-wrap: wrap; }
+.task-card:hover { border-color: var(--border); background: var(--bg-3); text-decoration: none; }
+.task-card.active { border-color: var(--accent-2); }
+.task-card .t { color: var(--text); font-weight: 600; display: block; margin-bottom: 3px; }
+.task-card .s { color: var(--muted); font-size: 12px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.task-card .meta { display: flex; gap: 6px; align-items: center; margin-top: 6px; flex-wrap: wrap; }
 
 /* Buttons / inputs */
 .btn {
@@ -226,7 +226,7 @@ code, .mono { font-family: var(--mono); font-size: 12.5px; }
   .sidebar-backdrop { display: block; position: fixed; inset: var(--topbar-h) 0 0 0; background: rgba(0, 0, 0, .5); z-index: 39; }
   .topbar .menu-btn { display: inline-flex; padding: 8px; width: 42px; height: 42px; justify-content: center; }
   .topbar .mobile-only { display: inline-flex; }
-  .nav-problems { display: none; }
+  .nav-tasks { display: none; }
 
   .main { padding: 14px 14px calc(72px + env(safe-area-inset-bottom)); }
   .grid-2 { grid-template-columns: 1fr; }

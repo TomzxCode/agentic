@@ -23,5 +23,5 @@ def test_emit_text_preserves_brackets():
 
 def test_client_has_no_server_command():
     # Serving belongs to the backend CLI (agentic-server).
-    assert "problem" in cli.app
+    assert "task" in cli.app
     assert "serve" not in cli.app

@@ -1,4 +1,4 @@
-"""Repository groups: named sets of repositories that inform a problem's agent."""
+"""Repository groups: named sets of repositories that inform a task's agent."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from sqlalchemy import update as sa_update
 from sqlmodel import Session, select
 
 from ..db import get_session
-from ..models import Problem, Repository, RepositoryGroup, RepositoryGroupMember
+from ..models import Repository, RepositoryGroup, RepositoryGroupMember, Task
 from ..schemas import RepositoryGroupCreate, RepositoryGroupRead, RepositoryGroupUpdate
 
 router = APIRouter(prefix="/api/groups", tags=["groups"])
@@ -93,6 +93,6 @@ def delete_group(group_id: str, session: Session = Depends(get_session)) -> None
     if group is None:
         raise HTTPException(status_code=404, detail="Group not found")
     session.execute(sa_delete(RepositoryGroupMember).where(RepositoryGroupMember.group_id == group_id))
-    session.execute(sa_update(Problem).where(Problem.group_id == group_id).values(group_id=None))
+    session.execute(sa_update(Task).where(Task.group_id == group_id).values(group_id=None))
     session.execute(sa_delete(RepositoryGroup).where(RepositoryGroup.id == group_id))
     session.commit()

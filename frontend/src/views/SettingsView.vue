@@ -198,7 +198,7 @@ onMounted(load)
 
     <section class="panel">
       <div class="panel-head"><h2>Repositories</h2></div>
-      <p class="faint" style="margin-top: 0">Local git checkouts that problems can create isolated worktrees from.</p>
+      <p class="faint" style="margin-top: 0">Local git checkouts that tasks can create isolated worktrees from.</p>
       <div v-for="r in store.repositories" :key="r.id" class="item">
         <div class="item-top">
           <span class="title">{{ r.name }}</span>

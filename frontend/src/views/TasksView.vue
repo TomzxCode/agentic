@@ -4,12 +4,12 @@ import { store, statusClass, timeAgo } from '../store'
 
 const counts = computed(() => {
   const c = { open: 0, in_progress: 0, blocked: 0, done: 0, archived: 0 }
-  for (const p of store.problems) c[p.status] = (c[p.status] || 0) + 1
+  for (const p of store.tasks) c[p.status] = (c[p.status] || 0) + 1
   return c
 })
 
 const focus = computed(() =>
-  store.problems
+  store.tasks
     .filter((p) => p.status !== 'done' && p.status !== 'archived')
     .sort((a, b) => {
       const av = (a.next_steps || []).filter((s) => !s.done).length
@@ -19,12 +19,12 @@ const focus = computed(() =>
     .slice(0, 8),
 )
 
-onMounted(() => store.loadProblems())
+onMounted(() => store.loadTasks())
 </script>
 
 <template>
   <div>
-    <h1 style="margin-bottom: 16px">Problems in flight</h1>
+    <h1 style="margin-bottom: 16px">Tasks in flight</h1>
 
     <div class="row" style="gap: 10px; margin-bottom: 20px">
       <span class="badge">Open {{ counts.open }}</span>
@@ -38,7 +38,7 @@ onMounted(() => store.loadProblems())
       <router-link
         v-for="p in focus"
         :key="p.id"
-        :to="`/p/${p.id}`"
+        :to="`/task/${p.id}`"
         class="item"
         style="display: block"
       >
@@ -57,7 +57,7 @@ onMounted(() => store.loadProblems())
     <section class="panel" v-else>
       <h2 style="margin-bottom: 8px">Get started</h2>
       <ol class="muted" style="padding-left: 18px; line-height: 1.9">
-        <li>Create a problem (the <strong>+</strong> in the sidebar).</li>
+        <li>Create a task (the <strong>+</strong> in the sidebar).</li>
         <li>Associate the relevant Slack thread, GitHub issue/PR, or Drive doc.</li>
         <li>Add a repository in <router-link to="/settings">Settings</router-link>, then spin up a worktree.</li>
         <li>Hit <strong>Refresh with agent</strong> to get a current summary and next steps.</li>

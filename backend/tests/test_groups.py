@@ -12,7 +12,7 @@ def _repo(client: TestClient, path: Path) -> dict:
     return client.post("/api/repositories", json={"path": str(path)}).json()
 
 
-def test_group_lifecycle_and_problem_link(tmp_path: Path):
+def test_group_lifecycle_and_task_link(tmp_path: Path):
     with TestClient(app) as client:
         a = _repo(client, tmp_path / "alpha")
         b = _repo(client, tmp_path / "beta")
@@ -29,14 +29,14 @@ def test_group_lifecycle_and_problem_link(tmp_path: Path):
         updated = client.patch(f"/api/groups/{group['id']}", json={"repository_ids": [a["id"], "nope"]}).json()
         assert updated["repository_ids"] == [a["id"]]
 
-        problem = client.post("/api/problems", json={"title": "Grouped", "group_id": group["id"]}).json()
-        assert problem["group_id"] == group["id"]
+        task = client.post("/api/tasks", json={"title": "Grouped", "group_id": group["id"]}).json()
+        assert task["group_id"] == group["id"]
 
-        # deleting the group detaches it from the problem
+        # deleting the group detaches it from the task
         assert client.delete(f"/api/groups/{group['id']}").status_code == 204
-        assert client.get(f"/api/problems/{problem['id']}").json()["group_id"] is None
+        assert client.get(f"/api/tasks/{task['id']}").json()["group_id"] is None
 
-        client.delete(f"/api/problems/{problem['id']}")
+        client.delete(f"/api/tasks/{task['id']}")
         client.delete(f"/api/repositories/{a['id']}")
         client.delete(f"/api/repositories/{b['id']}")
 
