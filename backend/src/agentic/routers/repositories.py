@@ -29,12 +29,13 @@ def create_repository(payload: RepositoryCreate, session: Session = Depends(get_
     path = Path(payload.path).expanduser()
     if not (path / ".git").exists():
         raise HTTPException(status_code=400, detail=f"{path} is not a git repository")
-    repo = Repository(
-        name=payload.name or path.name,
-        path=str(path),
-        remote_url=payload.remote_url or detect_remote_url(str(path)),
-        default_branch=payload.default_branch or detect_default_branch(str(path)),
-    )
+    repo = session.exec(select(Repository).where(Repository.path == str(path))).first()
+    if repo is None:
+        repo = Repository(name=payload.name or path.name, path=str(path))
+        session.add(repo)
+    repo.name = payload.name or repo.name or path.name
+    repo.remote_url = payload.remote_url or repo.remote_url or detect_remote_url(str(path))
+    repo.default_branch = payload.default_branch or repo.default_branch or detect_default_branch(str(path))
     session.add(repo)
     session.commit()
     session.refresh(repo)
