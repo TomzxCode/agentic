@@ -280,14 +280,14 @@ def item_get(item_id: str) -> str:
 @item_app.command(name="create")
 @safe
 def item_create(
-    source: Source,
+    source: Source | None = None,
     url: str | None = None,
     title: str = "",
     content: str = "",
     external_id: str | None = None,
     fetch: bool = True,
 ) -> str:
-    """Create an item (fetches metadata/content unless --no-fetch)."""
+    """Create an item (source is inferred from the url/content; fetches unless --no-fetch)."""
     with _client() as client:
         item = client.create_item(
             source=source, url=url, title=title, content=content, external_id=external_id, fetch=fetch
@@ -331,11 +331,11 @@ def link_add(
     note: str = "",
     fetch: bool = True,
 ) -> str:
-    """Associate an existing item (--item-id) or a new one (--source) with a problem."""
+    """Associate an existing item (--item-id) or a new one (--url/--content) with a problem."""
     item = None
     if item_id is None:
-        if source is None:
-            print("error: provide --item-id or --source", file=sys.stderr)
+        if not (url or content or title):
+            print("error: provide --item-id, or a --url/--content for a new item", file=sys.stderr)
             return 1
         item = {
             "source": source,

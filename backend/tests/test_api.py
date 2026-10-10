@@ -68,6 +68,22 @@ def test_timeline_labels_relationships(tmp_path):
         client.delete(f"/api/repositories/{repo['id']}")
 
 
+def test_item_source_is_inferred():
+    with TestClient(app) as client:
+        item = client.post(
+            "/api/items", json={"url": "https://github.com/psf/requests/issues/1", "fetch": False}
+        ).json()
+        assert item["source"] == "github"
+        assert item["kind"] == "issue"
+        assert item["external_id"] == "psf/requests#1"
+
+        note = client.post("/api/items", json={"content": "just a note", "fetch": False}).json()
+        assert note["source"] == "note"
+
+        client.delete(f"/api/items/{item['id']}")
+        client.delete(f"/api/items/{note['id']}")
+
+
 def test_harnesses_are_seeded():
     with TestClient(app) as client:
         harnesses = client.get("/api/harnesses").json()

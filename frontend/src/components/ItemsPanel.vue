@@ -8,15 +8,8 @@ const emit = defineEmits(['changed'])
 const expanded = ref({})
 const busy = ref(false)
 
-const SOURCES = [
-  { value: 'slack', label: 'Slack' },
-  { value: 'github', label: 'GitHub' },
-  { value: 'gdrive', label: 'Google Drive' },
-  { value: 'url', label: 'URL' },
-  { value: 'note', label: 'Note' },
-]
-
-const draft = reactive({ source: 'slack', url: '', title: '', content: '', note: '', showContent: false })
+// No type field: the backend infers the source from the URL/content.
+const draft = reactive({ url: '', title: '', content: '', note: '', showContent: false })
 
 const grouped = computed(() => {
   const groups = {}
@@ -34,19 +27,17 @@ async function addItem() {
   if (!draft.url.trim() && !draft.content.trim() && !draft.title.trim()) return
   busy.value = true
   try {
-    const externalId = draft.source === 'github' ? undefined : undefined
     await api.problems.associate(props.problem.id, {
       note: draft.note,
       item: {
-        source: draft.source,
         url: draft.url || null,
         title: draft.title,
         content: draft.content,
-        external_id: externalId,
         fetch: !draft.content,
       },
     })
     draft.url = draft.title = draft.content = draft.note = ''
+    draft.showContent = false
     emit('changed')
   } catch (e) {
     store.notify(e.message, true)
@@ -104,10 +95,11 @@ async function refreshItem(itemId) {
 
     <div style="border-top: 1px solid var(--border); padding-top: 12px; margin-top: 4px">
       <div class="row">
-        <select v-model="draft.source" class="select w-150">
-          <option v-for="s in SOURCES" :key="s.value" :value="s.value">{{ s.label }}</option>
-        </select>
-        <input v-model="draft.url" class="input grow" placeholder="Paste a URL (Slack thread, GitHub issue/PR, Drive doc…)" />
+        <input
+          v-model="draft.url"
+          class="input grow"
+          placeholder="Paste a Slack thread, GitHub issue/PR, Drive link, or any URL (type is inferred)"
+        />
       </div>
       <div class="row" style="margin-top: 8px">
         <input v-model="draft.title" class="input grow" placeholder="Title (optional)" />

@@ -150,7 +150,7 @@ class HarnessStatus(BaseModel):
 
 # --- SourceItem ------------------------------------------------------------
 class ItemCreate(BaseModel):
-    source: str
+    source: str | None = None  # inferred from url/content when omitted
     kind: str = ""
     title: str = ""
     url: str | None = None

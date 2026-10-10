@@ -1,4 +1,4 @@
-from agentic.services import extract_context_json
+from agentic.services import extract_context_json, infer_item_source
 
 VALID = (
     '{"summary": "Do the thing.", "next_steps": '
@@ -43,3 +43,21 @@ def test_ignores_braces_in_thoughts_when_only_json_present():
 def test_returns_none_without_summary():
     assert extract_context_json('{"foo": "bar"}') is None
     assert extract_context_json("no json here") is None
+
+
+def test_infer_item_source_from_value():
+    github = infer_item_source("https://github.com/psf/requests/issues/1")
+    assert github == {"source": "github", "kind": "issue", "external_id": "psf/requests#1"}
+
+    pull = infer_item_source("https://github.com/psf/requests/pull/2")
+    assert pull["source"] == "github" and pull["kind"] == "pull_request"
+
+    slack = infer_item_source("https://acme.slack.com/archives/C123/p1700000000000000")
+    assert slack["source"] == "slack" and slack["kind"] == "thread" and slack["external_id"] == "C123:1700000000000000"
+
+    drive = infer_item_source("https://docs.google.com/document/d/AbC-123_x/edit")
+    assert drive["source"] == "gdrive" and drive["external_id"] == "AbC-123_x"
+
+    assert infer_item_source("https://example.com/page")["source"] == "url"
+    assert infer_item_source(None, None, "some pasted text")["source"] == "note"
+    assert infer_item_source("", None, "")["source"] == "note"

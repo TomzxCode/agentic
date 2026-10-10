@@ -9,28 +9,35 @@ from sqlmodel import Session, select
 from ..db import get_session
 from ..models import Association, SourceItem, utcnow
 from ..schemas import ItemCreate, ItemRead, ItemUpdate
-from ..services import fetch_source
+from ..services import fetch_source, infer_item_source
 
 router = APIRouter(prefix="/api/items", tags=["items"])
 
 
 def _upsert_item(session: Session, payload: ItemCreate) -> SourceItem:
+    # Infer the source/kind/external id when the caller did not spell them out.
+    inferred = infer_item_source(payload.url, payload.external_id, payload.content)
+    source = payload.source or inferred["source"] or "note"
+    kind = payload.kind or inferred.get("kind") or ""
+    external_id = payload.external_id or inferred.get("external_id")
+
     item: SourceItem | None = None
-    if payload.external_id:
+    if external_id:
         item = session.exec(
-            select(SourceItem).where(SourceItem.source == payload.source, SourceItem.external_id == payload.external_id)
+            select(SourceItem).where(SourceItem.source == source, SourceItem.external_id == external_id)
         ).first()
     if item is None and payload.url:
         item = session.exec(select(SourceItem).where(SourceItem.url == payload.url)).first()
 
     if item is None:
-        item = SourceItem(source=payload.source)
+        item = SourceItem(source=source)
         session.add(item)
 
-    item.kind = payload.kind or item.kind
+    item.source = source
+    item.kind = kind or item.kind
     item.title = payload.title or item.title
     item.url = payload.url or item.url
-    item.external_id = payload.external_id or item.external_id
+    item.external_id = external_id or item.external_id
     item.metadata_json = {**(item.metadata_json or {}), **payload.metadata_json}
     if payload.content:
         item.content = payload.content

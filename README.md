@@ -109,7 +109,8 @@ only expose this on a trusted network.
 1. **Create a problem** (the `+` in the sidebar); optionally pick a
    **repository group** so the agent knows which checkouts to consider.
 2. **Associate items**: paste a Slack thread permalink, a GitHub issue/PR URL, a
-   Drive doc, or write a note. GitHub and Slack/URL items are fetched on demand
+   Drive doc, or write a note. The source (Slack/GitHub/Drive/URL/note) is
+   inferred from what you paste. GitHub and Slack/URL items are fetched on demand
    (via `gh` and `slackx` for Slack); you can also paste content directly.
 3. **Add repositories** in Settings. Use **Browse…** to pick folders on the
    machine (select several at once); git repositories are marked. Group related
@@ -167,7 +168,7 @@ Two command-line tools are installed:
 agentic --help                       # everything, grouped by resource
 agentic problem create --title "Fix the flaky ingest test"
 agentic problem list --status open
-agentic link add <problem> --source github --url https://github.com/o/r/issues/482
+agentic link add <problem> --url https://github.com/o/r/issues/482
 agentic link add <problem> --item-id <item>
 agentic worktree create <problem>
 agentic context refresh <problem>    # agent rewrites summary + next steps

@@ -114,6 +114,35 @@ def parse_slack(url: str) -> dict[str, str] | None:
     }
 
 
+GOOGLE_DOC_RE = re.compile(r"https?://(?:docs|drive)\.google\.com/[^/]+/d/([A-Za-z0-9_-]+)")
+
+
+def infer_item_source(
+    url: str | None = None,
+    external_id: str | None = None,
+    content: str | None = None,
+) -> dict[str, str | None]:
+    """Work out an item's source/kind/external id from what the user provided.
+
+    Lets callers omit the source entirely: a GitHub or Slack link, a Google
+    Docs/Drive link, another URL, or plain text each map to the right source.
+    """
+    if url:
+        github = parse_github(url)
+        if github:
+            return {"source": "github", "kind": github["kind"], "external_id": github["external_id"]}
+        slack = parse_slack(url)
+        if slack:
+            return {"source": "slack", "kind": "thread", "external_id": slack["external_id"]}
+        google = GOOGLE_DOC_RE.search(url)
+        if google:
+            return {"source": "gdrive", "kind": "doc", "external_id": google.group(1)}
+        return {"source": "url", "kind": "", "external_id": external_id}
+    if content:
+        return {"source": "note", "kind": "", "external_id": external_id}
+    return {"source": "note", "kind": "", "external_id": external_id}
+
+
 def fetch_source(source: str, url: str | None, external_id: str | None, title: str) -> dict[str, Any]:
     """Best-effort metadata/content pull. Never raises."""
 
