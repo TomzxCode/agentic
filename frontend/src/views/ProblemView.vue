@@ -8,6 +8,8 @@ import WorktreesPanel from '../components/WorktreesPanel.vue'
 import AgentPanel from '../components/AgentPanel.vue'
 import TimelinePanel from '../components/TimelinePanel.vue'
 import SessionLinks from '../components/SessionLinks.vue'
+import EditableText from '../components/EditableText.vue'
+import InlineSelect from '../components/InlineSelect.vue'
 
 const props = defineProps({ id: { type: String, required: true } })
 const emit = defineEmits(['changed'])
@@ -15,12 +17,28 @@ const emit = defineEmits(['changed'])
 const problem = ref(null)
 const loading = ref(true)
 const notFound = ref(false)
-const editing = ref(false)
-const draft = ref({ title: '', description: '', status: 'open', priority: 2 })
 let closeStream = null
 
 // Links from the most recent run that produced a session.
 const latestLinks = computed(() => problem.value?.runs?.find((run) => run.links?.length)?.links || [])
+
+const STATUS_OPTIONS = [
+  { value: 'open', label: 'open' },
+  { value: 'in_progress', label: 'in progress' },
+  { value: 'blocked', label: 'blocked' },
+  { value: 'done', label: 'done' },
+  { value: 'archived', label: 'archived' },
+]
+const PRIORITY_OPTIONS = [
+  { value: 0, label: 'priority: low' },
+  { value: 1, label: 'priority: medium' },
+  { value: 2, label: 'priority: high' },
+  { value: 3, label: 'priority: urgent' },
+]
+const repositoryOptions = computed(() => [
+  { value: '', label: 'no repository' },
+  ...store.repositories.map((r) => ({ value: r.id, label: r.name })),
+])
 
 async function load() {
   try {
@@ -39,28 +57,28 @@ function subscribe() {
   })
 }
 
-function startEdit() {
-  draft.value = {
-    title: problem.value.title,
-    description: problem.value.description,
-    status: problem.value.status,
-    priority: problem.value.priority,
+// Inline "edit online": each property saves on change, no form.
+async function update(field, value) {
+  if (field === 'title' && !String(value).trim()) {
+    store.notify('Title cannot be empty', true)
+    await load()
+    return
   }
-  editing.value = true
-}
-
-async function saveEdit() {
-  await api.problems.update(props.id, draft.value)
-  editing.value = false
-  await load()
-  emit('changed')
+  if (field === 'repository_id' && value === '') value = null
+  try {
+    await api.problems.update(props.id, { [field]: value })
+    await load()
+    emit('changed')
+  } catch (e) {
+    store.notify(e.message, true)
+    await load()
+  }
 }
 
 async function removeProblem() {
   if (!confirm('Delete this problem? This cannot be undone.')) return
   await api.problems.remove(props.id)
   emit('changed')
-  location.hash = ''
   window.history.pushState({}, '', '/')
   location.reload()
 }
@@ -77,13 +95,16 @@ onMounted(async () => {
   subscribe()
 })
 onUnmounted(() => closeStream?.())
-watch(() => props.id, async (val) => {
-  if (!val) return
-  loading.value = true
-  notFound.value = false
-  await load()
-  subscribe()
-})
+watch(
+  () => props.id,
+  async (val) => {
+    if (!val) return
+    loading.value = true
+    notFound.value = false
+    await load()
+    subscribe()
+  },
+)
 </script>
 
 <template>
@@ -92,25 +113,50 @@ watch(() => props.id, async (val) => {
   <div v-else>
     <div class="row page-head" style="margin-bottom: 16px">
       <div class="grow" style="min-width: 0">
-        <h1 style="margin-bottom: 4px">{{ problem.title }}</h1>
+        <EditableText
+          as="h1"
+          style="margin-bottom: 4px"
+          :value="problem.title"
+          placeholder="Untitled problem"
+          @save="(value) => update('title', value)"
+        />
         <div class="row">
-          <span class="badge">{{ problem.status.replace('_', ' ') }}</span>
-          <span class="badge">priority {{ problem.priority }}</span>
-          <span v-if="problem.repository_id" class="badge">
-            {{ store.repositories.find((r) => r.id === problem.repository_id)?.name || 'repo' }}
-          </span>
+          <InlineSelect
+            :value="problem.status"
+            :options="STATUS_OPTIONS"
+            title="Status"
+            @save="(value) => update('status', value)"
+          />
+          <InlineSelect
+            :value="problem.priority"
+            :options="PRIORITY_OPTIONS"
+            title="Priority"
+            @save="(value) => update('priority', Number(value))"
+          />
+          <InlineSelect
+            :value="problem.repository_id || ''"
+            :options="repositoryOptions"
+            title="Repository"
+            @save="(value) => update('repository_id', value)"
+          />
         </div>
         <SessionLinks v-if="latestLinks.length" :links="latestLinks" compact />
       </div>
       <div class="row">
-        <button class="btn sm" @click="startEdit">Edit</button>
         <button class="btn sm danger" @click="removeProblem">Delete</button>
       </div>
     </div>
 
-    <p v-if="problem.description" class="muted" style="white-space: pre-wrap">{{ problem.description }}</p>
+    <EditableText
+      class="muted"
+      as="p"
+      multiline
+      :value="problem.description"
+      placeholder="Add a description…"
+      @save="(value) => update('description', value)"
+    />
 
-    <div class="grid-2">
+    <div class="grid-2" style="margin-top: 16px">
       <div>
         <ContextPanel :problem="problem" @changed="onChanged" />
         <AgentPanel :problem="problem" :harnesses="store.harnesses" @changed="onChanged" />
@@ -119,37 +165,6 @@ watch(() => props.id, async (val) => {
       <div>
         <WorktreesPanel :problem="problem" :repositories="store.repositories" @changed="onChanged" />
         <TimelinePanel :events="problem.timeline" />
-      </div>
-    </div>
-
-    <div v-if="editing" class="modal-backdrop" @click.self="editing = false">
-      <div class="modal">
-        <h1 style="margin-bottom: 14px">Edit problem</h1>
-        <div class="field"><label>Title</label><input v-model="draft.title" class="input" /></div>
-        <div class="field"><label>Description</label><textarea v-model="draft.description" class="textarea"></textarea></div>
-        <div class="row">
-          <div class="field grow">
-            <label>Status</label>
-            <select v-model="draft.status" class="select">
-              <option value="open">Open</option>
-              <option value="in_progress">In progress</option>
-              <option value="blocked">Blocked</option>
-              <option value="done">Done</option>
-              <option value="archived">Archived</option>
-            </select>
-          </div>
-          <div class="field grow">
-            <label>Priority</label>
-            <select v-model.number="draft.priority" class="select">
-              <option :value="0">Low</option><option :value="1">Medium</option>
-              <option :value="2">High</option><option :value="3">Urgent</option>
-            </select>
-          </div>
-        </div>
-        <div class="row" style="justify-content: flex-end">
-          <button class="btn ghost" @click="editing = false">Cancel</button>
-          <button class="btn primary" @click="saveEdit">Save</button>
-        </div>
       </div>
     </div>
   </div>
