@@ -2,12 +2,18 @@
 
 from __future__ import annotations
 
+from enum import Enum
 from typing import Any
 
 from fastapi import HTTPException
 from sqlmodel import Session
 
 from .models import Problem, TimelineEvent
+
+
+def jsonable(value: Any) -> Any:
+    """Make a value safe for the JSON timeline column (enums -> their value)."""
+    return value.value if isinstance(value, Enum) else value
 
 
 def get_problem_or_404(session: Session, problem_id: str) -> Problem:

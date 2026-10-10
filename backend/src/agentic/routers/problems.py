@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import delete as sa_delete
 from sqlmodel import Session, select
 
-from ..crud import add_timeline, get_problem_or_404
+from ..crud import add_timeline, get_problem_or_404, jsonable
 from ..db import get_session
 from ..events import bus
 from ..links import run_read
@@ -122,15 +122,28 @@ def get_problem(problem_id: str, session: Session = Depends(get_session)) -> Pro
 async def update_problem(problem_id: str, payload: ProblemUpdate, session: Session = Depends(get_session)) -> Problem:
     problem = get_problem_or_404(session, problem_id)
     data = payload.model_dump(exclude_unset=True)
-    changed = set(data)
+    before = {key: jsonable(getattr(problem, key)) for key in data}
     for key, value in data.items():
         setattr(problem, key, value)
     problem.updated_at = utcnow()
     session.add(problem)
     session.commit()
     session.refresh(problem)
-    if changed - {"summary", "next_steps"}:
-        add_timeline(session, problem.id, "updated", f"Problem updated: {', '.join(sorted(changed))}")
+
+    # Record the actual before/after for each field that changed (skip no-ops).
+    changes = {}
+    for key in data:
+        old, new = before[key], jsonable(getattr(problem, key))
+        if old != new:
+            changes[key] = {"from": old, "to": new}
+    if changes and (set(changes) - {"summary", "next_steps"}):
+        add_timeline(
+            session,
+            problem.id,
+            "updated",
+            f"Updated: {', '.join(sorted(changes))}",
+            {"changes": changes},
+        )
     await bus.publish(f"problem:{problem.id}", {"kind": "problem", "action": "updated"})
     return problem
 

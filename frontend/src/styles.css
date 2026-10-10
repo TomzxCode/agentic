@@ -177,6 +177,12 @@ h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: v
 .timeline li:last-child { border-bottom: none; }
 .timeline .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent-2); margin-top: 6px; flex: none; }
 .timeline .when { color: var(--faint); font-size: 11px; white-space: nowrap; }
+.timeline .changes { display: flex; flex-direction: column; gap: 3px; margin-top: 5px; }
+.timeline .change { display: flex; align-items: baseline; gap: 8px; font-size: 12px; flex-wrap: wrap; }
+.timeline .change .field { color: var(--muted); min-width: 84px; }
+.timeline .change .from { color: var(--muted); text-decoration: line-through; opacity: .75; }
+.timeline .change .arrow { color: var(--faint); }
+.timeline .change .to { color: var(--accent); }
 
 /* Modal */
 .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.55); display: flex; align-items: flex-start; justify-content: center; padding-top: 10vh; z-index: 50; }
