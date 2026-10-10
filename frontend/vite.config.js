@@ -41,6 +41,7 @@ export default defineConfig({
     alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
   },
   server: {
+    host: true, // bind 0.0.0.0 so the dev server is reachable remotely
     allowedHosts: ['squirtle'],
     port: 5173,
     proxy: {

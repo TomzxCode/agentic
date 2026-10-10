@@ -13,10 +13,39 @@ from sqlmodel import Session, select
 
 from ..db import get_session
 from ..models import Problem, Repository, Worktree
-from ..schemas import RepositoryCreate, RepositoryRead
+from ..schemas import (
+    RepositoryBulkCreate,
+    RepositoryBulkResult,
+    RepositoryCreate,
+    RepositoryRead,
+)
 from ..services import detect_default_branch, detect_remote_url, remove_worktree
 
 router = APIRouter(prefix="/api/repositories", tags=["repositories"])
+
+
+def _upsert_repository(
+    session: Session,
+    path_str: str,
+    *,
+    name: str | None = None,
+    remote_url: str | None = None,
+    default_branch: str | None = None,
+) -> Repository:
+    path = Path(path_str).expanduser().resolve()
+    if not (path / ".git").exists():
+        raise ValueError(f"{path} is not a git repository")
+    repo = session.exec(select(Repository).where(Repository.path == str(path))).first()
+    if repo is None:
+        repo = Repository(name=name or path.name, path=str(path))
+        session.add(repo)
+    repo.name = name or repo.name or path.name
+    repo.remote_url = remote_url or repo.remote_url or detect_remote_url(str(path))
+    repo.default_branch = default_branch or repo.default_branch or detect_default_branch(str(path))
+    session.add(repo)
+    session.commit()
+    session.refresh(repo)
+    return repo
 
 
 @router.get("", response_model=list[RepositoryRead])
@@ -26,20 +55,28 @@ def list_repositories(session: Session = Depends(get_session)) -> list[Repositor
 
 @router.post("", response_model=RepositoryRead, status_code=201)
 def create_repository(payload: RepositoryCreate, session: Session = Depends(get_session)) -> Repository:
-    path = Path(payload.path).expanduser()
-    if not (path / ".git").exists():
-        raise HTTPException(status_code=400, detail=f"{path} is not a git repository")
-    repo = session.exec(select(Repository).where(Repository.path == str(path))).first()
-    if repo is None:
-        repo = Repository(name=payload.name or path.name, path=str(path))
-        session.add(repo)
-    repo.name = payload.name or repo.name or path.name
-    repo.remote_url = payload.remote_url or repo.remote_url or detect_remote_url(str(path))
-    repo.default_branch = payload.default_branch or repo.default_branch or detect_default_branch(str(path))
-    session.add(repo)
-    session.commit()
-    session.refresh(repo)
-    return repo
+    try:
+        return _upsert_repository(
+            session,
+            payload.path,
+            name=payload.name,
+            remote_url=payload.remote_url,
+            default_branch=payload.default_branch,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/bulk", response_model=RepositoryBulkResult, status_code=201)
+def create_repositories(payload: RepositoryBulkCreate, session: Session = Depends(get_session)) -> RepositoryBulkResult:
+    added: list[RepositoryRead] = []
+    errors: list[dict[str, str]] = []
+    for path in payload.paths:
+        try:
+            added.append(RepositoryRead.model_validate(_upsert_repository(session, path)))
+        except ValueError as exc:
+            errors.append({"path": path, "error": str(exc)})
+    return RepositoryBulkResult(added=added, errors=errors)
 
 
 @router.get("/{repository_id}", response_model=RepositoryRead)

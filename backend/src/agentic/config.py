@@ -17,6 +17,10 @@ class Settings(BaseSettings):
     # Where git worktrees are created for problems.
     worktree_root: Path = Path.home() / ".agentic" / "worktrees"
 
+    # Root the repository picker may browse. Defaults to the home directory;
+    # set to "/" to allow browsing anywhere on the machine.
+    fs_root: Path = Path.home()
+
     # Static frontend build output (frontend/dist). Served when it exists.
     static_dir: Path = Path(__file__).resolve().parents[2] / "static"
 

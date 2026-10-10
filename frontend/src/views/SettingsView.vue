@@ -2,11 +2,13 @@
 import { onMounted, reactive, ref } from 'vue'
 import { api } from '../api'
 import { store } from '../store'
+import DirectoryPicker from '../components/DirectoryPicker.vue'
 
 const repoDraft = reactive({ path: '' })
 const harnessDraft = reactive({ name: '', command: '', args: '', description: '' })
 const loading = ref(true)
 
+const showPicker = ref(false)
 const fullHarnesses = ref([])
 const harnessStatus = ref({})
 const resumeDrafts = reactive({})
@@ -56,6 +58,23 @@ async function addRepo() {
     await api.repositories.create({ path: repoDraft.path.trim() })
     repoDraft.path = ''
     await loadRepositories()
+  } catch (e) {
+    store.notify(e.message, true)
+  }
+}
+
+async function addRepos(paths) {
+  if (!paths.length) return
+  try {
+    const result = await api.repositories.createBulk(paths)
+    await loadRepositories()
+    showPicker.value = false
+    const added = result.added.length
+    if (result.errors.length) {
+      store.notify(`Added ${added}, ${result.errors.length} skipped (not a git repository)`, true)
+    } else {
+      store.notify(`Added ${added} repositor${added === 1 ? 'y' : 'ies'}`)
+    }
   } catch (e) {
     store.notify(e.message, true)
   }
@@ -190,8 +209,11 @@ onMounted(load)
       </div>
       <div class="row" style="margin-top: 10px">
         <input v-model="repoDraft.path" class="input grow" placeholder="/absolute/path/to/git/repo" @keyup.enter="addRepo" />
+        <button class="btn" @click="showPicker = true">Browse…</button>
         <button class="btn primary" @click="addRepo">Add repository</button>
       </div>
     </section>
+
+    <DirectoryPicker v-if="showPicker" @close="showPicker = false" @add="addRepos" />
   </div>
 </template>

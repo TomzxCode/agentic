@@ -44,12 +44,31 @@ class SettingsUpdate(BaseModel):
     terminal_url_template: str | None = None
 
 
+# --- Filesystem (repository picker) ---------------------------------------
+class FsEntry(BaseModel):
+    name: str
+    path: str
+    is_git: bool = False
+
+
+class FsListing(BaseModel):
+    root: str
+    path: str
+    parent: str | None = None
+    is_git: bool = False
+    entries: list[FsEntry] = []
+
+
 # --- Repository ------------------------------------------------------------
 class RepositoryCreate(BaseModel):
     name: str | None = None
     path: str
     remote_url: str | None = None
     default_branch: str | None = None
+
+
+class RepositoryBulkCreate(BaseModel):
+    paths: list[str]
 
 
 class RepositoryRead(ORMModel):
@@ -59,6 +78,11 @@ class RepositoryRead(ORMModel):
     remote_url: str | None = None
     default_branch: str | None = None
     created_at: datetime
+
+
+class RepositoryBulkResult(BaseModel):
+    added: list[RepositoryRead] = []
+    errors: list[dict[str, str]] = []
 
 
 # --- Harness ---------------------------------------------------------------
@@ -280,6 +304,8 @@ __all__ = [
     "AssociationDetail",
     "AssociationRead",
     "ContextPreview",
+    "FsEntry",
+    "FsListing",
     "Harness",
     "HarnessCreate",
     "HarnessRead",
@@ -294,6 +320,8 @@ __all__ = [
     "ProblemRead",
     "ProblemUpdate",
     "Repository",
+    "RepositoryBulkCreate",
+    "RepositoryBulkResult",
     "RepositoryCreate",
     "RepositoryRead",
     "RunCreate",

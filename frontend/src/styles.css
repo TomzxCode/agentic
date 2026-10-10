@@ -165,6 +165,15 @@ h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: v
 /* Modal */
 .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.55); display: flex; align-items: flex-start; justify-content: center; padding-top: 10vh; z-index: 50; }
 .modal { background: var(--bg-1); border: 1px solid var(--border); border-radius: 12px; padding: 18px; width: min(560px, 92vw); box-shadow: 0 20px 60px rgba(0,0,0,.5); }
+
+/* Directory picker */
+.picker { width: min(660px, 94vw); }
+.picker-list { border: 1px solid var(--border); border-radius: 10px; max-height: 52vh; overflow: auto; }
+.picker-row { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-bottom: 1px solid var(--border); }
+.picker-row:last-child { border-bottom: none; }
+.picker-row:hover { background: var(--bg-2); }
+.picker-row input[type=checkbox] { accent-color: var(--accent); flex: none; }
+.picker-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
 .empty { text-align: center; color: var(--muted); padding: 40px 20px; }
 .spinner { width: 14px; height: 14px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin .8s linear infinite; display: inline-block; }
 @keyframes spin { to { transform: rotate(360deg); } }

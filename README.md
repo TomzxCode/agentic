@@ -70,7 +70,7 @@ least one harness on your `PATH` (`opencode` and/or `pi-acp`).
 ```bash
 # 1. Backend + CLI (API on :8600), from the repository root
 uv sync
-uv run agentic-server serve --host 127.0.0.1 --port 8600 --reload
+uv run agentic-server serve --host 0.0.0.0 --port 8600 --reload
 
 # 2. Frontend (dev server on :5173, proxies /api to :8600)
 cd frontend
@@ -86,10 +86,22 @@ Build the SPA into `backend/static` and let FastAPI serve everything:
 
 ```bash
 cd frontend && npm run build      # writes ../backend/static
-cd ../backend && uv run agentic-server serve --host 127.0.0.1 --port 8600
+uv run agentic-server serve --host 0.0.0.0 --port 8600   # from the repo root
 ```
 
 Open http://127.0.0.1:8600. The PWA installs from there.
+
+### Remote access
+
+Both servers bind `0.0.0.0`, so you can open them from another device on the
+same network (or over a VPN such as Tailscale):
+
+- Frontend dev server: `http://<host>:5173` (the Vite config exposes `host: true`).
+- Backend / built app: `http://<host>:8600`.
+
+Vite only accepts Host headers listed in `server.allowedHosts` (add your
+hostname there); IP addresses are always allowed. There is no authentication, so
+only expose this on a trusted network.
 
 ## Using it
 
@@ -97,7 +109,9 @@ Open http://127.0.0.1:8600. The PWA installs from there.
 2. **Associate items**: paste a Slack thread permalink, a GitHub issue/PR URL, a
    Drive doc, or write a note. GitHub and Slack/URL items are fetched on demand
    (via `gh` and `slackx` for Slack); you can also paste content directly.
-3. **Add a repository** in Settings, then create a **worktree** for the problem.
+3. **Add repositories** in Settings. Use **Browse…** to pick folders on the
+   machine (select several at once); git repositories are marked. Then create a
+   **worktree** for the problem.
 4. **Refresh with agent** to generate the current summary and next steps.
 5. **Run an agent** against the problem; the transcript streams live.
 
@@ -125,6 +139,7 @@ Environment variables (prefix `AGENTIC_`) or `backend/.env`:
 | --- | --- | --- |
 | `AGENTIC_DATA_DIR` | `~/.agentic` | SQLite DB location. |
 | `AGENTIC_WORKTREE_ROOT` | `~/.agentic/worktrees` | Where worktrees are created. |
+| `AGENTIC_FS_ROOT` | `~` | Root the repository picker may browse (`/` for anywhere). |
 | `AGENTIC_STATIC_DIR` | `backend/static` | Built SPA to serve. |
 | `AGENTIC_DEFAULT_HARNESS` | `opencode` | Harness used when a problem doesn't pick one. |
 | `AGENTIC_AUTO_APPROVE_PERMISSIONS` | `true` | Auto-approve ACP permission requests. |
@@ -189,6 +204,8 @@ POST                /api/problems/{id}/context/refresh
 GET                 /api/problems/{id}/stream           (SSE: problem changes)
 GET                 /api/runs/{id}/stream               (SSE: agent transcript)
 GET/PATCH           /api/settings                        (session-link config)
+GET                 /api/fs/list                         (repository picker)
+POST                /api/repositories/bulk               (add several at once)
 GET/POST/PATCH      /api/harnesses   /api/repositories   /api/items
 ```
 

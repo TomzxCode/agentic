@@ -41,7 +41,18 @@ export const api = {
   repositories: {
     list: () => request('/repositories'),
     create: (body) => request('/repositories', { method: 'POST', body }),
+    createBulk: (paths) => request('/repositories/bulk', { method: 'POST', body: { paths } }),
     remove: (id) => request(`/repositories/${id}`, { method: 'DELETE' }),
+  },
+
+  fs: {
+    list: (path, hidden = false) => {
+      const qs = new URLSearchParams()
+      if (path) qs.set('path', path)
+      if (hidden) qs.set('hidden', 'true')
+      const query = qs.toString()
+      return request(`/fs/list${query ? `?${query}` : ''}`)
+    },
   },
 
   harnesses: {
