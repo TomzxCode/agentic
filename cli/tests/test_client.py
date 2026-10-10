@@ -3,7 +3,7 @@ import json
 import httpx
 import pytest
 
-from agentic.client import AgenticClient, ApiError
+from agentic_cli.client import AgenticClient, ApiError
 
 
 def _client(handler) -> AgenticClient:

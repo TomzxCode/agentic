@@ -2,6 +2,13 @@ version = 1
 revision = 3
 requires-python = ">=3.12"
 
+[manifest]
+members = [
+    "agentic",
+    "agentic-cli",
+    "agentic-workspace",
+]
+
 [[package]]
 name = "agent-client-protocol"
 version = "0.12.1"
@@ -17,7 +24,7 @@ wheels = [
 [[package]]
 name = "agentic"
 version = "0.1.0"
-source = { editable = "." }
+source = { editable = "backend" }
 dependencies = [
     { name = "agent-client-protocol" },
     { name = "cyclopts" },
@@ -29,13 +36,6 @@ dependencies = [
     { name = "sse-starlette" },
     { name = "structlog" },
     { name = "uvicorn", extra = ["standard"] },
-]
-
-[package.dev-dependencies]
-dev = [
-    { name = "pytest" },
-    { name = "pytest-asyncio" },
-    { name = "ruff" },
 ]
 
 [package.metadata]
@@ -50,6 +50,45 @@ requires-dist = [
     { name = "sse-starlette", specifier = ">=2.1" },
     { name = "structlog", specifier = ">=24.1" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.30" },
+]
+
+[[package]]
+name = "agentic-cli"
+version = "0.1.0"
+source = { editable = "cli" }
+dependencies = [
+    { name = "cyclopts" },
+    { name = "httpx" },
+    { name = "rich" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "cyclopts", specifier = ">=5.2.0" },
+    { name = "httpx", specifier = ">=0.27" },
+    { name = "rich", specifier = ">=13.0" },
+]
+
+[[package]]
+name = "agentic-workspace"
+version = "0.0.0"
+source = { virtual = "." }
+dependencies = [
+    { name = "agentic" },
+    { name = "agentic-cli" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "pytest" },
+    { name = "pytest-asyncio" },
+    { name = "ruff" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "agentic", editable = "backend" },
+    { name = "agentic-cli", editable = "cli" },
 ]
 
 [package.metadata.requires-dev]

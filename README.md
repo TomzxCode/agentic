@@ -14,6 +14,20 @@ a coding agent keep a current summary and next-steps list so resuming is quick.
   context) with JSON output, so agents can create and maintain the content.
   `agentic-server` runs and inspects the backend itself.
 
+## Layout
+
+A [uv workspace](https://docs.astral.sh/uv/concepts/projects/workspaces/) with
+two Python packages and the SPA:
+
+| Path | Package | Command | Role |
+| --- | --- | --- | --- |
+| `backend/` | `agentic` | `agentic-server` | FastAPI API, ACP agent runner, DB |
+| `cli/` | `agentic-cli` | `agentic` | HTTP client that drives the API |
+| `frontend/` | — | — | Vue 3 + Vite PWA served by the API |
+
+`uv sync` at the root installs both packages and their console scripts into one
+virtualenv.
+
 ## Concepts
 
 | Concept | What it is |
@@ -54,8 +68,7 @@ Prerequisites: Python 3.12+, [uv](https://docs.astral.sh/uv/), Node 20+, and at
 least one harness on your `PATH` (`opencode` and/or `pi-acp`).
 
 ```bash
-# 1. Backend (API on :8600)
-cd backend
+# 1. Backend + CLI (API on :8600), from the repository root
 uv sync
 uv run agentic-server serve --host 127.0.0.1 --port 8600 --reload
 

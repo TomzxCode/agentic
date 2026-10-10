@@ -17,15 +17,7 @@ dependencies = [
     "cyclopts>=5.2.0",
 ]
 
-[dependency-groups]
-dev = [
-    "pytest>=8.0",
-    "pytest-asyncio>=0.24",
-    "ruff>=0.6",
-]
-
 [project.scripts]
-agentic = "agentic.cli:main"
 agentic-server = "agentic.server_cli:main"
 
 [build-system]
@@ -34,13 +26,3 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/agentic"]
-
-[tool.ruff]
-line-length = 120
-target-version = "py312"
-src = ["src", "tests"]
-
-[tool.ruff.lint]
-select = ["E", "F", "I", "UP", "B", "SIM"]
-# B008: FastAPI's `Depends()` in argument defaults is the intended pattern.
-ignore = ["B008"]

@@ -1,0 +1,39 @@
+[project]
+name = "agentic-workspace"
+version = "0.0.0"
+description = "Agentic monorepo: the backend API server and the command-line client."
+requires-python = ">=3.12"
+# Depend on the workspace members so a single `uv sync` installs both and their
+# console scripts (agentic, agentic-server) land in the shared virtualenv.
+dependencies = ["agentic", "agentic-cli"]
+
+[tool.uv]
+# The root is a virtual workspace project, not an installable package.
+package = false
+
+[tool.uv.workspace]
+members = ["backend", "cli"]
+
+[tool.uv.sources]
+agentic = { workspace = true }
+agentic-cli = { workspace = true }
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.24",
+    "ruff>=0.6",
+]
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+src = ["backend/src", "cli/src"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+# B008: FastAPI's `Depends()` in argument defaults is the intended pattern.
+ignore = ["B008"]
+
+[tool.pytest.ini_options]
+testpaths = ["backend/tests", "cli/tests"]

@@ -1,6 +1,6 @@
 import json
 
-from agentic import cli, server_cli
+from agentic_cli import cli
 
 
 def test_emit_json_is_parseable_and_ignores_text():
@@ -21,8 +21,7 @@ def test_emit_text_preserves_brackets():
         cli.CONTEXT["format"] = "auto"
 
 
-def test_user_and_server_clis_are_separate():
+def test_client_has_no_server_command():
+    # Serving belongs to the backend CLI (agentic-server).
     assert "problem" in cli.app
-    assert "serve" not in cli.app  # serving belongs to the backend CLI
-    assert "serve" in server_cli.app
-    assert "info" in server_cli.app
+    assert "serve" not in cli.app
