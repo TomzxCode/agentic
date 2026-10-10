@@ -115,6 +115,16 @@ def parse_slack(url: str) -> dict[str, str] | None:
 
 
 GOOGLE_DOC_RE = re.compile(r"https?://(?:docs|drive)\.google\.com/[^/]+/d/([A-Za-z0-9_-]+)")
+URL_SCHEME_RE = re.compile(r"^[a-zA-Z][a-zA-Z0-9+.\-]*://\S+$")
+BARE_HOST_RE = re.compile(r"^[a-z0-9](?:[a-z0-9\-]*[a-z0-9])?(?:\.[a-z0-9\-]+)+(?:[/?#]\S*)?$", re.IGNORECASE)
+
+
+def looks_like_url(value: str | None) -> bool:
+    """True when the value looks like a URL (scheme, or a bare domain)."""
+    text = (value or "").strip()
+    if not text or any(char.isspace() for char in text):
+        return False
+    return bool(URL_SCHEME_RE.match(text) or BARE_HOST_RE.match(text))
 
 
 def infer_item_source(
@@ -126,20 +136,20 @@ def infer_item_source(
 
     Lets callers omit the source entirely: a GitHub or Slack link, a Google
     Docs/Drive link, another URL, or plain text each map to the right source.
+    Plain text that is not a URL (or bare content) becomes a note.
     """
-    if url:
-        github = parse_github(url)
+    text = (url or "").strip()
+    if text and looks_like_url(text):
+        github = parse_github(text)
         if github:
             return {"source": "github", "kind": github["kind"], "external_id": github["external_id"]}
-        slack = parse_slack(url)
+        slack = parse_slack(text)
         if slack:
             return {"source": "slack", "kind": "thread", "external_id": slack["external_id"]}
-        google = GOOGLE_DOC_RE.search(url)
+        google = GOOGLE_DOC_RE.search(text)
         if google:
             return {"source": "gdrive", "kind": "doc", "external_id": google.group(1)}
         return {"source": "url", "kind": "", "external_id": external_id}
-    if content:
-        return {"source": "note", "kind": "", "external_id": external_id}
     return {"source": "note", "kind": "", "external_id": external_id}
 
 

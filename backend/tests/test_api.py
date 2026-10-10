@@ -80,8 +80,16 @@ def test_item_source_is_inferred():
         note = client.post("/api/items", json={"content": "just a note", "fetch": False}).json()
         assert note["source"] == "note"
 
+        # Plain text pasted into the URL field is stored as a note, not a url.
+        plain = client.post("/api/items", json={"url": "User doesn't know what they want."}).json()
+        assert plain["source"] == "note"
+        assert plain["url"] is None
+        assert plain["content"] == "User doesn't know what they want."
+        assert plain["title"] == "User doesn't know what they want."
+
         client.delete(f"/api/items/{item['id']}")
         client.delete(f"/api/items/{note['id']}")
+        client.delete(f"/api/items/{plain['id']}")
 
 
 def test_harnesses_are_seeded():

@@ -1,4 +1,4 @@
-from agentic.services import extract_context_json, infer_item_source
+from agentic.services import extract_context_json, infer_item_source, looks_like_url
 
 VALID = (
     '{"summary": "Do the thing.", "next_steps": '
@@ -61,3 +61,16 @@ def test_infer_item_source_from_value():
     assert infer_item_source("https://example.com/page")["source"] == "url"
     assert infer_item_source(None, None, "some pasted text")["source"] == "note"
     assert infer_item_source("", None, "")["source"] == "note"
+    # Plain text pasted where a URL is expected is a note, not a url.
+    assert infer_item_source("User doesn't know what they want.")["source"] == "note"
+    assert infer_item_source("just a reminder")["source"] == "note"
+
+
+def test_looks_like_url():
+    assert looks_like_url("https://github.com/o/r/issues/1")
+    assert looks_like_url("github.com/o/r/issues/1")
+    assert looks_like_url("example.com/page")
+    assert not looks_like_url("User doesn't know what they want.")
+    assert not looks_like_url("just a reminder")
+    assert not looks_like_url("")
+    assert not looks_like_url(None)

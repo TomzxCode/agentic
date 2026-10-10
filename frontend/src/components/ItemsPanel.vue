@@ -98,7 +98,7 @@ async function refreshItem(itemId) {
         <input
           v-model="draft.url"
           class="input grow"
-          placeholder="Paste a Slack thread, GitHub issue/PR, Drive link, or any URL (type is inferred)"
+          placeholder="Paste a Slack/GitHub/Drive link, any URL, or just text (type is inferred)"
         />
       </div>
       <div class="row" style="margin-top: 8px">

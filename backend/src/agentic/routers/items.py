@@ -9,14 +9,20 @@ from sqlmodel import Session, select
 from ..db import get_session
 from ..models import Association, SourceItem, utcnow
 from ..schemas import ItemCreate, ItemRead, ItemUpdate
-from ..services import fetch_source, infer_item_source
+from ..services import fetch_source, infer_item_source, looks_like_url
 
 router = APIRouter(prefix="/api/items", tags=["items"])
 
 
 def _upsert_item(session: Session, payload: ItemCreate) -> SourceItem:
+    # Text pasted where a URL was expected is not a URL: keep it as the note's
+    # content instead of storing (and later rendering) a bogus link.
+    raw_url = (payload.url or "").strip()
+    url = raw_url if looks_like_url(raw_url) else None
+    content = payload.content or (raw_url if raw_url and url is None else "")
+
     # Infer the source/kind/external id when the caller did not spell them out.
-    inferred = infer_item_source(payload.url, payload.external_id, payload.content)
+    inferred = infer_item_source(url, payload.external_id, content)
     source = payload.source or inferred["source"] or "note"
     kind = payload.kind or inferred.get("kind") or ""
     external_id = payload.external_id or inferred.get("external_id")
@@ -26,8 +32,8 @@ def _upsert_item(session: Session, payload: ItemCreate) -> SourceItem:
         item = session.exec(
             select(SourceItem).where(SourceItem.source == source, SourceItem.external_id == external_id)
         ).first()
-    if item is None and payload.url:
-        item = session.exec(select(SourceItem).where(SourceItem.url == payload.url)).first()
+    if item is None and url:
+        item = session.exec(select(SourceItem).where(SourceItem.url == url)).first()
 
     if item is None:
         item = SourceItem(source=source)
@@ -36,18 +42,22 @@ def _upsert_item(session: Session, payload: ItemCreate) -> SourceItem:
     item.source = source
     item.kind = kind or item.kind
     item.title = payload.title or item.title
-    item.url = payload.url or item.url
+    if url:
+        item.url = url
     item.external_id = external_id or item.external_id
     item.metadata_json = {**(item.metadata_json or {}), **payload.metadata_json}
-    if payload.content:
-        item.content = payload.content
+    if content:
+        item.content = content
 
-    if payload.fetch and not item.content:
+    if payload.fetch and item.url and not item.content:
         fetched = fetch_source(item.source, item.url, item.external_id, item.title)
         item.title = item.title or fetched.get("title") or item.url or item.source
         item.content = item.content or fetched.get("content", "")
         item.metadata_json = {**(item.metadata_json or {}), **fetched.get("metadata", {})}
         item.fetched_at = utcnow()
+
+    if not item.title and item.content:
+        item.title = item.content.strip().splitlines()[0][:120]
 
     item.updated_at = utcnow()
     session.add(item)
