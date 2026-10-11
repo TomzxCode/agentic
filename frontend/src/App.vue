@@ -1,15 +1,17 @@
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { api } from './api'
 import { store, statusClass, timeAgo } from './store'
 import SearchSelect from './components/SearchSelect.vue'
+import CommandPalette from './components/CommandPalette.vue'
 
 const route = useRoute()
 const router = useRouter()
 const search = ref('')
 const showNew = ref(false)
 const sidebarOpen = ref(false)
+const paletteOpen = ref(false)
 const draft = ref({ title: '', description: '', priority: 2, group_id: '', github_url: '' })
 
 // "Import from GitHub" state.
@@ -41,6 +43,30 @@ const groupOptions = computed(() => [
   ...store.groups.map((g) => ({ value: g.id, label: g.name })),
 ])
 const importRepoOptions = computed(() => githubRepos.value.map((r) => ({ value: r.id, label: r.name })))
+
+// Command palette: navigate anywhere (and a couple of actions) from the keyboard.
+const paletteItems = computed(() => [
+  { id: 'new-task', label: 'New task', hint: 'action', run: () => (showNew.value = true) },
+  { id: 'go-tasks', label: 'Go to tasks', hint: 'navigate', run: () => router.push('/') },
+  { id: 'go-settings', label: 'Go to settings', hint: 'navigate', run: () => router.push('/settings') },
+  ...store.tasks.map((task) => ({
+    id: `task-${task.id}`,
+    label: task.title,
+    hint: `task · ${task.status.replace('_', ' ')}`,
+    run: () => router.push(`/task/${task.id}`),
+  })),
+])
+
+function runPaletteItem(item) {
+  item.run?.()
+}
+
+function onGlobalKeydown(event) {
+  if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+    event.preventDefault()
+    paletteOpen.value = !paletteOpen.value
+  }
+}
 
 // Newest issues first (by number), with a text filter.
 const sortedIssues = computed(() => {
@@ -149,10 +175,12 @@ async function createTask() {
 }
 
 onMounted(async () => {
+  window.addEventListener('keydown', onGlobalKeydown)
   await refresh()
   await store.loadGroups().catch(() => {})
   await store.loadRepositories().catch(() => {})
 })
+onUnmounted(() => window.removeEventListener('keydown', onGlobalKeydown))
 </script>
 
 <template>
@@ -177,6 +205,9 @@ onMounted(async () => {
         <span>Agentic</span>
       </router-link>
       <div class="grow"></div>
+      <button class="btn ghost sm palette-trigger" title="Command palette (Ctrl/Cmd+K)" @click="paletteOpen = true">
+        ⌘K
+      </button>
       <router-link to="/" class="btn ghost sm nav-tasks" :class="{ primary: route.name === 'tasks' }">Tasks</router-link>
       <router-link to="/settings" class="btn ghost sm" :class="{ primary: route.name === 'settings' }">Settings</router-link>
       <button class="btn primary mobile-only" title="New task" aria-label="New task" @click="showNew = true">+</button>
@@ -291,5 +322,12 @@ onMounted(async () => {
     </div>
 
     <div v-if="store.toast" class="toast" :class="{ err: store.toast.isError }">{{ store.toast.message }}</div>
+
+    <CommandPalette
+      v-if="paletteOpen"
+      :items="paletteItems"
+      @select="runPaletteItem"
+      @close="paletteOpen = false"
+    />
   </div>
 </template>

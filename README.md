@@ -124,6 +124,9 @@ only expose this on a trusted network.
 4. **Refresh with agent** to generate the current summary and next steps.
 5. **Run an agent** against the task; the transcript streams live.
 
+Press **Ctrl/Cmd+K** (or the ⌘K button) for a command palette to jump to any
+task or action from the keyboard.
+
 ## Open a session in a terminal or OpenChamber
 
 When a run has a session id, the app shows links to reopen that session:

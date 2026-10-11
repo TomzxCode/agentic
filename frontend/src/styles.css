@@ -245,6 +245,28 @@ h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: v
 .ss-option.selected { color: var(--accent); }
 .ss-empty { padding: 6px 8px; }
 
+/* Command palette */
+.palette-backdrop {
+  position: fixed; inset: 0; background: rgba(0, 0, 0, .5); display: flex;
+  align-items: flex-start; justify-content: center; padding-top: 12vh; z-index: 80;
+}
+.palette {
+  width: min(620px, 94vw); background: var(--bg-1); border: 1px solid var(--border);
+  border-radius: 12px; box-shadow: 0 24px 60px rgba(0, 0, 0, .55); overflow: hidden;
+}
+.palette-input {
+  width: 100%; border: none; border-bottom: 1px solid var(--border); background: transparent;
+  padding: 14px 16px; font-size: 16px; color: inherit; outline: none;
+}
+.palette-list { max-height: 52vh; overflow: auto; padding: 6px; }
+.palette-item {
+  display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
+  padding: 9px 12px; border-radius: 8px; border: none; background: transparent; color: inherit;
+  cursor: pointer; font-size: 14px;
+}
+.palette-item.active { background: var(--bg-3); }
+.palette-empty { padding: 14px; text-align: center; }
+
 /* GitHub issue import */
 .issue-list { border: 1px solid var(--border); border-radius: 10px; max-height: 220px; overflow: auto; margin-top: 8px; }
 .issue-row { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; background: transparent; border: none; border-bottom: 1px solid var(--border); padding: 8px 10px; cursor: pointer; color: inherit; }
@@ -275,6 +297,7 @@ code, .mono { font-family: var(--mono); font-size: 12.5px; }
   .topbar .menu-btn { display: inline-flex; padding: 8px; width: 42px; height: 42px; justify-content: center; }
   .topbar .mobile-only { display: inline-flex; }
   .nav-tasks { display: none; }
+  .topbar .palette-trigger { display: none; }
 
   .main { padding: 14px 14px calc(72px + env(safe-area-inset-bottom)); }
   .grid-2 { grid-template-columns: 1fr; }
