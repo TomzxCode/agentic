@@ -30,6 +30,7 @@
 | Directory picker | The server-side filesystem browser (`GET /api/fs/list`) used to add repositories, confined to `AGENTIC_FS_ROOT`. |
 | Event bus | The in-process asyncio publish/subscribe used to stream events to SSE subscribers. |
 | Gantt view | A timeline page showing each task in flight as a bar with one marker per timeline event. |
+| Mobile support | The application is designed with mobile in mind, so layouts and controls work on small phone screens as well as desktops. |
 | Source inference | Deriving an item's source, kind, and external id from a pasted value (URL or plain text). |
 | SSE | Server-Sent Events, used for the live run transcript and task-change streams. |
 

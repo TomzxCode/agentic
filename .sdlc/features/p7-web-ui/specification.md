@@ -60,7 +60,7 @@ sequenceDiagram
 | Caching | Workbox network-only for `/api`, deny-list the SPA fallback for `/api` | API responses must never be served stale |
 | State | A single reactive store, no Pinia/Vuex | The app is small enough |
 | Streams | One `EventSource` per open view, closed on unmount | Avoids leaks and duplicate updates |
-| Styling | Hand-written CSS with a mobile-first breakpoint at 760px | No CSS framework dependency |
+| Styling | Hand-written CSS with a max-width breakpoint at 760px | No CSS framework dependency |
 
 ## Risks and Unknowns
 

@@ -7,6 +7,12 @@ Agentic is a local-first work tracker for a single developer who works alongside
 It organizes work as **tasks**, associates the external sources that feed them (Slack threads, GitHub issues and pull requests, Google Drive docs, generic URLs, and plain notes), creates isolated git worktrees to work in, and runs coding agents to keep a current summary and next-steps list so resuming a task takes under a minute.
 It solves the problem of scattered context: the threads, issues, and checkouts relevant to a piece of work live in many systems, and re-reading them to resume is slow.
 
+## Design Principles
+
+- **Designed with mobile in mind:** the application works on phones, not only on a desktop.
+  Layouts, navigation, and controls are checked at phone widths alongside larger screens.
+  The web app collapses its sidebar to an off-canvas drawer below 760px, uses touch-friendly controls, and is installable as a PWA so it can be driven from a phone.
+
 ## Key Stakeholders
 
 | Stakeholder | Role | Interest |
@@ -29,7 +35,7 @@ It solves the problem of scattered context: the threads, issues, and checkouts r
 - Agent-maintained context refresh (summary plus next steps).
 - Session links (OpenChamber, terminal, resume command).
 - A scriptable HTTP client CLI (`agentic`) and a backend CLI (`agentic-server`).
-- An installable Vue 3 PWA served by the API.
+- An installable Vue 3 PWA served by the API, designed with mobile in mind.
 
 **Out of scope:**
 - Multi-user access, authentication, or tenancy isolation.
@@ -45,3 +51,4 @@ It solves the problem of scattered context: the threads, issues, and checkouts r
 - External integrations are lightweight and metadata-only; GitHub uses `ghx` and Slack uses `slackx` when those CLIs are on `PATH`.
 - Requires Python 3.12+ and Node 20+, and at least one ACP harness on `PATH`.
 - Agent runs are in-process; restarting the API drops in-flight runs.
+- The web app is designed with mobile in mind: every UI change must stay usable and legible at phone widths, so narrow viewports are checked before a change is considered done.

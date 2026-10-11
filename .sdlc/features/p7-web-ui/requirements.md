@@ -10,7 +10,7 @@ session_link: "http://localhost:10000/?session=ses_ed778bb8affeJQ6f9Tkxe4MjUl"
 
 The web app is the primary interface.
 It is a Vue 3 single-page application that the API serves (also installable as a PWA), with a task list, a task detail view (context, agent, items, worktrees, timeline), and a settings view.
-It is mobile-first and live-updates from the API's SSE streams.
+It is designed with mobile in mind and live-updates from the API's SSE streams.
 
 ## Stakeholders
 

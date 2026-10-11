@@ -29,6 +29,14 @@
 - Blocking work (subprocess, network) runs off the event loop via `anyio.to_thread.run_sync`.
 - The CLI prints through a plain Rich `Console(markup=False, soft_wrap=True)` so `[open]`-style text stays literal and piped JSON is not wrapped.
 
+## Frontend and UI
+
+- The web app is designed with mobile in mind: design and check screens at phone widths as well as larger viewports, so the app stays usable on a phone.
+- Breakpoints are max-width based, with the primary one at 760px.
+  Below 760px the sidebar becomes an off-canvas drawer toggled from the top bar, and secondary chrome (command palette trigger, keyboard hints, some nav) hides.
+- Controls stay touch-friendly on small screens (icons carry `aria-label`s, buttons keep a comfortable tap size, and form fields use 16px text so mobile browsers do not zoom on focus).
+- Respect mobile browser chrome and notches by accounting for `env(safe-area-inset-*)` in full-height or edge-anchored regions.
+
 ## Commit Messages
 
 Conventional Commits: `<type>[(scope)]: <description>`, with the imperative mood and no trailing period.
