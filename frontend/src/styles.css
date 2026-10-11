@@ -869,6 +869,11 @@ h3 {
 .timeline li:last-child {
   border-bottom: none;
 }
+.timeline li.highlight {
+  background: var(--bg-2);
+  border-radius: 6px;
+  box-shadow: inset 3px 0 0 var(--accent-2);
+}
 .timeline .dot {
   width: 8px;
   height: 8px;
@@ -1310,6 +1315,20 @@ code,
   min-width: 100%;
   padding: 0 10px;
 }
+/* A single-row chart on the task page drops the label column and fits its
+   panel instead of scrolling like the full-page Gantt view. */
+.gantt.compact {
+  min-width: 0;
+}
+.gantt.compact .gantt-row {
+  grid-template-columns: 1fr;
+}
+.gantt.compact .gantt-track {
+  min-height: 30px;
+}
+.timeline-gantt {
+  margin: 4px 0 12px;
+}
 .gantt-row {
   display: grid;
   grid-template-columns: 220px 1fr;
@@ -1413,6 +1432,16 @@ code,
   transform: translate(-50%, -50%) rotate(45deg);
   border: 1px solid var(--bg-1);
   cursor: help;
+}
+button.gantt-marker {
+  padding: 0;
+  cursor: pointer;
+}
+/* A larger hit area for the small marker, so it is tappable on a phone. */
+button.gantt-marker::after {
+  content: '';
+  position: absolute;
+  inset: -7px;
 }
 .gantt-legend {
   display: flex;

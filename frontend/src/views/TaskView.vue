@@ -203,7 +203,7 @@ watch(
       </div>
       <div>
         <WorktreesPanel :task="task" :repositories="store.repositories" @changed="onChanged" />
-        <TimelinePanel :events="task.timeline" />
+        <TimelinePanel :events="task.timeline" :task="task" />
       </div>
     </div>
   </div>

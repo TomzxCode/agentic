@@ -9,16 +9,22 @@ session_link: "http://localhost:10000/?session=ses_ed778bb8affeJQ6f9Tkxe4MjUl"
 ## Overview
 
 The Gantt view is served by `routers/gantt.py` as `GET /api/gantt`, returning `GanttTask` rows built from `Task` plus its `TimelineEvent` markers.
-`frontend/src/views/GanttView.vue` renders the rows as a hand-rolled CSS chart: a shared time domain, tick gridlines, a bar per task, a marker per event, and a legend.
-The time domain comes from two date-time fields in the page header: a fitted window by default, or a start and end the user sets, with clipping of anything outside it.
+`frontend/src/components/GanttChart.vue` renders rows as a hand-rolled CSS chart: a shared time domain, tick gridlines, a bar per task, a marker per event, and a legend, over the math in `frontend/src/gantt.js`.
+`frontend/src/views/GanttView.vue` owns the page header (range fields, include-done toggle, refresh) and feeds the chart every task.
+The task detail page (`TimelinePanel.vue`) reuses `GanttChart` with a single, compact row (no label column) built from the task and its events, fitted to the task's own span.
+The time domain comes from a fitted window by default, or a start and end the user sets, with clipping of anything outside it.
 
 ## Architecture
 
 ```mermaid
 flowchart LR
-    V[GanttView.vue] --> A[api.js]
+    V[GanttView.vue] --> C[GanttChart.vue]
+    T[TimelinePanel.vue] --> C
+    C --> H[gantt.js]
+    V --> A[api.js]
     A --> R[routers/gantt.py]
     R --> DB[(Task + TimelineEvent)]
+    T --> DB
 ```
 
 ## Data Models
@@ -70,8 +76,10 @@ sequenceDiagram
 | Data source | Existing `Task` and `TimelineEvent` rows | No new persistence; markers are already recorded |
 | Closed filter | `done` and `archived` hidden unless asked | Keeps the default view on work in flight |
 | Rendering | Plain CSS positioning over a fixed data domain | No charting library; the shape is simple |
+| Shared chart | `GanttChart.vue` + `gantt.js` reused by the view and the task timeline | One rendering and one set of domain helpers, so both charts stay consistent |
 | Time window | Two date-time fields override a fitted window | Direct control over the viewed range without server state |
 | Window state | Component-local, not persisted | The range is a view preference, cheap to reset with fit |
+| Task timeline fit | Fitted to the task's own span, excluding now | An old task is not squeezed against the left edge |
 
 ## Time window
 
@@ -83,6 +91,14 @@ When the resolved start and end are ordered, they define the domain; otherwise t
 The track clips with `overflow: hidden`, so bars and markers outside the window are cut at the edges.
 The "now" line and its legend entry render only when the current time falls inside the window.
 Ticks use three across a window shorter than three days (time-of-day labels are long) and five otherwise.
+
+## Task timeline chart
+
+`TimelinePanel.vue` renders the same `GanttChart` with a single row built from the owning task (`created_at`, `updated_at`, `status`) and its `timeline` events as markers.
+It passes `compact`, which drops the label column and the view's `min-width`, so the chart fits the panel instead of scrolling horizontally.
+Its domain is fitted to the task's own span and markers with `includeNow: false`, so an old task is not squeezed against the left edge.
+The compact chart uses two ticks and, when the span is under a day, time-of-day labels only.
+Its markers render as buttons and emit `marker-click`; `TimelinePanel` listens, highlights the matching event row by id, and scrolls it into view.
 
 ## Risks and Unknowns
 

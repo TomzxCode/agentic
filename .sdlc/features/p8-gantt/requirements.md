@@ -10,6 +10,7 @@ session_link: "http://localhost:10000/?session=ses_ed778bb8affeJQ6f9Tkxe4MjUl"
 
 The Gantt view shows tasks in flight as rows on a shared time axis, each drawn as a bar from its creation to its last update, with one marker per timeline event.
 It makes progress and activity visible together: a row's bar shows how long a task has been alive, and the markers show what happened along the way.
+The task detail page reuses the same chart for the single task, inside its Timeline section, fitted to the task's own span.
 
 ## Stakeholders
 
@@ -28,6 +29,8 @@ It makes progress and activity visible together: a row's bar shows how long a ta
 | FR-5 | Must | Each row shall link to its task detail. |
 | FR-6 | Must | The view shall let the user set the visible start and end of the time axis through two date-time fields, defaulting each unset bound and every refresh to a window fitted to the data, with a fit action that resets the window, and shall mark the range invalid when the end is not after the start. |
 | FR-7 | Should | The view shall draw the "now" line only when the current time falls inside the visible window. |
+| FR-8 | Must | The task detail page shall show a gantt for the task inside its Timeline section: a bar from creation to last update with one marker per timeline event, fitted to the task's own span. |
+| FR-9 | Must | Clicking a marker in the task timeline chart shall scroll to and highlight that event's entry in the timeline list. |
 
 ## Non-Functional Requirements
 
@@ -107,6 +110,29 @@ It makes progress and activity visible together: a row's bar shows how long a ta
     Scenario: Hide now outside the window
       Given the user sets a window that ends before the current time
       Then the "now" line and its legend entry are not drawn
+    ```
+
+- [ ] **FR-8**
+
+    ```gherkin
+    @FR-8
+    Scenario: The task timeline shows the task's gantt
+      Given a task with timeline events
+      When its detail page is shown
+      Then the Timeline section draws a bar from the task's creation to its last update
+      And one marker per timeline event
+      And the window fits the task's own span
+    ```
+
+- [ ] **FR-9**
+
+    ```gherkin
+    @FR-9
+    Scenario: A marker jumps to its timeline entry
+      Given the task timeline chart with a marker for an event
+      When the user clicks the marker
+      Then the timeline list scrolls to that event's entry
+      And the entry is highlighted
     ```
 
 ## Conflicts

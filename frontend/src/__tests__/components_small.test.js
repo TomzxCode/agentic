@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { mount } from '@vue/test-utils'
+import { flushPromises, mount } from '@vue/test-utils'
 import StatusIcon from '../components/StatusIcon.vue'
 import PriorityIcon from '../components/PriorityIcon.vue'
 import SessionLinks from '../components/SessionLinks.vue'
@@ -112,6 +112,7 @@ describe('TimelinePanel', () => {
   it('shows an empty state', () => {
     const wrapper = mount(TimelinePanel, { props: { events: [] } })
     expect(wrapper.text()).toContain('Nothing yet')
+    expect(wrapper.find('.gantt').exists()).toBe(false)
   })
 
   it('renders a before/after change', () => {
@@ -119,6 +120,42 @@ describe('TimelinePanel', () => {
     expect(wrapper.text()).toContain('title')
     expect(wrapper.text()).toContain('A')
     expect(wrapper.text()).toContain('B')
+  })
+
+  it('draws a one-row gantt with a marker per event', () => {
+    const task = {
+      id: 't1',
+      title: 'Task One',
+      status: 'in_progress',
+      created_at: '2026-01-01T00:00:00Z',
+      updated_at: '2026-01-01T12:00:00Z'
+    }
+    const wrapper = mount(TimelinePanel, { props: { events: [event()], task } })
+    expect(wrapper.find('.gantt').exists()).toBe(true)
+    expect(wrapper.find('.gantt.compact').exists()).toBe(true)
+    expect(wrapper.findAll('.gantt-marker')).toHaveLength(1)
+    expect(wrapper.find('.gantt-bar').exists()).toBe(true)
+  })
+
+  it('jumps to the matching event when its marker is clicked', async () => {
+    const scroll = vi.fn()
+    Element.prototype.scrollIntoView = scroll
+    try {
+      const task = {
+        id: 't1',
+        title: 'Task One',
+        status: 'in_progress',
+        created_at: '2026-01-01T00:00:00Z',
+        updated_at: '2026-01-01T12:00:00Z'
+      }
+      const wrapper = mount(TimelinePanel, { props: { events: [event()], task } })
+      await wrapper.find('button.gantt-marker').trigger('click')
+      await flushPromises()
+      expect(scroll).toHaveBeenCalled()
+      expect(wrapper.find('.timeline li.highlight').exists()).toBe(true)
+    } finally {
+      delete Element.prototype.scrollIntoView
+    }
   })
 
   it('resolves relationship ids through the store, shows empty values, and truncates long text', () => {

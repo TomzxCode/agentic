@@ -1,7 +1,54 @@
 <script setup>
+import { computed, nextTick, onUnmounted, ref } from 'vue'
 import { store, timeAgo } from '../store'
+import GanttChart from './GanttChart.vue'
+import { resolveDomain } from '../gantt'
 
-defineProps({ events: { type: Array, default: () => [] } })
+const props = defineProps({
+  events: { type: Array, default: () => [] },
+  // The owning task supplies the span (created to last update) and status for
+  // the chart; the events alone define the markers.
+  task: { type: Object, default: null }
+})
+
+// The timeline chart is a single row: the task's span with one marker per event.
+const row = computed(() => {
+  const events = props.events
+  return {
+    id: props.task?.id || 'task',
+    title: props.task?.title || '',
+    status: props.task?.status || 'open',
+    created_at: props.task?.created_at || events[0]?.created_at,
+    updated_at: props.task?.updated_at || events[events.length - 1]?.created_at,
+    markers: events
+  }
+})
+
+// Fit to the task's own span rather than to now, so an old task does not get
+// squeezed against the left edge.
+const domain = computed(() => resolveDomain([row.value], '', '', { includeNow: false }))
+
+// Clicking a marker jumps to its row in the event list and highlights it.
+const eventEls = new Map()
+const highlightId = ref(null)
+let highlightTimer = null
+
+function setEventRef(id) {
+  return (el) => {
+    if (el) eventEls.set(id, el)
+    else eventEls.delete(id)
+  }
+}
+
+async function focusEvent(marker) {
+  highlightId.value = marker.id
+  await nextTick()
+  eventEls.get(marker.id)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  clearTimeout(highlightTimer)
+  highlightTimer = setTimeout(() => (highlightId.value = null), 2000)
+}
+
+onUnmounted(() => clearTimeout(highlightTimer))
 
 // Relationship fields show a name instead of an id. Prefer the label recorded
 // in the event; fall back to the current store (and then the raw id).
@@ -40,24 +87,34 @@ function changes(event) {
   <section class="panel">
     <div class="panel-head"><h2>Timeline</h2></div>
     <div v-if="!events.length" class="faint">Nothing yet.</div>
-    <ul class="timeline">
-      <li v-for="event in events" :key="event.id">
-        <span class="dot"></span>
-        <span class="grow">
-          <span
-            >{{ event.message || event.type }} <span class="faint">· {{ event.type }}</span></span
-          >
-          <span v-if="changes(event).length" class="changes">
-            <span v-for="change in changes(event)" :key="change.field" class="change">
-              <span class="field">{{ change.field }}</span>
-              <span class="from">{{ change.from }}</span>
-              <span class="arrow">→</span>
-              <span class="to">{{ change.to }}</span>
+    <template v-else>
+      <div class="timeline-gantt">
+        <GanttChart :rows="[row]" :domain="domain" compact click-markers @marker-click="focusEvent" />
+      </div>
+      <ul class="timeline">
+        <li
+          v-for="event in events"
+          :key="event.id"
+          :ref="setEventRef(event.id)"
+          :class="{ highlight: highlightId === event.id }"
+        >
+          <span class="dot"></span>
+          <span class="grow">
+            <span
+              >{{ event.message || event.type }} <span class="faint">· {{ event.type }}</span></span
+            >
+            <span v-if="changes(event).length" class="changes">
+              <span v-for="change in changes(event)" :key="change.field" class="change">
+                <span class="field">{{ change.field }}</span>
+                <span class="from">{{ change.from }}</span>
+                <span class="arrow">→</span>
+                <span class="to">{{ change.to }}</span>
+              </span>
             </span>
           </span>
-        </span>
-        <span class="when">{{ timeAgo(event.created_at) }}</span>
-      </li>
-    </ul>
+          <span class="when">{{ timeAgo(event.created_at) }}</span>
+        </li>
+      </ul>
+    </template>
   </section>
 </template>
