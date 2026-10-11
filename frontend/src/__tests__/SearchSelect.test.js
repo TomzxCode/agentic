@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { markRaw } from 'vue'
 import { mount } from '@vue/test-utils'
 import SearchSelect from '../components/SearchSelect.vue'
 
@@ -74,7 +75,7 @@ describe('SearchSelect', () => {
   })
 
   it('shows only the selected icon in the icon variant', async () => {
-    const Icon = { template: '<span class="fake-icon" />' }
+    const Icon = markRaw({ template: '<span class="fake-icon" />' })
     const iconOptions = [{ value: 'a', label: 'Alpha', icon: Icon }]
     const wrapper = mount(SearchSelect, {
       props: { modelValue: 'a', variant: 'icon', options: iconOptions }

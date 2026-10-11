@@ -31,11 +31,29 @@ from agentic.models import AgentEvent, AgentRun, Harness, RunStatus, Task, Timel
 
 VALID_CONTEXT = '{"summary": "Do the thing.", "next_steps": [{"text": "One", "done": false}]}'
 
+# Throwaway in-memory engines/sessions built by the pure-helper tests; tracked
+# here so they are closed at test teardown instead of leaking pooled SQLite
+# connections (ResourceWarning).
+_fresh_engines: list = []
+_fresh_sessions: list = []
+
 
 def _fresh_session() -> Session:
     fresh_engine = create_engine("sqlite://")
+    _fresh_engines.append(fresh_engine)
     SQLModel.metadata.create_all(fresh_engine)
-    return Session(fresh_engine)
+    session = Session(fresh_engine)
+    _fresh_sessions.append(session)
+    return session
+
+
+@pytest.fixture(autouse=True)
+def _dispose_fresh_engines():
+    yield
+    while _fresh_sessions:
+        _fresh_sessions.pop().close()
+    while _fresh_engines:
+        _fresh_engines.pop().dispose()
 
 
 async def _noop(_event: dict) -> None:

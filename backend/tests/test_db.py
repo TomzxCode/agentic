@@ -4,14 +4,28 @@ Each test points `agentic.db.engine` at a throwaway SQLite file with a legacy
 schema, so the migrations can be exercised without touching the real database.
 """
 
+import pytest
 import sqlalchemy
 from sqlmodel import create_engine
 
 from agentic import db
 
+# Engines built per test must be disposed so their pooled SQLite connections
+# are closed rather than collected (which emits ResourceWarning).
+_engines: list = []
+
 
 def _engine(tmp_path, name: str):
-    return create_engine(f"sqlite:///{tmp_path / name}")
+    engine = create_engine(f"sqlite:///{tmp_path / name}")
+    _engines.append(engine)
+    return engine
+
+
+@pytest.fixture(autouse=True)
+def _dispose_engines():
+    yield
+    while _engines:
+        _engines.pop().dispose()
 
 
 def test_migrate_problem_to_task_renames_table_and_columns(monkeypatch, tmp_path):

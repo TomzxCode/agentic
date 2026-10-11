@@ -1,7 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
+import { config, enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
 
 enableAutoUnmount(afterEach)
+
+// WorktreesPanel renders a <router-link>; stub it so mounting does not warn
+// about an unresolved component.
+config.global.stubs = { RouterLink: { props: ['to'], template: '<a><slot /></a>' } }
 
 const mocks = vi.hoisted(() => ({
   taskUpdate: vi.fn(),
