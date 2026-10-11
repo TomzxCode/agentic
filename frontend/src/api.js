@@ -31,7 +31,13 @@ export const api = {
   },
 
   items: {
-    list: (source) => request(`/items${source ? `?source=${source}` : ''}`),
+    list: ({ source, q } = {}) => {
+      const qs = new URLSearchParams()
+      if (source) qs.set('source', source)
+      if (q) qs.set('q', q)
+      const query = qs.toString()
+      return request(`/items${query ? `?${query}` : ''}`)
+    },
     create: (body) => request('/items', { method: 'POST', body }),
     update: (id, body) => request(`/items/${id}`, { method: 'PATCH', body }),
     refresh: (id) => request(`/items/${id}/refresh`, { method: 'POST' }),

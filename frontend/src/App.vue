@@ -62,6 +62,7 @@ const paletteItems = computed(() => [
   { id: 'new-task', label: 'New task', group: 'Actions', run: () => (showNew.value = true) },
   ...taskFieldItems.value,
   { id: 'go-tasks', label: 'Go to tasks', group: 'Navigation', run: () => router.push('/') },
+  { id: 'go-items', label: 'Go to resources', group: 'Navigation', run: () => router.push('/items') },
   { id: 'go-settings', label: 'Go to settings', group: 'Navigation', run: () => router.push('/settings') },
   ...store.tasks.map((task) => ({
     id: `task-${task.id}`,
@@ -230,6 +231,7 @@ onUnmounted(() => window.removeEventListener('keydown', onGlobalKeydown))
         ⌘K
       </button>
       <router-link to="/" class="btn ghost sm nav-tasks" :class="{ primary: route.name === 'tasks' }">Tasks</router-link>
+      <router-link to="/items" class="btn ghost sm" :class="{ primary: route.name === 'items' }">Items</router-link>
       <router-link to="/settings" class="btn ghost sm" :class="{ primary: route.name === 'settings' }">Settings</router-link>
       <button class="btn primary mobile-only" title="New task" aria-label="New task" @click="showNew = true">+</button>
     </header>

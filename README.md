@@ -125,7 +125,14 @@ only expose this on a trusted network.
 5. **Run an agent** against the task; the transcript streams live.
 
 Press **Ctrl/Cmd+K** (or the ⌘K button) for a command palette to jump to any
-task or action from the keyboard.
+task or action from the keyboard. On a task page it also lists that task's
+fields (**This task**: edit title/description, set status/priority/repository
+group, add repository), so you can jump straight into editing any of them
+without tabbing across the page.
+
+The **Items** page lists every resource the app tracks (Slack threads, GitHub
+issues/PRs, Drive docs, URLs, notes) with per-source filters, search, and links
+to the tasks each one is used by.
 
 ## Open a session in a terminal or OpenChamber
 

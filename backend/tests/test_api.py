@@ -116,6 +116,26 @@ def test_item_source_is_inferred():
         client.delete(f"/api/items/{plain['id']}")
 
 
+def test_items_list_includes_task_links_and_search():
+    with TestClient(app) as client:
+        task = client.post("/api/tasks", json={"title": "Linkable"}).json()
+        link = "https://github.com/psf/requests/issues/1"
+        client.post(f"/api/tasks/{task['id']}/items", json={"item": {"url": link, "fetch": False}})
+
+        items = client.get("/api/items").json()
+        item = next(i for i in items if i["url"] == link)
+        assert task["id"] in item["task_ids"]
+
+        assert all(
+            "requests" in (i["url"] or "") or "requests" in i["title"]
+            for i in client.get("/api/items", params={"q": "requests"}).json()
+        )
+        assert client.get("/api/items", params={"source": "github"})
+
+        client.delete(f"/api/tasks/{task['id']}")
+        client.delete(f"/api/items/{item['id']}")
+
+
 def test_harnesses_are_seeded():
     with TestClient(app) as client:
         harnesses = client.get("/api/harnesses").json()

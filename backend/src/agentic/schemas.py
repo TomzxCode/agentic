@@ -190,6 +190,7 @@ class ItemRead(ORMModel):
     fetched_at: datetime | None = None
     created_at: datetime
     updated_at: datetime
+    task_ids: list[str] = []
 
 
 class AssociationRead(ORMModel):

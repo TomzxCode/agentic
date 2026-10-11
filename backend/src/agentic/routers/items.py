@@ -66,29 +66,51 @@ def _upsert_item(session: Session, payload: ItemCreate) -> SourceItem:
     return item
 
 
+def _item_read(session: Session, item: SourceItem) -> ItemRead:
+    data = ItemRead.model_validate(item)
+    data.task_ids = [
+        assoc.task_id for assoc in session.exec(select(Association).where(Association.item_id == item.id)).all()
+    ]
+    return data
+
+
 @router.get("", response_model=list[ItemRead])
-def list_items(source: str | None = None, session: Session = Depends(get_session)) -> list[SourceItem]:
+def list_items(
+    source: str | None = None,
+    q: str | None = None,
+    session: Session = Depends(get_session),
+) -> list[ItemRead]:
     query = select(SourceItem).order_by(SourceItem.created_at.desc())
     if source:
         query = query.where(SourceItem.source == source)
-    return list(session.exec(query).all())
+    items = list(session.exec(query).all())
+    if q:
+        needle = q.lower()
+        items = [
+            item
+            for item in items
+            if needle in item.title.lower()
+            or needle in (item.url or "").lower()
+            or needle in (item.content or "").lower()
+        ]
+    return [_item_read(session, item) for item in items]
 
 
 @router.post("", response_model=ItemRead, status_code=201)
-def create_item(payload: ItemCreate, session: Session = Depends(get_session)) -> SourceItem:
-    return _upsert_item(session, payload)
+def create_item(payload: ItemCreate, session: Session = Depends(get_session)) -> ItemRead:
+    return _item_read(session, _upsert_item(session, payload))
 
 
 @router.get("/{item_id}", response_model=ItemRead)
-def get_item(item_id: str, session: Session = Depends(get_session)) -> SourceItem:
+def get_item(item_id: str, session: Session = Depends(get_session)) -> ItemRead:
     item = session.get(SourceItem, item_id)
     if item is None:
         raise HTTPException(status_code=404, detail="Item not found")
-    return item
+    return _item_read(session, item)
 
 
 @router.patch("/{item_id}", response_model=ItemRead)
-def update_item(item_id: str, payload: ItemUpdate, session: Session = Depends(get_session)) -> SourceItem:
+def update_item(item_id: str, payload: ItemUpdate, session: Session = Depends(get_session)) -> ItemRead:
     item = session.get(SourceItem, item_id)
     if item is None:
         raise HTTPException(status_code=404, detail="Item not found")
@@ -100,11 +122,11 @@ def update_item(item_id: str, payload: ItemUpdate, session: Session = Depends(ge
     session.add(item)
     session.commit()
     session.refresh(item)
-    return item
+    return _item_read(session, item)
 
 
 @router.post("/{item_id}/refresh", response_model=ItemRead)
-def refresh_item(item_id: str, session: Session = Depends(get_session)) -> SourceItem:
+def refresh_item(item_id: str, session: Session = Depends(get_session)) -> ItemRead:
     item = session.get(SourceItem, item_id)
     if item is None:
         raise HTTPException(status_code=404, detail="Item not found")
@@ -117,7 +139,7 @@ def refresh_item(item_id: str, session: Session = Depends(get_session)) -> Sourc
     session.add(item)
     session.commit()
     session.refresh(item)
-    return item
+    return _item_read(session, item)
 
 
 @router.delete("/{item_id}", status_code=204)
