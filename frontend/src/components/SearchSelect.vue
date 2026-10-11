@@ -68,6 +68,7 @@ function choose(option) {
 function onKeydown(event) {
   if (event.key === 'Escape') {
     event.preventDefault()
+    event.stopPropagation() // don't also close an enclosing modal
     close()
   } else if (event.key === 'ArrowDown') {
     event.preventDefault()

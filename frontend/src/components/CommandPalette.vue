@@ -40,6 +40,7 @@ function choose(item) {
 function onKeydown(event) {
   if (event.key === 'Escape') {
     event.preventDefault()
+    event.stopPropagation()
     emit('close')
   } else if (event.key === 'ArrowDown') {
     event.preventDefault()

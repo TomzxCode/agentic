@@ -65,6 +65,12 @@ function onGlobalKeydown(event) {
   if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
     event.preventDefault()
     paletteOpen.value = !paletteOpen.value
+    return
+  }
+  if (event.key === 'Escape') {
+    // Open dropdowns/palettes stop propagation, so this closes the top layer.
+    if (paletteOpen.value) paletteOpen.value = false
+    else if (showNew.value) showNew.value = false
   }
 }
 
