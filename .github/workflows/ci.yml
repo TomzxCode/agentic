@@ -37,10 +37,18 @@ jobs:
         run: uv run --frozen ty check
 
       - name: Test
-        run: uv run --frozen pytest -q
+        run: uv run --frozen pytest -q --cov-report=xml:coverage.xml
+
+      - name: Upload backend coverage
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-backend
+          path: coverage.xml
+          if-no-files-found: ignore
 
   frontend:
-    name: Frontend (tests + build)
+    name: Frontend (lint + tests + build)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -55,9 +63,25 @@ jobs:
         working-directory: frontend
         run: npm ci
 
+      - name: Lint
+        working-directory: frontend
+        run: npm run lint
+
+      - name: Format check
+        working-directory: frontend
+        run: npm run format:check
+
       - name: Test
         working-directory: frontend
         run: npm test
+
+      - name: Upload frontend coverage
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-frontend
+          path: frontend/coverage
+          if-no-files-found: ignore
 
       - name: Build
         working-directory: frontend

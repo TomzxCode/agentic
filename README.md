@@ -248,11 +248,15 @@ GET/POST/PATCH      /api/harnesses   /api/repositories   /api/items
 ## Development
 
 ```bash
-make test        # backend tests
-make lint        # ruff format + check
-make typecheck   # ty static type checking
-make build       # build the SPA into backend/static
-make run         # serve API + built SPA on :8600
+make test              # backend + CLI and frontend tests, with coverage
+make test-backend      # backend + CLI (pytest) tests, with coverage
+make test-frontend     # frontend (Vitest) tests, with coverage
+make coverage-backend  # backend + CLI tests, write coverage.xml
+make coverage-frontend # frontend tests, write frontend/coverage/
+make lint              # ruff format + check
+make typecheck         # ty static type checking
+make build             # build the SPA into backend/static
+make run               # serve API + built SPA on :8600
 ```
 
 `make run` uses `agentic-server serve`; `agentic` is the separate client.

@@ -1,15 +1,19 @@
-.PHONY: help install dev-backend dev-frontend test test-frontend lint typecheck build run
+.PHONY: help install dev-backend dev-frontend test test-frontend test-backend coverage-backend coverage-frontend lint lint-frontend typecheck build run
 
 help:
-	@echo "install        install backend + CLI (workspace) and frontend deps"
-	@echo "dev-backend    run the API with reload on 0.0.0.0:8600"
-	@echo "dev-frontend   run the Vite dev server on 0.0.0.0:5173"
-	@echo "test           run backend + CLI tests"
-	@echo "test-frontend  run frontend (Vitest) tests"
-	@echo "lint           ruff format + check"
-	@echo "typecheck      ty check (static type checking)"
-	@echo "build          build the SPA into backend/static"
-	@echo "run            serve API + built SPA on 0.0.0.0:8600"
+	@echo "install             install backend + CLI (workspace) and frontend deps"
+	@echo "dev-backend         run the API with reload on 0.0.0.0:8600"
+	@echo "dev-frontend        run the Vite dev server on 0.0.0.0:5173"
+	@echo "test                run backend + CLI tests with coverage"
+	@echo "test-backend        run backend + CLI tests with coverage"
+	@echo "test-frontend       run frontend (Vitest) tests with coverage"
+	@echo "coverage-backend    backend + CLI tests, write coverage.xml"
+	@echo "coverage-frontend   frontend tests, write frontend/coverage/"
+	@echo "lint                ruff format + check"
+	@echo "lint-frontend       eslint + prettier check (frontend)"
+	@echo "typecheck           ty check (static type checking)"
+	@echo "build               build the SPA into backend/static"
+	@echo "run                 serve API + built SPA on 0.0.0.0:8600"
 
 install:
 	uv sync
@@ -21,14 +25,25 @@ dev-backend:
 dev-frontend:
 	cd frontend && npm run dev
 
-test:
+test: test-backend test-frontend
+
+test-backend:
 	uv run pytest -q
 
 test-frontend:
 	cd frontend && npm test
 
+coverage-backend:
+	uv run pytest -q --cov-report=xml:coverage.xml
+
+coverage-frontend:
+	cd frontend && npm run coverage
+
 lint:
 	uv run ruff format . && uv run ruff check --fix .
+
+lint-frontend:
+	cd frontend && npm run lint && npm run format:check
 
 typecheck:
 	uv run ty check
