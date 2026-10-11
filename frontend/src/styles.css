@@ -102,6 +102,18 @@ h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: v
 .grid-2 > * { min-width: 0; }
 @media (max-width: 1000px) { .grid-2 { grid-template-columns: 1fr; } .app { grid-template-columns: 240px 1fr; } }
 
+/* Settings: section nav beside one section at a time */
+.settings-layout { display: grid; grid-template-columns: 210px 1fr; gap: 20px; align-items: start; }
+.settings-nav { display: flex; flex-direction: column; gap: 2px; position: sticky; top: 0; }
+.settings-nav-item {
+  text-align: left; padding: 8px 12px; border-radius: 8px; border: 1px solid transparent;
+  background: transparent; color: var(--muted); cursor: pointer; font: inherit;
+}
+.settings-nav-item:hover { background: var(--bg-2); color: var(--text); }
+.settings-nav-item.active { background: var(--bg-2); border-color: var(--border); color: var(--text); font-weight: 600; }
+.settings-content { min-width: 0; }
+.settings-content > :last-child, .settings-content > :last-child > .panel { margin-bottom: 0; }
+
 /* Chips / badges */
 .badge { font-size: 11px; padding: 2px 8px; border-radius: 999px; background: var(--bg-3); color: var(--muted); border: 1px solid var(--border); }
 .badge.ok { color: var(--ok); border-color: #1f4d3a; }
@@ -367,6 +379,11 @@ code, .mono { font-family: var(--mono); font-size: 12.5px; }
   .gantt-row { grid-template-columns: 150px 1fr; }
   .panel { padding: 14px; border-radius: 12px; }
   .panel-head { flex-wrap: wrap; }
+
+  /* Settings nav wraps into chips above the content. */
+  .settings-layout { grid-template-columns: 1fr; gap: 12px; }
+  .settings-nav { flex-direction: row; flex-wrap: wrap; position: static; }
+  .settings-nav-item { border-color: var(--border); }
 
   /* Touch targets and iOS-friendly form sizing (avoids zoom-on-focus). */
   .btn { min-height: 40px; padding: 9px 14px; }

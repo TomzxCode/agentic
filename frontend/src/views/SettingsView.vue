@@ -1,9 +1,33 @@
 <script setup>
-import { onMounted, reactive, ref } from 'vue'
+import { onMounted, reactive, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { api } from '../api'
 import { store } from '../store'
 import DirectoryPicker from '../components/DirectoryPicker.vue'
 import RepositoryGroupsPanel from '../components/RepositoryGroupsPanel.vue'
+
+const route = useRoute()
+const router = useRouter()
+
+const SECTIONS = [
+  { id: 'sessions', label: 'Session links' },
+  { id: 'harnesses', label: 'Agent harnesses' },
+  { id: 'repositories', label: 'Repositories' },
+  { id: 'groups', label: 'Repository groups' },
+]
+const active = ref(SECTIONS.some((s) => s.id === route.query.section) ? route.query.section : SECTIONS[0].id)
+
+function select(id) {
+  active.value = id
+  router.replace({ query: { section: id } })
+}
+
+watch(
+  () => route.query.section,
+  (section) => {
+    if (SECTIONS.some((s) => s.id === section)) active.value = section
+  },
+)
 
 const repoDraft = reactive({ path: '' })
 const harnessDraft = reactive({ name: '', command: '', args: '', description: '' })
@@ -135,96 +159,117 @@ onMounted(load)
   <div>
     <h1 style="margin-bottom: 16px">Settings</h1>
 
-    <section class="panel">
-      <div class="panel-head"><h2>Session links</h2></div>
-      <p class="faint" style="margin-top: 0">
-        Where an agent session opens. Leave a field blank to disable that link. Placeholders:
-        <code>{session}</code>, <code>{cwd}</code>, <code>{harness}</code>.
-      </p>
-
-      <div class="field">
-        <label>OpenChamber base URL</label>
-        <input v-model="linkForm.openchamber_url" class="input" placeholder="http://localhost:3001" />
-        <p class="faint" style="margin: 4px 0 0">
-          Web: <code>&lt;base&gt;/?session=&lt;id&gt;</code>. For the native deep link use base
-          <code>openchamber://session</code> with path <code>/{session}</code>.
-        </p>
-      </div>
-      <div class="field">
-        <label>OpenChamber session path</label>
-        <input v-model="linkForm.openchamber_session_path" class="input" :placeholder="linkDefaults.openchamber_session_path" />
-      </div>
-      <div class="field">
-        <label>Terminal URL template (optional)</label>
-        <input v-model="linkForm.terminal_url_template" class="input" placeholder="opencode://session/{session}" />
-        <p class="faint" style="margin: 4px 0 0">
-          Any URL scheme, or a web terminal such as
-          <code>http://localhost:7681/?cwd={cwd}</code>.
-        </p>
-      </div>
-      <div class="field">
-        <label>Editor URL template (optional)</label>
-        <input v-model="linkForm.editor_url_template" class="input" placeholder="vscode://file{path}" />
-        <p class="faint" style="margin: 4px 0 0">
-          Opens a worktree path in your editor. <code>{path}</code> is the absolute path (it starts with
-          <code>/</code>). Examples: <code>vscode://file{path}</code>, <code>cursor://file{path}</code>,
-          <code>zed://file{path}</code>.
-        </p>
-      </div>
-      <div class="row" style="justify-content: flex-end">
-        <button class="btn primary" :disabled="savingLinks" @click="saveLinks">
-          <span v-if="savingLinks" class="spinner"></span> Save session links
+    <div class="settings-layout">
+      <nav class="settings-nav">
+        <button
+          v-for="section in SECTIONS"
+          :key="section.id"
+          type="button"
+          class="settings-nav-item"
+          :class="{ active: active === section.id }"
+          @click="select(section.id)"
+        >
+          {{ section.label }}
         </button>
-      </div>
-    </section>
+      </nav>
 
-    <section class="panel">
-      <div class="panel-head"><h2>Agent harnesses</h2></div>
-      <p class="faint" style="margin-top: 0">
-        Any ACP-compatible coding agent. OpenCode (<code>opencode acp</code>) and pi (<code>pi-acp</code>) are
-        preconfigured. The resume command is what "open in terminal" copies.
-      </p>
-      <div v-for="h in fullHarnesses" :key="h.id" class="item">
-        <div class="item-top">
-          <span class="title">{{ h.name }}</span>
-          <span class="badge" :class="{ ok: harnessStatus[h.id]?.available, danger: !harnessStatus[h.id]?.available }">
-            {{ harnessStatus[h.id]?.available ? 'available' : 'missing' }}
-          </span>
-        </div>
-        <div class="faint mono">{{ harnessStatus[h.id]?.detail || h.command }}</div>
-        <div class="row" style="margin-top: 8px">
-          <input v-model="resumeDrafts[h.id]" class="input grow mono" placeholder="opencode --session {session}" />
-          <button class="btn sm" @click="saveResume(h.id)">Save</button>
-        </div>
-      </div>
-      <div class="row" style="margin-top: 10px">
-        <input v-model="harnessDraft.name" class="input grow" placeholder="Name" />
-        <input v-model="harnessDraft.command" class="input grow" placeholder="command (e.g. opencode)" />
-      </div>
-      <div class="row" style="margin-top: 8px">
-        <input v-model="harnessDraft.args" class="input grow" placeholder="args (space separated, e.g. acp)" />
-        <button class="btn primary" @click="addHarness">Add harness</button>
-      </div>
-    </section>
+      <div class="settings-content">
+        <section v-show="active === 'sessions'" class="panel">
+          <div class="panel-head"><h2>Session links</h2></div>
+          <p class="faint" style="margin-top: 0">
+            Where an agent session opens. Leave a field blank to disable that link. Placeholders:
+            <code>{session}</code>, <code>{cwd}</code>, <code>{harness}</code>.
+          </p>
 
-    <section class="panel">
-      <div class="panel-head"><h2>Repositories</h2></div>
-      <p class="faint" style="margin-top: 0">Local git checkouts that tasks can create isolated worktrees from.</p>
-      <div v-for="r in store.repositories" :key="r.id" class="item">
-        <div class="item-top">
-          <span class="title">{{ r.name }}</span>
-          <span v-if="r.default_branch" class="badge">{{ r.default_branch }}</span>
-          <button class="btn sm danger" @click="removeRepo(r.id)">Remove</button>
+          <div class="field">
+            <label>OpenChamber base URL</label>
+            <input v-model="linkForm.openchamber_url" class="input" placeholder="http://localhost:3001" />
+            <p class="faint" style="margin: 4px 0 0">
+              Web: <code>&lt;base&gt;/?session=&lt;id&gt;</code>. For the native deep link use base
+              <code>openchamber://session</code> with path <code>/{session}</code>.
+            </p>
+          </div>
+          <div class="field">
+            <label>OpenChamber session path</label>
+            <input v-model="linkForm.openchamber_session_path" class="input" :placeholder="linkDefaults.openchamber_session_path" />
+          </div>
+          <div class="field">
+            <label>Terminal URL template (optional)</label>
+            <input v-model="linkForm.terminal_url_template" class="input" placeholder="opencode://session/{session}" />
+            <p class="faint" style="margin: 4px 0 0">
+              Any URL scheme, or a web terminal such as
+              <code>http://localhost:7681/?cwd={cwd}</code>.
+            </p>
+          </div>
+          <div class="field">
+            <label>Editor URL template (optional)</label>
+            <input v-model="linkForm.editor_url_template" class="input" placeholder="vscode://file{path}" />
+            <p class="faint" style="margin: 4px 0 0">
+              Opens a worktree path in your editor. <code>{path}</code> is the absolute path (it starts with
+              <code>/</code>). Examples: <code>vscode://file{path}</code>, <code>cursor://file{path}</code>,
+              <code>zed://file{path}</code>.
+            </p>
+          </div>
+          <div class="row" style="justify-content: flex-end">
+            <button class="btn primary" :disabled="savingLinks" @click="saveLinks">
+              <span v-if="savingLinks" class="spinner"></span> Save session links
+            </button>
+          </div>
+        </section>
+
+        <section v-show="active === 'harnesses'" class="panel">
+          <div class="panel-head"><h2>Agent harnesses</h2></div>
+          <p class="faint" style="margin-top: 0">
+            Any ACP-compatible coding agent. OpenCode (<code>opencode acp</code>) and pi (<code>pi-acp</code>) are
+            preconfigured. The resume command is what "open in terminal" copies.
+          </p>
+          <div v-for="h in fullHarnesses" :key="h.id" class="item">
+            <div class="item-top">
+              <span class="title">{{ h.name }}</span>
+              <span class="badge" :class="{ ok: harnessStatus[h.id]?.available, danger: !harnessStatus[h.id]?.available }">
+                {{ harnessStatus[h.id]?.available ? 'available' : 'missing' }}
+              </span>
+            </div>
+            <div class="faint mono">{{ harnessStatus[h.id]?.detail || h.command }}</div>
+            <div class="row" style="margin-top: 8px">
+              <input v-model="resumeDrafts[h.id]" class="input grow mono" placeholder="opencode --session {session}" />
+              <button class="btn sm" @click="saveResume(h.id)">Save</button>
+            </div>
+          </div>
+          <div class="row" style="margin-top: 10px">
+            <input v-model="harnessDraft.name" class="input grow" placeholder="Name" />
+            <input v-model="harnessDraft.command" class="input grow" placeholder="command (e.g. opencode)" />
+          </div>
+          <div class="row" style="margin-top: 8px">
+            <input v-model="harnessDraft.args" class="input grow" placeholder="args (space separated, e.g. acp)" />
+            <button class="btn primary" @click="addHarness">Add harness</button>
+          </div>
+        </section>
+
+        <section v-show="active === 'repositories'" class="panel">
+          <div class="panel-head"><h2>Repositories</h2></div>
+          <p class="faint" style="margin-top: 0">Local git checkouts that tasks can create isolated worktrees from.</p>
+          <div v-for="r in store.repositories" :key="r.id" class="item">
+            <div class="item-top">
+              <span class="title">{{ r.name }}</span>
+              <span v-if="r.default_branch" class="badge">{{ r.default_branch }}</span>
+              <button class="btn sm danger" @click="removeRepo(r.id)">Remove</button>
+            </div>
+            <div class="faint mono">{{ r.path }}</div>
+            <div v-if="r.remote_url" class="faint">{{ r.remote_url }}</div>
+          </div>
+          <div class="row" style="margin-top: 10px">
+            <input v-model="repoDraft.path" class="input grow" placeholder="/absolute/path/to/git/repo" @keyup.enter="addRepo" />
+            <button class="btn" @click="showPicker = true">Browse…</button>
+            <button class="btn primary" @click="addRepo">Add repository</button>
+          </div>
+        </section>
+
+        <div v-show="active === 'groups'">
+          <RepositoryGroupsPanel :repositories="store.repositories" />
         </div>
-        <div class="faint mono">{{ r.path }}</div>
-        <div v-if="r.remote_url" class="faint">{{ r.remote_url }}</div>
       </div>
-      <div class="row" style="margin-top: 10px">
-        <input v-model="repoDraft.path" class="input grow" placeholder="/absolute/path/to/git/repo" @keyup.enter="addRepo" />
-        <button class="btn" @click="showPicker = true">Browse…</button>
-        <button class="btn primary" @click="addRepo">Add repository</button>
-      </div>
-    </section>
+    </div>
 
     <DirectoryPicker
       v-if="showPicker"
@@ -232,7 +277,5 @@ onMounted(load)
       @close="showPicker = false"
       @add="addRepos"
     />
-
-    <RepositoryGroupsPanel :repositories="store.repositories" />
   </div>
 </template>
