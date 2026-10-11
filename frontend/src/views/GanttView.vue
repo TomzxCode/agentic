@@ -5,6 +5,7 @@ import { store, statusClass } from '../store'
 
 const rows = ref([])
 const loading = ref(false)
+const error = ref('')
 const includeDone = ref(false)
 
 // A marker's color and label are derived from its timeline event type.
@@ -42,9 +43,11 @@ function markerLabel(type) {
 
 async function load() {
   loading.value = true
+  error.value = ''
   try {
     rows.value = await api.gantt.get({ includeDone: includeDone.value })
   } catch (e) {
+    error.value = e.message
     store.notify(e.message, true)
   } finally {
     loading.value = false
@@ -136,7 +139,11 @@ const legend = computed(() => {
     </div>
 
     <section class="panel">
-      <div v-if="loading && !rows.length" class="empty"><span class="spinner"></span></div>
+      <div v-if="error" class="empty">
+        Couldn't load the gantt: {{ error }}.
+        <div style="margin-top: 10px"><button class="btn sm ghost" @click="load">Retry</button></div>
+      </div>
+      <div v-else-if="loading && !rows.length" class="empty"><span class="spinner"></span></div>
       <div v-else-if="!rows.length" class="empty">No tasks in flight. Create one to see it here.</div>
 
       <div v-else class="gantt-scroll">
