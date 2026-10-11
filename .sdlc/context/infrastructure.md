@@ -33,7 +33,7 @@
 | Vite | SPA dev server and build | `cd frontend && npm run dev` / `npm run build` |
 | make | Task shortcuts | `make test`, `make lint`, `make build`, `make run` |
 
-There is no mypy/type-check step configured; type hints are not statically checked in CI (there is no CI).
+There is no mypy/type-check step configured; type hints are not statically checked in CI.
 
 ## Environments
 
@@ -49,7 +49,10 @@ Both servers bind `0.0.0.0` for remote/VPN access.
 
 | Workflow | Trigger | What it runs |
 |---|---|---|
-| (none) | — | There is no CI configuration in the repository (`.github/workflows/` does not exist). |
+| `.github/workflows/ci.yml` (Python) | push to `main`, pull requests | `uv sync --frozen`, ruff check, ruff format check, `pytest -q`. |
+| `.github/workflows/ci.yml` (Frontend) | push to `main`, pull requests | `npm ci` then `npm run build` in `frontend/`. |
+
+Both jobs run on `ubuntu-latest` (Python via uv, Node 22), cancel superseded runs on the same ref, and have `contents: read` permissions.
 
 ## Deployment
 
