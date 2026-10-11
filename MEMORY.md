@@ -1,5 +1,9 @@
 # Memory
 
+## 2026-10-11: the frontend dev toolchain upgrades as a set
+
+- vue-router 5 needs vite `^7.3 || ^8`, vite 8 needs `@vitejs/plugin-vue` 6, and vitest 5 must move with `@vitest/coverage-v8` 5. Dependabot's per-package PRs fail `npm ci` on their own because of these peer constraints; bump the set together (done in PR #7).
+
 ## 2026-10-10: the domain entity is Task (renamed from Problem)
 
 - Everything user-facing and internal uses "task": model `Task`, table `task`, columns `task_id` (association/worktree/agentrun/timelineevent), API `/api/tasks`, CLI `agentic task`, SPA routes `/task/:id`. `db._migrate_problem_to_task()` renames an existing database in place (table, FK columns, timeline messages) and must run before `create_all`, otherwise `create_all` would create an empty `task` table and orphan the data.
