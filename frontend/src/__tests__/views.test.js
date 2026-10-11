@@ -1,0 +1,269 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
+
+enableAutoUnmount(afterEach)
+
+const mocks = vi.hoisted(() => ({
+  itemsList: vi.fn(),
+  itemsRefresh: vi.fn(),
+  itemsRemove: vi.fn(),
+  tasksAssociate: vi.fn(),
+  ganttGet: vi.fn(),
+  push: vi.fn()
+}))
+
+vi.mock('../api', () => ({
+  api: {
+    items: { list: mocks.itemsList, refresh: mocks.itemsRefresh, remove: mocks.itemsRemove },
+    tasks: { associate: mocks.tasksAssociate },
+    gantt: { get: mocks.ganttGet }
+  }
+}))
+
+vi.mock('vue-router', () => ({ useRouter: () => ({ push: mocks.push }) }))
+
+import GanttView from '../views/GanttView.vue'
+import ItemsView from '../views/ItemsView.vue'
+import TasksView from '../views/TasksView.vue'
+import { store } from '../store'
+
+const RouterLinkStub = { props: ['to'], template: '<a><slot /></a>' }
+
+const stub = { global: { stubs: { RouterLink: RouterLinkStub } } }
+
+beforeEach(() => {
+  vi.clearAllMocks()
+  store.toast = null
+})
+
+afterEach(() => {
+  vi.unstubAllGlobals()
+  vi.restoreAllMocks()
+})
+
+describe('TasksView', () => {
+  beforeEach(() => {
+    vi.spyOn(store, 'loadTasks').mockResolvedValue()
+  })
+
+  it('counts statuses and lists focus tasks', async () => {
+    store.tasks = [
+      {
+        id: 't1',
+        status: 'open',
+        priority: 2,
+        title: 'One',
+        summary: 's',
+        next_steps: [{ text: 'n', done: false }],
+        updated_at: null
+      },
+      { id: 't2', status: 'in_progress', priority: 3, title: 'Two', next_steps: [], updated_at: null },
+      { id: 't3', status: 'done', priority: 1, title: 'Three', next_steps: [], updated_at: null }
+    ]
+    const wrapper = mount(TasksView, stub)
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Open 1')
+    expect(wrapper.text()).toContain('In progress 1')
+    expect(wrapper.text()).toContain('Done 1')
+    expect(store.loadTasks).toHaveBeenCalled()
+
+    const focus = wrapper.findAll('.item').map((item) => item.text())
+    expect(focus.some((text) => text.includes('One'))).toBe(true)
+    expect(focus.some((text) => text.includes('Three'))).toBe(false)
+  })
+
+  it('shows the getting-started panel when nothing is in flight', async () => {
+    store.tasks = []
+    const wrapper = mount(TasksView, stub)
+    await flushPromises()
+    expect(wrapper.text()).toContain('Get started')
+  })
+})
+
+describe('ItemsView', () => {
+  beforeEach(() => {
+    vi.spyOn(store, 'loadTasks').mockResolvedValue()
+    store.tasks = [{ id: 't1', title: 'Task One' }]
+  })
+
+  it('lists items, filters by source and search, and links tasks', async () => {
+    mocks.itemsList.mockResolvedValue([
+      {
+        id: 'i1',
+        source: 'github',
+        kind: 'issue',
+        title: 'Issue one',
+        url: 'https://gh/1',
+        content: 'body',
+        task_ids: ['t1'],
+        created_at: new Date().toISOString(),
+        fetched_at: null
+      },
+      {
+        id: 'i2',
+        source: 'note',
+        kind: '',
+        title: 'A note',
+        url: null,
+        content: 'hello',
+        task_ids: [],
+        created_at: new Date().toISOString(),
+        fetched_at: null
+      }
+    ])
+    const wrapper = mount(ItemsView, stub)
+    await flushPromises()
+    expect(wrapper.text()).toContain('Issue one')
+    expect(wrapper.text()).toContain('A note')
+
+    await wrapper
+      .findAll('button')
+      .find((b) => b.text().startsWith('Note'))
+      .trigger('click')
+    expect(wrapper.text()).not.toContain('Issue one')
+
+    await wrapper
+      .findAll('button')
+      .find((b) => b.text().startsWith('All'))
+      .trigger('click')
+    await wrapper.get('input.input').setValue('issue')
+    expect(wrapper.text()).toContain('Issue one')
+    expect(wrapper.text()).not.toContain('A note')
+
+    await wrapper.get('input.input').setValue('')
+    await wrapper
+      .findAll('button')
+      .find((b) => b.text().includes('Task One'))
+      .trigger('click')
+    expect(mocks.push).toHaveBeenCalledWith('/task/t1')
+  })
+
+  it('refreshes and removes an item', async () => {
+    mocks.itemsList.mockResolvedValue([
+      {
+        id: 'i1',
+        source: 'github',
+        kind: 'issue',
+        title: 'Issue one',
+        url: null,
+        content: '',
+        task_ids: [],
+        created_at: new Date().toISOString(),
+        fetched_at: null
+      }
+    ])
+    mocks.itemsRefresh.mockResolvedValue({ id: 'i1', title: 'Refreshed' })
+    mocks.itemsRemove.mockResolvedValue(null)
+    vi.stubGlobal('confirm', () => true)
+
+    const wrapper = mount(ItemsView, stub)
+    await flushPromises()
+    await wrapper.get('button[title="Refresh"]').trigger('click')
+    await flushPromises()
+    expect(mocks.itemsRefresh).toHaveBeenCalledWith('i1')
+    expect(wrapper.text()).toContain('Refreshed')
+
+    await wrapper.get('button[title="Delete"]').trigger('click')
+    await flushPromises()
+    expect(mocks.itemsRemove).toHaveBeenCalledWith('i1')
+    expect(wrapper.text()).toContain('No resources')
+  })
+
+  it('notifies when loading fails', async () => {
+    mocks.itemsList.mockRejectedValueOnce(new Error('offline'))
+    mount(ItemsView, stub)
+    await flushPromises()
+    expect(store.toast).toEqual({ message: 'offline', isError: true })
+  })
+
+  it('links an unlinked item to a task', async () => {
+    mocks.itemsList.mockResolvedValue([
+      {
+        id: 'i1',
+        source: 'note',
+        kind: '',
+        title: 'A note',
+        url: null,
+        content: 'hello',
+        task_ids: [],
+        created_at: new Date().toISOString(),
+        fetched_at: null
+      }
+    ])
+    mocks.tasksAssociate.mockResolvedValue({})
+    const wrapper = mount(ItemsView, stub)
+    await flushPromises()
+    expect(wrapper.text()).toContain('not linked to a task')
+
+    await wrapper.get('.ss-trigger').trigger('click')
+    await wrapper.get('.ss-option').trigger('click')
+    await flushPromises()
+
+    expect(mocks.tasksAssociate).toHaveBeenCalledWith('t1', { item_id: 'i1' })
+    expect(wrapper.text()).toContain('Task One')
+    expect(store.toast).toEqual({ message: 'Linked to task', isError: false })
+  })
+})
+
+describe('GanttView', () => {
+  const rows = [
+    {
+      id: 't1',
+      title: 'Task One',
+      status: 'in_progress',
+      priority: 2,
+      created_at: '2026-01-01T00:00:00Z',
+      updated_at: '2026-01-02T00:00:00Z',
+      markers: [
+        { id: 'm1', type: 'created', message: 'created', created_at: '2026-01-01T00:00:00Z' },
+        { id: 'm2', type: 'updated', message: 'updated', created_at: '2026-01-02T00:00:00Z' }
+      ]
+    }
+  ]
+
+  it('renders rows, markers, and a legend', async () => {
+    mocks.ganttGet.mockResolvedValue(rows)
+    const wrapper = mount(GanttView, stub)
+    await flushPromises()
+    expect(mocks.ganttGet).toHaveBeenCalledWith({ includeDone: false })
+    expect(wrapper.text()).toContain('Task One')
+    expect(wrapper.findAll('.gantt-marker')).toHaveLength(2)
+    expect(wrapper.findAll('.legend-item').length).toBeGreaterThanOrEqual(2)
+  })
+
+  it('reloads including done tasks', async () => {
+    mocks.ganttGet.mockResolvedValue([])
+    const wrapper = mount(GanttView, stub)
+    await flushPromises()
+    await wrapper.get('input[type=checkbox]').setValue(true)
+    await flushPromises()
+    expect(mocks.ganttGet).toHaveBeenLastCalledWith({ includeDone: true })
+  })
+
+  it('shows an error with a working retry', async () => {
+    mocks.ganttGet.mockRejectedValueOnce(new Error('offline'))
+    const wrapper = mount(GanttView, stub)
+    await flushPromises()
+    expect(wrapper.text()).toContain('offline')
+
+    mocks.ganttGet.mockResolvedValue(rows)
+    await wrapper
+      .findAll('button')
+      .find((b) => b.text() === 'Retry')
+      .trigger('click')
+    await flushPromises()
+    expect(wrapper.text()).toContain('Task One')
+  })
+
+  it('warns when the picked range is invalid', async () => {
+    mocks.ganttGet.mockResolvedValue(rows)
+    const wrapper = mount(GanttView, stub)
+    await flushPromises()
+
+    const [start, end] = wrapper.findAll('input[type="datetime-local"]')
+    await start.setValue('2030-01-02T00:00:00')
+    await end.setValue('2030-01-01T00:00:00')
+    expect(wrapper.text()).toContain('End must be after start')
+  })
+})
