@@ -37,7 +37,7 @@ jobs:
         run: uv run --frozen pytest -q
 
   frontend:
-    name: Frontend (build)
+    name: Frontend (tests + build)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -51,6 +51,10 @@ jobs:
       - name: Install dependencies
         working-directory: frontend
         run: npm ci
+
+      - name: Test
+        working-directory: frontend
+        run: npm test
 
       - name: Build
         working-directory: frontend
