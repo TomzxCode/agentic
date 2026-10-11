@@ -46,6 +46,8 @@ const linkForm = reactive({
 })
 const linkDefaults = ref({})
 const savingLinks = ref(false)
+const savedLinks = ref(false)
+let savedTimer
 
 async function loadRepositories() {
   await store.loadRepositories().catch((e) => store.notify(e.message, true))
@@ -139,12 +141,13 @@ async function saveResume(id) {
   }
 }
 
-async function saveLinks() {
+async function saveLinkField(key) {
   savingLinks.value = true
   try {
-    await api.settings.update({ ...linkForm })
-    store.notify('Session link settings saved')
-    await loadSettings()
+    await api.settings.update({ [key]: linkForm[key] })
+    savedLinks.value = true
+    clearTimeout(savedTimer)
+    savedTimer = setTimeout(() => (savedLinks.value = false), 1500)
   } catch (e) {
     store.notify(e.message, true)
   } finally {
@@ -175,15 +178,19 @@ onMounted(load)
 
       <div class="settings-content">
         <section v-show="active === 'sessions'" class="panel">
-          <div class="panel-head"><h2>Session links</h2></div>
+          <div class="panel-head">
+            <h2>Session links</h2>
+            <span v-if="savingLinks" class="faint">saving…</span>
+            <span v-else-if="savedLinks" class="faint">saved</span>
+          </div>
           <p class="faint" style="margin-top: 0">
-            Where an agent session opens. Leave a field blank to disable that link. Placeholders:
-            <code>{session}</code>, <code>{cwd}</code>, <code>{harness}</code>.
+            Where an agent session opens. Saved when you leave a field. Leave a field blank to disable
+            that link. Placeholders: <code>{session}</code>, <code>{cwd}</code>, <code>{harness}</code>.
           </p>
 
           <div class="field">
             <label>OpenChamber base URL</label>
-            <input v-model="linkForm.openchamber_url" class="input" placeholder="http://localhost:3001" />
+            <input v-model="linkForm.openchamber_url" class="input" placeholder="http://localhost:3001" @blur="saveLinkField('openchamber_url')" />
             <p class="faint" style="margin: 4px 0 0">
               Web: <code>&lt;base&gt;/?session=&lt;id&gt;</code>. For the native deep link use base
               <code>openchamber://session</code> with path <code>/{session}</code>.
@@ -191,11 +198,11 @@ onMounted(load)
           </div>
           <div class="field">
             <label>OpenChamber session path</label>
-            <input v-model="linkForm.openchamber_session_path" class="input" :placeholder="linkDefaults.openchamber_session_path" />
+            <input v-model="linkForm.openchamber_session_path" class="input" :placeholder="linkDefaults.openchamber_session_path" @blur="saveLinkField('openchamber_session_path')" />
           </div>
           <div class="field">
             <label>Terminal URL template (optional)</label>
-            <input v-model="linkForm.terminal_url_template" class="input" placeholder="opencode://session/{session}" />
+            <input v-model="linkForm.terminal_url_template" class="input" placeholder="opencode://session/{session}" @blur="saveLinkField('terminal_url_template')" />
             <p class="faint" style="margin: 4px 0 0">
               Any URL scheme, or a web terminal such as
               <code>http://localhost:7681/?cwd={cwd}</code>.
@@ -203,7 +210,7 @@ onMounted(load)
           </div>
           <div class="field">
             <label>Editor URL template (optional)</label>
-            <input v-model="linkForm.editor_url_template" class="input" placeholder="vscode://file{path}" />
+            <input v-model="linkForm.editor_url_template" class="input" placeholder="vscode://file{path}" @blur="saveLinkField('editor_url_template')" />
             <p class="faint" style="margin: 4px 0 0">
               Opens a worktree path in your editor. <code>{path}</code> is the absolute path (it starts with
               <code>/</code>).
@@ -218,11 +225,6 @@ onMounted(load)
               <code>https://&lt;host&gt;:8443/?folder={path}</code>. Tunnel:
               <code>https://vscode.dev/tunnel/&lt;name&gt;{path}</code>.
             </p>
-          </div>
-          <div class="row" style="justify-content: flex-end">
-            <button class="btn primary" :disabled="savingLinks" @click="saveLinks">
-              <span v-if="savingLinks" class="spinner"></span> Save session links
-            </button>
           </div>
         </section>
 
