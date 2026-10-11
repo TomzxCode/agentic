@@ -77,6 +77,21 @@ async function refresh(item) {
   }
 }
 
+async function remove(item) {
+  const linked = linkedTasks(item).length
+  const message = linked
+    ? `Delete this ${label(item.source)} item? It will also be unlinked from ${linked} task(s).`
+    : `Delete this ${label(item.source)} item?`
+  if (!confirm(message)) return
+  try {
+    await api.items.remove(item.id)
+    items.value = items.value.filter((entry) => entry.id !== item.id)
+    store.notify('Item deleted')
+  } catch (e) {
+    store.notify(e.message, true)
+  }
+}
+
 onMounted(async () => {
   await store.loadTasks().catch(() => {})
   await load()
@@ -121,6 +136,7 @@ onMounted(async () => {
           <button class="btn sm ghost" title="Expand" @click="expanded[item.id] = !expanded[item.id]">
             {{ expanded[item.id] ? '▾' : '▸' }}
           </button>
+          <button class="btn sm danger" title="Delete" @click="remove(item)">✕</button>
         </div>
         <div v-if="item.kind" class="faint">{{ item.kind.replace('_', ' ') }}</div>
         <div v-if="item.content" class="content" :class="{ clamp: !expanded[item.id] }">{{ item.content }}</div>
