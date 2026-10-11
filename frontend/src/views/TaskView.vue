@@ -10,6 +10,7 @@ import TimelinePanel from '../components/TimelinePanel.vue'
 import SessionLinks from '../components/SessionLinks.vue'
 import EditableText from '../components/EditableText.vue'
 import SearchSelect from '../components/SearchSelect.vue'
+import StatusIcon from '../components/StatusIcon.vue'
 
 const props = defineProps({ id: { type: String, required: true } })
 const emit = defineEmits(['changed'])
@@ -31,11 +32,16 @@ const repositoryRef = ref(null)
 const latestLinks = computed(() => task.value?.runs?.find((run) => run.links?.length)?.links || [])
 
 const STATUS_OPTIONS = [
-  { value: 'open', label: 'open' },
-  { value: 'in_progress', label: 'in progress' },
-  { value: 'blocked', label: 'blocked' },
-  { value: 'done', label: 'done' },
-  { value: 'archived', label: 'archived' }
+  { value: 'open', label: 'open', icon: StatusIcon, iconProps: { status: 'open', label: 'open' } },
+  {
+    value: 'in_progress',
+    label: 'in progress',
+    icon: StatusIcon,
+    iconProps: { status: 'in_progress', label: 'in progress' }
+  },
+  { value: 'blocked', label: 'blocked', icon: StatusIcon, iconProps: { status: 'blocked', label: 'blocked' } },
+  { value: 'done', label: 'done', icon: StatusIcon, iconProps: { status: 'done', label: 'done' } },
+  { value: 'archived', label: 'archived', icon: StatusIcon, iconProps: { status: 'archived', label: 'archived' } }
 ]
 const PRIORITY_OPTIONS = [
   { value: 0, label: 'priority: low' },

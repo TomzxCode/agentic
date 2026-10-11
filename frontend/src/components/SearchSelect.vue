@@ -3,7 +3,7 @@ import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 
 const props = defineProps({
   modelValue: { type: [String, Number], default: '' },
-  options: { type: Array, required: true }, // [{ value, label }]
+  options: { type: Array, required: true }, // [{ value, label, icon?, iconProps? }]
   placeholder: { type: String, default: 'Select…' },
   variant: { type: String, default: 'field' }, // field | inline
   title: { type: String, default: 'Click to choose' },
@@ -21,7 +21,9 @@ const input = ref(null)
 const normalized = computed(() => {
   const options = props.options.map((option) => ({
     value: String(option.value ?? ''),
-    label: option.label ?? String(option.value ?? '')
+    label: option.label ?? String(option.value ?? ''),
+    icon: option.icon || null,
+    iconProps: option.iconProps || null
   }))
   if (!props.sort) return options
   // Alphabetical, but keep the empty-value sentinel (None/Auto/…) first.
@@ -103,6 +105,7 @@ defineExpose({ activate: show })
       @click="toggle"
       @keydown.down.prevent="toggle"
     >
+      <component :is="selected.icon" v-if="selected?.icon" v-bind="selected.iconProps" />
       <span class="ss-label" :class="{ placeholder: !hasValue }">{{ selected ? selected.label : placeholder }}</span>
       <span class="ss-caret">▾</span>
     </button>
@@ -120,7 +123,8 @@ defineExpose({ activate: show })
           @mouseenter="highlighted = index"
           @click="choose(option)"
         >
-          {{ option.label }}
+          <component :is="option.icon" v-if="option.icon" v-bind="option.iconProps" />
+          <span class="ss-option-label">{{ option.label }}</span>
         </button>
       </div>
     </div>

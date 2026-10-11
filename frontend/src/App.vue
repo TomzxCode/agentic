@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { api } from './api'
 import { store, statusLabel, timeAgo } from './store'
 import SearchSelect from './components/SearchSelect.vue'
+import StatusIcon from './components/StatusIcon.vue'
 import CommandPalette from './components/CommandPalette.vue'
 
 const route = useRoute()
@@ -49,11 +50,16 @@ const priorityOptions = [
   { value: 3, label: 'Urgent' }
 ]
 const statusOptions = [
-  { value: 'open', label: 'Open' },
-  { value: 'in_progress', label: 'In progress' },
-  { value: 'blocked', label: 'Blocked' },
-  { value: 'done', label: 'Done' },
-  { value: 'archived', label: 'Archived' }
+  { value: 'open', label: 'Open', icon: StatusIcon, iconProps: { status: 'open', label: 'Open' } },
+  {
+    value: 'in_progress',
+    label: 'In progress',
+    icon: StatusIcon,
+    iconProps: { status: 'in_progress', label: 'In progress' }
+  },
+  { value: 'blocked', label: 'Blocked', icon: StatusIcon, iconProps: { status: 'blocked', label: 'Blocked' } },
+  { value: 'done', label: 'Done', icon: StatusIcon, iconProps: { status: 'done', label: 'Done' } },
+  { value: 'archived', label: 'Archived', icon: StatusIcon, iconProps: { status: 'archived', label: 'Archived' } }
 ]
 const selectedRepositories = computed(() =>
   (draft.value.repository_ids || [])
@@ -411,43 +417,7 @@ onUnmounted(() => {
           :class="{ active: route.params.id === p.id }"
           @click="sidebarOpen = false"
         >
-          <span
-            class="task-status"
-            :class="`st-${p.status}`"
-            :title="statusLabel(p.status)"
-            :aria-label="statusLabel(p.status)"
-            role="img"
-          >
-            <svg viewBox="0 0 16 16" aria-hidden="true">
-              <path
-                v-if="p.status === 'done'"
-                d="M3.5 8.5l3 3 6-7"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              />
-              <path
-                v-else-if="p.status === 'blocked'"
-                d="M4.5 4.5l7 7M11.5 4.5l-7 7"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-              />
-              <path v-else-if="p.status === 'in_progress'" d="M5.5 4l6 4-6 4z" fill="currentColor" />
-              <path
-                v-else-if="p.status === 'archived'"
-                d="M4 8h8"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-              />
-              <circle v-else cx="8" cy="8" r="5" fill="none" stroke="currentColor" stroke-width="2" />
-            </svg>
-          </span>
+          <StatusIcon :status="p.status" :label="statusLabel(p.status)" />
           <span class="t">{{ p.title }}</span>
           <span v-if="p.next_steps?.length" class="badge steps">{{ p.next_steps.filter((s) => !s.done).length }}</span>
           <span class="faint when">{{ timeAgo(p.updated_at) }}</span>

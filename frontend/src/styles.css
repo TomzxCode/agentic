@@ -942,6 +942,8 @@ h3 {
   cursor: not-allowed;
 }
 .ss-label {
+  flex: 1 1 auto;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -990,7 +992,9 @@ h3 {
   overflow: auto;
 }
 .ss-option {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 8px;
   width: 100%;
   text-align: left;
   padding: 6px 8px;
@@ -1000,9 +1004,12 @@ h3 {
   color: inherit;
   cursor: pointer;
   font-size: 13px;
-  white-space: nowrap;
+}
+.ss-option-label {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .ss-option.active {
   background: var(--bg-3);
