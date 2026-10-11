@@ -76,7 +76,7 @@ onMounted(() => {
       <div class="item-top">
         <span class="badge" :class="{ ok: w.status === 'active', danger: w.status === 'removed' }">{{ w.status }}</span>
         <span class="mono grow" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap">{{ w.branch }}</span>
-        <button v-if="editorUrl(w)" class="btn sm ghost" title="Open in editor" @click="openEditor(w)">✎</button>
+        <button v-if="w.status === 'active' && editorUrl(w)" class="btn sm ghost" title="Open in editor" @click="openEditor(w)">✎</button>
         <button class="btn sm ghost" title="Copy path" @click="copy(w.path)">⧉</button>
         <button v-if="w.status === 'active'" class="btn sm danger" @click="remove(w.id)">Remove</button>
       </div>
