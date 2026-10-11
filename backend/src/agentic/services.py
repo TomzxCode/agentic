@@ -169,6 +169,43 @@ def fetch_source(source: str, url: str | None, external_id: str | None, title: s
     return result
 
 
+GITHUB_REPO_RE = re.compile(r"github\.com[/:]([^/\s]+)/([^/\s#?]+?)(?:\.git)?(?:[/\s#?]|$)")
+
+
+def github_owner_repo(value: str | None) -> tuple[str, str] | None:
+    """Extract (owner, repo) from a GitHub URL or a git remote (https or ssh)."""
+    match = GITHUB_REPO_RE.search(value or "")
+    if not match:
+        return None
+    return match.group(1), match.group(2)
+
+
+def list_github_issues(owner: str, repo: str, state: str = "open", limit: int = 20) -> list[dict[str, Any]] | None:
+    """List issues for a repository via the GitHub CLI (``gh``). None on failure."""
+    limit = max(1, min(limit, 100))
+    fields = "number,title,url,state,author,labels,body"
+    raw = _run_cli(
+        ["gh", "issue", "list", "--repo", f"{owner}/{repo}", "--state", state, "--limit", str(limit), "--json", fields],
+        timeout=60,
+    )
+    if not raw:
+        return None
+    issues: list[dict[str, Any]] = []
+    for issue in json.loads(raw):
+        issues.append(
+            {
+                "number": issue.get("number"),
+                "title": issue.get("title") or "",
+                "url": issue.get("url") or "",
+                "state": issue.get("state") or "",
+                "author": (issue.get("author") or {}).get("login"),
+                "labels": [label.get("name") for label in issue.get("labels") or [] if isinstance(label, dict)],
+                "body": issue.get("body") or "",
+            }
+        )
+    return issues
+
+
 def _fetch_github(url: str, result: dict[str, Any]) -> None:
     parsed = parse_github(url)
     if not parsed:

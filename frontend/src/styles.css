@@ -202,6 +202,12 @@ h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: v
 .picker-row.added { opacity: .55; }
 .picker-row.added .picker-name { cursor: default; }
 .picker-row input[type=checkbox]:disabled { cursor: not-allowed; }
+
+/* GitHub issue import */
+.issue-list { border: 1px solid var(--border); border-radius: 10px; max-height: 220px; overflow: auto; margin-top: 8px; }
+.issue-row { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; background: transparent; border: none; border-bottom: 1px solid var(--border); padding: 8px 10px; cursor: pointer; color: inherit; }
+.issue-row:last-child { border-bottom: none; }
+.issue-row:hover { background: var(--bg-2); }
 .empty { text-align: center; color: var(--muted); padding: 40px 20px; }
 .spinner { width: 14px; height: 14px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin .8s linear infinite; display: inline-block; }
 @keyframes spin { to { transform: rotate(360deg); } }

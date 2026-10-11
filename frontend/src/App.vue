@@ -9,11 +9,20 @@ const router = useRouter()
 const search = ref('')
 const showNew = ref(false)
 const sidebarOpen = ref(false)
-const draft = ref({ title: '', description: '', priority: 2, group_id: '' })
+const draft = ref({ title: '', description: '', priority: 2, group_id: '', github_url: '' })
+
+// "Import from GitHub" state.
+const importRepo = ref('')
+const issues = ref([])
+const loadingIssues = ref(false)
+const pickedIssue = ref(null)
 
 // Close the mobile drawer when navigating.
 watch(() => route.fullPath, () => (sidebarOpen.value = false))
 
+const githubRepos = computed(() =>
+  store.repositories.filter((r) => (r.remote_url || '').includes('github.com')),
+)
 
 const filtered = computed(() => {
   const q = search.value.trim().toLowerCase()
@@ -34,12 +43,48 @@ async function refresh() {
   }
 }
 
-async function createTask() {
-  if (!draft.value.title.trim()) return
+function resetDraft() {
+  draft.value = { title: '', description: '', priority: 2, group_id: '', github_url: '' }
+  importRepo.value = ''
+  issues.value = []
+  pickedIssue.value = null
+}
+
+async function loadIssues() {
+  if (!importRepo.value) return
+  loadingIssues.value = true
   try {
-    const task = await api.tasks.create({ ...draft.value, group_id: draft.value.group_id || null })
+    issues.value = await api.github.issues({ repository_id: importRepo.value, limit: 25 })
+    if (!issues.value.length) store.notify('No open issues in that repository')
+  } catch (e) {
+    store.notify(e.message, true)
+  } finally {
+    loadingIssues.value = false
+  }
+}
+
+function pickIssue(issue) {
+  pickedIssue.value = issue.number
+  draft.value.title = issue.title
+  draft.value.description = issue.body
+  draft.value.github_url = issue.url
+}
+
+function clearImport() {
+  pickedIssue.value = null
+  draft.value.github_url = ''
+}
+
+async function createTask() {
+  if (!draft.value.title.trim() && !draft.value.github_url) return
+  try {
+    const task = await api.tasks.create({
+      ...draft.value,
+      group_id: draft.value.group_id || null,
+      github_url: draft.value.github_url || null,
+    })
     showNew.value = false
-    draft.value = { title: '', description: '', priority: 2, group_id: '' }
+    resetDraft()
     await refresh()
     router.push(`/task/${task.id}`)
   } catch (e) {
@@ -50,6 +95,7 @@ async function createTask() {
 onMounted(async () => {
   await refresh()
   await store.loadGroups().catch(() => {})
+  await store.loadRepositories().catch(() => {})
 })
 </script>
 
@@ -114,6 +160,34 @@ onMounted(async () => {
     <div v-if="showNew" class="modal-backdrop" @click.self="showNew = false">
       <div class="modal">
         <h1 style="margin-bottom: 14px">New task</h1>
+
+        <div class="field">
+          <label>Import from GitHub (optional)</label>
+          <div class="row">
+            <select v-model="importRepo" class="select grow">
+              <option value="">Choose a repository…</option>
+              <option v-for="r in githubRepos" :key="r.id" :value="r.id">{{ r.name }}</option>
+            </select>
+            <button class="btn" :disabled="!importRepo || loadingIssues" @click="loadIssues">
+              <span v-if="loadingIssues" class="spinner"></span> Load issues
+            </button>
+          </div>
+          <div v-if="pickedIssue" class="faint" style="margin-top: 6px">
+            Importing <a :href="draft.github_url" target="_blank">#{{ pickedIssue }}</a>
+            <button class="btn sm ghost" @click="clearImport">clear</button>
+          </div>
+          <div v-else-if="issues.length" class="issue-list">
+            <button v-for="issue in issues" :key="issue.number" class="issue-row" @click="pickIssue(issue)">
+              <span class="badge ok">{{ issue.state.toLowerCase() }}</span>
+              <span class="grow">#{{ issue.number }} {{ issue.title }}</span>
+              <span v-if="issue.author" class="faint">{{ issue.author }}</span>
+            </button>
+          </div>
+          <p v-if="!githubRepos.length" class="faint" style="margin: 6px 0 0">
+            No GitHub repositories registered. Add one in <router-link to="/settings">Settings</router-link>.
+          </p>
+        </div>
+
         <div class="field">
           <label>Title</label>
           <input v-model="draft.title" class="input" placeholder="What needs to be solved?" @keyup.enter="createTask" />
@@ -140,7 +214,9 @@ onMounted(async () => {
         </div>
         <div class="row" style="justify-content: flex-end">
           <button class="btn ghost" @click="showNew = false">Cancel</button>
-          <button class="btn primary" :disabled="!draft.title.trim()" @click="createTask">Create</button>
+          <button class="btn primary" :disabled="!draft.title.trim() && !draft.github_url" @click="createTask">
+            Create
+          </button>
         </div>
       </div>
     </div>

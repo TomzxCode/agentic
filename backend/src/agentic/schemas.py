@@ -59,6 +59,17 @@ class FsListing(BaseModel):
     entries: list[FsEntry] = []
 
 
+# --- GitHub ----------------------------------------------------------------
+class GithubIssue(BaseModel):
+    number: int
+    title: str = ""
+    url: str = ""
+    state: str = ""
+    author: str | None = None
+    labels: list[str] = []
+    body: str = ""
+
+
 # --- Repository ------------------------------------------------------------
 class RepositoryCreate(BaseModel):
     name: str | None = None
@@ -204,7 +215,7 @@ class AssociateRequest(BaseModel):
 
 # --- Task ---------------------------------------------------------------
 class TaskCreate(BaseModel):
-    title: str
+    title: str = ""
     description: str = ""
     status: TaskStatus = TaskStatus.open
     priority: int = 2
@@ -212,6 +223,9 @@ class TaskCreate(BaseModel):
     repository_id: str | None = None
     group_id: str | None = None
     harness_id: str | None = None
+    # Import: create the task from a GitHub issue/PR (prefills title/description
+    # and associates the issue as an item).
+    github_url: str | None = None
 
 
 class TaskUpdate(BaseModel):
@@ -330,6 +344,7 @@ __all__ = [
     "ContextPreview",
     "FsEntry",
     "FsListing",
+    "GithubIssue",
     "Harness",
     "HarnessCreate",
     "HarnessRead",

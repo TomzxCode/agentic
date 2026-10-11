@@ -184,15 +184,17 @@ def task_get(task_id: str) -> str:
 @task_app.command(name="create")
 @safe
 def task_create(
-    title: str,
+    title: str = "",
     description: str = "",
     priority: int = 2,
     status: TaskStatus = "open",
     tags: list[str] | None = None,
     repository_id: str | None = None,
+    group_id: str | None = None,
     harness_id: str | None = None,
+    github_url: str | None = None,
 ) -> str:
-    """Create a task."""
+    """Create a task (or import one from a GitHub issue with --github-url)."""
     with _client() as client:
         task = client.create_task(
             title=title,
@@ -201,7 +203,9 @@ def task_create(
             status=status,
             tags=tags,
             repository_id=repository_id,
+            group_id=group_id,
             harness_id=harness_id,
+            github_url=github_url,
         )
     return emit(task, f"created {task['id']}  {task['title']}")
 

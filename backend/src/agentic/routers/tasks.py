@@ -29,6 +29,7 @@ from ..models import (
 from ..schemas import (
     AssociateRequest,
     AssociationDetail,
+    ItemCreate,
     ItemRead,
     TaskCreate,
     TaskDetail,
@@ -81,6 +82,20 @@ def _detail(session: Session, task: Task) -> TaskDetail:
     )
 
 
+def _link_item(session: Session, task_id: str, item: SourceItem, note: str = "") -> Association:
+    """Create (or update) the association between a task and an item."""
+    existing = session.exec(
+        select(Association).where(Association.task_id == task_id, Association.item_id == item.id)
+    ).first()
+    assoc = existing or Association(task_id=task_id, item_id=item.id, note=note)
+    if existing and note:
+        assoc.note = note
+    session.add(assoc)
+    session.commit()
+    session.refresh(assoc)
+    return assoc
+
+
 @router.get("", response_model=list[TaskRead])
 def list_tasks(
     status: str | None = None,
@@ -105,10 +120,32 @@ def list_tasks(
 
 @router.post("", response_model=TaskRead, status_code=201)
 async def create_task(payload: TaskCreate, session: Session = Depends(get_session)) -> Task:
-    task = Task(**payload.model_dump())
+    data = payload.model_dump(exclude={"github_url"})
+
+    # Import from GitHub: fetch the issue, use it to fill the task, and link it.
+    item: SourceItem | None = None
+    if payload.github_url:
+        item = await anyio.to_thread.run_sync(_upsert_item, session, ItemCreate(url=payload.github_url, fetch=True))
+        data["title"] = data.get("title") or item.title or payload.github_url
+        data["description"] = data.get("description") or item.content
+
+    if not str(data.get("title") or "").strip():
+        raise HTTPException(status_code=400, detail="Title is required (or provide github_url)")
+
+    task = Task(**data)
     session.add(task)
     session.commit()
     session.refresh(task)
+
+    if item is not None:
+        _link_item(session, task.id, item, note="imported from GitHub")
+        add_timeline(
+            session,
+            task.id,
+            "item_added",
+            f"Associated [{item.source}] {item.title or item.url or item.id}",
+            {"item_id": item.id},
+        )
     add_timeline(session, task.id, "created", f"Task created: {task.title}")
     await bus.publish(f"task:{task.id}", {"kind": "task", "action": "created"})
     return task
@@ -208,15 +245,7 @@ async def associate_item(
     else:
         raise HTTPException(status_code=400, detail="Provide item_id or item")
 
-    existing = session.exec(
-        select(Association).where(Association.task_id == task_id, Association.item_id == item.id)
-    ).first()
-    assoc = existing or Association(task_id=task_id, item_id=item.id, note=payload.note)
-    if existing:
-        assoc.note = payload.note or assoc.note
-    session.add(assoc)
-    session.commit()
-    session.refresh(assoc)
+    assoc = _link_item(session, task_id, item, payload.note)
     add_timeline(
         session,
         task_id,

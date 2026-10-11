@@ -62,6 +62,18 @@ export const api = {
     remove: (id) => request(`/groups/${id}`, { method: 'DELETE' }),
   },
 
+  github: {
+    issues: ({ repository_id, owner, repo, state = 'open', limit = 20 } = {}) => {
+      const qs = new URLSearchParams()
+      if (repository_id) qs.set('repository_id', repository_id)
+      if (owner) qs.set('owner', owner)
+      if (repo) qs.set('repo', repo)
+      qs.set('state', state)
+      qs.set('limit', String(limit))
+      return request(`/github/issues?${qs.toString()}`)
+    },
+  },
+
   harnesses: {
     list: () => request('/harnesses'),
     full: () => request('/harnesses/full'),
