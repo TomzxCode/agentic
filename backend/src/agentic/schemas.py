@@ -304,6 +304,19 @@ class TaskDetail(TaskRead):
     timeline: list[TimelineRead] = []
 
 
+# --- Gantt -----------------------------------------------------------------
+class GanttTask(BaseModel):
+    """A task as a Gantt row: its span, plus one marker per timeline event."""
+
+    id: str
+    title: str
+    status: TaskStatus
+    priority: int
+    created_at: datetime
+    updated_at: datetime
+    markers: list[TimelineRead] = []
+
+
 # --- Worktree --------------------------------------------------------------
 class WorktreeCreate(BaseModel):
     repository_id: str | None = None
@@ -345,6 +358,7 @@ __all__ = [
     "ContextPreview",
     "FsEntry",
     "FsListing",
+    "GanttTask",
     "GithubIssue",
     "Harness",
     "HarnessCreate",

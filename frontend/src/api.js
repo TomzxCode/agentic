@@ -30,6 +30,11 @@ export const api = {
     unassociate: (id, itemId) => request(`/tasks/${id}/items/${itemId}`, { method: 'DELETE' }),
   },
 
+  gantt: {
+    get: ({ includeDone = false } = {}) =>
+      request(`/gantt${includeDone ? '?include_done=true' : ''}`),
+  },
+
   items: {
     list: ({ source, q } = {}) => {
       const qs = new URLSearchParams()
