@@ -1,4 +1,8 @@
-from agentic.services import extract_context_json, infer_item_source, looks_like_url
+import re
+import subprocess
+
+from agentic import services
+from agentic.services import extract_context_json, infer_item_source, looks_like_url, random_branch_name, random_name
 
 VALID = (
     '{"summary": "Do the thing.", "next_steps": '
@@ -74,3 +78,28 @@ def test_looks_like_url():
     assert not looks_like_url("just a reminder")
     assert not looks_like_url("")
     assert not looks_like_url(None)
+
+
+def test_random_name_is_two_words():
+    assert re.fullmatch(r"[a-z]+-[a-z]+", random_name())
+
+
+def test_random_branch_name_prefixes_agentic(tmp_path):
+    branch = random_branch_name(str(tmp_path))
+    assert branch.startswith("agentic/")
+    assert branch.removeprefix("agentic/") in {f"{a}-{n}" for a in services._ADJECTIVES for n in services._NOUNS}
+
+
+def test_random_branch_name_retries_when_branch_exists(tmp_path, monkeypatch):
+    calls = {"n": 0}
+
+    def fake_git(args, cwd, timeout=120):
+        calls["n"] += 1
+        # The first candidate appears to already exist, the next one is free.
+        return subprocess.CompletedProcess(args, 0 if calls["n"] == 1 else 1, "", "")
+
+    monkeypatch.setattr(services, "_git", fake_git)
+    monkeypatch.setattr(services, "random_name", lambda: "silly-goose")
+
+    assert random_branch_name(str(tmp_path)) == "agentic/silly-goose"
+    assert calls["n"] == 2

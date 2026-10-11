@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import anyio
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import case
 from sqlmodel import Session, select
 
 from ..crud import add_timeline, get_task_or_404
@@ -11,7 +12,7 @@ from ..db import get_session
 from ..events import bus
 from ..models import Repository, Worktree, WorktreeStatus, utcnow
 from ..schemas import WorktreeCreate, WorktreeRead
-from ..services import create_worktree, remove_worktree, slugify, worktree_path
+from ..services import create_worktree, random_branch_name, remove_worktree, worktree_path
 
 router = APIRouter(prefix="/api/tasks", tags=["worktrees"])
 
@@ -20,7 +21,14 @@ router = APIRouter(prefix="/api/tasks", tags=["worktrees"])
 def list_worktrees(task_id: str, session: Session = Depends(get_session)) -> list[Worktree]:
     get_task_or_404(session, task_id)
     return list(
-        session.exec(select(Worktree).where(Worktree.task_id == task_id).order_by(Worktree.created_at.desc())).all()
+        session.exec(
+            select(Worktree)
+            .where(Worktree.task_id == task_id)
+            .order_by(
+                case((Worktree.status == WorktreeStatus.active, 0), else_=1),
+                Worktree.created_at.desc(),
+            )
+        ).all()
     )
 
 
@@ -36,7 +44,7 @@ async def create_task_worktree(
     if repo is None:
         raise HTTPException(status_code=404, detail="Repository not found")
 
-    branch = payload.branch or f"agentic/{slugify(task.title)}-{task.id[:4]}"
+    branch = payload.branch or random_branch_name(repo.path)
     path = worktree_path(task.id, branch)
     try:
         await anyio.to_thread.run_sync(create_worktree, repo.path, branch, path, payload.base or repo.default_branch)

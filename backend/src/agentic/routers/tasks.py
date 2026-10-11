@@ -6,6 +6,7 @@ import contextlib
 
 import anyio
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import case
 from sqlalchemy import delete as sa_delete
 from sqlmodel import Session, select
 
@@ -25,6 +26,7 @@ from ..models import (
     TaskRepository,
     TimelineEvent,
     Worktree,
+    WorktreeStatus,
     utcnow,
 )
 from ..schemas import (
@@ -93,7 +95,12 @@ def _detail(session: Session, task: Task) -> TaskDetail:
             )
         )
     worktrees = session.exec(
-        select(Worktree).where(Worktree.task_id == task.id).order_by(Worktree.created_at.desc())
+        select(Worktree)
+        .where(Worktree.task_id == task.id)
+        .order_by(
+            case((Worktree.status == WorktreeStatus.active, 0), else_=1),
+            Worktree.created_at.desc(),
+        )
     ).all()
     runs = session.exec(
         select(AgentRun).where(AgentRun.task_id == task.id).order_by(AgentRun.created_at.desc()).limit(20)

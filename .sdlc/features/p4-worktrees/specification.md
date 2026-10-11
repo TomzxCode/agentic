@@ -9,7 +9,7 @@ session_link: "http://localhost:10000/?session=ses_ed778bb8affeJQ6f9Tkxe4MjUl"
 ## Overview
 
 Worktrees are served by `routers/worktrees.py` (mounted under `/api/tasks`).
-`services.py` provides `create_worktree`, `remove_worktree`, `worktree_path`, and `slugify`, all wrapping the `git` binary through a small `_git` helper with timeouts.
+`services.py` provides `create_worktree`, `remove_worktree`, `worktree_path`, `slugify`, and `random_branch_name`, all wrapping the `git` binary through a small `_git` helper with timeouts.
 
 ## Architecture
 
@@ -78,7 +78,7 @@ sequenceDiagram
 
 | Decision | Choice | Rationale |
 |---|---|---|
-| Branch default | `agentic/<slug>-<id4>` | Predictable, task-scoped branch names |
+| Branch default | `agentic/<adjective>-<noun>` (random, retried until free) | Memorable and collision-free when a task has several worktrees |
 | Path default | `AGENTIC_WORKTREE_ROOT/<task_id>/<slug>` | Keeps worktrees grouped and off the source checkout |
 | Removal | Soft delete plus `git worktree remove --force` and `prune` | Preserves history while freeing disk |
 | Git errors | Caught and re-raised as HTTP 400 | A git failure is a user/input problem |
