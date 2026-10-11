@@ -1,5 +1,5 @@
 <script setup>
-import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
 const props = defineProps({ items: { type: Array, required: true } })
 const emit = defineEmits(['close', 'select'])
@@ -57,11 +57,7 @@ function choose(item) {
 }
 
 function onKeydown(event) {
-  if (event.key === 'Escape') {
-    event.preventDefault()
-    event.stopPropagation()
-    emit('close')
-  } else if (event.key === 'ArrowDown') {
+  if (event.key === 'ArrowDown') {
     event.preventDefault()
     highlighted.value = Math.min(highlighted.value + 1, results.value.length - 1)
   } else if (event.key === 'ArrowUp') {
@@ -73,8 +69,21 @@ function onKeydown(event) {
   }
 }
 
+// Close on Escape from anywhere: capture it on window so focus quirks or an
+// input's autofill dropdown can't swallow the first press (which would need two).
+function onWindowKeydown(event) {
+  if (event.key !== 'Escape') return
+  event.preventDefault()
+  event.stopPropagation()
+  emit('close')
+}
+
 watch(query, () => (highlighted.value = 0))
-onMounted(() => nextTick(() => input.value?.focus()))
+onMounted(() => {
+  window.addEventListener('keydown', onWindowKeydown, true)
+  nextTick(() => input.value?.focus())
+})
+onBeforeUnmount(() => window.removeEventListener('keydown', onWindowKeydown, true))
 </script>
 
 <template>
@@ -85,6 +94,8 @@ onMounted(() => nextTick(() => input.value?.focus()))
         v-model="query"
         class="palette-input"
         placeholder="Search tasks and actions…"
+        autocomplete="off"
+        spellcheck="false"
         @keydown="onKeydown"
       />
       <div class="palette-list">
