@@ -4,6 +4,8 @@ import { computed, nextTick, onMounted, ref, watch } from 'vue'
 const props = defineProps({ items: { type: Array, required: true } })
 const emit = defineEmits(['close', 'select'])
 
+const GROUP_ORDER = ['Actions', 'Navigation', 'Tasks']
+
 const query = ref('')
 const highlighted = ref(0)
 const input = ref(null)
@@ -22,14 +24,31 @@ function score(label, q) {
   return -1
 }
 
-const results = computed(() => {
+// Bucket matches by group, preserving a fixed section order. Each item carries
+// its position in the flat order so keyboard navigation spans the sections.
+const grouped = computed(() => {
   const q = query.value.trim().toLowerCase()
-  return props.items
+  const matched = props.items
     .map((item) => ({ item, s: score(item.label, q) }))
     .filter((entry) => entry.s >= 0)
     .sort((a, b) => b.s - a.s)
     .map((entry) => entry.item)
+
+  const buckets = new Map()
+  for (const item of matched) {
+    const group = item.group || 'Other'
+    if (!buckets.has(group)) buckets.set(group, [])
+    buckets.get(group).push(item)
+  }
+  const order = [
+    ...GROUP_ORDER.filter((group) => buckets.has(group)),
+    ...[...buckets.keys()].filter((group) => !GROUP_ORDER.includes(group)),
+  ]
+  let index = 0
+  return order.map((group) => ({ group, items: buckets.get(group).map((item) => ({ item, index: index++ })) }))
 })
+
+const results = computed(() => grouped.value.flatMap((section) => section.items.map((entry) => entry.item)))
 
 function choose(item) {
   if (!item) return
@@ -70,18 +89,26 @@ onMounted(() => nextTick(() => input.value?.focus()))
       />
       <div class="palette-list">
         <div v-if="!results.length" class="palette-empty faint">No matches</div>
-        <button
-          v-for="(item, index) in results"
-          :key="item.id"
-          type="button"
-          class="palette-item"
-          :class="{ active: index === highlighted }"
-          @mouseenter="highlighted = index"
-          @click="choose(item)"
+        <div
+          v-for="(section, sectionIndex) in grouped"
+          :key="section.group"
+          class="palette-group"
+          :class="{ divided: sectionIndex > 0 }"
         >
-          <span class="grow">{{ item.label }}</span>
-          <span v-if="item.hint" class="faint">{{ item.hint }}</span>
-        </button>
+          <div class="palette-group-title">{{ section.group }}</div>
+          <button
+            v-for="entry in section.items"
+            :key="entry.item.id"
+            type="button"
+            class="palette-item"
+            :class="{ active: entry.index === highlighted }"
+            @mouseenter="highlighted = entry.index"
+            @click="choose(entry.item)"
+          >
+            <span class="grow">{{ entry.item.label }}</span>
+            <span v-if="entry.item.hint" class="faint">{{ entry.item.hint }}</span>
+          </button>
+        </div>
       </div>
     </div>
   </div>

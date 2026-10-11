@@ -46,13 +46,14 @@ const importRepoOptions = computed(() => githubRepos.value.map((r) => ({ value: 
 
 // Command palette: navigate anywhere (and a couple of actions) from the keyboard.
 const paletteItems = computed(() => [
-  { id: 'new-task', label: 'New task', hint: 'action', run: () => (showNew.value = true) },
-  { id: 'go-tasks', label: 'Go to tasks', hint: 'navigate', run: () => router.push('/') },
-  { id: 'go-settings', label: 'Go to settings', hint: 'navigate', run: () => router.push('/settings') },
+  { id: 'new-task', label: 'New task', group: 'Actions', run: () => (showNew.value = true) },
+  { id: 'go-tasks', label: 'Go to tasks', group: 'Navigation', run: () => router.push('/') },
+  { id: 'go-settings', label: 'Go to settings', group: 'Navigation', run: () => router.push('/settings') },
   ...store.tasks.map((task) => ({
     id: `task-${task.id}`,
     label: task.title,
-    hint: `task · ${task.status.replace('_', ' ')}`,
+    group: 'Tasks',
+    hint: task.status.replace('_', ' '),
     run: () => router.push(`/task/${task.id}`),
   })),
 ])

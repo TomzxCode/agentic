@@ -259,6 +259,12 @@ h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: v
   padding: 14px 16px; font-size: 16px; color: inherit; outline: none;
 }
 .palette-list { max-height: 52vh; overflow: auto; padding: 6px; }
+.palette-group { padding: 2px 0; }
+.palette-group.divided { border-top: 1px solid var(--border); margin-top: 4px; padding-top: 6px; }
+.palette-group-title {
+  font-size: 10px; text-transform: uppercase; letter-spacing: .06em; color: var(--faint);
+  padding: 4px 12px 3px;
+}
 .palette-item {
   display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
   padding: 9px 12px; border-radius: 8px; border: none; background: transparent; color: inherit;
