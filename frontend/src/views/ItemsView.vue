@@ -2,7 +2,9 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { api } from '../api'
-import { store, timeAgo } from '../store'
+import { store, statusLabel, timeAgo } from '../store'
+import SearchSelect from '../components/SearchSelect.vue'
+import StatusIcon from '../components/StatusIcon.vue'
 
 const router = useRouter()
 
@@ -22,6 +24,8 @@ const loading = ref(true)
 const search = ref('')
 const sourceFilter = ref('')
 const expanded = ref({})
+// Chosen task per item in the "link to a task" picker (reset after linking).
+const linkChoice = ref({})
 
 function label(source) {
   return SOURCE_LABELS[source] || source
@@ -52,6 +56,31 @@ const visible = computed(() => {
 
 function linkedTasks(item) {
   return (item.task_ids || []).map((id) => store.tasks.find((task) => task.id === id)).filter(Boolean)
+}
+
+// Tasks this item is not yet linked to, as SearchSelect options with a status icon.
+function linkableTasks(item) {
+  const linked = new Set(item.task_ids || [])
+  return store.tasks
+    .filter((task) => !linked.has(task.id))
+    .map((task) => ({
+      value: task.id,
+      label: task.title,
+      icon: StatusIcon,
+      iconProps: { status: task.status, label: statusLabel(task.status) }
+    }))
+}
+
+async function linkTask(item, taskId) {
+  linkChoice.value[item.id] = ''
+  if (!taskId) return
+  try {
+    await api.tasks.associate(taskId, { item_id: item.id })
+    item.task_ids = [...(item.task_ids || []), taskId]
+    store.notify('Linked to task')
+  } catch (e) {
+    store.notify(e.message, true)
+  }
 }
 
 async function load() {
@@ -146,8 +175,18 @@ onMounted(async () => {
             class="btn sm ghost"
             @click="router.push(`/task/${task.id}`)"
           >
-            ↗ {{ task.title }}
+            <StatusIcon :status="task.status" :label="statusLabel(task.status)" />
+            {{ task.title }}
           </button>
+          <SearchSelect
+            v-if="linkableTasks(item).length"
+            variant="inline"
+            placeholder="＋ Link to a task…"
+            title="Link this item to a task"
+            :model-value="linkChoice[item.id] || ''"
+            :options="linkableTasks(item)"
+            @update:model-value="(value) => linkTask(item, value)"
+          />
         </div>
         <div class="faint" style="margin-top: 4px">
           added {{ timeAgo(item.created_at) }}

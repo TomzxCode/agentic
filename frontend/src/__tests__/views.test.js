@@ -84,7 +84,7 @@ describe('TasksView', () => {
 describe('ItemsView', () => {
   beforeEach(() => {
     vi.spyOn(store, 'loadTasks').mockResolvedValue()
-    store.tasks = [{ id: 't1', title: 'Task One' }]
+    store.tasks = [{ id: 't1', title: 'Task One', status: 'in_progress' }]
   })
 
   it('lists items, filters by source and search, and links tasks', async () => {
@@ -116,6 +116,8 @@ describe('ItemsView', () => {
     await flushPromises()
     expect(wrapper.text()).toContain('Issue one')
     expect(wrapper.text()).toContain('A note')
+    // The linked task chip shows the task's status as an icon.
+    expect(wrapper.find('.task-status.st-in_progress').exists()).toBe(true)
 
     await wrapper
       .findAll('button')
@@ -197,6 +199,8 @@ describe('ItemsView', () => {
     expect(wrapper.text()).toContain('not linked to a task')
 
     await wrapper.get('.ss-trigger').trigger('click')
+    // The picker shows each task's status icon.
+    expect(wrapper.find('.ss-option .task-status').exists()).toBe(true)
     await wrapper.get('.ss-option').trigger('click')
     await flushPromises()
 
