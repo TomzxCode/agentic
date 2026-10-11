@@ -316,6 +316,10 @@ code, .mono { font-family: var(--mono); font-size: 12.5px; }
 .copy { cursor: pointer; }
 
 /* Gantt */
+.gantt-range { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.gantt-range-field { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+.gantt-range-field .input { width: auto; padding: 5px 8px; font-size: 12px; background: var(--bg-2); }
+.gantt-range-error { margin: 0 0 12px; font-size: 12px; color: var(--danger); }
 .gantt-toggle { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); cursor: pointer; }
 .gantt-toggle input { accent-color: var(--accent-2); }
 .gantt-scroll { overflow-x: auto; margin: 0 -4px; padding: 0 4px; }
@@ -326,7 +330,7 @@ code, .mono { font-family: var(--mono); font-size: 12.5px; }
 .gantt-label { min-width: 0; display: flex; align-items: center; gap: 8px; padding: 9px 12px 9px 0; }
 .gantt-label .badge { flex: none; text-transform: capitalize; }
 .gantt-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.gantt-track { position: relative; min-height: 38px; }
+.gantt-track { position: relative; min-height: 38px; overflow: hidden; }
 .gantt-axis .gantt-track { min-height: 22px; }
 .gantt-axis .gantt-label { padding: 0; }
 .gantt-tick { position: absolute; top: 3px; font-size: 11px; color: var(--faint); white-space: nowrap; }
@@ -377,6 +381,7 @@ code, .mono { font-family: var(--mono); font-size: 12.5px; }
   .grid-2 { grid-template-columns: 1fr; }
   .gantt { min-width: 560px; }
   .gantt-row { grid-template-columns: 150px 1fr; }
+  .gantt-range-field .input { font-size: 16px; padding: 8px 10px; }
   .panel { padding: 14px; border-radius: 12px; }
   .panel-head { flex-wrap: wrap; }
 
