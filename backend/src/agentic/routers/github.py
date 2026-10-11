@@ -38,6 +38,6 @@ def list_issues(
     if issues is None:
         raise HTTPException(
             status_code=502,
-            detail="Could not read GitHub issues (is `gh` installed and authenticated?)",
+            detail="Could not read GitHub issues (is `ghx` installed and authenticated?)",
         )
     return [GithubIssue.model_validate(issue) for issue in issues]

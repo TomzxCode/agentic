@@ -181,11 +181,11 @@ def github_owner_repo(value: str | None) -> tuple[str, str] | None:
 
 
 def list_github_issues(owner: str, repo: str, state: str = "open", limit: int = 20) -> list[dict[str, Any]] | None:
-    """List issues for a repository via the GitHub CLI (``gh``). None on failure."""
+    """List issues for a repository via ghx. None on failure."""
     limit = max(1, min(limit, 100))
-    fields = "number,title,url,state,author,labels,body"
+    # ghx's --json is a boolean that emits the whole object list.
     raw = _run_cli(
-        ["gh", "issue", "list", "--repo", f"{owner}/{repo}", "--state", state, "--limit", str(limit), "--json", fields],
+        ["ghx", "issue", "list", "--repo", f"{owner}/{repo}", "--state", state, "--limit", str(limit), "--json"],
         timeout=60,
     )
     if not raw:
@@ -210,11 +210,9 @@ def _fetch_github(url: str, result: dict[str, Any]) -> None:
     parsed = parse_github(url)
     if not parsed:
         return
-    fields = "title,body,state,url,labels,author,number"
+    # ghx's --json is a boolean that emits the whole object.
     sub = "pr" if parsed["kind"] == "pull_request" else "issue"
-    raw = _run_cli(
-        ["gh", sub, "view", parsed["number"], "--repo", f"{parsed['owner']}/{parsed['repo']}", "--json", fields]
-    )
+    raw = _run_cli(["ghx", sub, "view", parsed["number"], "--repo", f"{parsed['owner']}/{parsed['repo']}", "--json"])
     if not raw:
         return
     data = json.loads(raw)

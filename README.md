@@ -113,7 +113,8 @@ only expose this on a trusted network.
 2. **Associate items**: paste a Slack thread permalink, a GitHub issue/PR URL, a
    Drive doc, or write a note. The source (Slack/GitHub/Drive/URL/note) is
    inferred from what you paste. GitHub and Slack/URL items are fetched on demand
-   (via `gh` and `slackx` for Slack); you can also paste content directly.
+   (via `ghx` for GitHub and `slackx` for Slack); you can also paste content
+   directly.
 3. **Add repositories** in Settings. Use **Browse…** to pick folders on the
    machine (select several at once); git repositories are marked. Group related
    repositories (**Repository groups**) so a task can point the agent at
