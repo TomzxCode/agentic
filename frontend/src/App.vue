@@ -3,6 +3,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { api } from './api'
 import { store, statusClass, timeAgo } from './store'
+import SearchSelect from './components/SearchSelect.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -23,6 +24,18 @@ watch(() => route.fullPath, () => (sidebarOpen.value = false))
 const githubRepos = computed(() =>
   store.repositories.filter((r) => (r.remote_url || '').includes('github.com')),
 )
+
+const priorityOptions = [
+  { value: 0, label: 'Low' },
+  { value: 1, label: 'Medium' },
+  { value: 2, label: 'High' },
+  { value: 3, label: 'Urgent' },
+]
+const groupOptions = computed(() => [
+  { value: '', label: 'None' },
+  ...store.groups.map((g) => ({ value: g.id, label: g.name })),
+])
+const importRepoOptions = computed(() => githubRepos.value.map((r) => ({ value: r.id, label: r.name })))
 
 const filtered = computed(() => {
   const q = search.value.trim().toLowerCase()
@@ -80,6 +93,7 @@ async function createTask() {
   try {
     const task = await api.tasks.create({
       ...draft.value,
+      priority: Number(draft.value.priority),
       group_id: draft.value.group_id || null,
       github_url: draft.value.github_url || null,
     })
@@ -164,10 +178,12 @@ onMounted(async () => {
         <div class="field">
           <label>Import from GitHub (optional)</label>
           <div class="row">
-            <select v-model="importRepo" class="select grow">
-              <option value="">Choose a repository…</option>
-              <option v-for="r in githubRepos" :key="r.id" :value="r.id">{{ r.name }}</option>
-            </select>
+            <SearchSelect
+              v-model="importRepo"
+              class="grow"
+              :options="importRepoOptions"
+              placeholder="Choose a repository…"
+            />
             <button class="btn" :disabled="!importRepo || loadingIssues" @click="loadIssues">
               <span v-if="loadingIssues" class="spinner"></span> Load issues
             </button>
@@ -198,19 +214,11 @@ onMounted(async () => {
         </div>
         <div class="field">
           <label>Priority</label>
-          <select v-model.number="draft.priority" class="select">
-            <option :value="0">Low</option>
-            <option :value="1">Medium</option>
-            <option :value="2">High</option>
-            <option :value="3">Urgent</option>
-          </select>
+          <SearchSelect v-model="draft.priority" :options="priorityOptions" :sort="false" placeholder="Priority" />
         </div>
         <div class="field">
           <label>Repository group (optional)</label>
-          <select v-model="draft.group_id" class="select">
-            <option value="">None</option>
-            <option v-for="group in store.groups" :key="group.id" :value="group.id">{{ group.name }}</option>
-          </select>
+          <SearchSelect v-model="draft.group_id" :options="groupOptions" placeholder="None" />
         </div>
         <div class="row" style="justify-content: flex-end">
           <button class="btn ghost" @click="showNew = false">Cancel</button>

@@ -9,7 +9,7 @@ import AgentPanel from '../components/AgentPanel.vue'
 import TimelinePanel from '../components/TimelinePanel.vue'
 import SessionLinks from '../components/SessionLinks.vue'
 import EditableText from '../components/EditableText.vue'
-import InlineSelect from '../components/InlineSelect.vue'
+import SearchSelect from '../components/SearchSelect.vue'
 
 const props = defineProps({ id: { type: String, required: true } })
 const emit = defineEmits(['changed'])
@@ -127,29 +127,35 @@ watch(
           @save="(value) => update('title', value)"
         />
         <div class="row">
-          <InlineSelect
-            :value="task.status"
+          <SearchSelect
+            variant="inline"
+            :model-value="task.status"
             :options="STATUS_OPTIONS"
+            :sort="false"
             title="Status"
-            @save="(value) => update('status', value)"
+            @update:model-value="(value) => update('status', value)"
           />
-          <InlineSelect
-            :value="task.priority"
+          <SearchSelect
+            variant="inline"
+            :model-value="task.priority"
             :options="PRIORITY_OPTIONS"
+            :sort="false"
             title="Priority"
-            @save="(value) => update('priority', Number(value))"
+            @update:model-value="(value) => update('priority', Number(value))"
           />
-          <InlineSelect
-            :value="task.repository_id || ''"
+          <SearchSelect
+            variant="inline"
+            :model-value="task.repository_id || ''"
             :options="repositoryOptions"
             title="Repository"
-            @save="(value) => update('repository_id', value)"
+            @update:model-value="(value) => update('repository_id', value)"
           />
-          <InlineSelect
-            :value="task.group_id || ''"
+          <SearchSelect
+            variant="inline"
+            :model-value="task.group_id || ''"
             :options="groupOptions"
             title="Repository group"
-            @save="(value) => update('group_id', value)"
+            @update:model-value="(value) => update('group_id', value)"
           />
         </div>
         <SessionLinks v-if="latestLinks.length" :links="latestLinks" compact />

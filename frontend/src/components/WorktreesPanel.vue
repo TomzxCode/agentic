@@ -1,12 +1,18 @@
 <script setup>
-import { reactive, ref } from 'vue'
+import { computed, reactive, ref } from 'vue'
 import { api } from '../api'
 import { store, timeAgo } from '../store'
+import SearchSelect from './SearchSelect.vue'
 
 const props = defineProps({ task: { type: Object, required: true }, repositories: { type: Array, default: () => [] } })
 const emit = defineEmits(['changed'])
 const busy = ref(false)
 const draft = reactive({ repository_id: '', branch: '', base: '' })
+
+const repositoryOptions = computed(() => [
+  { value: '', label: 'Select a repository…' },
+  ...props.repositories.map((r) => ({ value: r.id, label: r.name })),
+])
 
 async function create() {
   busy.value = true
@@ -62,10 +68,7 @@ function copy(path) {
 
     <div v-if="!task.repository_id && !task.worktrees?.length" class="field" style="margin-top: 8px">
       <label>Repository</label>
-      <select v-model="draft.repository_id" class="select">
-        <option value="">Select a repository…</option>
-        <option v-for="r in repositories" :key="r.id" :value="r.id">{{ r.name }} ({{ r.path }})</option>
-      </select>
+      <SearchSelect v-model="draft.repository_id" :options="repositoryOptions" placeholder="Select a repository…" />
     </div>
 
     <div class="row" style="margin-top: 10px">

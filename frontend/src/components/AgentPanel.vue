@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from 'vue'
 import { api, openRunStream } from '../api'
 import { store, timeAgo } from '../store'
 import SessionLinks from './SessionLinks.vue'
+import SearchSelect from './SearchSelect.vue'
 
 const props = defineProps({ task: { type: Object, required: true }, harnesses: { type: Array, default: () => [] } })
 const emit = defineEmits(['changed'])
@@ -23,6 +24,17 @@ const liveCwd = computed(() => {
   const active = props.task.worktrees?.find((x) => x.status === 'active')
   return active?.path || '(task repository)'
 })
+
+const harnessOptions = computed(() => [
+  { value: '', label: 'Default harness' },
+  ...props.harnesses.map((h) => ({ value: h.id, label: h.available ? h.name : `${h.name} (unavailable)` })),
+])
+const worktreeOptions = computed(() => [
+  { value: '', label: 'Auto working directory' },
+  ...(props.task.worktrees || [])
+    .filter((w) => w.status === 'active')
+    .map((w) => ({ value: w.id, label: w.branch })),
+])
 
 async function loadRuns() {
   runs.value = await api.runs.list(props.task.id)
@@ -90,18 +102,8 @@ onMounted(loadRuns)
     <div class="panel-head"><h2>Agent</h2></div>
 
     <div class="row">
-      <select v-model="harnessId" class="select w-170">
-        <option value="">Default harness</option>
-        <option v-for="h in harnesses" :key="h.id" :value="h.id" :disabled="!h.available">
-          {{ h.name }}{{ h.available ? '' : ' (unavailable)' }}
-        </option>
-      </select>
-      <select v-model="worktreeId" class="select grow">
-        <option value="">Auto working directory</option>
-        <option v-for="w in (task.worktrees || []).filter((x) => x.status === 'active')" :key="w.id" :value="w.id">
-          {{ w.branch }}
-        </option>
-      </select>
+      <SearchSelect v-model="harnessId" class="w-170" :options="harnessOptions" placeholder="Default harness" />
+      <SearchSelect v-model="worktreeId" class="grow" :options="worktreeOptions" placeholder="Auto working directory" />
     </div>
     <div class="faint mono" style="margin: 6px 0 8px">cwd: {{ liveCwd }}</div>
 
