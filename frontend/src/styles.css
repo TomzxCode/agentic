@@ -210,6 +210,31 @@ h3 {
 .task-status.st-archived {
   color: var(--faint);
 }
+.task-priority {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 15px;
+  height: 15px;
+}
+.task-priority svg {
+  width: 15px;
+  height: 15px;
+  display: block;
+}
+.task-priority.prio-low {
+  color: var(--faint);
+}
+.task-priority.prio-medium {
+  color: var(--accent-2);
+}
+.task-priority.prio-high {
+  color: var(--warn);
+}
+.task-priority.prio-urgent {
+  color: var(--danger);
+}
 
 /* Sidebar bottom navigation */
 .sidebar-nav {

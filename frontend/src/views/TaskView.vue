@@ -12,6 +12,7 @@ import EditableText from '../components/EditableText.vue'
 import SearchSelect from '../components/SearchSelect.vue'
 import RepositorySelect from '../components/RepositorySelect.vue'
 import StatusIcon from '../components/StatusIcon.vue'
+import PriorityIcon from '../components/PriorityIcon.vue'
 
 const props = defineProps({ id: { type: String, required: true } })
 const emit = defineEmits(['changed'])
@@ -44,10 +45,10 @@ const STATUS_OPTIONS = [
   { value: 'archived', label: 'archived', icon: StatusIcon, iconProps: { status: 'archived', label: 'archived' } }
 ]
 const PRIORITY_OPTIONS = [
-  { value: 0, label: 'priority: low' },
-  { value: 1, label: 'priority: medium' },
-  { value: 2, label: 'priority: high' },
-  { value: 3, label: 'priority: urgent' }
+  { value: 0, label: 'low', icon: PriorityIcon, iconProps: { priority: 0, label: 'low' } },
+  { value: 1, label: 'medium', icon: PriorityIcon, iconProps: { priority: 1, label: 'medium' } },
+  { value: 2, label: 'high', icon: PriorityIcon, iconProps: { priority: 2, label: 'high' } },
+  { value: 3, label: 'urgent', icon: PriorityIcon, iconProps: { priority: 3, label: 'urgent' } }
 ]
 async function load() {
   try {

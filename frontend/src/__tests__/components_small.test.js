@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import StatusIcon from '../components/StatusIcon.vue'
+import PriorityIcon from '../components/PriorityIcon.vue'
 import SessionLinks from '../components/SessionLinks.vue'
 import TimelinePanel from '../components/TimelinePanel.vue'
 import { store } from '../store'
@@ -31,6 +32,29 @@ describe('StatusIcon', () => {
     const wrapper = mount(StatusIcon)
     expect(wrapper.classes()).toContain('st-open')
     expect(wrapper.attributes('title')).toBe('open')
+  })
+})
+
+describe('PriorityIcon', () => {
+  it('renders the priority class and an accessible label', () => {
+    const cases = [
+      [0, 'prio-low'],
+      [1, 'prio-medium'],
+      [2, 'prio-high'],
+      [3, 'prio-urgent']
+    ]
+    for (const [priority, cls] of cases) {
+      const wrapper = mount(PriorityIcon, { props: { priority, label: 'L' } })
+      expect(wrapper.classes()).toContain(cls)
+      expect(wrapper.attributes('title')).toBe('L')
+      expect(wrapper.attributes('aria-label')).toBe('L')
+    }
+  })
+
+  it('defaults to high and uses the level when no label is given', () => {
+    const wrapper = mount(PriorityIcon)
+    expect(wrapper.classes()).toContain('prio-high')
+    expect(wrapper.attributes('title')).toBe('high')
   })
 })
 

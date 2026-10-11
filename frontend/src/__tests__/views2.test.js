@@ -200,6 +200,7 @@ describe('TaskView', () => {
     SearchSelect: passthrough,
     RepositorySelect: passthrough,
     StatusIcon: passthrough,
+    PriorityIcon: passthrough,
     ContextPanel: passthrough,
     AgentPanel: passthrough,
     ItemsPanel: passthrough,

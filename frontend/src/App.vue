@@ -6,6 +6,7 @@ import { store, timeAgo } from './store'
 import SearchSelect from './components/SearchSelect.vue'
 import RepositorySelect from './components/RepositorySelect.vue'
 import StatusIcon from './components/StatusIcon.vue'
+import PriorityIcon from './components/PriorityIcon.vue'
 import CommandPalette from './components/CommandPalette.vue'
 
 const route = useRoute()
@@ -45,10 +46,10 @@ const GITHUB_ISSUE_RE = /github\.com\/[^/\s]+\/[^/\s]+\/(?:issues|pull)\/\d+/i
 const githubRepos = computed(() => store.repositories.filter((r) => (r.remote_url || '').includes('github.com')))
 
 const priorityOptions = [
-  { value: 0, label: 'Low' },
-  { value: 1, label: 'Medium' },
-  { value: 2, label: 'High' },
-  { value: 3, label: 'Urgent' }
+  { value: 0, label: 'Low', icon: PriorityIcon, iconProps: { priority: 0, label: 'Low' } },
+  { value: 1, label: 'Medium', icon: PriorityIcon, iconProps: { priority: 1, label: 'Medium' } },
+  { value: 2, label: 'High', icon: PriorityIcon, iconProps: { priority: 2, label: 'High' } },
+  { value: 3, label: 'Urgent', icon: PriorityIcon, iconProps: { priority: 3, label: 'Urgent' } }
 ]
 const statusOptions = [
   { value: 'open', label: 'Open', icon: StatusIcon, iconProps: { status: 'open', label: 'Open' } },
@@ -76,6 +77,14 @@ const groupOptions = computed(() => [
   { value: '', label: 'None' },
   ...store.groups.map((g) => ({ value: g.id, label: g.name }))
 ])
+// Picking a group fills the repository list with that group's repositories.
+watch(
+  () => draft.value.group_id,
+  (id) => {
+    const group = store.groups.find((g) => g.id === id)
+    if (group) draft.value.repository_ids = [...(group.repository_ids || [])]
+  }
+)
 const importRepoOptions = computed(() => githubRepos.value.map((r) => ({ value: r.id, label: r.name })))
 
 // The sidebar is for work in flight: hide done and archived tasks.
@@ -558,6 +567,11 @@ onUnmounted(() => {
           <SearchSelect v-model="draft.priority" :options="priorityOptions" :sort="false" placeholder="Priority" />
         </div>
         <div class="field">
+          <label>Repository group (optional)</label>
+          <SearchSelect v-model="draft.group_id" :options="groupOptions" placeholder="None" />
+          <p class="faint" style="margin: 6px 0 0">Picking a group fills in its repositories below.</p>
+        </div>
+        <div class="field">
           <label>Repositories (optional)</label>
           <RepositorySelect
             v-model="draft.repository_ids"
@@ -576,10 +590,6 @@ onUnmounted(() => {
               + {{ repo.name }}
             </button>
           </div>
-        </div>
-        <div class="field">
-          <label>Repository group (optional)</label>
-          <SearchSelect v-model="draft.group_id" :options="groupOptions" placeholder="None" />
         </div>
         <div class="row" style="justify-content: flex-end">
           <button class="btn ghost" @click="showNew = false">Cancel</button>

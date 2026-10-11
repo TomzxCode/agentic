@@ -44,6 +44,7 @@ const stubs = {
   SearchSelect: SearchSelectStub,
   RepositorySelect: passthrough,
   StatusIcon: true,
+  PriorityIcon: true,
   CommandPalette: { props: ['items'], emits: ['select', 'close'], template: '<div class="palette-stub"></div>' }
 }
 
@@ -142,6 +143,40 @@ describe('App', () => {
     expect(mocks.tasksCreate).toHaveBeenCalledWith(expect.objectContaining({ title: 'Do the thing' }))
     expect(mocks.push).toHaveBeenCalledWith('/task/new1')
     expect(wrapper.find('.modal').exists()).toBe(false)
+  })
+
+  it('shows the repository group before the repositories in the modal', async () => {
+    const wrapper = mountApp()
+    await flushPromises()
+
+    await wrapper.get('.new-task').trigger('click')
+    const text = wrapper.get('.modal').text()
+    expect(text.indexOf('Repository group')).toBeGreaterThan(-1)
+    expect(text.indexOf('Repository group')).toBeLessThan(text.indexOf('Repositories (optional)'))
+  })
+
+  it('fills the repositories when a group is picked in the modal', async () => {
+    store.repositories = [
+      { id: 'r1', name: 'Repo One' },
+      { id: 'r2', name: 'Repo Two' }
+    ]
+    store.groups = [{ id: 'g1', name: 'Frontend', repository_ids: ['r1', 'r2'] }]
+    mocks.tasksCreate.mockResolvedValue({ id: 'new2' })
+    const wrapper = mountApp()
+    await flushPromises()
+
+    await wrapper.get('.new-task').trigger('click')
+    await wrapper
+      .findAll('.ss-opt')
+      .find((o) => o.text() === 'Frontend')
+      .trigger('click')
+    await wrapper.get('input[placeholder="What needs to be solved?"]').setValue('Grouped task')
+    await wrapper.get('.modal .btn.primary').trigger('click')
+    await flushPromises()
+
+    expect(mocks.tasksCreate).toHaveBeenCalledWith(
+      expect.objectContaining({ group_id: 'g1', repository_ids: ['r1', 'r2'] })
+    )
   })
 
   it('changes a task status from the sidebar and reverts on error', async () => {
