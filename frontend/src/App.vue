@@ -2,7 +2,7 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { api } from './api'
-import { store, statusClass, timeAgo } from './store'
+import { store, statusLabel, timeAgo } from './store'
 import SearchSelect from './components/SearchSelect.vue'
 import CommandPalette from './components/CommandPalette.vue'
 
@@ -11,7 +11,15 @@ const router = useRouter()
 const showNew = ref(false)
 const sidebarOpen = ref(false)
 const paletteOpen = ref(false)
-const draft = ref({ title: '', description: '', priority: 2, group_id: '', github_url: '' })
+const draft = ref({
+  title: '',
+  description: '',
+  status: 'open',
+  priority: 2,
+  repository_ids: [],
+  group_id: '',
+  github_url: ''
+})
 
 // "Import from GitHub" state.
 const importRepo = ref('')
@@ -22,26 +30,56 @@ const pickedIssue = ref(null)
 const issueUrl = ref('')
 const loadingIssue = ref(false)
 
-watch(() => route.fullPath, () => {
-  sidebarOpen.value = false
-  store.hintMode = false
-})
+watch(
+  () => route.fullPath,
+  () => {
+    sidebarOpen.value = false
+    store.hintMode = false
+  }
+)
 
 const GITHUB_ISSUE_RE = /github\.com\/[^/\s]+\/[^/\s]+\/(?:issues|pull)\/\d+/i
 
-const githubRepos = computed(() =>
-  store.repositories.filter((r) => (r.remote_url || '').includes('github.com')),
-)
+const githubRepos = computed(() => store.repositories.filter((r) => (r.remote_url || '').includes('github.com')))
 
 const priorityOptions = [
   { value: 0, label: 'Low' },
   { value: 1, label: 'Medium' },
   { value: 2, label: 'High' },
-  { value: 3, label: 'Urgent' },
+  { value: 3, label: 'Urgent' }
 ]
+const statusOptions = [
+  { value: 'open', label: 'Open' },
+  { value: 'in_progress', label: 'In progress' },
+  { value: 'blocked', label: 'Blocked' },
+  { value: 'done', label: 'Done' },
+  { value: 'archived', label: 'Archived' }
+]
+const selectedRepositories = computed(() =>
+  (draft.value.repository_ids || [])
+    .map((id) => store.repositories.find((r) => r.id === id))
+    .filter(Boolean)
+    .sort((a, b) => a.name.localeCompare(b.name))
+)
+const addRepositoryOptions = computed(() =>
+  store.repositories
+    .filter((r) => !(draft.value.repository_ids || []).includes(r.id))
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .map((r) => ({ value: r.id, label: r.name }))
+)
+// Repositories of the most recently created task, offered as quick picks.
+const lastUsedRepositories = computed(() => {
+  const last = [...store.tasks].sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0]
+  if (!last) return []
+  return (last.repository_ids || [])
+    .filter((id) => !(draft.value.repository_ids || []).includes(id))
+    .map((id) => store.repositories.find((r) => r.id === id))
+    .filter(Boolean)
+    .sort((a, b) => a.name.localeCompare(b.name))
+})
 const groupOptions = computed(() => [
   { value: '', label: 'None' },
-  ...store.groups.map((g) => ({ value: g.id, label: g.name })),
+  ...store.groups.map((g) => ({ value: g.id, label: g.name }))
 ])
 const importRepoOptions = computed(() => githubRepos.value.map((r) => ({ value: r.id, label: r.name })))
 
@@ -50,13 +88,28 @@ const taskFieldItems = computed(() =>
   route.name === 'task'
     ? [
         { id: 'field-title', label: 'Edit title', group: 'This task', run: () => store.focusField?.('title') },
-        { id: 'field-description', label: 'Edit description', group: 'This task', run: () => store.focusField?.('description') },
+        {
+          id: 'field-description',
+          label: 'Edit description',
+          group: 'This task',
+          run: () => store.focusField?.('description')
+        },
         { id: 'field-status', label: 'Set status', group: 'This task', run: () => store.focusField?.('status') },
         { id: 'field-priority', label: 'Set priority', group: 'This task', run: () => store.focusField?.('priority') },
-        { id: 'field-group', label: 'Set repository group', group: 'This task', run: () => store.focusField?.('group') },
-        { id: 'field-repository', label: 'Add repository', group: 'This task', run: () => store.focusField?.('repository') },
+        {
+          id: 'field-group',
+          label: 'Set repository group',
+          group: 'This task',
+          run: () => store.focusField?.('group')
+        },
+        {
+          id: 'field-repository',
+          label: 'Add repository',
+          group: 'This task',
+          run: () => store.focusField?.('repository')
+        }
       ]
-    : [],
+    : []
 )
 
 const paletteItems = computed(() => [
@@ -72,8 +125,8 @@ const paletteItems = computed(() => [
     label: task.title,
     group: 'Tasks',
     hint: task.status.replace('_', ' '),
-    run: () => router.push(`/task/${task.id}`),
-  })),
+    run: () => router.push(`/task/${task.id}`)
+  }))
 ])
 
 function runPaletteItem(item) {
@@ -123,7 +176,7 @@ function startHints() {
   const container = document.querySelector('.main')
   if (!container) return
   const nodes = Array.from(container.querySelectorAll(HINT_SELECTOR)).filter(
-    (el) => !el.disabled && !el.closest('.transcript'),
+    (el) => !el.disabled && !el.closest('.transcript')
   )
   hintTargets = nodes.map((el, index) => ({ key: hintLabelFor(index), el }))
   hintBadges.value = hintTargets.map(({ key }) => ({ key, left: 0, top: 0, hidden: false }))
@@ -189,7 +242,7 @@ function onGlobalKeydown(event) {
 
 watch(
   () => store.hintMode,
-  (on) => (on ? startHints() : stopHints()),
+  (on) => (on ? startHints() : stopHints())
 )
 
 // Newest issues first (by number), with a text filter.
@@ -212,12 +265,29 @@ async function refresh() {
 }
 
 function resetDraft() {
-  draft.value = { title: '', description: '', priority: 2, group_id: '', github_url: '' }
+  draft.value = {
+    title: '',
+    description: '',
+    status: 'open',
+    priority: 2,
+    repository_ids: [],
+    group_id: '',
+    github_url: ''
+  }
   importRepo.value = ''
   issues.value = []
   issueFilter.value = ''
   pickedIssue.value = null
   issueUrl.value = ''
+}
+
+function addRepository(id) {
+  if (!id) return
+  draft.value.repository_ids = [...draft.value.repository_ids, id]
+}
+
+function removeRepository(id) {
+  draft.value.repository_ids = draft.value.repository_ids.filter((x) => x !== id)
 }
 
 async function loadIssues() {
@@ -278,8 +348,9 @@ async function createTask() {
     const task = await api.tasks.create({
       ...draft.value,
       priority: Number(draft.value.priority),
+      repository_ids: [...draft.value.repository_ids],
       group_id: draft.value.group_id || null,
-      github_url: draft.value.github_url || null,
+      github_url: draft.value.github_url || null
     })
     showNew.value = false
     resetDraft()
@@ -309,12 +380,20 @@ onUnmounted(() => {
       <div class="side-brand">
         <router-link to="/" class="brand">
           <svg viewBox="0 0 512 512" aria-hidden="true">
-            <path d="M160 168 L256 128 L352 168 M160 168 L160 288 L256 344 L352 288 L352 168 M160 288 L256 248 L352 288"
-                  stroke="#6ee7b7" stroke-width="16" fill="none" stroke-linecap="round" />
+            <path
+              d="M160 168 L256 128 L352 168 M160 168 L160 288 L256 344 L352 288 L352 168 M160 288 L256 248 L352 288"
+              stroke="#6ee7b7"
+              stroke-width="16"
+              fill="none"
+              stroke-linecap="round"
+            />
             <g fill="#6ee7b7">
-              <circle cx="256" cy="128" r="26" /><circle cx="160" cy="168" r="18" />
-              <circle cx="352" cy="168" r="18" /><circle cx="256" cy="248" r="20" />
-              <circle cx="160" cy="288" r="18" /><circle cx="352" cy="288" r="18" />
+              <circle cx="256" cy="128" r="26" />
+              <circle cx="160" cy="168" r="18" />
+              <circle cx="352" cy="168" r="18" />
+              <circle cx="256" cy="248" r="20" />
+              <circle cx="160" cy="288" r="18" />
+              <circle cx="352" cy="288" r="18" />
               <circle cx="256" cy="344" r="26" />
             </g>
           </svg>
@@ -332,19 +411,57 @@ onUnmounted(() => {
           :class="{ active: route.params.id === p.id }"
           @click="sidebarOpen = false"
         >
-          <span class="t">{{ p.title }}</span>
-          <span class="s">{{ p.summary || p.description || 'No summary yet' }}</span>
-          <span class="meta">
-            <span :class="statusClass(p.status)">{{ p.status.replace('_', ' ') }}</span>
-            <span v-if="p.next_steps?.length" class="badge">{{ p.next_steps.filter((s) => !s.done).length }} steps</span>
-            <span class="faint">{{ timeAgo(p.updated_at) }}</span>
+          <span
+            class="task-status"
+            :class="`st-${p.status}`"
+            :title="statusLabel(p.status)"
+            :aria-label="statusLabel(p.status)"
+            role="img"
+          >
+            <svg viewBox="0 0 16 16" aria-hidden="true">
+              <path
+                v-if="p.status === 'done'"
+                d="M3.5 8.5l3 3 6-7"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+              <path
+                v-else-if="p.status === 'blocked'"
+                d="M4.5 4.5l7 7M11.5 4.5l-7 7"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+              />
+              <path v-else-if="p.status === 'in_progress'" d="M5.5 4l6 4-6 4z" fill="currentColor" />
+              <path
+                v-else-if="p.status === 'archived'"
+                d="M4 8h8"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+              />
+              <circle v-else cx="8" cy="8" r="5" fill="none" stroke="currentColor" stroke-width="2" />
+            </svg>
           </span>
+          <span class="t">{{ p.title }}</span>
+          <span v-if="p.next_steps?.length" class="badge steps">{{ p.next_steps.filter((s) => !s.done).length }}</span>
+          <span class="faint when">{{ timeAgo(p.updated_at) }}</span>
         </router-link>
       </div>
 
       <nav class="sidebar-nav" aria-label="Primary">
         <div class="sidebar-nav-actions">
-          <button class="palette-trigger" title="Command palette (Ctrl/Cmd+K)" aria-label="Open command palette" @click="paletteOpen = true">
+          <button
+            class="palette-trigger"
+            title="Command palette (Ctrl/Cmd+K)"
+            aria-label="Open command palette"
+            @click="paletteOpen = true"
+          >
             <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true">
               <circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2" />
               <path d="M20 20l-3.5-3.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
@@ -360,10 +477,30 @@ onUnmounted(() => {
           </button>
         </div>
         <div class="sidebar-nav-links">
-          <router-link to="/" class="nav-link" :class="{ active: route.name === 'tasks' }" @click="sidebarOpen = false">Tasks</router-link>
-          <router-link to="/gantt" class="nav-link" :class="{ active: route.name === 'gantt' }" @click="sidebarOpen = false">Gantt</router-link>
-          <router-link to="/items" class="nav-link" :class="{ active: route.name === 'items' }" @click="sidebarOpen = false">Items</router-link>
-          <router-link to="/settings" class="nav-link" :class="{ active: route.name === 'settings' }" @click="sidebarOpen = false">Settings</router-link>
+          <router-link to="/" class="nav-link" :class="{ active: route.name === 'tasks' }" @click="sidebarOpen = false"
+            >Tasks</router-link
+          >
+          <router-link
+            to="/gantt"
+            class="nav-link"
+            :class="{ active: route.name === 'gantt' }"
+            @click="sidebarOpen = false"
+            >Gantt</router-link
+          >
+          <router-link
+            to="/items"
+            class="nav-link"
+            :class="{ active: route.name === 'items' }"
+            @click="sidebarOpen = false"
+            >Items</router-link
+          >
+          <router-link
+            to="/settings"
+            class="nav-link"
+            :class="{ active: route.name === 'settings' }"
+            @click="sidebarOpen = false"
+            >Settings</router-link
+          >
         </div>
       </nav>
     </aside>
@@ -441,8 +578,44 @@ onUnmounted(() => {
           <textarea v-model="draft.description" class="textarea" placeholder="Context, links, anything…"></textarea>
         </div>
         <div class="field">
+          <label>Status</label>
+          <SearchSelect v-model="draft.status" :options="statusOptions" :sort="false" placeholder="Status" />
+        </div>
+        <div class="field">
           <label>Priority</label>
           <SearchSelect v-model="draft.priority" :options="priorityOptions" :sort="false" placeholder="Priority" />
+        </div>
+        <div class="field">
+          <label>Repositories (optional)</label>
+          <div class="row">
+            <span v-for="repo in selectedRepositories" :key="repo.id" class="chip">
+              {{ repo.name }}
+              <button class="chip-x" title="Remove" @click="removeRepository(repo.id)">×</button>
+            </span>
+            <SearchSelect
+              v-if="addRepositoryOptions.length"
+              variant="inline"
+              :model-value="''"
+              :options="addRepositoryOptions"
+              placeholder="+ add repository"
+              @update:model-value="addRepository"
+            />
+            <span v-if="!selectedRepositories.length && !addRepositoryOptions.length" class="faint"
+              >none registered</span
+            >
+          </div>
+          <div v-if="lastUsedRepositories.length" class="row" style="margin-top: 6px">
+            <span class="faint">last used:</span>
+            <button
+              v-for="repo in lastUsedRepositories"
+              :key="repo.id"
+              class="chip chip-add"
+              title="Add this repository"
+              @click="addRepository(repo.id)"
+            >
+              + {{ repo.name }}
+            </button>
+          </div>
         </div>
         <div class="field">
           <label>Repository group (optional)</label>
@@ -469,13 +642,9 @@ onUnmounted(() => {
       :key="badge.key"
       class="hint-badge"
       :style="{ left: badge.left + 'px', top: badge.top + 'px' }"
-    >{{ badge.key }}</span>
+      >{{ badge.key }}</span
+    >
 
-    <CommandPalette
-      v-if="paletteOpen"
-      :items="paletteItems"
-      @select="runPaletteItem"
-      @close="paletteOpen = false"
-    />
+    <CommandPalette v-if="paletteOpen" :items="paletteItems" @select="runPaletteItem" @close="paletteOpen = false" />
   </div>
 </template>
