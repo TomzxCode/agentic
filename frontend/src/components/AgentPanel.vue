@@ -36,6 +36,59 @@ const worktreeOptions = computed(() => [
     .map((w) => ({ value: w.id, label: w.branch })),
 ])
 
+// The agent streams tiny chunks; merge consecutive ones into readable blocks so
+// a message reads as a message instead of one line per token.
+const blocks = computed(() => {
+  const out = []
+  for (const ev of events.value) {
+    const kind = ev.type
+    if (kind === 'message' || kind === 'thought') {
+      const last = out[out.length - 1]
+      if (last && last.kind === kind) {
+        last.text += ev.text
+      } else {
+        out.push({
+          id: `b${out.length}`,
+          kind,
+          text: ev.text,
+          label: kind === 'message' ? 'assistant' : 'thinking',
+        })
+      }
+    } else if (kind === 'tool_call' || kind === 'tool_update') {
+      const toolId = ev.data?.toolCallId
+      const last = out[out.length - 1]
+      if (last && last.kind === 'tool' && toolId && last.toolId === toolId) {
+        last.title = ev.text || last.title
+        last.command = ev.data?.rawInput?.command || last.command
+        last.status = ev.data?.status || last.status
+      } else {
+        out.push({
+          id: `b${out.length}`,
+          kind: 'tool',
+          label: 'tool',
+          toolId,
+          title: ev.text,
+          command: ev.data?.rawInput?.command,
+          status: ev.data?.status,
+        })
+      }
+    } else if (kind === 'plan') {
+      out.push({
+        id: `b${out.length}`,
+        kind: 'plan',
+        label: 'plan',
+        entries: (ev.data?.entries || []).map((entry) => entry.content),
+      })
+    } else if (kind === 'permission') {
+      out.push({ id: `b${out.length}`, kind: 'permission', label: 'permission', text: ev.text })
+    } else if (kind === 'error') {
+      out.push({ id: `b${out.length}`, kind: 'error', label: 'error', text: ev.text })
+    }
+    // 'info' and 'usage' are noise; skip them.
+  }
+  return out
+})
+
 async function loadRuns() {
   runs.value = await api.runs.list(props.task.id)
 }
@@ -129,12 +182,18 @@ onMounted(loadRuns)
     </div>
     <SessionLinks v-if="activeRun" :links="activeRun.links" />
     <div v-if="activeRun" class="transcript" style="margin-top: 6px">
-      <div v-if="!events.length" class="faint">Waiting for the agent…</div>
-      <div v-for="(ev, i) in events" :key="i" class="ev" :class="ev.type">
-        <span class="who">{{ ev.type }}</span>
-        <span class="body">{{ ev.text }}</span>
-        <template v-if="ev.type === 'tool_call' || ev.type === 'tool_update'">
-          <span v-if="ev.data?.rawInput?.command" class="body"> $ {{ ev.data.rawInput.command }}</span>
+      <div v-if="!blocks.length" class="faint">Waiting for the agent…</div>
+      <div v-for="block in blocks" :key="block.id" class="ev" :class="block.kind">
+        <span class="who">{{ block.label }}</span>
+        <template v-if="block.kind === 'tool'">
+          <span class="body">{{ block.title }}<span v-if="block.status"> · {{ block.status }}</span></span>
+          <span v-if="block.command" class="body"> $ {{ block.command }}</span>
+        </template>
+        <template v-else-if="block.kind === 'plan'">
+          <span class="body">{{ block.entries.join(' · ') }}</span>
+        </template>
+        <template v-else>
+          <span class="body">{{ block.text }}</span>
         </template>
       </div>
     </div>

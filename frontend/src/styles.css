@@ -178,8 +178,8 @@ h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: v
 .ev.message .who { color: var(--accent); }
 .ev.thought { color: var(--muted); font-style: italic; }
 .ev.thought .who { color: var(--faint); }
-.ev.tool_call .who, .ev.tool_update .who { color: var(--accent-2); }
-.ev.tool_call .body, .ev.tool_update .body { color: var(--muted); }
+.ev.tool .who { color: var(--accent-2); }
+.ev.tool .body { color: var(--muted); }
 .ev.error { color: var(--danger); }
 .ev.permission { color: var(--warn); }
 .ev.plan { color: #c084fc; }
