@@ -97,6 +97,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onWindowKeydown, tru
         autocomplete="off"
         spellcheck="false"
         @keydown="onKeydown"
+        @keydown.esc.stop.prevent="emit('close')"
       />
       <div class="palette-list">
         <div v-if="!results.length" class="palette-empty faint">No matches</div>
