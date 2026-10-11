@@ -49,7 +49,7 @@ requires-dist = [
     { name = "sqlmodel", specifier = ">=0.0.22" },
     { name = "sse-starlette", specifier = ">=2.1" },
     { name = "structlog", specifier = ">=24.1" },
-    { name = "uvicorn", extras = ["standard"], specifier = ">=0.30" },
+    { name = "uvicorn", extras = ["standard"], specifier = ">=0.54.0" },
 ]
 
 [[package]]
