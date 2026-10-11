@@ -50,6 +50,14 @@ function onKeydown(event) {
     commit()
   }
 }
+
+// Activate editing from the keyboard (Enter or F2) when not already editing.
+function onDisplayKeydown(event) {
+  if (event.key === 'Enter' || event.key === 'F2') {
+    event.preventDefault()
+    start()
+  }
+}
 </script>
 
 <template>
@@ -75,7 +83,9 @@ function onKeydown(event) {
     v-else
     class="inline-edit"
     :class="{ 'inline-empty': !value, multiline }"
-    title="Click to edit"
+    tabindex="0"
+    title="Click or press Enter to edit"
     @click="start"
+    @keydown="onDisplayKeydown"
   >{{ value || placeholder }}</component>
 </template>
