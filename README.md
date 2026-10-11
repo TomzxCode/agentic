@@ -134,6 +134,10 @@ The **Items** page lists every resource the app tracks (Slack threads, GitHub
 issues/PRs, Drive docs, URLs, notes) with per-source filters, search, and links
 to the tasks each one is used by.
 
+For hands-on-keyboard navigation, press **f** on a task page: each field shows a
+letter badge (**t**itle, **d**escription, **s**tatus, **p**riority, **g**roup,
+**r**epository); press it to focus that field, **Esc** to exit.
+
 ## Open a session in a terminal or OpenChamber
 
 When a run has a session id, the app shows links to reopen that session:

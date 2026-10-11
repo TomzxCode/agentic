@@ -23,8 +23,10 @@ const pickedIssue = ref(null)
 const issueUrl = ref('')
 const loadingIssue = ref(false)
 
-// Close the mobile drawer when navigating.
-watch(() => route.fullPath, () => (sidebarOpen.value = false))
+watch(() => route.fullPath, () => {
+  sidebarOpen.value = false
+  store.hintMode = false
+})
 
 const GITHUB_ISSUE_RE = /github\.com\/[^/\s]+\/[^/\s]+\/(?:issues|pull)\/\d+/i
 
@@ -60,6 +62,7 @@ const taskFieldItems = computed(() =>
 
 const paletteItems = computed(() => [
   { id: 'new-task', label: 'New task', group: 'Actions', run: () => (showNew.value = true) },
+  { id: 'focus-hints', label: 'Show field shortcuts', hint: 'f', group: 'Actions', run: () => (store.hintMode = true) },
   ...taskFieldItems.value,
   { id: 'go-tasks', label: 'Go to tasks', group: 'Navigation', run: () => router.push('/') },
   { id: 'go-items', label: 'Go to resources', group: 'Navigation', run: () => router.push('/items') },
@@ -77,16 +80,47 @@ function runPaletteItem(item) {
   item.run?.()
 }
 
+function isTyping(target) {
+  return !!target && (['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName) || target.isContentEditable)
+}
+
 function onGlobalKeydown(event) {
   if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
     event.preventDefault()
     paletteOpen.value = !paletteOpen.value
     return
   }
+  if (store.hintMode) {
+    if (event.key === 'Escape' || event.key === 'f') {
+      event.preventDefault()
+      store.hintMode = false
+      return
+    }
+    const action = store.hintMap[event.key.toLowerCase()]
+    if (action) {
+      event.preventDefault()
+      action()
+      store.hintMode = false
+    }
+    return
+  }
   if (event.key === 'Escape') {
-    // Open dropdowns/palettes stop propagation, so this closes the top layer.
     if (paletteOpen.value) paletteOpen.value = false
     else if (showNew.value) showNew.value = false
+    return
+  }
+  if (
+    event.key.toLowerCase() === 'f' &&
+    !event.metaKey &&
+    !event.ctrlKey &&
+    !event.altKey &&
+    !isTyping(event.target) &&
+    !paletteOpen.value &&
+    !showNew.value &&
+    Object.keys(store.hintMap).length
+  ) {
+    event.preventDefault()
+    store.hintMode = true
   }
 }
 
@@ -345,6 +379,10 @@ onUnmounted(() => window.removeEventListener('keydown', onGlobalKeydown))
     </div>
 
     <div v-if="store.toast" class="toast" :class="{ err: store.toast.isError }">{{ store.toast.message }}</div>
+
+    <div v-if="store.hintMode" class="hint-banner">
+      Press a field's letter to focus it · <span class="mono">Esc</span> to exit
+    </div>
 
     <CommandPalette
       v-if="paletteOpen"

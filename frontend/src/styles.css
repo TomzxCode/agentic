@@ -123,6 +123,22 @@ h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: v
 .chip-x { background: transparent; border: none; padding: 0; color: var(--faint); cursor: pointer; font-size: 12px; line-height: 1; }
 .chip-x:hover { color: var(--danger); }
 
+/* Focus hints (press f, then a field's letter) */
+.hint-host { position: relative; }
+.hint-host.inline { display: inline-block; }
+.hint-badge {
+  position: absolute; top: -8px; right: -8px; z-index: 6;
+  min-width: 16px; height: 16px; padding: 0 4px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--accent-2); color: #05121f; font-size: 10px; font-weight: 700;
+  border-radius: 4px; box-shadow: 0 1px 4px rgba(0, 0, 0, .4);
+}
+.hint-banner {
+  position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%);
+  background: var(--bg-3); border: 1px solid var(--accent-2); color: var(--text);
+  border-radius: 10px; padding: 8px 14px; z-index: 100; font-size: 13px;
+}
+
 /* Items */
 .item { border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; background: var(--bg-2); }
 .item-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
