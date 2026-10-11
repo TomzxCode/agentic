@@ -56,16 +56,40 @@ def test_timeline_labels_relationships(tmp_path):
         repo = client.post("/api/repositories", json={"path": str(repo_dir)}).json()
 
         task_id = client.post("/api/tasks", json={"title": "T"}).json()["id"]
-        client.patch(f"/api/tasks/{task_id}", json={"repository_id": repo["id"]})
+        client.patch(f"/api/tasks/{task_id}", json={"repository_ids": [repo["id"]]})
 
         event = next(e for e in client.get(f"/api/tasks/{task_id}/timeline").json() if e["type"] == "updated")
-        assert event["message"] == "Updated: repository"  # friendly field name
-        change = event["data_json"]["changes"]["repository_id"]
-        assert change["to"] == repo["id"]
+        assert event["message"] == "Updated: repositories"
+        change = event["data_json"]["changes"]["repositories"]
+        assert change["to"] == [repo["id"]]
         assert change["to_label"] == repo["name"]  # resolved name, not just an id
+
+        # removing it again is also recorded
+        client.patch(f"/api/tasks/{task_id}", json={"repository_ids": []})
+        detail = client.get(f"/api/tasks/{task_id}").json()
+        assert detail["repository_ids"] == []
 
         client.delete(f"/api/tasks/{task_id}")
         client.delete(f"/api/repositories/{repo['id']}")
+
+
+def test_task_repositories_many_to_many(tmp_path):
+    with TestClient(app) as client:
+        repos = []
+        for name in ("alpha", "beta"):
+            path = tmp_path / name
+            (path / ".git").mkdir(parents=True)
+            repos.append(client.post("/api/repositories", json={"path": str(path)}).json())
+
+        task = client.post("/api/tasks", json={"title": "T", "repository_ids": [repos[0]["id"], repos[1]["id"]]}).json()
+        assert sorted(task["repository_ids"]) == sorted([repos[0]["id"], repos[1]["id"]])
+        # unknown ids are ignored
+        updated = client.patch(f"/api/tasks/{task['id']}", json={"repository_ids": [repos[0]["id"], "nope"]}).json()
+        assert updated["repository_ids"] == [repos[0]["id"]]
+
+        client.delete(f"/api/tasks/{task['id']}")
+        for repo in repos:
+            client.delete(f"/api/repositories/{repo['id']}")
 
 
 def test_item_source_is_inferred():

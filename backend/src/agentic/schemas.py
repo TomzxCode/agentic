@@ -220,7 +220,7 @@ class TaskCreate(BaseModel):
     status: TaskStatus = TaskStatus.open
     priority: int = 2
     tags: list[str] = []
-    repository_id: str | None = None
+    repository_ids: list[str] = []
     group_id: str | None = None
     harness_id: str | None = None
     # Import: create the task from a GitHub issue/PR (prefills title/description
@@ -234,7 +234,7 @@ class TaskUpdate(BaseModel):
     status: TaskStatus | None = None
     priority: int | None = None
     tags: list[str] | None = None
-    repository_id: str | None = None
+    repository_ids: list[str] | None = None
     group_id: str | None = None
     harness_id: str | None = None
     summary: str | None = None
@@ -248,7 +248,7 @@ class TaskRead(ORMModel):
     status: TaskStatus
     priority: int
     tags: list[str]
-    repository_id: str | None = None
+    repository_ids: list[str] = []
     group_id: str | None = None
     harness_id: str | None = None
     summary: str

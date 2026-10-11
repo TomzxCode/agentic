@@ -35,14 +35,22 @@ const PRIORITY_OPTIONS = [
   { value: 2, label: 'priority: high' },
   { value: 3, label: 'priority: urgent' },
 ]
-const repositoryOptions = computed(() => [
-  { value: '', label: 'no repository' },
-  ...store.repositories.map((r) => ({ value: r.id, label: r.name })),
-])
 const groupOptions = computed(() => [
   { value: '', label: 'no group' },
   ...store.groups.map((g) => ({ value: g.id, label: `group: ${g.name}` })),
 ])
+
+const taskRepositories = computed(() =>
+  (task.value?.repository_ids || [])
+    .map((id) => store.repositories.find((r) => r.id === id))
+    .filter(Boolean)
+    .sort((a, b) => a.name.localeCompare(b.name)),
+)
+const addRepositoryOptions = computed(() =>
+  store.repositories
+    .filter((r) => !(task.value?.repository_ids || []).includes(r.id))
+    .map((r) => ({ value: r.id, label: r.name })),
+)
 
 async function load() {
   try {
@@ -68,7 +76,6 @@ async function update(field, value) {
     await load()
     return
   }
-  if (field === 'repository_id' && value === '') value = null
   if (field === 'group_id' && value === '') value = null
   try {
     await api.tasks.update(props.id, { [field]: value })
@@ -78,6 +85,15 @@ async function update(field, value) {
     store.notify(e.message, true)
     await load()
   }
+}
+
+async function addRepository(id) {
+  if (!id) return
+  await update('repository_ids', [...(task.value.repository_ids || []), id])
+}
+
+async function removeRepository(id) {
+  await update('repository_ids', (task.value.repository_ids || []).filter((x) => x !== id))
 }
 
 async function removeTask() {
@@ -145,18 +161,27 @@ watch(
           />
           <SearchSelect
             variant="inline"
-            :model-value="task.repository_id || ''"
-            :options="repositoryOptions"
-            title="Repository"
-            @update:model-value="(value) => update('repository_id', value)"
-          />
-          <SearchSelect
-            variant="inline"
             :model-value="task.group_id || ''"
             :options="groupOptions"
             title="Repository group"
             @update:model-value="(value) => update('group_id', value)"
           />
+        </div>
+        <div class="row" style="margin-top: 6px">
+          <span class="faint">repositories:</span>
+          <span v-for="repo in taskRepositories" :key="repo.id" class="chip">
+            {{ repo.name }}
+            <button class="chip-x" title="Remove" @click="removeRepository(repo.id)">×</button>
+          </span>
+          <SearchSelect
+            v-if="addRepositoryOptions.length"
+            variant="inline"
+            :model-value="''"
+            :options="addRepositoryOptions"
+            placeholder="+ add repository"
+            @update:model-value="addRepository"
+          />
+          <span v-if="!taskRepositories.length && !addRepositoryOptions.length" class="faint">none registered</span>
         </div>
         <SessionLinks v-if="latestLinks.length" :links="latestLinks" compact />
       </div>

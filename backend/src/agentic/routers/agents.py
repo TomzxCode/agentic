@@ -19,7 +19,7 @@ from ..crud import add_timeline, get_task_or_404
 from ..db import engine, get_session
 from ..events import bus, runs
 from ..links import run_read
-from ..models import AgentEvent, AgentRun, Harness, Repository, RunStatus, Task, Worktree
+from ..models import AgentEvent, AgentRun, Harness, Repository, RunStatus, Task, TaskRepository, Worktree
 from ..schemas import (
     AgentEventRead,
     ContextPreview,
@@ -111,8 +111,11 @@ def _resolve_cwd(session: Session, task: Task, payload: RunCreate) -> str:
     ).first()
     if active is not None:
         return active.path
-    if task.repository_id:
-        repo = session.get(Repository, task.repository_id)
+    task_repos = session.exec(
+        select(TaskRepository).where(TaskRepository.task_id == task.id).order_by(TaskRepository.created_at)
+    ).all()
+    if task_repos:
+        repo = session.get(Repository, task_repos[0].repository_id)
         if repo is not None:
             return repo.path
     settings.worktree_root.mkdir(parents=True, exist_ok=True)
@@ -192,7 +195,13 @@ async def refresh_context(task_id: str, session: Session = Depends(get_session))
         {"branch": w.branch, "path": w.path}
         for w in session.exec(select(Worktree).where(Worktree.task_id == task_id)).all()
     ]
-    repo = session.get(Repository, task.repository_id) if task.repository_id else None
+    task_repo_ids = [
+        member.repository_id
+        for member in session.exec(
+            select(TaskRepository).where(TaskRepository.task_id == task_id).order_by(TaskRepository.created_at)
+        ).all()
+    ]
+    repositories = [r.path for r in (session.get(Repository, rid) for rid in task_repo_ids) if r is not None]
 
     group = None
     if task.group_id:
@@ -216,7 +225,7 @@ async def refresh_context(task_id: str, session: Session = Depends(get_session))
         "description": task.description,
         "status": task.status.value,
         "priority": task.priority,
-        "repository": repo.path if repo else None,
+        "repositories": repositories,
         "group": group,
         "worktrees": worktrees,
     }

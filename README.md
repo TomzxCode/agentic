@@ -119,7 +119,8 @@ only expose this on a trusted network.
 3. **Add repositories** in Settings. Use **Browse…** to pick folders on the
    machine (select several at once); git repositories are marked. Group related
    repositories (**Repository groups**) so a task can point the agent at
-   them. Then create a **worktree** for the task.
+   them. A task can also be associated with 0..n repositories directly (the
+   `repositories:` chips on its header). Then create a **worktree** for the task.
 4. **Refresh with agent** to generate the current summary and next steps.
 5. **Run an agent** against the task; the transcript streams live.
 

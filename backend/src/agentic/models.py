@@ -80,6 +80,17 @@ class RepositoryGroupMember(SQLModel, table=True):
     created_at: datetime = Field(default_factory=utcnow)
 
 
+class TaskRepository(SQLModel, table=True):
+    """Associates a task with 0..n repositories it may draw on."""
+
+    __table_args__ = (UniqueConstraint("task_id", "repository_id", name="uq_task_repository"),)
+
+    id: str = Field(default_factory=new_id, primary_key=True)
+    task_id: str = Field(foreign_key="task.id", index=True)
+    repository_id: str = Field(foreign_key="repository.id", index=True)
+    created_at: datetime = Field(default_factory=utcnow)
+
+
 class Task(SQLModel, table=True):
     id: str = Field(default_factory=new_id, primary_key=True)
     title: str
@@ -87,7 +98,6 @@ class Task(SQLModel, table=True):
     status: TaskStatus = TaskStatus.open
     priority: int = 2  # 0 = low, 1 = medium, 2 = high, 3 = urgent
     tags: list[str] = Field(default_factory=list, sa_column=Column(JSON))
-    repository_id: str | None = Field(default=None, foreign_key="repository.id")
     group_id: str | None = Field(default=None, foreign_key="repositorygroup.id")
     harness_id: str | None = Field(default=None, foreign_key="harness.id")
 

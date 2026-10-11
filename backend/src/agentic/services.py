@@ -290,8 +290,9 @@ def build_context_prompt(task: dict[str, Any], items: list[dict[str, Any]]) -> s
     if task.get("description"):
         lines += ["## Description", task["description"], ""]
     lines.append(f"## Status\n{task.get('status')}  (priority {task.get('priority')})")
-    if task.get("repository"):
-        lines += ["", f"## Repository\n{task['repository']}"]
+    if task.get("repositories"):
+        lines += ["", "## Repositories"]
+        lines += [f"- {path}" for path in task["repositories"]]
     group = task.get("group")
     if group:
         lines += ["", f"## Repository group: {group['name']}"]

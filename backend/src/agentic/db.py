@@ -33,7 +33,31 @@ def create_db_and_tables() -> None:
     settings.worktree_root.mkdir(parents=True, exist_ok=True)
     _migrate_problem_to_task()
     SQLModel.metadata.create_all(engine)
+    _migrate_task_repositories()
     _ensure_columns()
+
+
+def _migrate_task_repositories() -> None:
+    """Move the old single task.repository_id into the task_repository table.
+
+    The column is left in place (SQLite cannot drop a column that carries a
+    foreign key) but is emptied, so it no longer references anything.
+    """
+    tables = set(inspect(engine).get_table_names())
+    if "task" not in tables or "taskrepository" not in tables:
+        return
+    columns = {column["name"] for column in inspect(engine).get_columns("task")}
+    if "repository_id" not in columns:
+        return
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                "INSERT OR IGNORE INTO taskrepository (id, task_id, repository_id, created_at) "
+                "SELECT lower(hex(randomblob(6))), id, repository_id, CURRENT_TIMESTAMP "
+                "FROM task WHERE repository_id IS NOT NULL"
+            )
+        )
+        connection.execute(text("UPDATE task SET repository_id = NULL"))
 
 
 def _migrate_problem_to_task() -> None:

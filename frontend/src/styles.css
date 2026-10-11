@@ -107,13 +107,20 @@ h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: v
 .badge.run { color: var(--accent-2); border-color: #1e3a5f; }
 .badge.warn { color: var(--warn); border-color: #5b4a1a; }
 .badge.danger { color: var(--danger); border-color: #5b2a2a; }
-.chip-source { text-transform: uppercase; font-size: 10px; letter-spacing: .05em; }
-.src-slack { color: #e8a33d; }
+.chip-source { text-transform: uppercase; font-size: 10px; letter-spacing: .05em; }.src-slack { color: #e8a33d; }
 .src-github { color: #a0aec0; }
 .src-gdrive { color: #4ade80; }
 .src-note { color: #c084fc; }
 .src-url { color: #60a5fa; }
 .src-commit { color: #f472b6; }
+
+/* Chips (removable pills, e.g. task repositories) */
+.chip {
+  display: inline-flex; align-items: center; gap: 6px; background: var(--bg-2);
+  border: 1px solid var(--border); border-radius: 999px; padding: 3px 8px; font-size: 11px; color: var(--text);
+}
+.chip-x { background: transparent; border: none; padding: 0; color: var(--faint); cursor: pointer; font-size: 12px; line-height: 1; }
+.chip-x:hover { color: var(--danger); }
 
 /* Items */
 .item { border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; background: var(--bg-2); }

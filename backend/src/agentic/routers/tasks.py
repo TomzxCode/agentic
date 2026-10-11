@@ -22,6 +22,7 @@ from ..models import (
     RepositoryGroup,
     SourceItem,
     Task,
+    TaskRepository,
     TimelineEvent,
     Worktree,
     utcnow,
@@ -42,6 +43,36 @@ from ..services import remove_worktree
 from .items import _upsert_item
 
 router = APIRouter(prefix="/api/tasks", tags=["tasks"])
+
+
+def _task_repository_ids(session: Session, task_id: str) -> list[str]:
+    return [
+        member.repository_id
+        for member in session.exec(
+            select(TaskRepository).where(TaskRepository.task_id == task_id).order_by(TaskRepository.created_at)
+        ).all()
+    ]
+
+
+def _set_task_repositories(session: Session, task_id: str, repository_ids: list[str]) -> None:
+    session.execute(sa_delete(TaskRepository).where(TaskRepository.task_id == task_id))
+    seen: set[str] = set()
+    for repository_id in repository_ids:
+        if repository_id in seen or session.get(Repository, repository_id) is None:
+            continue
+        seen.add(repository_id)
+        session.add(TaskRepository(task_id=task_id, repository_id=repository_id))
+    session.commit()
+
+
+def _task_read(session: Session, task: Task) -> TaskRead:
+    data = TaskRead.model_validate(task)
+    data.repository_ids = _task_repository_ids(session, task.id)
+    return data
+
+
+def _repository_names(session: Session, repository_ids: list[str]) -> list[str]:
+    return [repo.name for repo in (session.get(Repository, rid) for rid in repository_ids) if repo is not None]
 
 
 def _detail(session: Session, task: Task) -> TaskDetail:
@@ -74,7 +105,7 @@ def _detail(session: Session, task: Task) -> TaskDetail:
         .limit(100)
     ).all()
     return TaskDetail(
-        **TaskRead.model_validate(task).model_dump(),
+        **_task_read(session, task).model_dump(),
         associations=details,
         worktrees=[WorktreeRead.model_validate(w) for w in worktrees],
         runs=[run_read(session, r) for r in runs],
@@ -101,7 +132,7 @@ def list_tasks(
     status: str | None = None,
     q: str | None = None,
     session: Session = Depends(get_session),
-) -> list[Task]:
+) -> list[TaskRead]:
     query = select(Task).order_by(Task.updated_at.desc())
     if status:
         query = query.where(Task.status == status)
@@ -115,12 +146,12 @@ def list_tasks(
             or needle in (p.description or "").lower()
             or needle in (p.summary or "").lower()
         ]
-    return tasks
+    return [_task_read(session, task) for task in tasks]
 
 
 @router.post("", response_model=TaskRead, status_code=201)
-async def create_task(payload: TaskCreate, session: Session = Depends(get_session)) -> Task:
-    data = payload.model_dump(exclude={"github_url"})
+async def create_task(payload: TaskCreate, session: Session = Depends(get_session)) -> TaskRead:
+    data = payload.model_dump(exclude={"github_url", "repository_ids"})
 
     # Import from GitHub: fetch the issue, use it to fill the task, and link it.
     item: SourceItem | None = None
@@ -137,6 +168,8 @@ async def create_task(payload: TaskCreate, session: Session = Depends(get_sessio
     session.commit()
     session.refresh(task)
 
+    _set_task_repositories(session, task.id, payload.repository_ids)
+
     if item is not None:
         _link_item(session, task.id, item, note="imported from GitHub")
         add_timeline(
@@ -148,7 +181,7 @@ async def create_task(payload: TaskCreate, session: Session = Depends(get_sessio
         )
     add_timeline(session, task.id, "created", f"Task created: {task.title}")
     await bus.publish(f"task:{task.id}", {"kind": "task", "action": "created"})
-    return task
+    return _task_read(session, task)
 
 
 @router.get("/{task_id}", response_model=TaskDetail)
@@ -158,9 +191,11 @@ def get_task(task_id: str, session: Session = Depends(get_session)) -> TaskDetai
 
 
 @router.patch("/{task_id}", response_model=TaskRead)
-async def update_task(task_id: str, payload: TaskUpdate, session: Session = Depends(get_session)) -> Task:
+async def update_task(task_id: str, payload: TaskUpdate, session: Session = Depends(get_session)) -> TaskRead:
     task = get_task_or_404(session, task_id)
     data = payload.model_dump(exclude_unset=True)
+    repository_ids = data.pop("repository_ids", None)
+
     before = {key: jsonable(getattr(task, key)) for key in data}
     for key, value in data.items():
         setattr(task, key, value)
@@ -172,7 +207,7 @@ async def update_task(task_id: str, payload: TaskUpdate, session: Session = Depe
     # Record the actual before/after for each field that changed (skip no-ops).
     # Relationship fields also carry a resolved label so the timeline reads in
     # names, not ids, for the UI, the CLI, and agents alike.
-    relation_models = {"repository_id": Repository, "group_id": RepositoryGroup, "harness_id": Harness}
+    relation_models = {"group_id": RepositoryGroup, "harness_id": Harness}
 
     def relation_label(field: str, value: object) -> str | None:
         model = relation_models.get(field)
@@ -191,6 +226,19 @@ async def update_task(task_id: str, payload: TaskUpdate, session: Session = Depe
             entry["from_label"] = relation_label(key, old)
             entry["to_label"] = relation_label(key, new)
         changes[key] = entry
+
+    if repository_ids is not None:
+        before_repos = _task_repository_ids(session, task.id)
+        _set_task_repositories(session, task.id, repository_ids)
+        after_repos = _task_repository_ids(session, task.id)
+        if sorted(before_repos) != sorted(after_repos):
+            changes["repositories"] = {
+                "from": before_repos or None,
+                "to": after_repos or None,
+                "from_label": ", ".join(_repository_names(session, before_repos)) or None,
+                "to_label": ", ".join(_repository_names(session, after_repos)) or None,
+            }
+
     if changes and (set(changes) - {"summary", "next_steps"}):
         add_timeline(
             session,
@@ -200,7 +248,7 @@ async def update_task(task_id: str, payload: TaskUpdate, session: Session = Depe
             {"changes": changes},
         )
     await bus.publish(f"task:{task.id}", {"kind": "task", "action": "updated"})
-    return task
+    return _task_read(session, task)
 
 
 @router.delete("/{task_id}", status_code=204)
@@ -225,6 +273,7 @@ async def delete_task(task_id: str, session: Session = Depends(get_session)) -> 
     session.execute(sa_delete(Association).where(Association.task_id == task.id))
     session.execute(sa_delete(Worktree).where(Worktree.task_id == task.id))
     session.execute(sa_delete(TimelineEvent).where(TimelineEvent.task_id == task.id))
+    session.execute(sa_delete(TaskRepository).where(TaskRepository.task_id == task.id))
     session.execute(sa_delete(Task).where(Task.id == task.id))
     session.commit()
     await bus.publish("tasks", {"kind": "task", "action": "deleted", "id": task_id})

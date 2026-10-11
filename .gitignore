@@ -26,3 +26,4 @@ backend/static/
 .DS_Store
 .idea/
 .vscode/
+status-report.html

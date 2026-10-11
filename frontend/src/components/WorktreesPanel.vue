@@ -7,12 +7,13 @@ import SearchSelect from './SearchSelect.vue'
 const props = defineProps({ task: { type: Object, required: true }, repositories: { type: Array, default: () => [] } })
 const emit = defineEmits(['changed'])
 const busy = ref(false)
-const draft = reactive({ repository_id: '', branch: '', base: '' })
+const draft = reactive({ repository_id: props.task.repository_ids?.[0] || '', branch: '', base: '' })
 
-const repositoryOptions = computed(() => [
-  { value: '', label: 'Select a repository…' },
-  ...props.repositories.map((r) => ({ value: r.id, label: r.name })),
-])
+const repositoryOptions = computed(() => {
+  const ids = props.task.repository_ids || []
+  const list = ids.length ? props.repositories.filter((r) => ids.includes(r.id)) : props.repositories
+  return [{ value: '', label: 'Select a repository…' }, ...list.map((r) => ({ value: r.id, label: r.name }))]
+})
 
 async function create() {
   busy.value = true
@@ -66,7 +67,7 @@ function copy(path) {
       <div class="faint">created {{ timeAgo(w.created_at) }}</div>
     </div>
 
-    <div v-if="!task.repository_id && !task.worktrees?.length" class="field" style="margin-top: 8px">
+    <div v-if="!task.worktrees?.length" class="field" style="margin-top: 8px">
       <label>Repository</label>
       <SearchSelect v-model="draft.repository_id" :options="repositoryOptions" placeholder="Select a repository…" />
     </div>
@@ -74,11 +75,11 @@ function copy(path) {
     <div class="row" style="margin-top: 10px">
       <input v-model="draft.branch" class="input grow" placeholder="branch (optional, auto-named)" />
       <input v-model="draft.base" class="input grow" placeholder="base (optional)" />
-      <button class="btn primary" :disabled="busy || (!task.repository_id && !draft.repository_id)" @click="create">
+      <button class="btn primary" :disabled="busy || (!task.repository_ids?.length && !draft.repository_id)" @click="create">
         <span v-if="busy" class="spinner"></span> New worktree
       </button>
     </div>
-    <p v-if="!task.repository_id && !repositories.length" class="faint" style="margin-top: 8px">
+    <p v-if="!task.repository_ids?.length && !repositories.length" class="faint" style="margin-top: 8px">
       Add a <router-link to="/settings">repository</router-link> first.
     </p>
   </section>

@@ -17,7 +17,7 @@ def jsonable(value: Any) -> Any:
 
 
 # Human-readable names for fields that hold a foreign key.
-FIELD_LABELS = {"repository_id": "repository", "group_id": "group", "harness_id": "harness"}
+FIELD_LABELS = {"group_id": "group", "harness_id": "harness"}
 
 
 def field_label(key: str) -> str:

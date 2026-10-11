@@ -8,11 +8,10 @@ from pathlib import Path
 import anyio
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import delete as sa_delete
-from sqlalchemy import update as sa_update
 from sqlmodel import Session, select
 
 from ..db import get_session
-from ..models import Repository, RepositoryGroupMember, Task, Worktree
+from ..models import Repository, RepositoryGroupMember, TaskRepository, Worktree
 from ..schemas import (
     RepositoryBulkCreate,
     RepositoryBulkResult,
@@ -97,6 +96,6 @@ async def delete_repository(repository_id: str, session: Session = Depends(get_s
             await anyio.to_thread.run_sync(remove_worktree, repo.path, worktree.path)
     session.execute(sa_delete(Worktree).where(Worktree.repository_id == repo.id))
     session.execute(sa_delete(RepositoryGroupMember).where(RepositoryGroupMember.repository_id == repo.id))
-    session.execute(sa_update(Task).where(Task.repository_id == repo.id).values(repository_id=None))
+    session.execute(sa_delete(TaskRepository).where(TaskRepository.repository_id == repo.id))
     session.execute(sa_delete(Repository).where(Repository.id == repo.id))
     session.commit()
