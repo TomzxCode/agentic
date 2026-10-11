@@ -8,7 +8,6 @@ import CommandPalette from './components/CommandPalette.vue'
 
 const route = useRoute()
 const router = useRouter()
-const search = ref('')
 const showNew = ref(false)
 const sidebarOpen = ref(false)
 const paletteOpen = ref(false)
@@ -201,14 +200,6 @@ const sortedIssues = computed(() => {
   return list.filter((i) => i.title.toLowerCase().includes(q) || String(i.number).includes(q))
 })
 
-const filtered = computed(() => {
-  const q = search.value.trim().toLowerCase()
-  if (!q) return store.tasks
-  return store.tasks.filter(
-    (p) => p.title.toLowerCase().includes(q) || (p.summary || '').toLowerCase().includes(q),
-  )
-})
-
 async function refresh() {
   store.loading = true
   try {
@@ -314,62 +305,76 @@ onUnmounted(() => {
 
 <template>
   <div class="app" :class="{ 'sidebar-open': sidebarOpen }">
-    <header class="topbar">
-      <button class="btn ghost menu-btn" aria-label="Toggle task list" @click="sidebarOpen = !sidebarOpen">
-        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
-          <path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none" />
-        </svg>
-      </button>
-      <router-link to="/" class="brand">
-        <svg viewBox="0 0 512 512" aria-hidden="true">
-          <path d="M160 168 L256 128 L352 168 M160 168 L160 288 L256 344 L352 288 L352 168 M160 288 L256 248 L352 288"
-                stroke="#6ee7b7" stroke-width="16" fill="none" stroke-linecap="round" />
-          <g fill="#6ee7b7">
-            <circle cx="256" cy="128" r="26" /><circle cx="160" cy="168" r="18" />
-            <circle cx="352" cy="168" r="18" /><circle cx="256" cy="248" r="20" />
-            <circle cx="160" cy="288" r="18" /><circle cx="352" cy="288" r="18" />
-            <circle cx="256" cy="344" r="26" />
-          </g>
-        </svg>
-        <span>Agentic</span>
-      </router-link>
-      <div class="grow"></div>
-      <button class="btn ghost sm palette-trigger" title="Command palette (Ctrl/Cmd+K)" @click="paletteOpen = true">
-        ⌘K
-      </button>
-      <router-link to="/" class="btn ghost sm nav-tasks" :class="{ primary: route.name === 'tasks' }">Tasks</router-link>
-      <router-link to="/gantt" class="btn ghost sm" :class="{ primary: route.name === 'gantt' }">Gantt</router-link>
-      <router-link to="/items" class="btn ghost sm" :class="{ primary: route.name === 'items' }">Items</router-link>
-      <router-link to="/settings" class="btn ghost sm" :class="{ primary: route.name === 'settings' }">Settings</router-link>
-      <button class="btn primary mobile-only" title="New task" aria-label="New task" @click="showNew = true">+</button>
-    </header>
+    <aside class="sidebar">
+      <div class="side-brand">
+        <router-link to="/" class="brand">
+          <svg viewBox="0 0 512 512" aria-hidden="true">
+            <path d="M160 168 L256 128 L352 168 M160 168 L160 288 L256 344 L352 288 L352 168 M160 288 L256 248 L352 288"
+                  stroke="#6ee7b7" stroke-width="16" fill="none" stroke-linecap="round" />
+            <g fill="#6ee7b7">
+              <circle cx="256" cy="128" r="26" /><circle cx="160" cy="168" r="18" />
+              <circle cx="352" cy="168" r="18" /><circle cx="256" cy="248" r="20" />
+              <circle cx="160" cy="288" r="18" /><circle cx="352" cy="288" r="18" />
+              <circle cx="256" cy="344" r="26" />
+            </g>
+          </svg>
+          <span>Agentic</span>
+        </router-link>
+      </div>
+      <div class="side-scroll">
+        <div v-if="store.loading && !store.tasks.length" class="empty"><span class="spinner"></span></div>
+        <div v-else-if="!store.tasks.length" class="empty">No tasks yet.</div>
+        <router-link
+          v-for="p in store.tasks"
+          :key="p.id"
+          :to="`/task/${p.id}`"
+          class="task-card"
+          :class="{ active: route.params.id === p.id }"
+          @click="sidebarOpen = false"
+        >
+          <span class="t">{{ p.title }}</span>
+          <span class="s">{{ p.summary || p.description || 'No summary yet' }}</span>
+          <span class="meta">
+            <span :class="statusClass(p.status)">{{ p.status.replace('_', ' ') }}</span>
+            <span v-if="p.next_steps?.length" class="badge">{{ p.next_steps.filter((s) => !s.done).length }} steps</span>
+            <span class="faint">{{ timeAgo(p.updated_at) }}</span>
+          </span>
+        </router-link>
+      </div>
+
+      <nav class="sidebar-nav" aria-label="Primary">
+        <div class="sidebar-nav-actions">
+          <button class="palette-trigger" title="Command palette (Ctrl/Cmd+K)" aria-label="Open command palette" @click="paletteOpen = true">
+            <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true">
+              <circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2" />
+              <path d="M20 20l-3.5-3.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+            </svg>
+            <span class="palette-label">Search</span>
+            <kbd class="palette-kbd">⌘K</kbd>
+          </button>
+          <button class="btn primary new-task" title="New task" @click="showNew = true">
+            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+              <path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none" />
+            </svg>
+            New task
+          </button>
+        </div>
+        <div class="sidebar-nav-links">
+          <router-link to="/" class="nav-link" :class="{ active: route.name === 'tasks' }" @click="sidebarOpen = false">Tasks</router-link>
+          <router-link to="/gantt" class="nav-link" :class="{ active: route.name === 'gantt' }" @click="sidebarOpen = false">Gantt</router-link>
+          <router-link to="/items" class="nav-link" :class="{ active: route.name === 'items' }" @click="sidebarOpen = false">Items</router-link>
+          <router-link to="/settings" class="nav-link" :class="{ active: route.name === 'settings' }" @click="sidebarOpen = false">Settings</router-link>
+        </div>
+      </nav>
+    </aside>
 
     <div v-if="sidebarOpen" class="sidebar-backdrop" @click="sidebarOpen = false"></div>
 
-    <aside class="sidebar">
-      <div class="side-head">
-        <input v-model="search" class="input grow" placeholder="Search tasks…" />
-        <button class="btn primary" @click="showNew = true" title="New task">+</button>
-      </div>
-      <div v-if="store.loading && !store.tasks.length" class="empty"><span class="spinner"></span></div>
-      <div v-else-if="!filtered.length" class="empty">No tasks yet.</div>
-      <router-link
-        v-for="p in filtered"
-        :key="p.id"
-        :to="`/task/${p.id}`"
-        class="task-card"
-        :class="{ active: route.params.id === p.id }"
-        @click="sidebarOpen = false"
-      >
-        <span class="t">{{ p.title }}</span>
-        <span class="s">{{ p.summary || p.description || 'No summary yet' }}</span>
-        <span class="meta">
-          <span :class="statusClass(p.status)">{{ p.status.replace('_', ' ') }}</span>
-          <span v-if="p.next_steps?.length" class="badge">{{ p.next_steps.filter((s) => !s.done).length }} steps</span>
-          <span class="faint">{{ timeAgo(p.updated_at) }}</span>
-        </span>
-      </router-link>
-    </aside>
+    <button class="btn menu-btn" aria-label="Toggle task list" @click="sidebarOpen = !sidebarOpen">
+      <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+        <path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none" />
+      </svg>
+    </button>
 
     <main class="main">
       <router-view :key="route.fullPath" @changed="refresh" />
