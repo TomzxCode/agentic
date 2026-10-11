@@ -19,7 +19,7 @@ flowchart LR
     end
     DB[("SQLite\n~/.agentic/agentic.db")]
     Harness["ACP harness\n(opencode acp / pi-acp)"]
-    Ext["gh/git/slackx\n(GitHub, Slack, URLs)"]
+    Ext["ghx/git/slackx\n(GitHub, Slack, URLs)"]
 
     SPA -- "REST + SSE" --> API
     CLI -- "REST" --> API

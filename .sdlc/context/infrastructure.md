@@ -1,70 +1,83 @@
 <!-- session_link: http://localhost:10000/?session=ses_ed778bb8affeJQ6f9Tkxe4MjUl -->
 # Infrastructure
 
-<!--
-This file captures the project's technology stack, development tooling, CI/CD pipelines,
-environments, and deployment procedures. It gives implementation, testing, and deployment
-skills the commands and configuration they need without grepping the codebase each time.
-Update this file when tooling, environments, or deployment procedures change.
--->
-
 ## Technology Stack
 
 | Component | Technology | Version |
 |---|---|---|
-| Language | <e.g., Python, TypeScript, Go> | <version> |
-| Runtime | <e.g., Node.js, CPython, JVM> | <version> |
-| Framework | <e.g., FastAPI, Next.js, Gin> | <version> |
-| Database | <e.g., PostgreSQL, SQLite, MongoDB> | <version> |
+| Language (backend, CLI) | Python | 3.12+ |
+| Frontend language | JavaScript (ES modules) | — |
+| Runtime (backend) | CPython via uvicorn | — |
+| Runtime (frontend build) | Node.js (Vite) | 20+ |
+| Backend framework | FastAPI | >=0.115 |
+| ORM / models | SQLModel (SQLAlchemy) | >=0.0.22 |
+| Database | SQLite (WAL) | bundled with Python |
+| Agent protocol | agent-client-protocol (`acp`) | >=0.12 |
+| HTTP client | httpx | >=0.27 |
+| Logging | structlog | >=24.1 |
+| Settings | pydantic-settings | >=2.0 |
+| SSE | sse-starlette | >=2.1 |
+| CLIs | cyclopts | >=5.2.0 |
+| Frontend framework | Vue | ^3.5.13 |
+| Routing | vue-router | ^4.5.0 |
+| Build tool | Vite | ^6.0.7 |
+| PWA | vite-plugin-pwa | ^0.21.1 |
 
 ## Development Tooling
 
 | Tool | Purpose | Command |
 |---|---|---|
-| <e.g., uv> | Package management | `uv add <package>` |
-| <e.g., ruff> | Linting and formatting | `uv run ruff check .` / `uv run ruff format .` |
-| <e.g., mypy> | Type checking | `uv run mypy src/` |
-| <e.g., pytest> | Testing | `uv run pytest` |
-| <e.g., esbuild> | Build | `npm run build` |
+| uv | Package and workspace management | `uv add <package>` / `uv sync` |
+| ruff | Linting and formatting (line length 120) | `uv run ruff format .` / `uv run ruff check --fix .` |
+| pytest (+ pytest-asyncio) | Testing | `uv run pytest -q` |
+| Vite | SPA dev server and build | `cd frontend && npm run dev` / `npm run build` |
+| make | Task shortcuts | `make test`, `make lint`, `make build`, `make run` |
+
+There is no mypy/type-check step configured; type hints are not statically checked in CI (there is no CI).
 
 ## Environments
 
 | Environment | Branch | Purpose | URL |
 |---|---|---|---|
-| <e.g., production> | <e.g., main> | <Live user-facing environment> | <https://...> |
-| <e.g., staging> | <e.g., staging> | <Pre-release testing> | <https://...> |
-| <e.g., preview> | <e.g., deploy/preview> | <Ephemeral PR previews> | <varies> |
+| Local (dev, split) | any | Backend with reload and the Vite dev server | backend `http://127.0.0.1:8600`, frontend `http://localhost:5173` |
+| Local (single app) | main | Built SPA served by the API | `http://127.0.0.1:8600` |
+
+There is no staging or production environment; the app is run locally by its owner.
+Both servers bind `0.0.0.0` for remote/VPN access.
 
 ## CI/CD Pipelines
 
 | Workflow | Trigger | What it runs |
 |---|---|---|
-| <e.g., ci.yml> | <push, PR> | <lint, typecheck, test, build> |
-| <e.g., deploy.yml> | <push to main> | <build, deploy to production> |
+| (none) | — | There is no CI configuration in the repository (`.github/workflows/` does not exist). |
 
 ## Deployment
 
-<Deployment procedure: what command or workflow triggers a deployment, what parameters it accepts, and whether manual approval is required.>
+Deployment is local: `make build` builds the SPA into `backend/static`, then `make run` (or `uv run agentic-server serve --host 0.0.0.0 --port 8600`) serves the API and the built SPA from one process.
+There is no packaging or release pipeline beyond the two installable Python packages (`agentic`, `agentic-cli`).
 
 ### Rollback
 
-<Rollback procedure: how to revert a deployment, including the command or workflow, and any caveats.>
+No formal rollback procedure: revert the change (or `git checkout` the previous revision), rebuild the SPA with `make build`, and restart the server.
+The database is a single SQLite file under `AGENTIC_DATA_DIR` (default `~/.agentic/agentic.db`); schema changes are applied in place and are not automatically reversible.
 
 ## Health Checks
 
 | Endpoint | Expected response | Checked by |
 |---|---|---|
-| <e.g., /health> | <200 OK, JSON body> | <load balancer, k8s probe> |
-| <e.g., /ready> | <200 OK when ready> | <k8s readiness probe> |
+| `GET /api/health` | `200 OK`, `{"status": "ok", "service": "agentic"}` | `agentic health`; no probe infrastructure |
 
 ## Smoke Tests
 
-<Location and command to run the smoke test suite, and what it covers.>
+`uv run pytest -q` from the repository root runs the backend and CLI test suites (see `Makefile` `test` target and `pyproject.toml` `testpaths`).
+There is no separate smoke-test suite.
 
 ## Hosting
 
-<Hosting platform, region(s), scaling strategy, and any relevant infrastructure-as-code location.>
+Runs on the owner's own machine; no cloud host, region, or scaling strategy.
+There is no infrastructure-as-code.
 
 ## Secrets Management
 
-<Where secrets are stored and how they are accessed at runtime.>
+No secrets are stored by the app.
+Configuration comes from environment variables prefixed `AGENTIC_` or from `backend/.env` (`pydantic-settings`); the optional `ghx` and `slackx` CLIs use their own external credentials.
