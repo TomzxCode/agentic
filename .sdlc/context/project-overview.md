@@ -19,7 +19,9 @@ It solves the problem of scattered context: the threads, issues, and checkouts r
 
 **In scope:**
 - Task tracking (status, priority, tags, inline editing, search, timeline).
+- A Gantt timeline view of tasks in flight, one marker per timeline event.
 - Source items and many-to-many associations, with source inference and on-demand fetch.
+- A resources list of every item across sources, with search, refresh, and delete.
 - GitHub issue/PR import (paste a URL or pick from a repository) via `ghx`.
 - Local repository registration, repository groups, and a server-side directory picker.
 - Git worktree creation and removal per task.

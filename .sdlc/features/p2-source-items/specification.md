@@ -12,6 +12,7 @@ Items are served by `routers/items.py`.
 The shared upsert helper `_upsert_item` infers source, kind, and external id, deduplicates, and optionally fetches content.
 `services.py` holds the parsing (`parse_github`, `parse_slack`, `GOOGLE_DOC_RE`), classification (`looks_like_url`, `infer_item_source`), and fetching (`fetch_source` plus the `ghx`/`slackx`/HTTP helpers).
 GitHub import is served by `routers/github.py`, which lists and fetches issues through `services.list_github_issues` and `services.fetch_github_issue`.
+The Resources page (`frontend/src/views/ItemsView.vue`) is the UI for this feature: it lists every item with source filters, a search box, expand/refresh/delete actions, and links to the tasks each item is associated with.
 
 ## Architecture
 
@@ -45,6 +46,8 @@ flowchart LR
 
 Unique constraint on `(source, external_id)`.
 
+`ItemRead` also carries a computed `task_ids` list (the tasks each item is associated with), populated by the items router; it is not a stored column.
+
 ### Association
 
 | Field | Type | Constraints | Description |
@@ -60,7 +63,7 @@ The normative contract is in [`api.yaml`](api.yaml) once written; the table belo
 
 | Method | Path | Purpose |
 |---|---|---|
-| GET | /api/items | List items (filter: source) |
+| GET | /api/items | List items (filters: source, q) with linked `task_ids` |
 | POST | /api/items | Create or upsert an item |
 | GET | /api/items/{item_id} | Read an item |
 | PATCH | /api/items/{item_id} | Update an item |

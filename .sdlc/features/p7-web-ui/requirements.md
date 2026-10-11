@@ -22,12 +22,13 @@ It is mobile-first and live-updates from the API's SSE streams.
 
 | ID | Priority | Requirement |
 |---|---|---|
-| FR-1 | Must | The app shall provide routes for the task list (`/`), task detail (`/task/:id`), and settings (`/settings`). |
+| FR-1 | Must | The app shall provide routes for the task list (`/`), task detail (`/task/:id`), gantt (`/gantt`), resources (`/items`), and settings (`/settings`). |
 | FR-2 | Must | The app shall install as a PWA with a manifest, icons, and a service worker that never caches `/api` (network-only). |
 | FR-3 | Must | The app shall be responsive: below 760px the sidebar becomes an off-canvas drawer toggled by a top-bar button. |
 | FR-4 | Must | The app shall provide a command palette (Ctrl/Cmd+K) to navigate and to create a task. |
 | FR-5 | Must | The task detail view shall live-update from `/api/tasks/{id}/stream`, and the task list shall refresh on changes. |
 | FR-6 | Must | The app shall support inline editing of task fields, a new-task modal with GitHub import, and toast notifications. |
+| FR-7 | Should | The app shall provide a focus-hint mode that reveals how to reach each control. |
 
 ## Non-Functional Requirements
 

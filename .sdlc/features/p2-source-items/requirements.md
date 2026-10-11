@@ -30,6 +30,7 @@ This feature stores each piece of context as a source item, infers its source fr
 | FR-6 | Must | The system shall list, read, update, refresh, and delete items. |
 | FR-7 | Must | The system shall create a task from a GitHub issue or PR URL, prefilling the title and description and associating the issue. |
 | FR-8 | Should | The system shall list a repository's open issues via `ghx` for the import picker. |
+| FR-9 | Should | The system shall return each item's linked task ids and support searching items by a text query over title, url, and content. |
 
 ## Non-Functional Requirements
 
@@ -92,6 +93,16 @@ This feature stores each piece of context as a source item, infers its source fr
       When the user creates a task with that github_url
       Then the title and description are prefilled from the issue
       And the issue is associated as an item
+    ```
+
+- [ ] **FR-9**
+
+    ```gherkin
+    @FR-9
+    Scenario: List items with their tasks and a search
+      Given an item associated with a task
+      When the items list is requested with a query matching the item
+      Then the item is returned with the task's id in its task_ids
     ```
 
 ## Conflicts

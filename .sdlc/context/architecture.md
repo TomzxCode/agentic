@@ -165,6 +165,7 @@ The full schema with types, constraints, and indexes lives in [`schema.dbml`](sc
 | In-process event bus | Publish run and task events to SSE subscribers | asyncio queues |
 | Source services | Parse/infer/fetch items, build the context prompt, parse agent JSON | httpx, subprocess (`ghx`, `slackx`) |
 | Git services | Create/remove worktrees, detect remote and default branch | `git` subprocess |
+| Gantt view | Tasks as time bars with one marker per timeline event | `routers/gantt.py`, Vue GanttView |
 | Session links | Build OpenChamber/terminal/resume-command links from settings | templating over stored settings |
 | SPA | Task list, task detail, settings, live transcript, PWA install | Vue 3, Vite, vue-router, vite-plugin-pwa |
 | User CLI | Scriptable client over the HTTP API | cyclopts, httpx, rich |

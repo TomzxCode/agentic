@@ -11,7 +11,7 @@ session_link: "http://localhost:10000/?session=ses_ed778bb8affeJQ6f9Tkxe4MjUl"
 The SPA lives in `frontend/`.
 `main.js` creates the Vue app and router; `App.vue` is the shell (top bar, sidebar, new-task modal, toasts, command palette).
 `store.js` is a small reactive store, and `api.js` wraps `fetch` and the two `EventSource` stream helpers.
-`views/` holds TasksView, TaskView, and SettingsView; `components/` holds the panels (Context, Agent, Items, Worktrees, Timeline), SessionLinks, SearchSelect, EditableText, DirectoryPicker, RepositoryGroupsPanel, and CommandPalette.
+`views/` holds TasksView, TaskView, GanttView, ItemsView, and SettingsView; `components/` holds the panels (Context, Agent, Items, Worktrees, Timeline), SessionLinks, SearchSelect, EditableText, DirectoryPicker, RepositoryGroupsPanel, and CommandPalette.
 Vite builds into `backend/static`, which FastAPI serves.
 
 ## Architecture
@@ -19,7 +19,7 @@ Vite builds into `backend/static`, which FastAPI serves.
 ```mermaid
 flowchart LR
     App[App.vue shell] --> Router[vue-router]
-    Router --> TV[TasksView / TaskView / SettingsView]
+    Router --> TV[TasksView / TaskView / GanttView / ItemsView / SettingsView]
     TV --> Panels[components/*]
     App --> Store[store.js reactive]
     Panels --> Api[api.js]
