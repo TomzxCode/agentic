@@ -78,6 +78,9 @@ const groupOptions = computed(() => [
 ])
 const importRepoOptions = computed(() => githubRepos.value.map((r) => ({ value: r.id, label: r.name })))
 
+// The sidebar is for work in flight: hide done and archived tasks.
+const sidebarTasks = computed(() => store.tasks.filter((p) => p.status !== 'done' && p.status !== 'archived'))
+
 // Command palette: navigate anywhere (and a couple of actions) from the keyboard.
 const taskFieldItems = computed(() =>
   route.name === 'task'
@@ -400,8 +403,10 @@ onUnmounted(() => {
       </div>
       <div class="side-scroll">
         <div v-if="store.loading && !store.tasks.length" class="empty"><span class="spinner"></span></div>
-        <div v-else-if="!store.tasks.length" class="empty">No tasks yet.</div>
-        <div v-for="p in store.tasks" :key="p.id" class="task-card" :class="{ active: route.params.id === p.id }">
+        <div v-else-if="!sidebarTasks.length" class="empty">
+          {{ store.tasks.length ? 'All caught up.' : 'No tasks yet.' }}
+        </div>
+        <div v-for="p in sidebarTasks" :key="p.id" class="task-card" :class="{ active: route.params.id === p.id }">
           <SearchSelect
             class="task-status-select"
             variant="icon"
