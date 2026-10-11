@@ -674,6 +674,23 @@ h3 {
   color: var(--faint);
   text-decoration: line-through;
 }
+/* Empty next-steps state: make "no next steps defined" stand out rather than
+   blending in as faint helper text. */
+.context-missing {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 13px;
+  color: var(--muted);
+  background: rgba(251, 191, 36, 0.08);
+  border: 1px solid #5b4a1a;
+  border-left: 3px solid var(--warn);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+.context-missing strong {
+  color: var(--warn);
+}
 .summary {
   white-space: pre-wrap;
   color: var(--text);

@@ -53,6 +53,7 @@ describe('ContextPanel', () => {
     mocks.taskUpdate.mockResolvedValue({})
     const wrapper = mount(ContextPanel, { props: { task: task() } })
     expect(wrapper.get('.summary').text()).toBe('The summary')
+    expect(wrapper.find('.badge.warn').exists()).toBe(false)
 
     await wrapper.get('input[type=checkbox]').trigger('change')
     await flushPromises()
@@ -63,7 +64,13 @@ describe('ContextPanel', () => {
   it('shows empty states', () => {
     const wrapper = mount(ContextPanel, { props: { task: task({ summary: '', next_steps: [] }) } })
     expect(wrapper.text()).toContain('No context yet')
-    expect(wrapper.text()).toContain('No next steps yet')
+    expect(wrapper.text()).toContain('No next steps defined')
+  })
+
+  it('flags a task with no next steps in the header badge', () => {
+    const wrapper = mount(ContextPanel, { props: { task: task({ summary: 'Has a summary', next_steps: [] }) } })
+    expect(wrapper.get('.badge.warn').text()).toBe('no next steps')
+    expect(wrapper.get('.context-missing').text()).toContain('No next steps defined')
   })
 
   it('refreshes with the agent and emits changed', async () => {

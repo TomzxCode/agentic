@@ -1,11 +1,15 @@
 <script setup>
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { api } from '../api'
 import { store, timeAgo } from '../store'
 
 const props = defineProps({ task: { type: Object, required: true } })
 const emit = defineEmits(['changed'])
 const refreshing = ref(false)
+
+// An empty list means the task has no next steps defined, which we surface
+// prominently so the user notices it and can refresh the context.
+const hasNextSteps = computed(() => (props.task.next_steps || []).length > 0)
 
 async function toggleStep(index) {
   const steps = (props.task.next_steps || []).map((s, i) => (i === index ? { ...s, done: !s.done } : s))
@@ -32,6 +36,7 @@ async function refresh() {
     <div class="panel-head">
       <h2>
         Context <span v-if="task.context_updated_at" class="faint">updated {{ timeAgo(task.context_updated_at) }}</span>
+        <span v-if="!hasNextSteps" class="badge warn" title="This task has no next steps defined">no next steps</span>
       </h2>
       <button class="btn sm" :disabled="refreshing" @click="refresh">
         <span v-if="refreshing" class="spinner"></span>
@@ -46,12 +51,15 @@ async function refresh() {
     </p>
 
     <h3 style="margin: 14px 0 6px">Next steps</h3>
-    <ul v-if="task.next_steps?.length" class="steps">
+    <ul v-if="hasNextSteps" class="steps">
       <li v-for="(step, i) in task.next_steps" :key="i">
         <input type="checkbox" :checked="step.done" @change="toggleStep(i)" />
         <span :class="{ done: step.done }">{{ step.text }}</span>
       </li>
     </ul>
-    <p v-else class="faint" style="margin: 0">No next steps yet.</p>
+    <div v-else class="context-missing" role="status">
+      <strong>No next steps defined.</strong>
+      <span>Hit <strong>Refresh with agent</strong> so an agent writes the next steps for this task.</span>
+    </div>
   </section>
 </template>
