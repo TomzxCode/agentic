@@ -85,6 +85,9 @@ function onKeydown(event) {
 
 watch(filtered, () => (highlighted.value = 0))
 onBeforeUnmount(() => document.removeEventListener('mousedown', onOutside))
+
+// Let a parent (e.g. the command palette) open the dropdown directly.
+defineExpose({ activate: show })
 </script>
 
 <template>

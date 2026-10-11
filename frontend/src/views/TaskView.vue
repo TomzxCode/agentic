@@ -19,6 +19,14 @@ const loading = ref(true)
 const notFound = ref(false)
 let closeStream = null
 
+// Template refs so the command palette can jump straight to a field.
+const titleRef = ref(null)
+const descriptionRef = ref(null)
+const statusRef = ref(null)
+const priorityRef = ref(null)
+const groupRef = ref(null)
+const repositoryRef = ref(null)
+
 // Links from the most recent run that produced a session.
 const latestLinks = computed(() => task.value?.runs?.find((run) => run.links?.length)?.links || [])
 
@@ -110,13 +118,28 @@ function onChanged() {
 }
 
 onMounted(async () => {
+  // The palette uses this to jump to a task field.
+  store.focusField = (field) => {
+    const target = {
+      title: titleRef,
+      description: descriptionRef,
+      status: statusRef,
+      priority: priorityRef,
+      group: groupRef,
+      repository: repositoryRef,
+    }[field]
+    target?.value?.activate?.()
+  }
   await store.loadHarnesses().catch(() => {})
   await store.loadRepositories().catch(() => {})
   await store.loadGroups().catch(() => {})
   await load()
   subscribe()
 })
-onUnmounted(() => closeStream?.())
+onUnmounted(() => {
+  store.focusField = null
+  closeStream?.()
+})
 watch(
   () => props.id,
   async (val) => {
@@ -136,6 +159,7 @@ watch(
     <div class="row page-head" style="margin-bottom: 16px">
       <div class="grow" style="min-width: 0">
         <EditableText
+          ref="titleRef"
           as="h1"
           style="margin-bottom: 4px"
           :value="task.title"
@@ -144,6 +168,7 @@ watch(
         />
         <div class="row">
           <SearchSelect
+            ref="statusRef"
             variant="inline"
             :model-value="task.status"
             :options="STATUS_OPTIONS"
@@ -152,6 +177,7 @@ watch(
             @update:model-value="(value) => update('status', value)"
           />
           <SearchSelect
+            ref="priorityRef"
             variant="inline"
             :model-value="task.priority"
             :options="PRIORITY_OPTIONS"
@@ -160,6 +186,7 @@ watch(
             @update:model-value="(value) => update('priority', Number(value))"
           />
           <SearchSelect
+            ref="groupRef"
             variant="inline"
             :model-value="task.group_id || ''"
             :options="groupOptions"
@@ -175,6 +202,7 @@ watch(
           </span>
           <SearchSelect
             v-if="addRepositoryOptions.length"
+            ref="repositoryRef"
             variant="inline"
             :model-value="''"
             :options="addRepositoryOptions"
@@ -191,6 +219,7 @@ watch(
     </div>
 
     <EditableText
+      ref="descriptionRef"
       class="muted"
       as="p"
       multiline

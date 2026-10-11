@@ -8,6 +8,8 @@ export const store = reactive({
   groups: [],
   loading: false,
   toast: null,
+  // Set by the active task page so the palette can jump to its fields.
+  focusField: null,
 
   async loadTasks() {
     this.tasks = await api.tasks.list()

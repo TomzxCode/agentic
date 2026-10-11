@@ -58,6 +58,9 @@ function onDisplayKeydown(event) {
     start()
   }
 }
+
+// Let a parent (e.g. the command palette) jump straight into editing.
+defineExpose({ activate: start })
 </script>
 
 <template>

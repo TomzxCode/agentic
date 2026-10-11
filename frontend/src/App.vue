@@ -45,8 +45,22 @@ const groupOptions = computed(() => [
 const importRepoOptions = computed(() => githubRepos.value.map((r) => ({ value: r.id, label: r.name })))
 
 // Command palette: navigate anywhere (and a couple of actions) from the keyboard.
+const taskFieldItems = computed(() =>
+  route.name === 'task'
+    ? [
+        { id: 'field-title', label: 'Edit title', group: 'This task', run: () => store.focusField?.('title') },
+        { id: 'field-description', label: 'Edit description', group: 'This task', run: () => store.focusField?.('description') },
+        { id: 'field-status', label: 'Set status', group: 'This task', run: () => store.focusField?.('status') },
+        { id: 'field-priority', label: 'Set priority', group: 'This task', run: () => store.focusField?.('priority') },
+        { id: 'field-group', label: 'Set repository group', group: 'This task', run: () => store.focusField?.('group') },
+        { id: 'field-repository', label: 'Add repository', group: 'This task', run: () => store.focusField?.('repository') },
+      ]
+    : [],
+)
+
 const paletteItems = computed(() => [
   { id: 'new-task', label: 'New task', group: 'Actions', run: () => (showNew.value = true) },
+  ...taskFieldItems.value,
   { id: 'go-tasks', label: 'Go to tasks', group: 'Navigation', run: () => router.push('/') },
   { id: 'go-settings', label: 'Go to settings', group: 'Navigation', run: () => router.push('/settings') },
   ...store.tasks.map((task) => ({

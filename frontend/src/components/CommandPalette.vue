@@ -4,7 +4,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 const props = defineProps({ items: { type: Array, required: true } })
 const emit = defineEmits(['close', 'select'])
 
-const GROUP_ORDER = ['Actions', 'Navigation', 'Tasks']
+const GROUP_ORDER = ['Actions', 'This task', 'Navigation', 'Tasks']
 
 const query = ref('')
 const highlighted = ref(0)
