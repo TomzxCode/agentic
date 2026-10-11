@@ -8,9 +8,24 @@ from sqlmodel import Session
 from ..db import get_session
 from ..models import Repository
 from ..schemas import GithubIssue
-from ..services import github_owner_repo, list_github_issues
+from ..services import fetch_github_issue, github_owner_repo, list_github_issues, parse_github
 
 router = APIRouter(prefix="/api/github", tags=["github"])
+
+
+@router.get("/issue", response_model=GithubIssue)
+def get_issue(url: str) -> GithubIssue:
+    """Fetch a single issue or PR from its URL (ghx)."""
+    parsed = parse_github(url)
+    if not parsed:
+        raise HTTPException(status_code=400, detail="Not a GitHub issue or pull request URL")
+    issue = fetch_github_issue(parsed["owner"], parsed["repo"], parsed["number"], parsed["kind"])
+    if issue is None:
+        raise HTTPException(
+            status_code=502,
+            detail="Could not read the issue (is `ghx` installed and authenticated?)",
+        )
+    return GithubIssue.model_validate(issue)
 
 
 @router.get("/issues", response_model=list[GithubIssue])

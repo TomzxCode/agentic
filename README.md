@@ -106,10 +106,11 @@ only expose this on a trusted network.
 
 ## Using it
 
-1. **Create a task** (the `+` in the sidebar). You can **import from GitHub**:
-   pick a registered repository, load its open issues, and choose one, which
-   fills the title/description and links the issue. Optionally pick a
-   **repository group** so the agent knows which checkouts to consider.
+1. **Create a task** (the `+` in the sidebar). To **import from GitHub**, paste
+   an issue or PR URL (it prefills the title/description and links the issue);
+   or expand "or pick from a repository", choose a registered repo, and pick an
+   issue (filterable, newest first). Optionally pick a **repository group** so
+   the agent knows which checkouts to consider.
 2. **Associate items**: paste a Slack thread permalink, a GitHub issue/PR URL, a
    Drive doc, or write a note. The source (Slack/GitHub/Drive/URL/note) is
    inferred from what you paste. GitHub and Slack/URL items are fetched on demand
@@ -214,6 +215,7 @@ GET/PATCH           /api/settings                        (session-link config)
 GET                 /api/fs/list                         (repository picker)
 POST                /api/repositories/bulk               (add several at once)
 GET                 /api/github/issues                   (issue picker for import)
+GET                 /api/github/issue                    (single issue by URL)
 GET/POST/PATCH/DELETE /api/groups                        (repository groups)
 GET/POST/PATCH      /api/harnesses   /api/repositories   /api/items
 ```

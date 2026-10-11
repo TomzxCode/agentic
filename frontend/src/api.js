@@ -72,6 +72,7 @@ export const api = {
       qs.set('limit', String(limit))
       return request(`/github/issues?${qs.toString()}`)
     },
+    issue: (url) => request(`/github/issue?${new URLSearchParams({ url }).toString()}`),
   },
 
   harnesses: {

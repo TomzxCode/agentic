@@ -16,10 +16,15 @@ const draft = ref({ title: '', description: '', priority: 2, group_id: '', githu
 const importRepo = ref('')
 const issues = ref([])
 const loadingIssues = ref(false)
+const issueFilter = ref('')
 const pickedIssue = ref(null)
+const issueUrl = ref('')
+const loadingIssue = ref(false)
 
 // Close the mobile drawer when navigating.
 watch(() => route.fullPath, () => (sidebarOpen.value = false))
+
+const GITHUB_ISSUE_RE = /github\.com\/[^/\s]+\/[^/\s]+\/(?:issues|pull)\/\d+/i
 
 const githubRepos = computed(() =>
   store.repositories.filter((r) => (r.remote_url || '').includes('github.com')),
@@ -36,6 +41,14 @@ const groupOptions = computed(() => [
   ...store.groups.map((g) => ({ value: g.id, label: g.name })),
 ])
 const importRepoOptions = computed(() => githubRepos.value.map((r) => ({ value: r.id, label: r.name })))
+
+// Newest issues first (by number), with a text filter.
+const sortedIssues = computed(() => {
+  const q = issueFilter.value.trim().toLowerCase()
+  const list = [...issues.value].sort((a, b) => (b.number ?? 0) - (a.number ?? 0))
+  if (!q) return list
+  return list.filter((i) => i.title.toLowerCase().includes(q) || String(i.number).includes(q))
+})
 
 const filtered = computed(() => {
   const q = search.value.trim().toLowerCase()
@@ -60,7 +73,9 @@ function resetDraft() {
   draft.value = { title: '', description: '', priority: 2, group_id: '', github_url: '' }
   importRepo.value = ''
   issues.value = []
+  issueFilter.value = ''
   pickedIssue.value = null
+  issueUrl.value = ''
 }
 
 async function loadIssues() {
@@ -76,16 +91,43 @@ async function loadIssues() {
   }
 }
 
-function pickIssue(issue) {
+// Paste an issue/PR URL to import directly.
+let urlTimer
+function onUrlInput() {
+  clearTimeout(urlTimer)
+  if (!GITHUB_ISSUE_RE.test(issueUrl.value.trim())) return
+  urlTimer = setTimeout(previewFromUrl, 500)
+}
+
+async function previewFromUrl() {
+  const url = issueUrl.value.trim()
+  if (!GITHUB_ISSUE_RE.test(url)) return
+  loadingIssue.value = true
+  try {
+    applyIssue(await api.github.issue(url))
+  } catch (e) {
+    store.notify(e.message, true)
+  } finally {
+    loadingIssue.value = false
+  }
+}
+
+function applyIssue(issue) {
   pickedIssue.value = issue.number
+  issueUrl.value = issue.url || issueUrl.value
   draft.value.title = issue.title
   draft.value.description = issue.body
   draft.value.github_url = issue.url
 }
 
+function pickIssue(issue) {
+  applyIssue(issue)
+}
+
 function clearImport() {
   pickedIssue.value = null
   draft.value.github_url = ''
+  issueUrl.value = ''
 }
 
 async function createTask() {
@@ -177,31 +219,50 @@ onMounted(async () => {
 
         <div class="field">
           <label>Import from GitHub (optional)</label>
-          <div class="row">
-            <SearchSelect
-              v-model="importRepo"
-              class="grow"
-              :options="importRepoOptions"
-              placeholder="Choose a repository…"
-            />
-            <button class="btn" :disabled="!importRepo || loadingIssues" @click="loadIssues">
-              <span v-if="loadingIssues" class="spinner"></span> Load issues
-            </button>
-          </div>
-          <div v-if="pickedIssue" class="faint" style="margin-top: 6px">
+          <input
+            v-model="issueUrl"
+            class="input"
+            placeholder="Paste a GitHub issue or PR URL…"
+            @input="onUrlInput"
+            @keyup.enter="previewFromUrl"
+          />
+          <p v-if="loadingIssue" class="faint" style="margin: 6px 0 0"><span class="spinner"></span> Loading issue…</p>
+          <p v-else-if="pickedIssue" class="faint" style="margin: 6px 0 0">
             Importing <a :href="draft.github_url" target="_blank">#{{ pickedIssue }}</a>
             <button class="btn sm ghost" @click="clearImport">clear</button>
-          </div>
-          <div v-else-if="issues.length" class="issue-list">
-            <button v-for="issue in issues" :key="issue.number" class="issue-row" @click="pickIssue(issue)">
-              <span class="badge ok">{{ issue.state.toLowerCase() }}</span>
-              <span class="grow">#{{ issue.number }} {{ issue.title }}</span>
-              <span v-if="issue.author" class="faint">{{ issue.author }}</span>
-            </button>
-          </div>
-          <p v-if="!githubRepos.length" class="faint" style="margin: 6px 0 0">
-            No GitHub repositories registered. Add one in <router-link to="/settings">Settings</router-link>.
           </p>
+
+          <details style="margin-top: 8px">
+            <summary class="faint" style="cursor: pointer">or pick from a repository</summary>
+            <div class="row" style="margin-top: 8px">
+              <SearchSelect
+                v-model="importRepo"
+                class="grow"
+                :options="importRepoOptions"
+                placeholder="Choose a repository…"
+              />
+              <button class="btn" :disabled="!importRepo || loadingIssues" @click="loadIssues">
+                <span v-if="loadingIssues" class="spinner"></span> Load issues
+              </button>
+            </div>
+            <input
+              v-if="issues.length"
+              v-model="issueFilter"
+              class="input"
+              style="margin-top: 8px"
+              placeholder="Filter issues…"
+            />
+            <div v-if="issues.length" class="issue-list">
+              <button v-for="issue in sortedIssues" :key="issue.number" class="issue-row" @click="pickIssue(issue)">
+                <span class="badge ok">{{ issue.state.toLowerCase() }}</span>
+                <span class="grow">#{{ issue.number }} {{ issue.title }}</span>
+                <span v-if="issue.author" class="faint">{{ issue.author }}</span>
+              </button>
+            </div>
+            <p v-if="!githubRepos.length" class="faint" style="margin: 6px 0 0">
+              No GitHub repositories registered. Add one in <router-link to="/settings">Settings</router-link>.
+            </p>
+          </details>
         </div>
 
         <div class="field">

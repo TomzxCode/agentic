@@ -206,19 +206,34 @@ def list_github_issues(owner: str, repo: str, state: str = "open", limit: int = 
     return issues
 
 
+def fetch_github_issue(owner: str, repo: str, number: object, kind: str = "issue") -> dict[str, Any] | None:
+    """Fetch a single issue or PR via ghx. None on failure."""
+    sub = "pr" if kind == "pull_request" else "issue"
+    raw = _run_cli(["ghx", sub, "view", str(number), "--repo", f"{owner}/{repo}", "--json"])
+    if not raw:
+        return None
+    data = json.loads(raw)
+    return {
+        "number": data.get("number"),
+        "title": data.get("title") or "",
+        "url": data.get("url") or "",
+        "state": data.get("state") or "",
+        "author": (data.get("author") or {}).get("login"),
+        "labels": [label.get("name") for label in data.get("labels") or [] if isinstance(label, dict)],
+        "body": data.get("body") or "",
+    }
+
+
 def _fetch_github(url: str, result: dict[str, Any]) -> None:
     parsed = parse_github(url)
     if not parsed:
         return
-    # ghx's --json is a boolean that emits the whole object.
-    sub = "pr" if parsed["kind"] == "pull_request" else "issue"
-    raw = _run_cli(["ghx", sub, "view", parsed["number"], "--repo", f"{parsed['owner']}/{parsed['repo']}", "--json"])
-    if not raw:
+    issue = fetch_github_issue(parsed["owner"], parsed["repo"], parsed["number"], parsed["kind"])
+    if issue is None:
         return
-    data = json.loads(raw)
-    result["title"] = data.get("title") or result["title"]
-    result["metadata"] = {**parsed, **{k: data.get(k) for k in ("state", "number")}}
-    result["content"] = data.get("body") or ""
+    result["title"] = issue["title"] or result["title"]
+    result["metadata"] = {**parsed, "state": issue["state"], "number": issue["number"]}
+    result["content"] = issue["body"]
 
 
 def _fetch_slack(url: str, result: dict[str, Any]) -> None:

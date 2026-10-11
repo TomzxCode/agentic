@@ -45,6 +45,48 @@ def test_issues_endpoint(monkeypatch):
         assert client.get("/api/github/issues").status_code == 400
 
 
+def test_fetch_github_issue(monkeypatch):
+    payload = json.dumps(
+        {
+            "number": 7,
+            "title": "Bug",
+            "url": "https://github.com/o/r/issues/7",
+            "state": "OPEN",
+            "author": {"login": "a"},
+            "labels": [{"name": "bug"}],
+            "body": "body",
+        }
+    )
+    seen: dict = {}
+
+    def fake(cmd, timeout=60):
+        seen["cmd"] = cmd
+        return payload
+
+    monkeypatch.setattr(services, "_run_cli", fake)
+    issue = services.fetch_github_issue("o", "r", 7)
+    assert issue["title"] == "Bug"
+    assert issue["labels"] == ["bug"]
+    assert seen["cmd"][0] == "ghx" and seen["cmd"][1] == "issue"
+
+    services.fetch_github_issue("o", "r", 7, kind="pull_request")
+    assert seen["cmd"][1] == "pr"
+
+
+def test_issue_endpoint(monkeypatch):
+    payload = json.dumps({"number": 9, "title": "Single", "url": "http://x", "author": {"login": "a"}, "body": "b"})
+    monkeypatch.setattr(services, "_run_cli", lambda cmd, timeout=60: payload)
+    with TestClient(app) as client:
+        issue = client.get("/api/github/issue", params={"url": "https://github.com/o/r/issues/9"})
+        assert issue.status_code == 200
+        assert issue.json()["number"] == 9
+        # not a GitHub issue URL
+        assert client.get("/api/github/issue", params={"url": "https://example.com/x"}).status_code == 400
+
+        monkeypatch.setattr(services, "_run_cli", lambda cmd, timeout=60: None)
+        assert client.get("/api/github/issue", params={"url": "https://github.com/o/r/issues/9"}).status_code == 502
+
+
 def test_create_task_from_github(monkeypatch):
     # Stub the item fetch so no network/gh is needed.
     from agentic.routers import tasks as tasks_router
