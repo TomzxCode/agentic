@@ -158,7 +158,8 @@ Placeholders: `{session}`, `{cwd}`, `{harness}`.
 The same settings page has an **Editor URL template**; when set, each worktree in
 a task shows an **Open in editor** button that opens the worktree path (`{path}`).
 Local: `vscode://file{path}`. Remote VS Code over SSH:
-`vscode://vscode-remote/ssh-remote+<host>{path}` (needs Remote-SSH). code-server:
+`vscode://vscode-remote/ssh-remote+<host>{path}` (needs Remote-SSH; add
+`?windowId=_blank` to open in a new window). code-server:
 `https://<host>:8443/?folder={path}`. Tunnel:
 `https://vscode.dev/tunnel/<name>{path}`.
 

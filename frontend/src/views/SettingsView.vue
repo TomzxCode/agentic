@@ -221,7 +221,8 @@ onMounted(load)
             </p>
             <p class="faint" style="margin: 4px 0 0">
               Remote VS Code over SSH: <code>vscode://vscode-remote/ssh-remote+&lt;host&gt;{path}</code>
-              (host from <code>~/.ssh/config</code>; needs the Remote-SSH extension). code-server:
+              (host from <code>~/.ssh/config</code>; needs the Remote-SSH extension). Add
+              <code>?windowId=_blank</code> to open in a new window. code-server:
               <code>https://&lt;host&gt;:8443/?folder={path}</code>. Tunnel:
               <code>https://vscode.dev/tunnel/&lt;name&gt;{path}</code>.
             </p>
