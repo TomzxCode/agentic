@@ -155,9 +155,12 @@ Configure the base URLs on the **Settings** page (persisted locally) or with
 environment variables. Each harness has an editable resume command template.
 Placeholders: `{session}`, `{cwd}`, `{harness}`.
 
-The same settings page has an **Editor URL template** (`vscode://file{path}` or
-similar); when set, each worktree in a task shows an **Open in editor** button
-that opens the worktree path (`{path}`) in your editor.
+The same settings page has an **Editor URL template**; when set, each worktree in
+a task shows an **Open in editor** button that opens the worktree path (`{path}`).
+Local: `vscode://file{path}`. Remote VS Code over SSH:
+`vscode://vscode-remote/ssh-remote+<host>{path}` (needs Remote-SSH). code-server:
+`https://<host>:8443/?folder={path}`. Tunnel:
+`https://vscode.dev/tunnel/<name>{path}`.
 
 ## Configuration
 

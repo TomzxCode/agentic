@@ -206,8 +206,17 @@ onMounted(load)
             <input v-model="linkForm.editor_url_template" class="input" placeholder="vscode://file{path}" />
             <p class="faint" style="margin: 4px 0 0">
               Opens a worktree path in your editor. <code>{path}</code> is the absolute path (it starts with
-              <code>/</code>). Examples: <code>vscode://file{path}</code>, <code>cursor://file{path}</code>,
+              <code>/</code>).
+            </p>
+            <p class="faint" style="margin: 4px 0 0">
+              Local: <code>vscode://file{path}</code>, <code>cursor://file{path}</code>,
               <code>zed://file{path}</code>.
+            </p>
+            <p class="faint" style="margin: 4px 0 0">
+              Remote VS Code over SSH: <code>vscode://vscode-remote/ssh-remote+&lt;host&gt;{path}</code>
+              (host from <code>~/.ssh/config</code>; needs the Remote-SSH extension). code-server:
+              <code>https://&lt;host&gt;:8443/?folder={path}</code>. Tunnel:
+              <code>https://vscode.dev/tunnel/&lt;name&gt;{path}</code>.
             </p>
           </div>
           <div class="row" style="justify-content: flex-end">
