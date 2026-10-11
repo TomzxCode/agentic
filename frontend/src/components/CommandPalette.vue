@@ -69,21 +69,33 @@ function onKeydown(event) {
   }
 }
 
-// Close on Escape from anywhere: capture it on window so focus quirks or an
-// input's autofill dropdown can't swallow the first press (which would need two).
-function onWindowKeydown(event) {
-  if (event.key !== 'Escape') return
+// Close on Escape. Attach at the document during capture (before the focused
+// input's default behaviour) and cover keyup/cancel too, so a browser that
+// blurs the field on Escape can't leave the palette open.
+function closeOnEscape(event) {
+  if (event.key !== 'Escape' && event.key !== 'Esc') return
   event.preventDefault()
   event.stopPropagation()
   emit('close')
 }
 
+// If the field loses focus without focus moving to another control (which is
+// what some browsers do on Escape), treat that as a close.
+function onInputBlur(event) {
+  const next = event.relatedTarget
+  if (!next || next === document.body) emit('close')
+}
+
 watch(query, () => (highlighted.value = 0))
 onMounted(() => {
-  window.addEventListener('keydown', onWindowKeydown, true)
+  document.addEventListener('keydown', closeOnEscape, true)
+  document.addEventListener('keyup', closeOnEscape, true)
   nextTick(() => input.value?.focus())
 })
-onBeforeUnmount(() => window.removeEventListener('keydown', onWindowKeydown, true))
+onBeforeUnmount(() => {
+  document.removeEventListener('keydown', closeOnEscape, true)
+  document.removeEventListener('keyup', closeOnEscape, true)
+})
 </script>
 
 <template>
@@ -94,10 +106,14 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onWindowKeydown, tru
         v-model="query"
         class="palette-input"
         placeholder="Search tasks and actions…"
+        type="text"
         autocomplete="off"
         spellcheck="false"
         @keydown="onKeydown"
         @keydown.esc.stop.prevent="emit('close')"
+        @keyup.esc.stop.prevent="emit('close')"
+        @cancel="emit('close')"
+        @blur="onInputBlur"
       />
       <div class="palette-list">
         <div v-if="!results.length" class="palette-empty faint">No matches</div>
