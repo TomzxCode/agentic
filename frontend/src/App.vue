@@ -2,8 +2,9 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { api } from './api'
-import { store, statusLabel, timeAgo } from './store'
+import { store, timeAgo } from './store'
 import SearchSelect from './components/SearchSelect.vue'
+import RepositorySelect from './components/RepositorySelect.vue'
 import StatusIcon from './components/StatusIcon.vue'
 import CommandPalette from './components/CommandPalette.vue'
 
@@ -61,18 +62,6 @@ const statusOptions = [
   { value: 'done', label: 'Done', icon: StatusIcon, iconProps: { status: 'done', label: 'Done' } },
   { value: 'archived', label: 'Archived', icon: StatusIcon, iconProps: { status: 'archived', label: 'Archived' } }
 ]
-const selectedRepositories = computed(() =>
-  (draft.value.repository_ids || [])
-    .map((id) => store.repositories.find((r) => r.id === id))
-    .filter(Boolean)
-    .sort((a, b) => a.name.localeCompare(b.name))
-)
-const addRepositoryOptions = computed(() =>
-  store.repositories
-    .filter((r) => !(draft.value.repository_ids || []).includes(r.id))
-    .sort((a, b) => a.name.localeCompare(b.name))
-    .map((r) => ({ value: r.id, label: r.name }))
-)
 // Repositories of the most recently created task, offered as quick picks.
 const lastUsedRepositories = computed(() => {
   const last = [...store.tasks].sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0]
@@ -102,12 +91,6 @@ const taskFieldItems = computed(() =>
         },
         { id: 'field-status', label: 'Set status', group: 'This task', run: () => store.focusField?.('status') },
         { id: 'field-priority', label: 'Set priority', group: 'This task', run: () => store.focusField?.('priority') },
-        {
-          id: 'field-group',
-          label: 'Set repository group',
-          group: 'This task',
-          run: () => store.focusField?.('group')
-        },
         {
           id: 'field-repository',
           label: 'Add repository',
@@ -292,8 +275,17 @@ function addRepository(id) {
   draft.value.repository_ids = [...draft.value.repository_ids, id]
 }
 
-function removeRepository(id) {
-  draft.value.repository_ids = draft.value.repository_ids.filter((x) => x !== id)
+// Change a task's status straight from the sidebar list.
+async function changeStatus(task, status) {
+  if (status === task.status) return
+  const previous = task.status
+  task.status = status
+  try {
+    await api.tasks.update(task.id, { status })
+  } catch (e) {
+    task.status = previous
+    store.notify(e.message, true)
+  }
 }
 
 async function loadIssues() {
@@ -409,19 +401,24 @@ onUnmounted(() => {
       <div class="side-scroll">
         <div v-if="store.loading && !store.tasks.length" class="empty"><span class="spinner"></span></div>
         <div v-else-if="!store.tasks.length" class="empty">No tasks yet.</div>
-        <router-link
-          v-for="p in store.tasks"
-          :key="p.id"
-          :to="`/task/${p.id}`"
-          class="task-card"
-          :class="{ active: route.params.id === p.id }"
-          @click="sidebarOpen = false"
-        >
-          <StatusIcon :status="p.status" :label="statusLabel(p.status)" />
-          <span class="t">{{ p.title }}</span>
-          <span v-if="p.next_steps?.length" class="badge steps">{{ p.next_steps.filter((s) => !s.done).length }}</span>
-          <span class="faint when">{{ timeAgo(p.updated_at) }}</span>
-        </router-link>
+        <div v-for="p in store.tasks" :key="p.id" class="task-card" :class="{ active: route.params.id === p.id }">
+          <SearchSelect
+            class="task-status-select"
+            variant="icon"
+            :model-value="p.status"
+            :options="statusOptions"
+            :sort="false"
+            title="Change status"
+            @update:model-value="(value) => changeStatus(p, value)"
+          />
+          <router-link :to="`/task/${p.id}`" class="task-link" @click="sidebarOpen = false">
+            <span class="t">{{ p.title }}</span>
+            <span v-if="p.next_steps?.length" class="badge steps">{{
+              p.next_steps.filter((s) => !s.done).length
+            }}</span>
+            <span class="faint when">{{ timeAgo(p.updated_at) }}</span>
+          </router-link>
+        </div>
       </div>
 
       <nav class="sidebar-nav" aria-label="Primary">
@@ -557,23 +554,11 @@ onUnmounted(() => {
         </div>
         <div class="field">
           <label>Repositories (optional)</label>
-          <div class="row">
-            <span v-for="repo in selectedRepositories" :key="repo.id" class="chip">
-              {{ repo.name }}
-              <button class="chip-x" title="Remove" @click="removeRepository(repo.id)">×</button>
-            </span>
-            <SearchSelect
-              v-if="addRepositoryOptions.length"
-              variant="inline"
-              :model-value="''"
-              :options="addRepositoryOptions"
-              placeholder="+ add repository"
-              @update:model-value="addRepository"
-            />
-            <span v-if="!selectedRepositories.length && !addRepositoryOptions.length" class="faint"
-              >none registered</span
-            >
-          </div>
+          <RepositorySelect
+            v-model="draft.repository_ids"
+            :repositories="store.repositories"
+            empty-label="none registered"
+          />
           <div v-if="lastUsedRepositories.length" class="row" style="margin-top: 6px">
             <span class="faint">last used:</span>
             <button

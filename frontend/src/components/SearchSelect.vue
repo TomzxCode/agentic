@@ -5,10 +5,12 @@ const props = defineProps({
   modelValue: { type: [String, Number], default: '' },
   options: { type: Array, required: true }, // [{ value, label, icon?, iconProps? }]
   placeholder: { type: String, default: 'Select…' },
-  variant: { type: String, default: 'field' }, // field | inline
+  variant: { type: String, default: 'field' }, // field | inline | icon
   title: { type: String, default: 'Click to choose' },
   disabled: { type: Boolean, default: false },
-  sort: { type: Boolean, default: true }
+  sort: { type: Boolean, default: true },
+  // Keep the list open after choosing, so several options can be picked in a row.
+  keepOpen: { type: Boolean, default: false }
 })
 const emit = defineEmits(['update:modelValue'])
 
@@ -67,7 +69,14 @@ function onOutside(event) {
 
 function choose(option) {
   emit('update:modelValue', option.value)
-  close()
+  if (!props.keepOpen) {
+    close()
+    return
+  }
+  // Stay open for the next pick: clear the filter and keep the keyboard focus.
+  query.value = ''
+  highlighted.value = 0
+  nextTick(() => input.value?.focus())
 }
 
 function onKeydown(event) {
@@ -106,8 +115,10 @@ defineExpose({ activate: show })
       @keydown.down.prevent="toggle"
     >
       <component :is="selected.icon" v-if="selected?.icon" v-bind="selected.iconProps" />
-      <span class="ss-label" :class="{ placeholder: !hasValue }">{{ selected ? selected.label : placeholder }}</span>
-      <span class="ss-caret">▾</span>
+      <template v-if="variant !== 'icon'">
+        <span class="ss-label" :class="{ placeholder: !hasValue }">{{ selected ? selected.label : placeholder }}</span>
+        <span class="ss-caret">▾</span>
+      </template>
     </button>
 
     <div v-if="open" class="ss-panel">

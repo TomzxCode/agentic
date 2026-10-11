@@ -2,6 +2,7 @@
 import { onMounted, reactive, ref } from 'vue'
 import { api } from '../api'
 import { store } from '../store'
+import RepositorySelect from './RepositorySelect.vue'
 
 defineProps({ repositories: { type: Array, default: () => [] } })
 const emit = defineEmits(['changed'])
@@ -10,11 +11,6 @@ const draft = reactive({ name: '', description: '', repository_ids: [] })
 const editingId = ref('')
 const editDraft = reactive({ name: '', description: '', repository_ids: [] })
 const busy = ref(false)
-
-function toggle(list, id) {
-  const index = list.indexOf(id)
-  index === -1 ? list.push(id) : list.splice(index, 1)
-}
 
 async function load() {
   await store.loadGroups().catch((e) => store.notify(e.message, true))
@@ -97,15 +93,11 @@ onMounted(load)
         <div class="field"><label>Description</label><input v-model="editDraft.description" class="input" /></div>
         <div class="field">
           <label>Repositories</label>
-          <div v-if="!repositories.length" class="faint">Add repositories first.</div>
-          <label v-for="repo in repositories" :key="repo.id" class="repo-check">
-            <input
-              type="checkbox"
-              :checked="editDraft.repository_ids.includes(repo.id)"
-              @change="toggle(editDraft.repository_ids, repo.id)"
-            />
-            <span>{{ repo.name }}</span>
-          </label>
+          <RepositorySelect
+            v-model="editDraft.repository_ids"
+            :repositories="repositories"
+            empty-label="Add repositories first."
+          />
         </div>
         <div class="row" style="justify-content: flex-end">
           <button class="btn ghost" @click="editingId = ''">Cancel</button>
@@ -122,16 +114,11 @@ onMounted(load)
       </div>
       <div class="field" style="margin-top: 8px">
         <label>Repositories</label>
-        <div v-if="!repositories.length" class="faint">Add repositories above first.</div>
-        <label v-for="repo in repositories" :key="repo.id" class="repo-check">
-          <input
-            type="checkbox"
-            :checked="draft.repository_ids.includes(repo.id)"
-            @change="toggle(draft.repository_ids, repo.id)"
-          />
-          <span>{{ repo.name }}</span>
-          <span class="faint mono">{{ repo.path }}</span>
-        </label>
+        <RepositorySelect
+          v-model="draft.repository_ids"
+          :repositories="repositories"
+          empty-label="Add repositories above first."
+        />
       </div>
       <div class="row" style="justify-content: flex-end">
         <button class="btn primary" :disabled="busy || !draft.name.trim()" @click="create">

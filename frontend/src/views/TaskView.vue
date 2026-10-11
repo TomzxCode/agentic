@@ -10,6 +10,7 @@ import TimelinePanel from '../components/TimelinePanel.vue'
 import SessionLinks from '../components/SessionLinks.vue'
 import EditableText from '../components/EditableText.vue'
 import SearchSelect from '../components/SearchSelect.vue'
+import RepositorySelect from '../components/RepositorySelect.vue'
 import StatusIcon from '../components/StatusIcon.vue'
 
 const props = defineProps({ id: { type: String, required: true } })
@@ -25,7 +26,6 @@ const titleRef = ref(null)
 const descriptionRef = ref(null)
 const statusRef = ref(null)
 const priorityRef = ref(null)
-const groupRef = ref(null)
 const repositoryRef = ref(null)
 
 // Links from the most recent run that produced a session.
@@ -49,23 +49,6 @@ const PRIORITY_OPTIONS = [
   { value: 2, label: 'priority: high' },
   { value: 3, label: 'priority: urgent' }
 ]
-const groupOptions = computed(() => [
-  { value: '', label: 'no group' },
-  ...store.groups.map((g) => ({ value: g.id, label: `group: ${g.name}` }))
-])
-
-const taskRepositories = computed(() =>
-  (task.value?.repository_ids || [])
-    .map((id) => store.repositories.find((r) => r.id === id))
-    .filter(Boolean)
-    .sort((a, b) => a.name.localeCompare(b.name))
-)
-const addRepositoryOptions = computed(() =>
-  store.repositories
-    .filter((r) => !(task.value?.repository_ids || []).includes(r.id))
-    .map((r) => ({ value: r.id, label: r.name }))
-)
-
 async function load() {
   try {
     task.value = await api.tasks.get(props.id)
@@ -90,7 +73,6 @@ async function update(field, value) {
     await load()
     return
   }
-  if (field === 'group_id' && value === '') value = null
   try {
     await api.tasks.update(props.id, { [field]: value })
     await load()
@@ -101,16 +83,8 @@ async function update(field, value) {
   }
 }
 
-async function addRepository(id) {
-  if (!id) return
-  await update('repository_ids', [...(task.value.repository_ids || []), id])
-}
-
-async function removeRepository(id) {
-  await update(
-    'repository_ids',
-    (task.value.repository_ids || []).filter((x) => x !== id)
-  )
+async function setRepositories(ids) {
+  await update('repository_ids', ids)
 }
 
 async function removeTask() {
@@ -134,7 +108,6 @@ onMounted(async () => {
       description: descriptionRef,
       status: statusRef,
       priority: priorityRef,
-      group: groupRef,
       repository: repositoryRef
     }[field]
     target?.value?.activate?.()
@@ -142,7 +115,6 @@ onMounted(async () => {
   // Focus-hint mode uses the DOM scan in App; nothing to register here.
   await store.loadHarnesses().catch(() => {})
   await store.loadRepositories().catch(() => {})
-  await store.loadGroups().catch(() => {})
   await load()
   subscribe()
 })
@@ -167,17 +139,17 @@ watch(
   <div v-if="loading" class="empty"><span class="spinner"></span></div>
   <div v-else-if="notFound" class="empty">Task not found. <router-link to="/">Back</router-link></div>
   <div v-else>
-    <div class="row page-head" style="margin-bottom: 16px">
-      <div class="grow" style="min-width: 0">
+    <div class="row page-head task-head">
+      <div class="grow">
         <EditableText
           ref="titleRef"
           as="h1"
-          style="margin-bottom: 4px"
+          class="task-title"
           :value="task.title"
           placeholder="Untitled task"
           @save="(value) => update('title', value)"
         />
-        <div class="row">
+        <div class="task-meta">
           <SearchSelect
             ref="statusRef"
             variant="inline"
@@ -187,6 +159,7 @@ watch(
             title="Status"
             @update:model-value="(value) => update('status', value)"
           />
+          <span class="meta-sep" aria-hidden="true"></span>
           <SearchSelect
             ref="priorityRef"
             variant="inline"
@@ -196,35 +169,17 @@ watch(
             title="Priority"
             @update:model-value="(value) => update('priority', Number(value))"
           />
-          <SearchSelect
-            ref="groupRef"
-            variant="inline"
-            :model-value="task.group_id || ''"
-            :options="groupOptions"
-            title="Repository group"
-            @update:model-value="(value) => update('group_id', value)"
-          />
-        </div>
-        <div class="row" style="margin-top: 6px">
-          <span class="faint">repositories:</span>
-          <span v-for="repo in taskRepositories" :key="repo.id" class="chip">
-            {{ repo.name }}
-            <button class="chip-x" title="Remove" @click="removeRepository(repo.id)">×</button>
-          </span>
-          <SearchSelect
-            v-if="addRepositoryOptions.length"
+          <span class="meta-sep" aria-hidden="true"></span>
+          <RepositorySelect
             ref="repositoryRef"
-            variant="inline"
-            :model-value="''"
-            :options="addRepositoryOptions"
-            placeholder="+ add repository"
-            @update:model-value="addRepository"
+            :model-value="task.repository_ids"
+            :repositories="store.repositories"
+            @update:model-value="setRepositories"
           />
-          <span v-if="!taskRepositories.length && !addRepositoryOptions.length" class="faint">none registered</span>
         </div>
-        <SessionLinks v-if="latestLinks.length" :links="latestLinks" compact />
       </div>
-      <div class="row">
+      <div class="row task-actions">
+        <SessionLinks v-if="latestLinks.length" :links="latestLinks" compact />
         <button class="btn sm danger" @click="removeTask">Delete</button>
       </div>
     </div>

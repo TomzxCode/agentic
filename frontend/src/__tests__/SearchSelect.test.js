@@ -72,4 +72,29 @@ describe('SearchSelect', () => {
     await wrapper.vm.$nextTick()
     expect(wrapper.find('.ss-panel').exists()).toBe(true)
   })
+
+  it('shows only the selected icon in the icon variant', async () => {
+    const Icon = { template: '<span class="fake-icon" />' }
+    const iconOptions = [{ value: 'a', label: 'Alpha', icon: Icon }]
+    const wrapper = mount(SearchSelect, {
+      props: { modelValue: 'a', variant: 'icon', options: iconOptions }
+    })
+    expect(wrapper.get('.ss-trigger').find('.fake-icon').exists()).toBe(true)
+    expect(wrapper.find('.ss-label').exists()).toBe(false)
+    expect(wrapper.find('.ss-caret').exists()).toBe(false)
+
+    // The dropdown still spells out the options.
+    await open(wrapper)
+    expect(wrapper.get('.ss-option').text()).toBe('Alpha')
+  })
+
+  it('keeps the list open and clears the filter after choosing when keepOpen is set', async () => {
+    const wrapper = mount(SearchSelect, { props: { modelValue: '', options, keepOpen: true } })
+    await open(wrapper)
+    await wrapper.get('.ss-search').setValue('al')
+    await wrapper.findAll('.ss-option')[0].trigger('click')
+    expect(wrapper.emitted('update:modelValue')).toEqual([['a']])
+    expect(wrapper.find('.ss-panel').exists()).toBe(true)
+    expect(wrapper.get('.ss-search').element.value).toBe('')
+  })
 })
