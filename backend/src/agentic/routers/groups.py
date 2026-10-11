@@ -5,7 +5,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import delete as sa_delete
 from sqlalchemy import update as sa_update
-from sqlmodel import Session, select
+from sqlmodel import Session, col, select
 
 from ..db import get_session
 from ..models import Repository, RepositoryGroup, RepositoryGroupMember, Task
@@ -31,7 +31,7 @@ def _read(session: Session, group: RepositoryGroup) -> RepositoryGroupRead:
 
 
 def _set_members(session: Session, group_id: str, repository_ids: list[str]) -> None:
-    session.execute(sa_delete(RepositoryGroupMember).where(RepositoryGroupMember.group_id == group_id))
+    session.exec(sa_delete(RepositoryGroupMember).where(col(RepositoryGroupMember.group_id) == group_id))
     seen: set[str] = set()
     for repository_id in repository_ids:
         if repository_id in seen or session.get(Repository, repository_id) is None:
@@ -43,7 +43,7 @@ def _set_members(session: Session, group_id: str, repository_ids: list[str]) -> 
 
 @router.get("", response_model=list[RepositoryGroupRead])
 def list_groups(session: Session = Depends(get_session)) -> list[RepositoryGroupRead]:
-    groups = session.exec(select(RepositoryGroup).order_by(RepositoryGroup.created_at.desc())).all()
+    groups = session.exec(select(RepositoryGroup).order_by(col(RepositoryGroup.created_at).desc())).all()
     return [_read(session, group) for group in groups]
 
 
@@ -92,7 +92,7 @@ def delete_group(group_id: str, session: Session = Depends(get_session)) -> None
     group = session.get(RepositoryGroup, group_id)
     if group is None:
         raise HTTPException(status_code=404, detail="Group not found")
-    session.execute(sa_delete(RepositoryGroupMember).where(RepositoryGroupMember.group_id == group_id))
-    session.execute(sa_update(Task).where(Task.group_id == group_id).values(group_id=None))
-    session.execute(sa_delete(RepositoryGroup).where(RepositoryGroup.id == group_id))
+    session.exec(sa_delete(RepositoryGroupMember).where(col(RepositoryGroupMember.group_id) == group_id))
+    session.exec(sa_update(Task).where(col(Task.group_id) == group_id).values(group_id=None))
+    session.exec(sa_delete(RepositoryGroup).where(col(RepositoryGroup.id) == group_id))
     session.commit()

@@ -31,6 +31,7 @@ def test_list_github_issues_parses(monkeypatch):
     )
     monkeypatch.setattr(services, "_run_cli", lambda cmd, timeout=60: payload)
     issues = services.list_github_issues("o", "r")
+    assert issues is not None
     assert issues[0]["number"] == 1
     assert issues[0]["author"] == "tom"
     assert issues[0]["labels"] == ["bug"]
@@ -65,6 +66,7 @@ def test_fetch_github_issue(monkeypatch):
 
     monkeypatch.setattr(services, "_run_cli", fake)
     issue = services.fetch_github_issue("o", "r", 7)
+    assert issue is not None
     assert issue["title"] == "Bug"
     assert issue["labels"] == ["bug"]
     assert seen["cmd"][0] == "ghx" and seen["cmd"][1] == "issue"

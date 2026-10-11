@@ -29,11 +29,12 @@
 |---|---|---|
 | uv | Package and workspace management | `uv add <package>` / `uv sync` |
 | ruff | Linting and formatting (line length 120) | `uv run ruff format .` / `uv run ruff check --fix .` |
+| ty | Static type checking | `uv run ty check` |
 | pytest (+ pytest-asyncio) | Testing | `uv run pytest -q` |
 | Vite | SPA dev server and build | `cd frontend && npm run dev` / `npm run build` |
 | make | Task shortcuts | `make test`, `make lint`, `make build`, `make run` |
 
-There is no mypy/type-check step configured; type hints are not statically checked in CI.
+Type hints are checked statically with `ty` (`make typecheck`, `uv run ty check`), against the Python 3.12 floor declared in `requires-python`.
 
 ## Environments
 
@@ -49,7 +50,7 @@ Both servers bind `0.0.0.0` for remote/VPN access.
 
 | Workflow | Trigger | What it runs |
 |---|---|---|
-| `.github/workflows/ci.yml` (Python) | push to `main`, pull requests | `uv sync --frozen`, ruff check, ruff format check, `pytest -q`. |
+| `.github/workflows/ci.yml` (Python) | push to `main`, pull requests | `uv sync --frozen`, ruff check, ruff format check, `ty check`, `pytest -q`. |
 | `.github/workflows/ci.yml` (Frontend) | push to `main`, pull requests | `npm ci` then `npm run build` in `frontend/`. |
 
 Both jobs run on `ubuntu-latest` (Python via uv, Node 22), cancel superseded runs on the same ref, and have `contents: read` permissions.

@@ -1,4 +1,4 @@
-.PHONY: help install dev-backend dev-frontend test test-frontend lint build run
+.PHONY: help install dev-backend dev-frontend test test-frontend lint typecheck build run
 
 help:
 	@echo "install        install backend + CLI (workspace) and frontend deps"
@@ -7,6 +7,7 @@ help:
 	@echo "test           run backend + CLI tests"
 	@echo "test-frontend  run frontend (Vitest) tests"
 	@echo "lint           ruff format + check"
+	@echo "typecheck      ty check (static type checking)"
 	@echo "build          build the SPA into backend/static"
 	@echo "run            serve API + built SPA on 0.0.0.0:8600"
 
@@ -28,6 +29,9 @@ test-frontend:
 
 lint:
 	uv run ruff format . && uv run ruff check --fix .
+
+typecheck:
+	uv run ty check
 
 build:
 	cd frontend && npm run build

@@ -250,6 +250,7 @@ GET/POST/PATCH      /api/harnesses   /api/repositories   /api/items
 ```bash
 make test        # backend tests
 make lint        # ruff format + check
+make typecheck   # ty static type checking
 make build       # build the SPA into backend/static
 make run         # serve API + built SPA on :8600
 ```

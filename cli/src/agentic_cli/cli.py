@@ -334,7 +334,7 @@ def link_add(
     external_id: str | None = None,
     note: str = "",
     fetch: bool = True,
-) -> str:
+) -> str | int:
     """Associate an existing item (--item-id) or a new one (--url/--content) with a task."""
     item = None
     if item_id is None:

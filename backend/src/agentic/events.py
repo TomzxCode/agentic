@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator
 from typing import Any
 
 
@@ -18,7 +18,7 @@ class EventBus:
                 queue.put_nowait(event)
 
     @contextlib.asynccontextmanager
-    async def subscribe(self, topic: str) -> AsyncIterator[asyncio.Queue[dict[str, Any]]]:
+    async def subscribe(self, topic: str) -> AsyncGenerator[asyncio.Queue[dict[str, Any]]]:
         queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue(maxsize=1000)
         self._subscribers.setdefault(topic, set()).add(queue)
         try:

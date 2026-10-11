@@ -14,19 +14,26 @@ from collections.abc import Awaitable, Callable
 from typing import Any
 
 import structlog
-from acp import PROTOCOL_VERSION, Client, RequestError, spawn_agent_process
+from acp import PROTOCOL_VERSION, Agent, Client, RequestError, spawn_agent_process
 from acp.schema import (
     AllowedOutcome,
     ClientCapabilities,
+    CreateElicitationResponse,
     CreateTerminalResponse,
     DeniedOutcome,
+    ElicitationMode,
     Implementation,
+    KillTerminalResponse,
     PermissionOption,
     ReadTextFileResponse,
+    ReleaseTerminalResponse,
     RequestPermissionResponse,
+    TerminalOutputResponse,
+    TextContentBlock,
+    WaitForTerminalExitResponse,
     WriteTextFileResponse,
 )
-from sqlmodel import Session, select
+from sqlmodel import Session, col, select
 
 from .config import settings
 from .db import engine
@@ -228,10 +235,35 @@ class AgenticClient(Client):
         # Terminal execution is not offered; agents use their own tools.
         raise RequestError.method_not_found("terminal/create")
 
-    async def ext_method(self, method: str, **kwargs: Any) -> dict[str, Any]:
+    async def terminal_output(self, session_id: str, terminal_id: str, **kwargs: Any) -> TerminalOutputResponse:
+        raise RequestError.method_not_found("terminal/output")
+
+    async def release_terminal(
+        self, session_id: str, terminal_id: str, **kwargs: Any
+    ) -> ReleaseTerminalResponse | None:
+        raise RequestError.method_not_found("terminal/release")
+
+    async def wait_for_terminal_exit(
+        self, session_id: str, terminal_id: str, **kwargs: Any
+    ) -> WaitForTerminalExitResponse:
+        raise RequestError.method_not_found("terminal/wait_for_exit")
+
+    async def kill_terminal(self, session_id: str, terminal_id: str, **kwargs: Any) -> KillTerminalResponse | None:
+        raise RequestError.method_not_found("terminal/kill")
+
+    async def create_elicitation(self, message: str, mode: ElicitationMode, **kwargs: Any) -> CreateElicitationResponse:
+        raise RequestError.method_not_found("elicitation/create")
+
+    async def complete_elicitation(self, elicitation_id: str, **kwargs: Any) -> None:
+        return None
+
+    def on_connect(self, conn: Agent) -> None:
+        return None
+
+    async def ext_method(self, method: str, params: dict[str, Any]) -> dict[str, Any]:
         raise RequestError.method_not_found(method)
 
-    async def ext_notification(self, method: str, **kwargs: Any) -> None:
+    async def ext_notification(self, method: str, params: dict[str, Any]) -> None:
         return None
 
 
@@ -272,7 +304,7 @@ async def run_agent(
         result["session_id"] = session_id
 
         cancel_task = asyncio.create_task(cancel_event.wait())
-        prompt_task = asyncio.create_task(conn.prompt(session_id, [{"type": "text", "text": prompt}]))
+        prompt_task = asyncio.create_task(conn.prompt(session_id, [TextContentBlock(type="text", text=prompt)]))
         try:
             done, _pending = await asyncio.wait({prompt_task, cancel_task}, return_when=asyncio.FIRST_COMPLETED)
             if cancel_task in done and not prompt_task.done():
@@ -399,7 +431,7 @@ async def execute_context_refresh(
 
     parsed = False
     with Session(engine) as session:
-        events = session.exec(select(AgentEvent).where(AgentEvent.run_id == run_id).order_by(AgentEvent.seq)).all()
+        events = session.exec(select(AgentEvent).where(AgentEvent.run_id == run_id).order_by(col(AgentEvent.seq))).all()
         # Prefer the agent's answer; only fall back to thoughts if it said nothing.
         text = "".join(e.text for e in events if e.type == "message")
         if not text.strip():

@@ -23,6 +23,7 @@ dev = [
     "pytest>=8.0",
     "pytest-asyncio>=0.24",
     "ruff>=0.6",
+    "ty>=0.0.86",
 ]
 
 [tool.ruff]
@@ -34,6 +35,11 @@ src = ["backend/src", "cli/src"]
 select = ["E", "F", "I", "UP", "B", "SIM"]
 # B008: FastAPI's `Depends()` in argument defaults is the intended pattern.
 ignore = ["B008"]
+
+[tool.ty.environment]
+# Target the declared Python floor (requires-python >=3.12) rather than the
+# local interpreter, so type checking does not silently depend on the runtime.
+python-version = "3.12"
 
 [tool.pytest.ini_options]
 testpaths = ["backend/tests", "cli/tests"]

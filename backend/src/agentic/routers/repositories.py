@@ -8,7 +8,7 @@ from pathlib import Path
 import anyio
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import delete as sa_delete
-from sqlmodel import Session, select
+from sqlmodel import Session, col, select
 
 from ..db import get_session
 from ..models import Repository, RepositoryGroupMember, TaskRepository, Worktree
@@ -49,7 +49,7 @@ def _upsert_repository(
 
 @router.get("", response_model=list[RepositoryRead])
 def list_repositories(session: Session = Depends(get_session)) -> list[Repository]:
-    return list(session.exec(select(Repository).order_by(Repository.created_at.desc())).all())
+    return list(session.exec(select(Repository).order_by(col(Repository.created_at).desc())).all())
 
 
 @router.post("", response_model=RepositoryRead, status_code=201)
@@ -94,8 +94,8 @@ async def delete_repository(repository_id: str, session: Session = Depends(get_s
     for worktree in session.exec(select(Worktree).where(Worktree.repository_id == repo.id)).all():
         with contextlib.suppress(Exception):
             await anyio.to_thread.run_sync(remove_worktree, repo.path, worktree.path)
-    session.execute(sa_delete(Worktree).where(Worktree.repository_id == repo.id))
-    session.execute(sa_delete(RepositoryGroupMember).where(RepositoryGroupMember.repository_id == repo.id))
-    session.execute(sa_delete(TaskRepository).where(TaskRepository.repository_id == repo.id))
-    session.execute(sa_delete(Repository).where(Repository.id == repo.id))
+    session.exec(sa_delete(Worktree).where(col(Worktree.repository_id) == repo.id))
+    session.exec(sa_delete(RepositoryGroupMember).where(col(RepositoryGroupMember.repository_id) == repo.id))
+    session.exec(sa_delete(TaskRepository).where(col(TaskRepository.repository_id) == repo.id))
+    session.exec(sa_delete(Repository).where(col(Repository.id) == repo.id))
     session.commit()

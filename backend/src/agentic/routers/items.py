@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import delete as sa_delete
-from sqlmodel import Session, select
+from sqlmodel import Session, col, select
 
 from ..db import get_session
 from ..models import Association, SourceItem, utcnow
@@ -80,7 +80,7 @@ def list_items(
     q: str | None = None,
     session: Session = Depends(get_session),
 ) -> list[ItemRead]:
-    query = select(SourceItem).order_by(SourceItem.created_at.desc())
+    query = select(SourceItem).order_by(col(SourceItem.created_at).desc())
     if source:
         query = query.where(SourceItem.source == source)
     items = list(session.exec(query).all())
@@ -147,8 +147,8 @@ def delete_item(item_id: str, session: Session = Depends(get_session)) -> None:
     item = session.get(SourceItem, item_id)
     if item is None:
         raise HTTPException(status_code=404, detail="Item not found")
-    session.execute(sa_delete(Association).where(Association.item_id == item_id))
-    session.execute(sa_delete(SourceItem).where(SourceItem.id == item_id))
+    session.exec(sa_delete(Association).where(col(Association.item_id) == item_id))
+    session.exec(sa_delete(SourceItem).where(col(SourceItem.id) == item_id))
     session.commit()
 
 

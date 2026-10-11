@@ -23,6 +23,7 @@
 - Python targets 3.12+ and uses type hints throughout.
 - Use `structlog` for logging (`log = structlog.get_logger(__name__)`); do not use the stdlib logging module directly for app events.
 - Ruff lint (E, F, I, UP, B, SIM) and format, line length 120, with `B008` ignored for FastAPI `Depends`.
+- Types are checked with ty (`make typecheck`, `uv run ty check`). SQLModel columns used in query expressions are wrapped with `col(...)` so they type as columns, and bulk deletes/updates use `session.exec()` (not the deprecated `session.execute()`).
 - Keep `__init__.py` files minimal; do not use `__all__` in them.
 - SQLite enforces foreign keys, so deletes that touch parents use explicit, ordered `session.execute(sa_delete(...))` statements rather than relying on ORM cascade ordering.
 - SQLModel's `create_all` only creates missing tables and never adds columns; add new columns in `db._ensure_columns()` and backfill seeded rows.

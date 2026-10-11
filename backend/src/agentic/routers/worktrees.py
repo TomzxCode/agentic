@@ -5,12 +5,12 @@ from __future__ import annotations
 import anyio
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import case
-from sqlmodel import Session, select
+from sqlmodel import Session, col, select
 
 from ..crud import add_timeline, get_task_or_404
 from ..db import get_session
 from ..events import bus
-from ..models import Repository, Worktree, WorktreeStatus, utcnow
+from ..models import Repository, TaskRepository, Worktree, WorktreeStatus, utcnow
 from ..schemas import WorktreeCreate, WorktreeRead
 from ..services import create_worktree, random_branch_name, remove_worktree, worktree_path
 
@@ -25,8 +25,8 @@ def list_worktrees(task_id: str, session: Session = Depends(get_session)) -> lis
             select(Worktree)
             .where(Worktree.task_id == task_id)
             .order_by(
-                case((Worktree.status == WorktreeStatus.active, 0), else_=1),
-                Worktree.created_at.desc(),
+                case((col(Worktree.status) == WorktreeStatus.active, 0), else_=1),
+                col(Worktree.created_at).desc(),
             )
         ).all()
     )
@@ -37,7 +37,12 @@ async def create_task_worktree(
     task_id: str, payload: WorktreeCreate, session: Session = Depends(get_session)
 ) -> Worktree:
     task = get_task_or_404(session, task_id)
-    repository_id = payload.repository_id or task.repository_id
+    repository_id = payload.repository_id
+    if not repository_id:
+        member = session.exec(
+            select(TaskRepository).where(TaskRepository.task_id == task.id).order_by(col(TaskRepository.created_at))
+        ).first()
+        repository_id = member.repository_id if member is not None else None
     if not repository_id:
         raise HTTPException(status_code=400, detail="No repository set; pass repository_id or set one on the task")
     repo = session.get(Repository, repository_id)

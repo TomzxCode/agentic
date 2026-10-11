@@ -8,7 +8,7 @@ import anyio
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import case
 from sqlalchemy import delete as sa_delete
-from sqlmodel import Session, select
+from sqlmodel import Session, col, select
 
 from ..crud import add_timeline, field_label, get_task_or_404, jsonable
 from ..db import get_session
@@ -51,13 +51,13 @@ def _task_repository_ids(session: Session, task_id: str) -> list[str]:
     return [
         member.repository_id
         for member in session.exec(
-            select(TaskRepository).where(TaskRepository.task_id == task_id).order_by(TaskRepository.created_at)
+            select(TaskRepository).where(TaskRepository.task_id == task_id).order_by(col(TaskRepository.created_at))
         ).all()
     ]
 
 
 def _set_task_repositories(session: Session, task_id: str, repository_ids: list[str]) -> None:
-    session.execute(sa_delete(TaskRepository).where(TaskRepository.task_id == task_id))
+    session.exec(sa_delete(TaskRepository).where(col(TaskRepository.task_id) == task_id))
     seen: set[str] = set()
     for repository_id in repository_ids:
         if repository_id in seen or session.get(Repository, repository_id) is None:
@@ -79,7 +79,7 @@ def _repository_names(session: Session, repository_ids: list[str]) -> list[str]:
 
 def _detail(session: Session, task: Task) -> TaskDetail:
     associations = session.exec(
-        select(Association).where(Association.task_id == task.id).order_by(Association.created_at.desc())
+        select(Association).where(Association.task_id == task.id).order_by(col(Association.created_at).desc())
     ).all()
     details: list[AssociationDetail] = []
     for assoc in associations:
@@ -98,17 +98,17 @@ def _detail(session: Session, task: Task) -> TaskDetail:
         select(Worktree)
         .where(Worktree.task_id == task.id)
         .order_by(
-            case((Worktree.status == WorktreeStatus.active, 0), else_=1),
-            Worktree.created_at.desc(),
+            case((col(Worktree.status) == WorktreeStatus.active, 0), else_=1),
+            col(Worktree.created_at).desc(),
         )
     ).all()
     runs = session.exec(
-        select(AgentRun).where(AgentRun.task_id == task.id).order_by(AgentRun.created_at.desc()).limit(20)
+        select(AgentRun).where(AgentRun.task_id == task.id).order_by(col(AgentRun.created_at).desc()).limit(20)
     ).all()
     timeline = session.exec(
         select(TimelineEvent)
         .where(TimelineEvent.task_id == task.id)
-        .order_by(TimelineEvent.created_at.desc())
+        .order_by(col(TimelineEvent.created_at).desc())
         .limit(100)
     ).all()
     return TaskDetail(
@@ -140,7 +140,7 @@ def list_tasks(
     q: str | None = None,
     session: Session = Depends(get_session),
 ) -> list[TaskRead]:
-    query = select(Task).order_by(Task.updated_at.desc())
+    query = select(Task).order_by(col(Task.updated_at).desc())
     if status:
         query = query.where(Task.status == status)
     tasks = list(session.exec(query).all())
@@ -275,13 +275,13 @@ async def delete_task(task_id: str, session: Session = Depends(get_session)) -> 
     # so children must go before the task row.
     run_ids = [r.id for r in session.exec(select(AgentRun).where(AgentRun.task_id == task.id)).all()]
     if run_ids:
-        session.execute(sa_delete(AgentEvent).where(AgentEvent.run_id.in_(run_ids)))
-    session.execute(sa_delete(AgentRun).where(AgentRun.task_id == task.id))
-    session.execute(sa_delete(Association).where(Association.task_id == task.id))
-    session.execute(sa_delete(Worktree).where(Worktree.task_id == task.id))
-    session.execute(sa_delete(TimelineEvent).where(TimelineEvent.task_id == task.id))
-    session.execute(sa_delete(TaskRepository).where(TaskRepository.task_id == task.id))
-    session.execute(sa_delete(Task).where(Task.id == task.id))
+        session.exec(sa_delete(AgentEvent).where(col(AgentEvent.run_id).in_(run_ids)))
+    session.exec(sa_delete(AgentRun).where(col(AgentRun.task_id) == task.id))
+    session.exec(sa_delete(Association).where(col(Association.task_id) == task.id))
+    session.exec(sa_delete(Worktree).where(col(Worktree.task_id) == task.id))
+    session.exec(sa_delete(TimelineEvent).where(col(TimelineEvent.task_id) == task.id))
+    session.exec(sa_delete(TaskRepository).where(col(TaskRepository.task_id) == task.id))
+    session.exec(sa_delete(Task).where(col(Task.id) == task.id))
     session.commit()
     await bus.publish("tasks", {"kind": "task", "action": "deleted", "id": task_id})
 
@@ -333,7 +333,7 @@ def get_timeline(task_id: str, session: Session = Depends(get_session)) -> list[
     get_task_or_404(session, task_id)
     return list(
         session.exec(
-            select(TimelineEvent).where(TimelineEvent.task_id == task_id).order_by(TimelineEvent.created_at.desc())
+            select(TimelineEvent).where(TimelineEvent.task_id == task_id).order_by(col(TimelineEvent.created_at).desc())
         ).all()
     )
 

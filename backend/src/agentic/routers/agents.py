@@ -10,7 +10,7 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import delete as sa_delete
 from sqlalchemy import update as sa_update
-from sqlmodel import Session, select
+from sqlmodel import Session, col, select
 from sse_starlette.sse import EventSourceResponse
 
 from ..agents import execute_context_refresh, execute_run, get_harness, harness_available, seed_harnesses
@@ -89,9 +89,9 @@ def delete_harness(harness_id: str, session: Session = Depends(get_session)) -> 
     harness = session.get(Harness, harness_id)
     if harness is None:
         raise HTTPException(status_code=404, detail="Harness not found")
-    session.execute(sa_update(Task).where(Task.harness_id == harness.id).values(harness_id=None))
-    session.execute(sa_update(AgentRun).where(AgentRun.harness_id == harness.id).values(harness_id=None))
-    session.execute(sa_delete(Harness).where(Harness.id == harness.id))
+    session.exec(sa_update(Task).where(col(Task.harness_id) == harness.id).values(harness_id=None))
+    session.exec(sa_update(AgentRun).where(col(AgentRun.harness_id) == harness.id).values(harness_id=None))
+    session.exec(sa_delete(Harness).where(col(Harness.id) == harness.id))
     session.commit()
 
 
@@ -107,12 +107,12 @@ def _resolve_cwd(session: Session, task: Task, payload: RunCreate) -> str:
     active = session.exec(
         select(Worktree)
         .where(Worktree.task_id == task.id, Worktree.status == "active")
-        .order_by(Worktree.created_at.desc())
+        .order_by(col(Worktree.created_at).desc())
     ).first()
     if active is not None:
         return active.path
     task_repos = session.exec(
-        select(TaskRepository).where(TaskRepository.task_id == task.id).order_by(TaskRepository.created_at)
+        select(TaskRepository).where(TaskRepository.task_id == task.id).order_by(col(TaskRepository.created_at))
     ).all()
     if task_repos:
         repo = session.get(Repository, task_repos[0].repository_id)
@@ -125,7 +125,9 @@ def _resolve_cwd(session: Session, task: Task, payload: RunCreate) -> str:
 @router.get("/tasks/{task_id}/runs", response_model=list[RunRead])
 def list_runs(task_id: str, session: Session = Depends(get_session)) -> list[RunRead]:
     get_task_or_404(session, task_id)
-    rows = session.exec(select(AgentRun).where(AgentRun.task_id == task_id).order_by(AgentRun.created_at.desc())).all()
+    rows = session.exec(
+        select(AgentRun).where(AgentRun.task_id == task_id).order_by(col(AgentRun.created_at).desc())
+    ).all()
     return [run_read(session, run) for run in rows]
 
 
@@ -198,7 +200,7 @@ async def refresh_context(task_id: str, session: Session = Depends(get_session))
     task_repo_ids = [
         member.repository_id
         for member in session.exec(
-            select(TaskRepository).where(TaskRepository.task_id == task_id).order_by(TaskRepository.created_at)
+            select(TaskRepository).where(TaskRepository.task_id == task_id).order_by(col(TaskRepository.created_at))
         ).all()
     ]
     repositories = [r.path for r in (session.get(Repository, rid) for rid in task_repo_ids) if r is not None]
@@ -260,7 +262,7 @@ def get_run(run_id: str, session: Session = Depends(get_session)) -> RunRead:
 
 @router.get("/runs/{run_id}/events", response_model=list[AgentEventRead])
 def get_run_events(run_id: str, session: Session = Depends(get_session)) -> list[AgentEvent]:
-    return list(session.exec(select(AgentEvent).where(AgentEvent.run_id == run_id).order_by(AgentEvent.seq)).all())
+    return list(session.exec(select(AgentEvent).where(AgentEvent.run_id == run_id).order_by(col(AgentEvent.seq))).all())
 
 
 @router.post("/runs/{run_id}/cancel", response_model=RunRead)
@@ -292,7 +294,9 @@ async def stream_run(run_id: str) -> EventSourceResponse:
                     return
                 finished = run.status in (RunStatus.succeeded, RunStatus.failed, RunStatus.cancelled)
                 replay = list(
-                    session.exec(select(AgentEvent).where(AgentEvent.run_id == run_id).order_by(AgentEvent.seq)).all()
+                    session.exec(
+                        select(AgentEvent).where(AgentEvent.run_id == run_id).order_by(col(AgentEvent.seq))
+                    ).all()
                 )
             last_seq = 0
             for row in replay:
