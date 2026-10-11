@@ -134,9 +134,10 @@ The **Items** page lists every resource the app tracks (Slack threads, GitHub
 issues/PRs, Drive docs, URLs, notes) with per-source filters, search, and links
 to the tasks each one is used by.
 
-For hands-on-keyboard navigation, press **f** on a task page: each field shows a
-letter badge (**t**itle, **d**escription, **s**tatus, **p**riority, **g**roup,
-**r**epository); press it to focus that field, **Esc** to exit.
+For hands-on-keyboard navigation, press **f** on any page: every field and
+button gets a letter badge; press the letter to focus that control (**Esc**
+exits). On a task page that covers the header, the Agent/Items/Worktrees panels,
+and their buttons.
 
 ## Open a session in a terminal or OpenChamber
 

@@ -10,7 +10,6 @@ import TimelinePanel from '../components/TimelinePanel.vue'
 import SessionLinks from '../components/SessionLinks.vue'
 import EditableText from '../components/EditableText.vue'
 import SearchSelect from '../components/SearchSelect.vue'
-import HintBadge from '../components/HintBadge.vue'
 
 const props = defineProps({ id: { type: String, required: true } })
 const emit = defineEmits(['changed'])
@@ -131,15 +130,7 @@ onMounted(async () => {
     }[field]
     target?.value?.activate?.()
   }
-  // Focus-hint mode: press f, then this letter, to jump to a field.
-  store.hintMap = {
-    t: () => titleRef.value?.activate?.(),
-    d: () => descriptionRef.value?.activate?.(),
-    s: () => statusRef.value?.activate?.(),
-    p: () => priorityRef.value?.activate?.(),
-    g: () => groupRef.value?.activate?.(),
-    r: () => repositoryRef.value?.activate?.(),
-  }
+  // Focus-hint mode uses the DOM scan in App; nothing to register here.
   await store.loadHarnesses().catch(() => {})
   await store.loadRepositories().catch(() => {})
   await store.loadGroups().catch(() => {})
@@ -148,7 +139,6 @@ onMounted(async () => {
 })
 onUnmounted(() => {
   store.focusField = null
-  store.hintMap = {}
   store.hintMode = false
   closeStream?.()
 })
@@ -170,53 +160,41 @@ watch(
   <div v-else>
     <div class="row page-head" style="margin-bottom: 16px">
       <div class="grow" style="min-width: 0">
-        <div class="hint-host inline">
-          <EditableText
-            ref="titleRef"
-            as="h1"
-            style="margin-bottom: 4px"
-            :value="task.title"
-            placeholder="Untitled task"
-            @save="(value) => update('title', value)"
-          />
-          <HintBadge hint="t" />
-        </div>
+        <EditableText
+          ref="titleRef"
+          as="h1"
+          style="margin-bottom: 4px"
+          :value="task.title"
+          placeholder="Untitled task"
+          @save="(value) => update('title', value)"
+        />
         <div class="row">
-          <span class="hint-host inline">
-            <SearchSelect
-              ref="statusRef"
-              variant="inline"
-              :model-value="task.status"
-              :options="STATUS_OPTIONS"
-              :sort="false"
-              title="Status"
-              @update:model-value="(value) => update('status', value)"
-            />
-            <HintBadge hint="s" />
-          </span>
-          <span class="hint-host inline">
-            <SearchSelect
-              ref="priorityRef"
-              variant="inline"
-              :model-value="task.priority"
-              :options="PRIORITY_OPTIONS"
-              :sort="false"
-              title="Priority"
-              @update:model-value="(value) => update('priority', Number(value))"
-            />
-            <HintBadge hint="p" />
-          </span>
-          <span class="hint-host inline">
-            <SearchSelect
-              ref="groupRef"
-              variant="inline"
-              :model-value="task.group_id || ''"
-              :options="groupOptions"
-              title="Repository group"
-              @update:model-value="(value) => update('group_id', value)"
-            />
-            <HintBadge hint="g" />
-          </span>
+          <SearchSelect
+            ref="statusRef"
+            variant="inline"
+            :model-value="task.status"
+            :options="STATUS_OPTIONS"
+            :sort="false"
+            title="Status"
+            @update:model-value="(value) => update('status', value)"
+          />
+          <SearchSelect
+            ref="priorityRef"
+            variant="inline"
+            :model-value="task.priority"
+            :options="PRIORITY_OPTIONS"
+            :sort="false"
+            title="Priority"
+            @update:model-value="(value) => update('priority', Number(value))"
+          />
+          <SearchSelect
+            ref="groupRef"
+            variant="inline"
+            :model-value="task.group_id || ''"
+            :options="groupOptions"
+            title="Repository group"
+            @update:model-value="(value) => update('group_id', value)"
+          />
         </div>
         <div class="row" style="margin-top: 6px">
           <span class="faint">repositories:</span>
@@ -224,17 +202,15 @@ watch(
             {{ repo.name }}
             <button class="chip-x" title="Remove" @click="removeRepository(repo.id)">×</button>
           </span>
-          <span v-if="addRepositoryOptions.length" class="hint-host inline">
-            <SearchSelect
-              ref="repositoryRef"
-              variant="inline"
-              :model-value="''"
-              :options="addRepositoryOptions"
-              placeholder="+ add repository"
-              @update:model-value="addRepository"
-            />
-            <HintBadge hint="r" />
-          </span>
+          <SearchSelect
+            v-if="addRepositoryOptions.length"
+            ref="repositoryRef"
+            variant="inline"
+            :model-value="''"
+            :options="addRepositoryOptions"
+            placeholder="+ add repository"
+            @update:model-value="addRepository"
+          />
           <span v-if="!taskRepositories.length && !addRepositoryOptions.length" class="faint">none registered</span>
         </div>
         <SessionLinks v-if="latestLinks.length" :links="latestLinks" compact />
@@ -244,18 +220,15 @@ watch(
       </div>
     </div>
 
-    <div class="hint-host inline">
-      <EditableText
-        ref="descriptionRef"
-        class="muted"
-        as="p"
-        multiline
-        :value="task.description"
-        placeholder="Add a description…"
-        @save="(value) => update('description', value)"
-      />
-      <HintBadge hint="d" />
-    </div>
+    <EditableText
+      ref="descriptionRef"
+      class="muted"
+      as="p"
+      multiline
+      :value="task.description"
+      placeholder="Add a description…"
+      @save="(value) => update('description', value)"
+    />
 
     <div class="grid-2" style="margin-top: 16px">
       <div>

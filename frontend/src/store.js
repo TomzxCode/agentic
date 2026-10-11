@@ -10,9 +10,8 @@ export const store = reactive({
   toast: null,
   // Set by the active task page so the palette can jump to its fields.
   focusField: null,
-  // Focus-hint mode: press f, then a field's letter, to jump to it.
+  // Focus-hint mode: press f to reveal a letter over each control.
   hintMode: false,
-  hintMap: {},
 
   async loadTasks() {
     this.tasks = await api.tasks.list()

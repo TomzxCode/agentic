@@ -62,9 +62,10 @@ const taskFieldItems = computed(() =>
 
 const paletteItems = computed(() => [
   { id: 'new-task', label: 'New task', group: 'Actions', run: () => (showNew.value = true) },
-  { id: 'focus-hints', label: 'Show field shortcuts', hint: 'f', group: 'Actions', run: () => (store.hintMode = true) },
+  { id: 'focus-hints', label: 'Show focus hints', hint: 'f', group: 'Actions', run: () => (store.hintMode = true) },
   ...taskFieldItems.value,
   { id: 'go-tasks', label: 'Go to tasks', group: 'Navigation', run: () => router.push('/') },
+  { id: 'go-gantt', label: 'Go to gantt', group: 'Navigation', run: () => router.push('/gantt') },
   { id: 'go-items', label: 'Go to resources', group: 'Navigation', run: () => router.push('/items') },
   { id: 'go-settings', label: 'Go to settings', group: 'Navigation', run: () => router.push('/settings') },
   ...store.tasks.map((task) => ({
@@ -84,31 +85,94 @@ function isTyping(target) {
   return !!target && (['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName) || target.isContentEditable)
 }
 
+// Focus-hint mode: press f, then the letter over a control, to focus it. The
+// targets are scanned from the page so every field/button is covered.
+const HINT_SELECTOR = 'a[href], button, input, textarea, select, [tabindex]:not([tabindex="-1"])'
+const hintBadges = ref([])
+let hintTargets = []
+let hintBuffer = ''
+let hintCleanup = null
+
+function hintLabelFor(index) {
+  const alphabet = 'abcdefghijklmnopqrstuvwxyz'
+  if (index < alphabet.length) return alphabet[index]
+  const rest = index - alphabet.length
+  return alphabet[Math.floor(rest / alphabet.length)] + alphabet[rest % alphabet.length]
+}
+
+function positionHints() {
+  hintTargets.forEach((target, index) => {
+    const badge = hintBadges.value[index]
+    if (!badge) return
+    const rect = target.el.getBoundingClientRect()
+    badge.left = rect.left
+    badge.top = rect.top
+    badge.hidden = rect.width === 0 && rect.height === 0
+  })
+}
+
+function stopHints() {
+  hintCleanup?.()
+  hintCleanup = null
+  hintTargets = []
+  hintBadges.value = []
+  hintBuffer = ''
+}
+
+function startHints() {
+  stopHints()
+  const container = document.querySelector('.main')
+  if (!container) return
+  const nodes = Array.from(container.querySelectorAll(HINT_SELECTOR)).filter(
+    (el) => !el.disabled && !el.closest('.transcript'),
+  )
+  hintTargets = nodes.map((el, index) => ({ key: hintLabelFor(index), el }))
+  hintBadges.value = hintTargets.map(({ key }) => ({ key, left: 0, top: 0, hidden: false }))
+  positionHints()
+  window.addEventListener('scroll', positionHints, true)
+  window.addEventListener('resize', positionHints)
+  hintCleanup = () => {
+    window.removeEventListener('scroll', positionHints, true)
+    window.removeEventListener('resize', positionHints)
+  }
+}
+
 function onGlobalKeydown(event) {
   if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
     event.preventDefault()
     paletteOpen.value = !paletteOpen.value
     return
   }
+
   if (store.hintMode) {
-    if (event.key === 'Escape' || event.key === 'f') {
+    if (event.key === 'Escape') {
       event.preventDefault()
       store.hintMode = false
       return
     }
-    const action = store.hintMap[event.key.toLowerCase()]
-    if (action) {
-      event.preventDefault()
-      action()
-      store.hintMode = false
+    const char = event.key.toLowerCase()
+    if (/^[a-z]$/.test(char)) {
+      hintBuffer += char
+      const exact = hintTargets.find((target) => target.key === hintBuffer)
+      if (exact) {
+        event.preventDefault()
+        exact.el.focus()
+        store.hintMode = false
+      } else if (hintTargets.some((target) => target.key.startsWith(hintBuffer))) {
+        event.preventDefault()
+      } else {
+        hintBuffer = ''
+      }
     }
     return
   }
+
   if (event.key === 'Escape') {
     if (paletteOpen.value) paletteOpen.value = false
     else if (showNew.value) showNew.value = false
     return
   }
+
   if (
     event.key.toLowerCase() === 'f' &&
     !event.metaKey &&
@@ -117,12 +181,17 @@ function onGlobalKeydown(event) {
     !isTyping(event.target) &&
     !paletteOpen.value &&
     !showNew.value &&
-    Object.keys(store.hintMap).length
+    document.querySelector('.main')?.querySelector(HINT_SELECTOR)
   ) {
     event.preventDefault()
     store.hintMode = true
   }
 }
+
+watch(
+  () => store.hintMode,
+  (on) => (on ? startHints() : stopHints()),
+)
 
 // Newest issues first (by number), with a text filter.
 const sortedIssues = computed(() => {
@@ -236,7 +305,10 @@ onMounted(async () => {
   await store.loadGroups().catch(() => {})
   await store.loadRepositories().catch(() => {})
 })
-onUnmounted(() => window.removeEventListener('keydown', onGlobalKeydown))
+onUnmounted(() => {
+  window.removeEventListener('keydown', onGlobalKeydown)
+  stopHints()
+})
 </script>
 
 <template>
@@ -265,6 +337,7 @@ onUnmounted(() => window.removeEventListener('keydown', onGlobalKeydown))
         ⌘K
       </button>
       <router-link to="/" class="btn ghost sm nav-tasks" :class="{ primary: route.name === 'tasks' }">Tasks</router-link>
+      <router-link to="/gantt" class="btn ghost sm" :class="{ primary: route.name === 'gantt' }">Gantt</router-link>
       <router-link to="/items" class="btn ghost sm" :class="{ primary: route.name === 'items' }">Items</router-link>
       <router-link to="/settings" class="btn ghost sm" :class="{ primary: route.name === 'settings' }">Settings</router-link>
       <button class="btn primary mobile-only" title="New task" aria-label="New task" @click="showNew = true">+</button>
@@ -381,8 +454,16 @@ onUnmounted(() => window.removeEventListener('keydown', onGlobalKeydown))
     <div v-if="store.toast" class="toast" :class="{ err: store.toast.isError }">{{ store.toast.message }}</div>
 
     <div v-if="store.hintMode" class="hint-banner">
-      Press a field's letter to focus it · <span class="mono">Esc</span> to exit
+      Press the letter over a control to focus it · <span class="mono">Esc</span> to exit
     </div>
+
+    <span
+      v-for="badge in hintBadges"
+      v-show="!badge.hidden"
+      :key="badge.key"
+      class="hint-badge"
+      :style="{ left: badge.left + 'px', top: badge.top + 'px' }"
+    >{{ badge.key }}</span>
 
     <CommandPalette
       v-if="paletteOpen"

@@ -123,15 +123,14 @@ h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: v
 .chip-x { background: transparent; border: none; padding: 0; color: var(--faint); cursor: pointer; font-size: 12px; line-height: 1; }
 .chip-x:hover { color: var(--danger); }
 
-/* Focus hints (press f, then a field's letter) */
-.hint-host { position: relative; }
-.hint-host.inline { display: inline-block; }
+/* Focus hints (press f, then the letter over a control) */
 .hint-badge {
-  position: absolute; top: -8px; right: -8px; z-index: 6;
+  position: fixed; z-index: 90; pointer-events: none;
   min-width: 16px; height: 16px; padding: 0 4px;
   display: inline-flex; align-items: center; justify-content: center;
   background: var(--accent-2); color: #05121f; font-size: 10px; font-weight: 700;
   border-radius: 4px; box-shadow: 0 1px 4px rgba(0, 0, 0, .4);
+  transform: translate(-50%, -50%);
 }
 .hint-banner {
   position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%);
@@ -304,6 +303,45 @@ h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: v
 code, .mono { font-family: var(--mono); font-size: 12.5px; }
 .copy { cursor: pointer; }
 
+/* Gantt */
+.gantt-toggle { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); cursor: pointer; }
+.gantt-toggle input { accent-color: var(--accent-2); }
+.gantt-scroll { overflow-x: auto; margin: 0 -4px; padding: 0 4px; }
+.gantt { min-width: 100%; padding: 0 10px; }
+.gantt-row { display: grid; grid-template-columns: 220px 1fr; align-items: stretch; border-bottom: 1px solid var(--border); }
+.gantt-row:last-child { border-bottom: none; }
+.gantt-link:hover { background: var(--bg-2); text-decoration: none; }
+.gantt-label { min-width: 0; display: flex; align-items: center; gap: 8px; padding: 9px 12px 9px 0; }
+.gantt-label .badge { flex: none; text-transform: capitalize; }
+.gantt-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gantt-track { position: relative; min-height: 38px; }
+.gantt-axis .gantt-track { min-height: 22px; }
+.gantt-axis .gantt-label { padding: 0; }
+.gantt-tick { position: absolute; top: 3px; font-size: 11px; color: var(--faint); white-space: nowrap; }
+.gantt-tick.start { transform: none; }
+.gantt-tick.center { transform: translateX(-50%); }
+.gantt-tick.end { transform: translateX(-100%); }
+.gantt-gridline { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--border); opacity: .45; }
+.gantt-now { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--accent); opacity: .55; }
+.gantt-bar { position: absolute; top: 50%; transform: translateY(-50%); height: 14px; border-radius: 5px; opacity: .5; }
+.gantt-bar.st-open { background: var(--muted); }
+.gantt-bar.st-in_progress { background: var(--accent-2); }
+.gantt-bar.st-blocked { background: var(--warn); }
+.gantt-bar.st-done { background: var(--ok); }
+.gantt-bar.st-archived { background: var(--faint); }
+.gantt-marker { position: absolute; top: 50%; width: 9px; height: 9px; transform: translate(-50%, -50%) rotate(45deg); border: 1px solid var(--bg-1); cursor: help; }
+.gantt-legend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 14px; font-size: 12px; color: var(--muted); }
+.legend-item { display: inline-flex; align-items: center; gap: 6px; }
+.legend-dot { width: 9px; height: 9px; transform: rotate(45deg); flex: none; }
+.legend-line { width: 1px; height: 12px; background: var(--accent); opacity: .55; }
+.mk-accent { background: var(--accent); }
+.mk-blue { background: var(--accent-2); }
+.mk-ok { background: var(--ok); }
+.mk-warn { background: var(--warn); }
+.mk-danger { background: var(--danger); }
+.mk-violet { background: #c084fc; }
+.mk-muted { background: var(--muted); }
+
 /* Mobile */
 @media (max-width: 760px) {
   .app { grid-template-columns: 1fr; }
@@ -325,6 +363,8 @@ code, .mono { font-family: var(--mono); font-size: 12.5px; }
 
   .main { padding: 14px 14px calc(72px + env(safe-area-inset-bottom)); }
   .grid-2 { grid-template-columns: 1fr; }
+  .gantt { min-width: 560px; }
+  .gantt-row { grid-template-columns: 150px 1fr; }
   .panel { padding: 14px; border-radius: 12px; }
   .panel-head { flex-wrap: wrap; }
 
