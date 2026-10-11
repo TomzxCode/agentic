@@ -15,8 +15,8 @@ const router = createRouter({
     { path: '/task/:id', name: 'task', component: TaskView, props: true },
     { path: '/gantt', name: 'gantt', component: GanttView },
     { path: '/items', name: 'items', component: ItemsView },
-    { path: '/settings', name: 'settings', component: SettingsView },
-  ],
+    { path: '/settings', name: 'settings', component: SettingsView }
+  ]
 })
 
 createApp(App).use(router).mount('#app')

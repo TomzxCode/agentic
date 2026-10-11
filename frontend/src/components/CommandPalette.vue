@@ -42,7 +42,7 @@ const grouped = computed(() => {
   }
   const order = [
     ...GROUP_ORDER.filter((group) => buckets.has(group)),
-    ...[...buckets.keys()].filter((group) => !GROUP_ORDER.includes(group)),
+    ...[...buckets.keys()].filter((group) => !GROUP_ORDER.includes(group))
   ]
   let index = 0
   return order.map((group) => ({ group, items: buckets.get(group).map((item) => ({ item, index: index++ })) }))

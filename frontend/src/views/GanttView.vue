@@ -24,7 +24,7 @@ const MARKER_KIND = {
   run_started: 'blue',
   context_refresh: 'blue',
   context_updated: 'ok',
-  context_refresh_failed: 'danger',
+  context_refresh_failed: 'danger'
 }
 const MARKER_LABEL = {
   created: 'Created',
@@ -36,7 +36,7 @@ const MARKER_LABEL = {
   run_started: 'Run started',
   context_refresh: 'Context refresh requested',
   context_updated: 'Context updated',
-  context_refresh_failed: 'Context refresh failed',
+  context_refresh_failed: 'Context refresh failed'
 }
 
 function markerKind(type) {
@@ -94,7 +94,7 @@ const bounds = computed(() => {
   return {
     lo: rangeStart.value ? new Date(rangeStart.value).getTime() : fit.lo,
     hi: rangeEnd.value ? new Date(rangeEnd.value).getTime() : fit.hi,
-    fit,
+    fit
   }
 })
 
@@ -144,9 +144,9 @@ const ticks = computed(() => {
         undefined,
         withTime
           ? { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }
-          : { month: 'short', day: 'numeric' },
+          : { month: 'short', day: 'numeric' }
       ),
-      align: i === 0 ? 'start' : i === count ? 'end' : 'center',
+      align: i === 0 ? 'start' : i === count ? 'end' : 'center'
     })
   }
   return out
@@ -201,9 +201,7 @@ const legend = computed(() => {
         <input v-model="includeDone" type="checkbox" @change="load" />
         Include done
       </label>
-      <button class="btn sm ghost" @click="load">
-        <span v-if="loading" class="spinner"></span> Refresh
-      </button>
+      <button class="btn sm ghost" @click="load"><span v-if="loading" class="spinner"></span> Refresh</button>
     </div>
 
     <p v-if="rangeInvalid" class="gantt-range-error">End must be after start. Showing the fitted range.</p>
@@ -227,7 +225,8 @@ const legend = computed(() => {
                 class="gantt-tick"
                 :class="tick.align"
                 :style="{ left: tick.left + '%' }"
-              >{{ tick.label }}</span>
+                >{{ tick.label }}</span
+              >
             </div>
           </div>
 

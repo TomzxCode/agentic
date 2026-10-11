@@ -5,7 +5,7 @@ const props = defineProps({
   value: { type: String, default: '' },
   placeholder: { type: String, default: 'Click to edit' },
   multiline: { type: Boolean, default: false },
-  as: { type: String, default: 'span' },
+  as: { type: String, default: 'span' }
 })
 const emit = defineEmits(['save'])
 
@@ -90,5 +90,6 @@ defineExpose({ activate: start })
     title="Click or press Enter to edit"
     @click="start"
     @keydown="onDisplayKeydown"
-  >{{ value || placeholder }}</component>
+    >{{ value || placeholder }}</component
+  >
 </template>

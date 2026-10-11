@@ -35,35 +35,35 @@ const STATUS_OPTIONS = [
   { value: 'in_progress', label: 'in progress' },
   { value: 'blocked', label: 'blocked' },
   { value: 'done', label: 'done' },
-  { value: 'archived', label: 'archived' },
+  { value: 'archived', label: 'archived' }
 ]
 const PRIORITY_OPTIONS = [
   { value: 0, label: 'priority: low' },
   { value: 1, label: 'priority: medium' },
   { value: 2, label: 'priority: high' },
-  { value: 3, label: 'priority: urgent' },
+  { value: 3, label: 'priority: urgent' }
 ]
 const groupOptions = computed(() => [
   { value: '', label: 'no group' },
-  ...store.groups.map((g) => ({ value: g.id, label: `group: ${g.name}` })),
+  ...store.groups.map((g) => ({ value: g.id, label: `group: ${g.name}` }))
 ])
 
 const taskRepositories = computed(() =>
   (task.value?.repository_ids || [])
     .map((id) => store.repositories.find((r) => r.id === id))
     .filter(Boolean)
-    .sort((a, b) => a.name.localeCompare(b.name)),
+    .sort((a, b) => a.name.localeCompare(b.name))
 )
 const addRepositoryOptions = computed(() =>
   store.repositories
     .filter((r) => !(task.value?.repository_ids || []).includes(r.id))
-    .map((r) => ({ value: r.id, label: r.name })),
+    .map((r) => ({ value: r.id, label: r.name }))
 )
 
 async function load() {
   try {
     task.value = await api.tasks.get(props.id)
-  } catch (e) {
+  } catch {
     notFound.value = true
   } finally {
     loading.value = false
@@ -101,7 +101,10 @@ async function addRepository(id) {
 }
 
 async function removeRepository(id) {
-  await update('repository_ids', (task.value.repository_ids || []).filter((x) => x !== id))
+  await update(
+    'repository_ids',
+    (task.value.repository_ids || []).filter((x) => x !== id)
+  )
 }
 
 async function removeTask() {
@@ -126,7 +129,7 @@ onMounted(async () => {
       status: statusRef,
       priority: priorityRef,
       group: groupRef,
-      repository: repositoryRef,
+      repository: repositoryRef
     }[field]
     target?.value?.activate?.()
   }
@@ -150,7 +153,7 @@ watch(
     notFound.value = false
     await load()
     subscribe()
-  },
+  }
 )
 </script>
 

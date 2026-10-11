@@ -1,0 +1,6 @@
+dist
+dev-dist
+coverage
+node_modules
+../backend/static
+package-lock.json

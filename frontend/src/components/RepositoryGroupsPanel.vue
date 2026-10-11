@@ -72,15 +72,17 @@ onMounted(load)
   <section class="panel">
     <div class="panel-head"><h2>Repository groups</h2></div>
     <p class="faint" style="margin-top: 0">
-      Name a set of repositories. Pick a group on a task so the agent knows those checkouts may
-      hold information relevant to it.
+      Name a set of repositories. Pick a group on a task so the agent knows those checkouts may hold information
+      relevant to it.
     </p>
 
     <div v-for="group in store.groups" :key="group.id" class="item">
       <template v-if="editingId !== group.id">
         <div class="item-top">
           <span class="title">{{ group.name }}</span>
-          <span class="badge">{{ group.repository_ids.length }} repo{{ group.repository_ids.length === 1 ? '' : 's' }}</span>
+          <span class="badge"
+            >{{ group.repository_ids.length }} repo{{ group.repository_ids.length === 1 ? '' : 's' }}</span
+          >
           <button class="btn sm" @click="startEdit(group)">Edit</button>
           <button class="btn sm danger" @click="remove(group.id)">Remove</button>
         </div>

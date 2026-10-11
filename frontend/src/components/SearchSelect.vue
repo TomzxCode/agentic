@@ -8,7 +8,7 @@ const props = defineProps({
   variant: { type: String, default: 'field' }, // field | inline
   title: { type: String, default: 'Click to choose' },
   disabled: { type: Boolean, default: false },
-  sort: { type: Boolean, default: true },
+  sort: { type: Boolean, default: true }
 })
 const emit = defineEmits(['update:modelValue'])
 
@@ -21,7 +21,7 @@ const input = ref(null)
 const normalized = computed(() => {
   const options = props.options.map((option) => ({
     value: String(option.value ?? ''),
-    label: option.label ?? String(option.value ?? ''),
+    label: option.label ?? String(option.value ?? '')
   }))
   if (!props.sort) return options
   // Alphabetical, but keep the empty-value sentinel (None/Auto/…) first.
@@ -46,7 +46,10 @@ function toggle() {
 function show() {
   open.value = true
   query.value = ''
-  highlighted.value = Math.max(0, filtered.value.findIndex((option) => option.value === current.value))
+  highlighted.value = Math.max(
+    0,
+    filtered.value.findIndex((option) => option.value === current.value)
+  )
   document.addEventListener('mousedown', onOutside)
   nextTick(() => input.value?.focus())
 }
@@ -105,13 +108,7 @@ defineExpose({ activate: show })
     </button>
 
     <div v-if="open" class="ss-panel">
-      <input
-        ref="input"
-        v-model="query"
-        class="ss-search"
-        placeholder="Filter…"
-        @keydown="onKeydown"
-      />
+      <input ref="input" v-model="query" class="ss-search" placeholder="Filter…" @keydown="onKeydown" />
       <div class="ss-options">
         <div v-if="!filtered.length" class="ss-empty faint">No matches</div>
         <button

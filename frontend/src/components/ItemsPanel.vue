@@ -33,8 +33,8 @@ async function addItem() {
         url: draft.url || null,
         title: draft.title,
         content: draft.content,
-        fetch: !draft.content,
-      },
+        fetch: !draft.content
+      }
     })
     draft.url = draft.title = draft.content = draft.note = ''
     draft.showContent = false
@@ -63,7 +63,11 @@ async function refreshItem(itemId) {
 
 <template>
   <section class="panel">
-    <div class="panel-head"><h2>Items <span class="faint">{{ task.associations?.length || 0 }}</span></h2></div>
+    <div class="panel-head">
+      <h2>
+        Items <span class="faint">{{ task.associations?.length || 0 }}</span>
+      </h2>
+    </div>
 
     <div v-if="!task.associations?.length" class="faint" style="margin-bottom: 12px">
       Nothing associated yet. Paste a Slack thread, GitHub issue/PR, Drive link, or a note.
@@ -74,7 +78,9 @@ async function refreshItem(itemId) {
       <div v-for="assoc in items" :key="assoc.id" class="item">
         <div class="item-top">
           <span class="badge chip-source" :class="`src-${source}`">{{ source }}</span>
-          <a v-if="assoc.item.url" :href="assoc.item.url" target="_blank" class="title">{{ assoc.item.title || assoc.item.url }}</a>
+          <a v-if="assoc.item.url" :href="assoc.item.url" target="_blank" class="title">{{
+            assoc.item.title || assoc.item.url
+          }}</a>
           <span v-else class="title">{{ assoc.item.title }}</span>
           <button class="btn sm ghost" title="Refresh" @click="refreshItem(assoc.item.id)">↻</button>
           <button class="btn sm ghost" title="Expand" @click="toggle(assoc.item.id)">

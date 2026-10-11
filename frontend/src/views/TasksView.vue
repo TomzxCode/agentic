@@ -16,7 +16,7 @@ const focus = computed(() =>
       const bv = (b.next_steps || []).filter((s) => !s.done).length
       return b.priority - a.priority || bv - av
     })
-    .slice(0, 8),
+    .slice(0, 8)
 )
 
 onMounted(() => store.loadTasks())
@@ -33,15 +33,9 @@ onMounted(() => store.loadTasks())
       <span class="badge ok">Done {{ counts.done }}</span>
     </div>
 
-    <section class="panel" v-if="focus.length">
+    <section v-if="focus.length" class="panel">
       <div class="panel-head"><h2>Focus</h2></div>
-      <router-link
-        v-for="p in focus"
-        :key="p.id"
-        :to="`/task/${p.id}`"
-        class="item"
-        style="display: block"
-      >
+      <router-link v-for="p in focus" :key="p.id" :to="`/task/${p.id}`" class="item" style="display: block">
         <div class="item-top">
           <span :class="statusClass(p.status)">{{ p.status.replace('_', ' ') }}</span>
           <span class="title">{{ p.title }}</span>
@@ -54,7 +48,7 @@ onMounted(() => store.loadTasks())
       </router-link>
     </section>
 
-    <section class="panel" v-else>
+    <section v-else class="panel">
       <h2 style="margin-bottom: 8px">Get started</h2>
       <ol class="muted" style="padding-left: 18px; line-height: 1.9">
         <li>Create a task (the <strong>+</strong> in the sidebar).</li>

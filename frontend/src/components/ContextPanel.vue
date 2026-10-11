@@ -8,9 +8,7 @@ const emit = defineEmits(['changed'])
 const refreshing = ref(false)
 
 async function toggleStep(index) {
-  const steps = (props.task.next_steps || []).map((s, i) =>
-    i === index ? { ...s, done: !s.done } : s,
-  )
+  const steps = (props.task.next_steps || []).map((s, i) => (i === index ? { ...s, done: !s.done } : s))
   await api.tasks.update(props.task.id, { next_steps: steps })
   emit('changed')
 }
@@ -32,7 +30,9 @@ async function refresh() {
 <template>
   <section class="panel">
     <div class="panel-head">
-      <h2>Context <span v-if="task.context_updated_at" class="faint">updated {{ timeAgo(task.context_updated_at) }}</span></h2>
+      <h2>
+        Context <span v-if="task.context_updated_at" class="faint">updated {{ timeAgo(task.context_updated_at) }}</span>
+      </h2>
       <button class="btn sm" :disabled="refreshing" @click="refresh">
         <span v-if="refreshing" class="spinner"></span>
         <span v-else>↻</span> Refresh with agent

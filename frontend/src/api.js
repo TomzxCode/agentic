@@ -4,7 +4,7 @@ async function request(path, { method = 'GET', body } = {}) {
   const res = await fetch(API + path, {
     method,
     headers: body !== undefined ? { 'Content-Type': 'application/json' } : {},
-    body: body !== undefined ? JSON.stringify(body) : undefined,
+    body: body !== undefined ? JSON.stringify(body) : undefined
   })
   if (res.status === 204) return null
   const text = await res.text()
@@ -27,12 +27,11 @@ export const api = {
     remove: (id) => request(`/tasks/${id}`, { method: 'DELETE' }),
     timeline: (id) => request(`/tasks/${id}/timeline`),
     associate: (id, body) => request(`/tasks/${id}/items`, { method: 'POST', body }),
-    unassociate: (id, itemId) => request(`/tasks/${id}/items/${itemId}`, { method: 'DELETE' }),
+    unassociate: (id, itemId) => request(`/tasks/${id}/items/${itemId}`, { method: 'DELETE' })
   },
 
   gantt: {
-    get: ({ includeDone = false } = {}) =>
-      request(`/gantt${includeDone ? '?include_done=true' : ''}`),
+    get: ({ includeDone = false } = {}) => request(`/gantt${includeDone ? '?include_done=true' : ''}`)
   },
 
   items: {
@@ -46,14 +45,14 @@ export const api = {
     create: (body) => request('/items', { method: 'POST', body }),
     update: (id, body) => request(`/items/${id}`, { method: 'PATCH', body }),
     refresh: (id) => request(`/items/${id}/refresh`, { method: 'POST' }),
-    remove: (id) => request(`/items/${id}`, { method: 'DELETE' }),
+    remove: (id) => request(`/items/${id}`, { method: 'DELETE' })
   },
 
   repositories: {
     list: () => request('/repositories'),
     create: (body) => request('/repositories', { method: 'POST', body }),
     createBulk: (paths) => request('/repositories/bulk', { method: 'POST', body: { paths } }),
-    remove: (id) => request(`/repositories/${id}`, { method: 'DELETE' }),
+    remove: (id) => request(`/repositories/${id}`, { method: 'DELETE' })
   },
 
   fs: {
@@ -63,14 +62,14 @@ export const api = {
       if (hidden) qs.set('hidden', 'true')
       const query = qs.toString()
       return request(`/fs/list${query ? `?${query}` : ''}`)
-    },
+    }
   },
 
   groups: {
     list: () => request('/groups'),
     create: (body) => request('/groups', { method: 'POST', body }),
     update: (id, body) => request(`/groups/${id}`, { method: 'PATCH', body }),
-    remove: (id) => request(`/groups/${id}`, { method: 'DELETE' }),
+    remove: (id) => request(`/groups/${id}`, { method: 'DELETE' })
   },
 
   github: {
@@ -83,7 +82,7 @@ export const api = {
       qs.set('limit', String(limit))
       return request(`/github/issues?${qs.toString()}`)
     },
-    issue: (url) => request(`/github/issue?${new URLSearchParams({ url }).toString()}`),
+    issue: (url) => request(`/github/issue?${new URLSearchParams({ url }).toString()}`)
   },
 
   harnesses: {
@@ -91,19 +90,18 @@ export const api = {
     full: () => request('/harnesses/full'),
     create: (body) => request('/harnesses', { method: 'POST', body }),
     update: (id, body) => request(`/harnesses/${id}`, { method: 'PATCH', body }),
-    remove: (id) => request(`/harnesses/${id}`, { method: 'DELETE' }),
+    remove: (id) => request(`/harnesses/${id}`, { method: 'DELETE' })
   },
 
   settings: {
     get: () => request('/settings'),
-    update: (body) => request('/settings', { method: 'PATCH', body }),
+    update: (body) => request('/settings', { method: 'PATCH', body })
   },
 
   worktrees: {
     list: (taskId) => request(`/tasks/${taskId}/worktrees`),
     create: (taskId, body) => request(`/tasks/${taskId}/worktrees`, { method: 'POST', body }),
-    remove: (taskId, worktreeId) =>
-      request(`/tasks/${taskId}/worktrees/${worktreeId}`, { method: 'DELETE' }),
+    remove: (taskId, worktreeId) => request(`/tasks/${taskId}/worktrees/${worktreeId}`, { method: 'DELETE' })
   },
 
   runs: {
@@ -113,8 +111,8 @@ export const api = {
     context: (taskId) => request(`/tasks/${taskId}/context`),
     get: (runId) => request(`/runs/${runId}`),
     events: (runId) => request(`/runs/${runId}/events`),
-    cancel: (runId) => request(`/runs/${runId}/cancel`, { method: 'POST' }),
-  },
+    cancel: (runId) => request(`/runs/${runId}/cancel`, { method: 'POST' })
+  }
 }
 
 export function openRunStream(runId, onEvent, onClose) {

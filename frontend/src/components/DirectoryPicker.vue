@@ -5,7 +5,7 @@ import { api } from '../api'
 const props = defineProps({
   startPath: { type: String, default: '' },
   // Absolute paths already registered as repositories.
-  existing: { type: Array, default: () => [] },
+  existing: { type: Array, default: () => [] }
 })
 const emit = defineEmits(['close', 'add'])
 
@@ -18,12 +18,10 @@ const manual = ref('')
 
 const existingSet = computed(() => new Set(props.existing))
 const selectedCount = computed(() => selected.value.size)
-const addedHere = computed(
-  () => (listing.value?.entries || []).filter((e) => isAdded(e.path)).length,
-)
+const addedHere = computed(() => (listing.value?.entries || []).filter((e) => isAdded(e.path)).length)
 const currentAdded = computed(() => isAdded(listing.value?.path))
 const currentLabel = computed(() =>
-  currentAdded.value ? '✓ added' : isSelected(listing.value?.path) ? '✓ Select this folder' : 'Select this folder',
+  currentAdded.value ? '✓ added' : isSelected(listing.value?.path) ? '✓ Select this folder' : 'Select this folder'
 )
 
 function isAdded(path) {
@@ -57,7 +55,7 @@ function toggle(path) {
 function addSelected() {
   emit(
     'add',
-    [...selected.value].filter((path) => !isAdded(path)),
+    [...selected.value].filter((path) => !isAdded(path))
   )
 }
 
@@ -81,17 +79,12 @@ onMounted(() => load(props.startPath || undefined))
         <button class="btn sm ghost" @click="emit('close')">✕</button>
       </div>
       <p class="faint" style="margin: 6px 0 10px">
-        Browsing the server. Tick one or more folders that are git repositories, then add them.
-        Folders already added are marked and cannot be selected again.
+        Browsing the server. Tick one or more folders that are git repositories, then add them. Folders already added
+        are marked and cannot be selected again.
       </p>
 
       <div class="row" style="margin-bottom: 8px">
-        <input
-          v-model="manual"
-          class="input grow mono"
-          placeholder="/path/to/folder"
-          @keyup.enter="submitManual"
-        />
+        <input v-model="manual" class="input grow mono" placeholder="/path/to/folder" @keyup.enter="submitManual" />
         <button class="btn" @click="submitManual">Go</button>
       </div>
 
@@ -101,7 +94,9 @@ onMounted(() => load(props.startPath || undefined))
           class="btn sm"
           :class="{ primary: !currentAdded && listing?.is_git && isSelected(listing?.path) }"
           :disabled="!listing?.is_git || currentAdded"
-          :title="currentAdded ? 'Already added' : listing?.is_git ? listing.path : 'Current folder is not a git repository'"
+          :title="
+            currentAdded ? 'Already added' : listing?.is_git ? listing.path : 'Current folder is not a git repository'
+          "
           @click="toggle(listing.path)"
         >
           {{ currentLabel }}

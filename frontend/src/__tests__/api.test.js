@@ -6,7 +6,7 @@ function mockFetch({ status = 200, body = '' } = {}) {
     status,
     ok: status >= 200 && status < 300,
     statusText: status === 204 ? 'No Content' : 'OK',
-    text: () => Promise.resolve(body),
+    text: () => Promise.resolve(body)
   }
   global.fetch = vi.fn().mockResolvedValue(res)
   return global.fetch
@@ -31,8 +31,8 @@ describe('api request', () => {
       expect.objectContaining({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: '{"title":"Hi"}',
-      }),
+        body: '{"title":"Hi"}'
+      })
     )
   })
 
@@ -56,10 +56,7 @@ describe('api query builders', () => {
   it('builds the github issues query with defaults', async () => {
     const fetchMock = mockFetch({ body: '[]' })
     await api.github.issues()
-    expect(fetchMock).toHaveBeenCalledWith(
-      '/api/github/issues?state=open&limit=20',
-      expect.anything(),
-    )
+    expect(fetchMock).toHaveBeenCalledWith('/api/github/issues?state=open&limit=20', expect.anything())
   })
 
   it('includes only the provided item filters', async () => {

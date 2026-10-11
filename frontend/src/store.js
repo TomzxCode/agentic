@@ -33,27 +33,31 @@ export const store = reactive({
     this.toast = { message, isError }
     clearTimeout(this._t)
     this._t = setTimeout(() => (this.toast = null), 4000)
-  },
+  }
 })
 
 export function statusLabel(status) {
-  return {
-    open: 'Open',
-    in_progress: 'In progress',
-    blocked: 'Blocked',
-    done: 'Done',
-    archived: 'Archived',
-  }[status] || status
+  return (
+    {
+      open: 'Open',
+      in_progress: 'In progress',
+      blocked: 'Blocked',
+      done: 'Done',
+      archived: 'Archived'
+    }[status] || status
+  )
 }
 
 export function statusClass(status) {
-  return {
-    open: 'badge',
-    in_progress: 'badge run',
-    blocked: 'badge warn',
-    done: 'badge ok',
-    archived: 'badge',
-  }[status] || 'badge'
+  return (
+    {
+      open: 'badge',
+      in_progress: 'badge run',
+      blocked: 'badge warn',
+      done: 'badge ok',
+      archived: 'badge'
+    }[status] || 'badge'
+  )
 }
 
 export function timeAgo(iso) {

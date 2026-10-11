@@ -13,7 +13,7 @@ const SECTIONS = [
   { id: 'sessions', label: 'Session links' },
   { id: 'harnesses', label: 'Agent harnesses' },
   { id: 'repositories', label: 'Repositories' },
-  { id: 'groups', label: 'Repository groups' },
+  { id: 'groups', label: 'Repository groups' }
 ]
 const active = ref(SECTIONS.some((s) => s.id === route.query.section) ? route.query.section : SECTIONS[0].id)
 
@@ -26,7 +26,7 @@ watch(
   () => route.query.section,
   (section) => {
     if (SECTIONS.some((s) => s.id === section)) active.value = section
-  },
+  }
 )
 
 const repoDraft = reactive({ path: '' })
@@ -42,7 +42,7 @@ const linkForm = reactive({
   openchamber_url: '',
   openchamber_session_path: '',
   terminal_url_template: '',
-  editor_url_template: '',
+  editor_url_template: ''
 })
 const linkDefaults = ref({})
 const savingLinks = ref(false)
@@ -67,7 +67,7 @@ async function loadSettings() {
     openchamber_url: data.overrides.openchamber_url ?? '',
     openchamber_session_path: data.overrides.openchamber_session_path ?? '',
     terminal_url_template: data.overrides.terminal_url_template ?? '',
-    editor_url_template: data.overrides.editor_url_template ?? '',
+    editor_url_template: data.overrides.editor_url_template ?? ''
   })
 }
 
@@ -76,7 +76,7 @@ async function load() {
   await Promise.all([
     loadRepositories(),
     loadHarnesses().catch((e) => store.notify(e.message, true)),
-    loadSettings().catch((e) => store.notify(e.message, true)),
+    loadSettings().catch((e) => store.notify(e.message, true))
   ])
   loading.value = false
 }
@@ -122,7 +122,7 @@ async function addHarness() {
       name: harnessDraft.name.trim(),
       command: harnessDraft.command.trim(),
       args: harnessDraft.args.split(/\s+/).filter(Boolean),
-      description: harnessDraft.description,
+      description: harnessDraft.description
     })
     Object.assign(harnessDraft, { name: '', command: '', args: '', description: '' })
     await loadHarnesses()
@@ -184,13 +184,18 @@ onMounted(load)
             <span v-else-if="savedLinks" class="faint">saved</span>
           </div>
           <p class="faint" style="margin-top: 0">
-            Where an agent session opens. Saved when you leave a field. Leave a field blank to disable
-            that link. Placeholders: <code>{session}</code>, <code>{cwd}</code>, <code>{harness}</code>.
+            Where an agent session opens. Saved when you leave a field. Leave a field blank to disable that link.
+            Placeholders: <code>{session}</code>, <code>{cwd}</code>, <code>{harness}</code>.
           </p>
 
           <div class="field">
             <label>OpenChamber base URL</label>
-            <input v-model="linkForm.openchamber_url" class="input" placeholder="http://localhost:3001" @blur="saveLinkField('openchamber_url')" />
+            <input
+              v-model="linkForm.openchamber_url"
+              class="input"
+              placeholder="http://localhost:3001"
+              @blur="saveLinkField('openchamber_url')"
+            />
             <p class="faint" style="margin: 4px 0 0">
               Web: <code>&lt;base&gt;/?session=&lt;id&gt;</code>. For the native deep link use base
               <code>openchamber://session</code> with path <code>/{session}</code>.
@@ -198,11 +203,21 @@ onMounted(load)
           </div>
           <div class="field">
             <label>OpenChamber session path</label>
-            <input v-model="linkForm.openchamber_session_path" class="input" :placeholder="linkDefaults.openchamber_session_path" @blur="saveLinkField('openchamber_session_path')" />
+            <input
+              v-model="linkForm.openchamber_session_path"
+              class="input"
+              :placeholder="linkDefaults.openchamber_session_path"
+              @blur="saveLinkField('openchamber_session_path')"
+            />
           </div>
           <div class="field">
             <label>Terminal URL template (optional)</label>
-            <input v-model="linkForm.terminal_url_template" class="input" placeholder="opencode://session/{session}" @blur="saveLinkField('terminal_url_template')" />
+            <input
+              v-model="linkForm.terminal_url_template"
+              class="input"
+              placeholder="opencode://session/{session}"
+              @blur="saveLinkField('terminal_url_template')"
+            />
             <p class="faint" style="margin: 4px 0 0">
               Any URL scheme, or a web terminal such as
               <code>http://localhost:7681/?cwd={cwd}</code>.
@@ -210,20 +225,23 @@ onMounted(load)
           </div>
           <div class="field">
             <label>Editor URL template (optional)</label>
-            <input v-model="linkForm.editor_url_template" class="input" placeholder="vscode://file{path}" @blur="saveLinkField('editor_url_template')" />
+            <input
+              v-model="linkForm.editor_url_template"
+              class="input"
+              placeholder="vscode://file{path}"
+              @blur="saveLinkField('editor_url_template')"
+            />
             <p class="faint" style="margin: 4px 0 0">
               Opens a worktree path in your editor. <code>{path}</code> is the absolute path (it starts with
               <code>/</code>).
             </p>
             <p class="faint" style="margin: 4px 0 0">
-              Local: <code>vscode://file{path}</code>, <code>cursor://file{path}</code>,
-              <code>zed://file{path}</code>.
+              Local: <code>vscode://file{path}</code>, <code>cursor://file{path}</code>, <code>zed://file{path}</code>.
             </p>
             <p class="faint" style="margin: 4px 0 0">
-              Remote VS Code over SSH: <code>vscode://vscode-remote/ssh-remote+&lt;host&gt;{path}</code>
-              (host from <code>~/.ssh/config</code>; needs the Remote-SSH extension). Add
-              <code>?windowId=_blank</code> to open in a new window. code-server:
-              <code>https://&lt;host&gt;:8443/?folder={path}</code>. Tunnel:
+              Remote VS Code over SSH: <code>vscode://vscode-remote/ssh-remote+&lt;host&gt;{path}</code> (host from
+              <code>~/.ssh/config</code>; needs the Remote-SSH extension). Add <code>?windowId=_blank</code> to open in
+              a new window. code-server: <code>https://&lt;host&gt;:8443/?folder={path}</code>. Tunnel:
               <code>https://vscode.dev/tunnel/&lt;name&gt;{path}</code>.
             </p>
           </div>
@@ -238,7 +256,10 @@ onMounted(load)
           <div v-for="h in fullHarnesses" :key="h.id" class="item">
             <div class="item-top">
               <span class="title">{{ h.name }}</span>
-              <span class="badge" :class="{ ok: harnessStatus[h.id]?.available, danger: !harnessStatus[h.id]?.available }">
+              <span
+                class="badge"
+                :class="{ ok: harnessStatus[h.id]?.available, danger: !harnessStatus[h.id]?.available }"
+              >
                 {{ harnessStatus[h.id]?.available ? 'available' : 'missing' }}
               </span>
             </div>
@@ -271,7 +292,12 @@ onMounted(load)
             <div v-if="r.remote_url" class="faint">{{ r.remote_url }}</div>
           </div>
           <div class="row" style="margin-top: 10px">
-            <input v-model="repoDraft.path" class="input grow" placeholder="/absolute/path/to/git/repo" @keyup.enter="addRepo" />
+            <input
+              v-model="repoDraft.path"
+              class="input grow"
+              placeholder="/absolute/path/to/git/repo"
+              @keyup.enter="addRepo"
+            />
             <button class="btn" @click="showPicker = true">Browse…</button>
             <button class="btn primary" @click="addRepo">Add repository</button>
           </div>

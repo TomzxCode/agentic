@@ -27,13 +27,11 @@ const liveCwd = computed(() => {
 
 const harnessOptions = computed(() => [
   { value: '', label: 'Default harness' },
-  ...props.harnesses.map((h) => ({ value: h.id, label: h.available ? h.name : `${h.name} (unavailable)` })),
+  ...props.harnesses.map((h) => ({ value: h.id, label: h.available ? h.name : `${h.name} (unavailable)` }))
 ])
 const worktreeOptions = computed(() => [
   { value: '', label: 'Auto working directory' },
-  ...(props.task.worktrees || [])
-    .filter((w) => w.status === 'active')
-    .map((w) => ({ value: w.id, label: w.branch })),
+  ...(props.task.worktrees || []).filter((w) => w.status === 'active').map((w) => ({ value: w.id, label: w.branch }))
 ])
 
 // The agent streams tiny chunks; merge consecutive ones into readable blocks so
@@ -51,7 +49,7 @@ const blocks = computed(() => {
           id: `b${out.length}`,
           kind,
           text: ev.text,
-          label: kind === 'message' ? 'assistant' : 'thinking',
+          label: kind === 'message' ? 'assistant' : 'thinking'
         })
       }
     } else if (kind === 'tool_call' || kind === 'tool_update') {
@@ -69,7 +67,7 @@ const blocks = computed(() => {
           toolId,
           title: ev.text,
           command: ev.data?.rawInput?.command,
-          status: ev.data?.status,
+          status: ev.data?.status
         })
       }
     } else if (kind === 'plan') {
@@ -77,7 +75,7 @@ const blocks = computed(() => {
         id: `b${out.length}`,
         kind: 'plan',
         label: 'plan',
-        entries: (ev.data?.entries || []).map((entry) => entry.content),
+        entries: (ev.data?.entries || []).map((entry) => entry.content)
       })
     } else if (kind === 'permission') {
       out.push({ id: `b${out.length}`, kind: 'permission', label: 'permission', text: ev.text })
@@ -186,7 +184,9 @@ onMounted(loadRuns)
       <div v-for="block in blocks" :key="block.id" class="ev" :class="block.kind">
         <span class="who">{{ block.label }}</span>
         <template v-if="block.kind === 'tool'">
-          <span class="body">{{ block.title }}<span v-if="block.status"> · {{ block.status }}</span></span>
+          <span class="body"
+            >{{ block.title }}<span v-if="block.status"> · {{ block.status }}</span></span
+          >
           <span v-if="block.command" class="body"> $ {{ block.command }}</span>
         </template>
         <template v-else-if="block.kind === 'plan'">
@@ -201,7 +201,10 @@ onMounted(loadRuns)
     <h3 v-if="runs.length" style="margin-top: 16px">History</h3>
     <div v-for="run in runs" :key="run.id" class="item" style="cursor: pointer" @click="viewRun(run)">
       <div class="item-top">
-        <span class="badge" :class="{ run: run.status === 'running', ok: run.status === 'succeeded', danger: run.status === 'failed' }">
+        <span
+          class="badge"
+          :class="{ run: run.status === 'running', ok: run.status === 'succeeded', danger: run.status === 'failed' }"
+        >
           {{ run.status }}
         </span>
         <span class="grow" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap">

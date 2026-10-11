@@ -5,7 +5,7 @@ import SearchSelect from '../components/SearchSelect.vue'
 const options = [
   { value: 'b', label: 'Beta' },
   { value: '', label: 'None' },
-  { value: 'a', label: 'Alpha' },
+  { value: 'a', label: 'Alpha' }
 ]
 
 function open(wrapper) {

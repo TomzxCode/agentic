@@ -5,7 +5,7 @@ import CommandPalette from '../components/CommandPalette.vue'
 const items = [
   { id: 'new', label: 'New task', group: 'Actions' },
   { id: 'settings', label: 'Go to settings', group: 'Navigation' },
-  { id: 't1', label: 'Fix login bug', group: 'Tasks', hint: '#1' },
+  { id: 't1', label: 'Fix login bug', group: 'Tasks', hint: '#1' }
 ]
 
 function mountPalette() {
@@ -15,11 +15,7 @@ function mountPalette() {
 describe('CommandPalette', () => {
   it('lists every item grouped in the canonical section order', () => {
     const wrapper = mountPalette()
-    expect(wrapper.findAll('.palette-group-title').map((t) => t.text())).toEqual([
-      'Actions',
-      'Navigation',
-      'Tasks',
-    ])
+    expect(wrapper.findAll('.palette-group-title').map((t) => t.text())).toEqual(['Actions', 'Navigation', 'Tasks'])
     expect(wrapper.findAll('.palette-item')).toHaveLength(3)
   })
 

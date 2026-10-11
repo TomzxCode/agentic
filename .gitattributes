@@ -1,0 +1,5 @@
+* text=auto eol=lf
+
+# Generated lockfiles: keep them out of diffs and language stats.
+uv.lock linguist-generated=true
+frontend/package-lock.json linguist-generated=true

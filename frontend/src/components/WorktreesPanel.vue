@@ -66,7 +66,11 @@ onMounted(() => {
 
 <template>
   <section class="panel">
-    <div class="panel-head"><h2>Worktrees <span class="faint">{{ task.worktrees?.length || 0 }}</span></h2></div>
+    <div class="panel-head">
+      <h2>
+        Worktrees <span class="faint">{{ task.worktrees?.length || 0 }}</span>
+      </h2>
+    </div>
 
     <div v-if="!task.worktrees?.length" class="faint" style="margin-bottom: 12px">
       No worktrees. Create one to give an agent an isolated checkout for this task.
@@ -75,8 +79,17 @@ onMounted(() => {
     <div v-for="w in task.worktrees" :key="w.id" class="item">
       <div class="item-top">
         <span class="badge" :class="{ ok: w.status === 'active', danger: w.status === 'removed' }">{{ w.status }}</span>
-        <span class="mono grow" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap">{{ w.branch }}</span>
-        <button v-if="w.status === 'active' && editorUrl(w)" class="btn sm ghost" title="Open in editor" @click="openEditor(w)">✎</button>
+        <span class="mono grow" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap">{{
+          w.branch
+        }}</span>
+        <button
+          v-if="w.status === 'active' && editorUrl(w)"
+          class="btn sm ghost"
+          title="Open in editor"
+          @click="openEditor(w)"
+        >
+          ✎
+        </button>
         <button class="btn sm ghost" title="Copy path" @click="copy(w.path)">⧉</button>
         <button v-if="w.status === 'active'" class="btn sm danger" @click="remove(w.id)">Remove</button>
       </div>
@@ -92,7 +105,11 @@ onMounted(() => {
     <div class="row" style="margin-top: 10px">
       <input v-model="draft.branch" class="input grow" placeholder="branch (optional, auto-named)" />
       <input v-model="draft.base" class="input grow" placeholder="base (optional)" />
-      <button class="btn primary" :disabled="busy || (!task.repository_ids?.length && !draft.repository_id)" @click="create">
+      <button
+        class="btn primary"
+        :disabled="busy || (!task.repository_ids?.length && !draft.repository_id)"
+        @click="create"
+      >
         <span v-if="busy" class="spinner"></span> New worktree
       </button>
     </div>

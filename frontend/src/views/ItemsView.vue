@@ -13,7 +13,7 @@ const SOURCE_LABELS = {
   url: 'Web',
   note: 'Note',
   commit: 'Commit',
-  file: 'File',
+  file: 'File'
 }
 const SOURCE_ORDER = ['github', 'slack', 'gdrive', 'url', 'note', 'commit', 'file']
 
@@ -34,9 +34,7 @@ const counts = computed(() => {
 })
 
 const sources = computed(() =>
-  [...Object.keys(counts.value)].sort(
-    (a, b) => SOURCE_ORDER.indexOf(a) - SOURCE_ORDER.indexOf(b) || a.localeCompare(b),
-  ),
+  [...Object.keys(counts.value)].sort((a, b) => SOURCE_ORDER.indexOf(a) - SOURCE_ORDER.indexOf(b) || a.localeCompare(b))
 )
 
 const visible = computed(() => {

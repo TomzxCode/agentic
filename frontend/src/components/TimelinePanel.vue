@@ -31,7 +31,7 @@ function changes(event) {
   return Object.entries(raw).map(([field, delta]) => ({
     field: fieldLabel(field),
     from: display(field, delta?.from, delta?.from_label),
-    to: display(field, delta?.to, delta?.to_label),
+    to: display(field, delta?.to, delta?.to_label)
   }))
 }
 </script>
@@ -44,7 +44,9 @@ function changes(event) {
       <li v-for="event in events" :key="event.id">
         <span class="dot"></span>
         <span class="grow">
-          <span>{{ event.message || event.type }} <span class="faint">· {{ event.type }}</span></span>
+          <span
+            >{{ event.message || event.type }} <span class="faint">· {{ event.type }}</span></span
+          >
           <span v-if="changes(event).length" class="changes">
             <span v-for="change in changes(event)" :key="change.field" class="change">
               <span class="field">{{ change.field }}</span>

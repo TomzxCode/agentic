@@ -22,8 +22,8 @@ export default defineConfig({
         scope: '/',
         icons: [
           { src: 'icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' },
-          { src: 'maskable.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'maskable' },
-        ],
+          { src: 'maskable.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'maskable' }
+        ]
       },
       workbox: {
         navigateFallbackDenylist: [/^\/api/],
@@ -34,15 +34,15 @@ export default defineConfig({
         runtimeCaching: [
           {
             urlPattern: ({ url }) => url.pathname.startsWith('/api'),
-            handler: 'NetworkOnly',
-          },
-        ],
+            handler: 'NetworkOnly'
+          }
+        ]
       },
-      devOptions: { enabled: false },
-    }),
+      devOptions: { enabled: false }
+    })
   ],
   resolve: {
-    alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
+    alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) }
   },
   server: {
     host: true, // bind 0.0.0.0 so the dev server is reachable remotely
@@ -59,13 +59,13 @@ export default defineConfig({
               proxyRes.headers['cache-control'] = 'no-cache'
             }
           })
-        },
-      },
-    },
+        }
+      }
+    }
   },
   build: {
     outDir: '../backend/static',
     emptyOutDir: true,
-    sourcemap: false,
-  },
+    sourcemap: false
+  }
 })
