@@ -304,6 +304,7 @@ onMounted(async () => {
   await refresh()
   await store.loadGroups().catch(() => {})
   await store.loadRepositories().catch(() => {})
+  await store.loadSettings().catch(() => {})
 })
 onUnmounted(() => {
   window.removeEventListener('keydown', onGlobalKeydown)

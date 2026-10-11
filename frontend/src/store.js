@@ -6,6 +6,7 @@ export const store = reactive({
   harnesses: [],
   repositories: [],
   groups: [],
+  settings: {},
   loading: false,
   toast: null,
   // Set by the active task page so the palette can jump to its fields.
@@ -24,6 +25,9 @@ export const store = reactive({
   },
   async loadGroups() {
     this.groups = await api.groups.list()
+  },
+  async loadSettings() {
+    this.settings = (await api.settings.get()).effective
   },
   notify(message, isError = false) {
     this.toast = { message, isError }

@@ -155,6 +155,10 @@ Configure the base URLs on the **Settings** page (persisted locally) or with
 environment variables. Each harness has an editable resume command template.
 Placeholders: `{session}`, `{cwd}`, `{harness}`.
 
+The same settings page has an **Editor URL template** (`vscode://file{path}` or
+similar); when set, each worktree in a task shows an **Open in editor** button
+that opens the worktree path (`{path}`) in your editor.
+
 ## Configuration
 
 Environment variables (prefix `AGENTIC_`) or `backend/.env`:
@@ -170,6 +174,7 @@ Environment variables (prefix `AGENTIC_`) or `backend/.env`:
 | `AGENTIC_OPENCHAMBER_URL` | (unset) | Base URL for "Open in OpenChamber" links. |
 | `AGENTIC_OPENCHAMBER_SESSION_PATH` | `/?session={session}` | Path appended to the base. |
 | `AGENTIC_TERMINAL_URL_TEMPLATE` | (unset) | URL template for "Open in terminal" links. |
+| `AGENTIC_EDITOR_URL_TEMPLATE` | (unset) | URL template for the worktree "Open in editor" button. |
 
 All three session-link settings can also be overridden on the Settings page;
 the stored override wins over the environment variable.

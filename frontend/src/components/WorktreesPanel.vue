@@ -1,5 +1,5 @@
 <script setup>
-import { computed, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { api } from '../api'
 import { store, timeAgo } from '../store'
 import SearchSelect from './SearchSelect.vue'
@@ -46,6 +46,22 @@ function copy(path) {
   navigator.clipboard?.writeText(path)
   store.notify('Path copied')
 }
+
+// Open the worktree in a configured editor (e.g. vscode://file/{path}).
+function editorUrl(worktree) {
+  const template = store.settings?.editor_url_template
+  if (!template) return ''
+  return template.replaceAll('{path}', encodeURI(worktree.path))
+}
+
+function openEditor(worktree) {
+  const url = editorUrl(worktree)
+  if (url) window.open(url, '_blank')
+}
+
+onMounted(() => {
+  if (!Object.keys(store.settings).length) store.loadSettings().catch(() => {})
+})
 </script>
 
 <template>
@@ -59,7 +75,8 @@ function copy(path) {
     <div v-for="w in task.worktrees" :key="w.id" class="item">
       <div class="item-top">
         <span class="badge" :class="{ ok: w.status === 'active', danger: w.status === 'removed' }">{{ w.status }}</span>
-        <span class="mono grow" style="overflow: hidden; text-overflow: ellipsis">{{ w.branch }}</span>
+        <span class="mono grow" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap">{{ w.branch }}</span>
+        <button v-if="editorUrl(w)" class="btn sm ghost" title="Open in editor" @click="openEditor(w)">✎</button>
         <button class="btn sm ghost" title="Copy path" @click="copy(w.path)">⧉</button>
         <button v-if="w.status === 'active'" class="btn sm danger" @click="remove(w.id)">Remove</button>
       </div>

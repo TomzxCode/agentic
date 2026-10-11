@@ -8,7 +8,12 @@ from .config import settings
 from .models import Setting, utcnow
 
 # Keys the Settings page can override. Values are strings (URLs / templates).
-SESSION_LINK_KEYS = ("openchamber_url", "openchamber_session_path", "terminal_url_template")
+OVERRIDABLE_KEYS = (
+    "openchamber_url",
+    "openchamber_session_path",
+    "terminal_url_template",
+    "editor_url_template",
+)
 
 
 def env_defaults() -> dict[str, str]:
@@ -16,11 +21,12 @@ def env_defaults() -> dict[str, str]:
         "openchamber_url": settings.openchamber_url,
         "openchamber_session_path": settings.openchamber_session_path,
         "terminal_url_template": settings.terminal_url_template,
+        "editor_url_template": settings.editor_url_template,
     }
 
 
 def get_overrides(session: Session) -> dict[str, str]:
-    return {row.key: row.value for row in session.exec(select(Setting)).all() if row.key in SESSION_LINK_KEYS}
+    return {row.key: row.value for row in session.exec(select(Setting)).all() if row.key in OVERRIDABLE_KEYS}
 
 
 def get_settings(session: Session) -> dict[str, str]:
@@ -31,7 +37,7 @@ def get_settings(session: Session) -> dict[str, str]:
 
 def update_settings(session: Session, values: dict[str, str | None]) -> dict[str, str]:
     for key, value in values.items():
-        if key not in SESSION_LINK_KEYS or value is None:
+        if key not in OVERRIDABLE_KEYS or value is None:
             continue
         row = session.get(Setting, key)
         if row is None:

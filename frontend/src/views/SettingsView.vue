@@ -18,6 +18,7 @@ const linkForm = reactive({
   openchamber_url: '',
   openchamber_session_path: '',
   terminal_url_template: '',
+  editor_url_template: '',
 })
 const linkDefaults = ref({})
 const savingLinks = ref(false)
@@ -40,6 +41,7 @@ async function loadSettings() {
     openchamber_url: data.overrides.openchamber_url ?? '',
     openchamber_session_path: data.overrides.openchamber_session_path ?? '',
     terminal_url_template: data.overrides.terminal_url_template ?? '',
+    editor_url_template: data.overrides.editor_url_template ?? '',
   })
 }
 
@@ -158,6 +160,15 @@ onMounted(load)
         <p class="faint" style="margin: 4px 0 0">
           Any URL scheme, or a web terminal such as
           <code>http://localhost:7681/?cwd={cwd}</code>.
+        </p>
+      </div>
+      <div class="field">
+        <label>Editor URL template (optional)</label>
+        <input v-model="linkForm.editor_url_template" class="input" placeholder="vscode://file{path}" />
+        <p class="faint" style="margin: 4px 0 0">
+          Opens a worktree path in your editor. <code>{path}</code> is the absolute path (it starts with
+          <code>/</code>). Examples: <code>vscode://file{path}</code>, <code>cursor://file{path}</code>,
+          <code>zed://file{path}</code>.
         </p>
       </div>
       <div class="row" style="justify-content: flex-end">

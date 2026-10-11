@@ -40,6 +40,10 @@ class Settings(BaseSettings):
     # Placeholders: {session} {cwd} {harness}.
     terminal_url_template: str = ""
 
+    # Optional URL template for opening a worktree in an editor, e.g.
+    # "vscode://file/{path}" or "zed://file/{path}". Placeholder: {path}.
+    editor_url_template: str = ""
+
     # Auto-approve ACP permission requests (single-user local tool). When false,
     # permission requests are surfaced to the UI and the run waits.
     auto_approve_permissions: bool = True
