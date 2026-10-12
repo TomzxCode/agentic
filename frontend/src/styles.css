@@ -1054,7 +1054,8 @@ button.tag-chip.active {
   display: flex;
   align-items: flex-start;
   justify-content: center;
-  padding-top: 10vh;
+  padding: 10vh 16px 16px;
+  overflow-y: auto;
   z-index: 50;
 }
 .modal {
@@ -1063,7 +1064,19 @@ button.tag-chip.active {
   border-radius: 12px;
   padding: 18px;
   width: min(560px, 92vw);
+  max-height: calc(100vh - 10vh - 16px);
+  overflow-y: auto;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+/* Keep the Cancel/Create (or Add) actions reachable while the modal body scrolls. */
+.modal > .row:last-child {
+  position: sticky;
+  bottom: -18px;
+  z-index: 1;
+  margin: 12px -18px -18px;
+  padding: 12px 18px 18px;
+  background: var(--bg-1);
+  border-top: 1px solid var(--border);
 }
 
 /* Directory picker */
@@ -1762,6 +1775,7 @@ button.gantt-marker::after {
   }
   .modal {
     width: 100%;
+    max-height: calc(100vh - max(4vh, env(safe-area-inset-top)) - 24px);
   }
 }
 
