@@ -677,6 +677,9 @@ button.tag-chip.active {
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
   transform: translate(-50%, -50%);
 }
+.hint-badge.dimmed {
+  opacity: 0.25;
+}
 .hint-banner {
   position: fixed;
   bottom: 18px;

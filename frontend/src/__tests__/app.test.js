@@ -347,6 +347,79 @@ describe('App', () => {
     expect(document.activeElement).toBe(button)
   })
 
+  it('keeps short labels and dims non-matches past 26 entries', async () => {
+    const wrapper = mountApp()
+    await flushPromises()
+
+    const buttons = []
+    for (let i = 0; i < 27; i += 1) {
+      const button = document.createElement('button')
+      wrapper.get('.main').element.appendChild(button)
+      buttons.push(button)
+    }
+
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'f' }))
+    await nextTick()
+    const badges = wrapper.findAll('.hint-badge')
+    expect(badges[0].text()).toBe('a')
+    expect(badges[26].text()).toBe('aa')
+
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'a' }))
+    await nextTick()
+    expect(store.hintMode).toBe(true)
+    expect(badges[0].classes()).not.toContain('dimmed')
+    expect(badges[26].classes()).not.toContain('dimmed')
+    expect(badges[1].classes()).toContain('dimmed')
+
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }))
+    await nextTick()
+    expect(store.hintMode).toBe(false)
+    expect(document.activeElement).toBe(buttons[0])
+  })
+
+  it('undoes the last hint keystroke with backspace', async () => {
+    const wrapper = mountApp()
+    await flushPromises()
+
+    for (let i = 0; i < 27; i += 1) {
+      wrapper.get('.main').element.appendChild(document.createElement('button'))
+    }
+
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'f' }))
+    await nextTick()
+    const badges = wrapper.findAll('.hint-badge')
+
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'a' }))
+    await nextTick()
+    expect(badges[1].classes()).toContain('dimmed')
+
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Backspace' }))
+    await nextTick()
+    expect(store.hintMode).toBe(true)
+    expect(badges[1].classes()).not.toContain('dimmed')
+  })
+
+  it('focuses the two-letter hint when both letters are typed', async () => {
+    const wrapper = mountApp()
+    await flushPromises()
+
+    const buttons = []
+    for (let i = 0; i < 27; i += 1) {
+      const button = document.createElement('button')
+      wrapper.get('.main').element.appendChild(button)
+      buttons.push(button)
+    }
+
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'f' }))
+    await nextTick()
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'a' }))
+    await nextTick()
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'a' }))
+    await nextTick()
+    expect(store.hintMode).toBe(false)
+    expect(document.activeElement).toBe(buttons[26])
+  })
+
   it('toggles the mobile sidebar', async () => {
     const wrapper = mountApp()
     await flushPromises()

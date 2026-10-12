@@ -188,6 +188,19 @@ function hintLabelFor(index) {
   return alphabet[Math.floor(rest / alphabet.length)] + alphabet[rest % alphabet.length]
 }
 
+// Dim the badges whose label does not start with what has been typed so far.
+function updateHintMatches() {
+  hintTargets.forEach((target, index) => {
+    const badge = hintBadges.value[index]
+    if (badge) badge.dimmed = hintBuffer !== '' && !target.key.startsWith(hintBuffer)
+  })
+}
+
+function focusHint(target) {
+  target.el.focus()
+  store.hintMode = false
+}
+
 function positionHints() {
   hintTargets.forEach((target, index) => {
     const badge = hintBadges.value[index]
@@ -215,7 +228,7 @@ function startHints() {
     (el) => !el.disabled && !el.closest('.transcript')
   )
   hintTargets = nodes.map((el, index) => ({ key: hintLabelFor(index), el }))
-  hintBadges.value = hintTargets.map(({ key }) => ({ key, left: 0, top: 0, hidden: false }))
+  hintBadges.value = hintTargets.map(({ key }) => ({ key, left: 0, top: 0, hidden: false, dimmed: false }))
   positionHints()
   window.addEventListener('scroll', positionHints, true)
   window.addEventListener('resize', positionHints)
@@ -238,18 +251,28 @@ function onGlobalKeydown(event) {
       store.hintMode = false
       return
     }
+    if (event.key === 'Enter') {
+      event.preventDefault()
+      const exact = hintTargets.find((target) => target.key === hintBuffer)
+      if (exact) focusHint(exact)
+      return
+    }
+    if (event.key === 'Backspace') {
+      event.preventDefault()
+      hintBuffer = hintBuffer.slice(0, -1)
+      updateHintMatches()
+      return
+    }
     const char = event.key.toLowerCase()
     if (/^[a-z]$/.test(char)) {
-      hintBuffer += char
-      const exact = hintTargets.find((target) => target.key === hintBuffer)
-      if (exact) {
-        event.preventDefault()
-        exact.el.focus()
-        store.hintMode = false
-      } else if (hintTargets.some((target) => target.key.startsWith(hintBuffer))) {
-        event.preventDefault()
+      event.preventDefault()
+      const next = hintBuffer + char
+      const matches = hintTargets.filter((target) => target.key.startsWith(next))
+      if (matches.length === 1) {
+        focusHint(matches[0])
       } else {
-        hintBuffer = ''
+        hintBuffer = matches.length === 0 ? '' : next
+        updateHintMatches()
       }
     }
     return
@@ -674,7 +697,8 @@ onUnmounted(() => {
     <div v-if="store.toast" class="toast" :class="{ err: store.toast.isError }">{{ store.toast.message }}</div>
 
     <div v-if="store.hintMode" class="hint-banner">
-      Press the letter over a control to focus it · <span class="mono">Esc</span> to exit
+      Type the label over a control to focus it · <span class="mono">Enter</span> to confirm a shorter label ·
+      <span class="mono">Backspace</span> to undo · <span class="mono">Esc</span> to exit
     </div>
 
     <span
@@ -682,6 +706,7 @@ onUnmounted(() => {
       v-show="!badge.hidden"
       :key="badge.key"
       class="hint-badge"
+      :class="{ dimmed: badge.dimmed }"
       :style="{ left: badge.left + 'px', top: badge.top + 'px' }"
       >{{ badge.key }}</span
     >
