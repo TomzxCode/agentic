@@ -73,7 +73,7 @@ Error codes shared with the rest of the API:
 |---|---|---|
 | `TagInput.vue` | Removable tag chips plus an inline entry field; Enter or comma adds, Backspace removes the last, existing tags offered as quick picks | FR-4, FR-6 |
 | `TaskView.vue` | Renders `TagInput` in the task header; saving calls `PATCH /api/tasks/{id}` with the new list | FR-4 |
-| `App.vue` (sidebar) | Tag pills under each task and a tag filter row that narrows the in-flight list; the new-task modal includes `TagInput` | FR-5, FR-6 |
+| `App.vue` (sidebar) | A tag filter row that narrows the in-flight list; the new-task modal includes `TagInput`. Entries show no tags (FEAT-p10) | FR-5, FR-6 |
 | `CommandPalette.vue` / `App.vue` | A **Tags** group with one entry per tag (picks that tag's filter) and a "Clear tag filter" action while one is active; task entries are searchable by their tags | FR-5 |
 | `TasksView.vue` | Tag pills on each focus row (clicking one filters) and a tag filter row; the status counts reflect the active filter while the per-tag counts stay global | FR-5 |
 | `store.js` | Holds `tags` and `tagFilter`; `loadTags` and `toggleTagFilter` | FR-3, FR-5 |

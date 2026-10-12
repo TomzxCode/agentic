@@ -119,7 +119,7 @@ describe('App', () => {
     expect(sidebar.text()).not.toContain('Stored away')
   })
 
-  it('filters the sidebar by tag and shows tag pills', async () => {
+  it('filters the sidebar by tag without showing tag pills', async () => {
     store.tags = [
       { name: 'bug', count: 1 },
       { name: 'ui', count: 1 }
@@ -131,7 +131,7 @@ describe('App', () => {
     const wrapper = mountApp()
     await flushPromises()
     expect(wrapper.get('.side-scroll').text()).toContain('Bug task')
-    expect(wrapper.get('.task-tags').text()).toContain('bug')
+    expect(wrapper.find('.side-scroll .task-tags').exists()).toBe(false)
 
     await wrapper
       .findAll('.side-filters .tag-filter')

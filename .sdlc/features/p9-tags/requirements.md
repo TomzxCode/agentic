@@ -28,7 +28,7 @@ It is the foundation for tag-driven views (for example a board or a lane per tag
 | FR-2 | Must | The system shall filter the task list by one or more tags, returning only tasks that carry every requested tag. |
 | FR-3 | Must | The system shall expose the set of tags in use, each with the number of tasks that carry it, ordered by count descending and then case-insensitively by name. |
 | FR-4 | Must | The web app shall let the user add and remove tags on a task and show the task's tags. |
-| FR-5 | Must | The web app shall let the user filter the task list by a tag and show each task's tags in the list. |
+| FR-5 | Must | The web app shall let the user filter the main tasks list by a tag and show each task's tags in that list; the sidebar entry shows no tags, as governed by FEAT-p10. |
 | FR-6 | Must | The web app shall let the user set tags when creating a task. |
 | FR-7 | Should | The CLI shall list tasks filtered by tag (repeatable, all must match) and list the tags in use with their counts. |
 | FR-8 | Should | Changing a task's tags shall be recorded as a timeline event with the before and after values. |
@@ -48,6 +48,7 @@ It is the foundation for tag-driven views (for example a board or a lane per tag
 - No authentication; the app assumes a trusted, single-user environment.
 - Tags are case-sensitive; only surrounding whitespace is normalized away.
 - The web app is designed with mobile in mind, so tag UI is checked at phone widths.
+- The sidebar entry does not show tags; its layout is governed by FEAT-p10. The tag filter strip above the sidebar list stays here.
 
 ## Acceptance Criteria
 
@@ -144,7 +145,7 @@ It is the foundation for tag-driven views (for example a board or a lane per tag
     @FR-5
     Scenario: Show a task's tags in the list
       Given a task tagged "bug" and "ui"
-      When its row is shown in the task list
+      When its row is shown in the main tasks list
       Then it shows both tags
       And selecting a tag on the row filters the list by it
 

@@ -499,9 +499,6 @@ onUnmounted(() => {
             }}</span>
             <span class="faint when">{{ timeAgo(p.updated_at) }}</span>
           </router-link>
-          <div v-if="p.tags?.length" class="task-tags">
-            <span v-for="tag in p.tags" :key="tag" class="tag-chip">{{ tag }}</span>
-          </div>
         </div>
       </div>
 

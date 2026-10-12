@@ -183,13 +183,6 @@ h3 {
 .task-card .task-link:hover {
   text-decoration: none;
 }
-/* Tag pills sit on their own line under the task title in the sidebar card. */
-.task-card .task-tags {
-  flex-basis: 100%;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-}
 .task-status {
   flex: none;
   display: inline-flex;
