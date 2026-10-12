@@ -1,4 +1,4 @@
-.PHONY: help install dev-backend dev-frontend test test-frontend test-backend coverage-backend coverage-frontend lint lint-frontend typecheck build run
+.PHONY: help install dev-backend dev-frontend test test-frontend test-backend coverage-backend coverage-frontend lint lint-frontend typecheck build run run-dev
 
 help:
 	@echo "install             install backend + CLI (workspace) and frontend deps"
@@ -14,6 +14,7 @@ help:
 	@echo "typecheck           ty check (static type checking)"
 	@echo "build               build the SPA into backend/static"
 	@echo "run                 serve API + frontend dev server (0.0.0.0:8600 and :5173)"
+	@echo "run-dev             like run, with the API reloading on file changes"
 
 install:
 	uv sync
@@ -53,9 +54,13 @@ build:
 
 run:
 	@echo "API on http://0.0.0.0:8600, frontend dev server on http://0.0.0.0:5173 (Ctrl+C stops both)"
-	@uv run agentic-server serve --host 0.0.0.0 --port 8600 & \
+	@uv run agentic-server serve --host 0.0.0.0 --port 8600 $(RELOAD) & \
 	api_pid=$$!; \
 	( cd frontend && npm run dev ) & \
 	frontend_pid=$$!; \
 	trap 'kill $$api_pid $$frontend_pid 2>/dev/null' INT TERM EXIT; \
 	wait
+
+# Like run, with the API reloading when backend files change.
+run-dev:
+	@$(MAKE) --no-print-directory run RELOAD=--reload
