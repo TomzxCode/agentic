@@ -29,8 +29,11 @@ class FakeClient:
     def health(self):
         return {"status": "ok", "service": "agentic"}
 
-    def list_tasks(self, status=None, q=None):
-        return [{"id": "t1", "status": "open", "priority": 1, "title": "T"}]
+    def list_tasks(self, status=None, q=None, tags=None):
+        return [{"id": "t1", "status": "open", "priority": 1, "title": "T", "tags": ["bug"]}]
+
+    def list_tags(self):
+        return [{"name": "bug", "count": 1}]
 
     def get_task(self, task_id):
         return {
@@ -216,6 +219,7 @@ def test_link_add_requires_something_to_link(capsys):
 def test_commands_emit_text(text_format, fake_client):
     assert "ok (agentic)" in cli.health()
     assert "t1" in cli.task_list()
+    assert "bug" in cli.tag_list()
     assert "T" in cli.task_get("t1")
     assert "created t2" in cli.task_create(title="New")
     assert "updated t1" in cli.task_update("t1", title="T")

@@ -305,6 +305,14 @@ class TaskDetail(TaskRead):
     timeline: list[TimelineRead] = []
 
 
+# --- Tags ------------------------------------------------------------------
+class TagRead(BaseModel):
+    """A tag in use, with how many tasks carry it."""
+
+    name: str
+    count: int
+
+
 # --- Gantt -----------------------------------------------------------------
 class GanttTask(BaseModel):
     """A task as a Gantt row: its span, plus one marker per timeline event."""

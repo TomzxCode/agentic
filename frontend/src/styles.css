@@ -138,6 +138,7 @@ h3 {
 .task-card {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
   padding: 8px 10px;
   border-radius: var(--radius);
@@ -181,6 +182,13 @@ h3 {
 }
 .task-card .task-link:hover {
   text-decoration: none;
+}
+/* Tag pills sit on their own line under the task title in the sidebar card. */
+.task-card .task-tags {
+  flex-basis: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
 }
 .task-status {
   flex: none;
@@ -569,6 +577,84 @@ h3 {
 .chip-add:hover {
   border-color: var(--accent);
   color: var(--accent);
+}
+
+/* Tags: removable chips plus an inline entry field, and read-only pills. */
+.tag-input {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.tag-entry {
+  flex: 1 1 90px;
+  min-width: 70px;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text);
+  font-size: 13px;
+  padding: 3px 2px;
+}
+.tag-entry::placeholder {
+  color: var(--faint);
+}
+.tag-chip {
+  display: inline-flex;
+  align-items: center;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 1px 7px;
+  font-size: 10px;
+  color: var(--muted);
+  white-space: nowrap;
+  font-family: inherit;
+}
+button.tag-chip {
+  cursor: pointer;
+}
+button.tag-chip:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+button.tag-chip.active {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+/* A row of clickable tag filters (sidebar and the tasks dashboard). */
+.side-filters,
+.tag-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+.side-filters {
+  padding: 0 4px;
+}
+.tag-filter {
+  flex: 0 0 auto;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 2px 9px;
+  font-size: 11px;
+  color: var(--muted);
+  cursor: pointer;
+  font-family: inherit;
+}
+.tag-filter:hover {
+  border-color: var(--muted);
+  color: var(--text);
+}
+.tag-filter.active {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.tag-filter .count {
+  color: var(--faint);
+  margin-left: 2px;
 }
 
 /* Repository selector: selected chips plus an inline "add" search select. */

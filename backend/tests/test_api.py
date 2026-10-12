@@ -136,6 +136,37 @@ def test_items_list_includes_task_links_and_search():
         client.delete(f"/api/items/{item['id']}")
 
 
+def test_tags_are_normalized_filtered_and_listed():
+    with TestClient(app) as client:
+        # Tags are trimmed, emptied out, and de-duplicated on the way in.
+        first = client.post("/api/tasks", json={"title": "Tagged A", "tags": ["bug", " bug ", "", "ui"]}).json()
+        assert first["tags"] == ["bug", "ui"]
+
+        second = client.post("/api/tasks", json={"title": "Tagged B", "tags": ["bug"]}).json()
+        third = client.post("/api/tasks", json={"title": "Tagged C", "tags": ["infra"]}).json()
+
+        bug_tasks = client.get("/api/tasks", params={"tag": "bug"}).json()
+        assert {t["id"] for t in bug_tasks} >= {first["id"], second["id"]}
+        assert third["id"] not in {t["id"] for t in bug_tasks}
+
+        # Several tags narrow the result: a task must carry all of them.
+        both = client.get("/api/tasks", params=[("tag", "bug"), ("tag", "ui")]).json()
+        assert {t["id"] for t in both} == {first["id"]}
+
+        # The tag list is derived from the tasks and carries counts.
+        tags = {t["name"]: t["count"] for t in client.get("/api/tags").json()}
+        assert tags["bug"] >= 2
+        assert tags["ui"] >= 1
+
+        # Changing a task's tags is recorded on its timeline.
+        client.patch(f"/api/tasks/{first['id']}", json={"tags": ["bug", "urgent"]})
+        event = next(e for e in client.get(f"/api/tasks/{first['id']}/timeline").json() if e["type"] == "updated")
+        assert event["data_json"]["changes"]["tags"]["to"] == ["bug", "urgent"]
+
+        for task in (first, second, third):
+            client.delete(f"/api/tasks/{task['id']}")
+
+
 def test_harnesses_are_seeded():
     with TestClient(app) as client:
         harnesses = client.get("/api/harnesses").json()

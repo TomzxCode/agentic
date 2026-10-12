@@ -4,16 +4,17 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 const props = defineProps({ items: { type: Array, required: true } })
 const emit = defineEmits(['close', 'select'])
 
-const GROUP_ORDER = ['Actions', 'This task', 'Navigation', 'Tasks']
+const GROUP_ORDER = ['Actions', 'This task', 'Navigation', 'Tags', 'Tasks']
 
 const query = ref('')
 const highlighted = ref(0)
 const input = ref(null)
 
 // Rank matches: substring first (earlier = better), then subsequence.
-function score(label, q) {
+// An item may carry extra `keywords` (tags, aliases) that are searchable but not shown.
+function score(item, q) {
   if (!q) return 0
-  const text = label.toLowerCase()
+  const text = `${item.label} ${item.keywords || ''}`.toLowerCase()
   const index = text.indexOf(q)
   if (index !== -1) return 1000 - index
   let matched = 0
@@ -29,7 +30,7 @@ function score(label, q) {
 const grouped = computed(() => {
   const q = query.value.trim().toLowerCase()
   const matched = props.items
-    .map((item) => ({ item, s: score(item.label, q) }))
+    .map((item) => ({ item, s: score(item, q) }))
     .filter((entry) => entry.s >= 0)
     .sort((a, b) => b.s - a.s)
     .map((entry) => entry.item)

@@ -59,8 +59,14 @@ class AgenticClient:
         return self._request("GET", "/api/health")
 
     # --- tasks ---------------------------------------------------------
-    def list_tasks(self, status: str | None = None, q: str | None = None) -> list[dict]:
-        params = {k: v for k, v in {"status": status, "q": q}.items() if v}
+    def list_tasks(self, status: str | None = None, q: str | None = None, tags: list[str] | None = None) -> list[dict]:
+        params: list[tuple[str, str]] = []
+        if status:
+            params.append(("status", status))
+        if q:
+            params.append(("q", q))
+        for tag in tags or []:
+            params.append(("tag", tag))
         return self._request("GET", "/api/tasks", params=params)
 
     def get_task(self, task_id: str) -> dict:
@@ -211,6 +217,10 @@ class AgenticClient:
 
     def update_settings(self, **fields: Any) -> dict:
         return self._request("PATCH", "/api/settings", json=_compact(fields))
+
+    # --- tags -------------------------------------------------------------
+    def list_tags(self) -> list[dict]:
+        return self._request("GET", "/api/tags")
 
 
 def _compact(data: dict[str, Any]) -> dict[str, Any]:

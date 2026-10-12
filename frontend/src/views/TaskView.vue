@@ -11,6 +11,7 @@ import SessionLinks from '../components/SessionLinks.vue'
 import EditableText from '../components/EditableText.vue'
 import SearchSelect from '../components/SearchSelect.vue'
 import RepositorySelect from '../components/RepositorySelect.vue'
+import TagInput from '../components/TagInput.vue'
 import StatusIcon from '../components/StatusIcon.vue'
 import PriorityIcon from '../components/PriorityIcon.vue'
 
@@ -28,6 +29,7 @@ const descriptionRef = ref(null)
 const statusRef = ref(null)
 const priorityRef = ref(null)
 const repositoryRef = ref(null)
+const tagRef = ref(null)
 
 // Links from the most recent run that produced a session.
 const latestLinks = computed(() => task.value?.runs?.find((run) => run.links?.length)?.links || [])
@@ -109,7 +111,8 @@ onMounted(async () => {
       description: descriptionRef,
       status: statusRef,
       priority: priorityRef,
-      repository: repositoryRef
+      repository: repositoryRef,
+      tags: tagRef
     }[field]
     target?.value?.activate?.()
   }
@@ -176,6 +179,15 @@ watch(
             :model-value="task.repository_ids"
             :repositories="store.repositories"
             @update:model-value="setRepositories"
+          />
+          <span class="meta-sep" aria-hidden="true"></span>
+          <TagInput
+            ref="tagRef"
+            class="task-meta-tags"
+            :model-value="task.tags || []"
+            :suggestions="store.tags"
+            placeholder="Add tags…"
+            @update:model-value="(value) => update('tags', value)"
           />
         </div>
       </div>

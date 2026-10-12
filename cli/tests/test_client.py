@@ -30,11 +30,23 @@ def test_list_tasks_passes_filters():
     seen: dict = {}
 
     def handler(request: httpx.Request) -> httpx.Response:
-        seen["query"] = dict(httpx.QueryParams(request.url.query))
+        seen["params"] = httpx.QueryParams(request.url.query).multi_items()
         return httpx.Response(200, json=[])
 
-    _client(handler).list_tasks(status="open", q="flaky")
-    assert seen["query"] == {"status": "open", "q": "flaky"}
+    _client(handler).list_tasks(status="open", q="flaky", tags=["bug", "ui"])
+    assert seen["params"] == [("status", "open"), ("q", "flaky"), ("tag", "bug"), ("tag", "ui")]
+
+
+def test_list_tags():
+    seen: dict = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["path"] = request.url.path
+        return httpx.Response(200, json=[{"name": "bug", "count": 2}])
+
+    tags = _client(handler).list_tags()
+    assert seen["path"] == "/api/tags"
+    assert tags == [{"name": "bug", "count": 2}]
 
 
 def test_associate_inline_item():

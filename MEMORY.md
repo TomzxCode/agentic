@@ -1,5 +1,9 @@
 # Memory
 
+## 2026-10-12: Tags are a normalized JSON list on Task, filtered in process
+
+- Tags reuse the existing `task.tags` JSON column (no table, no migration). `crud.normalize_tags` trims, drops empties, and de-duplicates while preserving order, and the tasks router applies it on create and update. `GET /api/tasks` accepts a repeatable `tag` query parameter and keeps only tasks carrying every requested tag (AND), filtered in process like `q`. `GET /api/tags` derives `{name, count}` from the tasks, ordered by count descending then case-insensitive name. Tags are case-sensitive. The SPA filters the already-loaded list client-side (`store.tagFilter`), it does not send `tag` to the API; the CLI (`task list --tag`, `tag list`) does.
+
 ## 2026-10-11: the frontend dev toolchain upgrades as a set
 
 - vue-router 5 needs vite `^7.3 || ^8`, vite 8 needs `@vitejs/plugin-vue` 6, and vitest 5 must move with `@vitest/coverage-v8` 5. Dependabot's per-package PRs fail `npm ci` on their own because of these peer constraints; bump the set together (done in PR #7).

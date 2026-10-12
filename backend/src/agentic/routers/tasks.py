@@ -5,12 +5,12 @@ from __future__ import annotations
 import contextlib
 
 import anyio
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import case
 from sqlalchemy import delete as sa_delete
 from sqlmodel import Session, col, select
 
-from ..crud import add_timeline, field_label, get_task_or_404, jsonable
+from ..crud import add_timeline, field_label, get_task_or_404, jsonable, normalize_tags
 from ..db import get_session
 from ..events import bus
 from ..links import run_read
@@ -138,12 +138,17 @@ def _link_item(session: Session, task_id: str, item: SourceItem, note: str = "")
 def list_tasks(
     status: str | None = None,
     q: str | None = None,
+    tag: list[str] = Query(default=[]),
     session: Session = Depends(get_session),
 ) -> list[TaskRead]:
     query = select(Task).order_by(col(Task.updated_at).desc())
     if status:
         query = query.where(Task.status == status)
     tasks = list(session.exec(query).all())
+    # A task matches only when it carries every requested tag (AND).
+    wanted = set(normalize_tags(tag))
+    if wanted:
+        tasks = [p for p in tasks if wanted.issubset(set(p.tags or []))]
     if q:
         needle = q.lower()
         tasks = [
@@ -159,6 +164,7 @@ def list_tasks(
 @router.post("", response_model=TaskRead, status_code=201)
 async def create_task(payload: TaskCreate, session: Session = Depends(get_session)) -> TaskRead:
     data = payload.model_dump(exclude={"github_url", "repository_ids"})
+    data["tags"] = normalize_tags(data.get("tags") or [])
 
     # Import from GitHub: fetch the issue, use it to fill the task, and link it.
     item: SourceItem | None = None
@@ -201,6 +207,8 @@ def get_task(task_id: str, session: Session = Depends(get_session)) -> TaskDetai
 async def update_task(task_id: str, payload: TaskUpdate, session: Session = Depends(get_session)) -> TaskRead:
     task = get_task_or_404(session, task_id)
     data = payload.model_dump(exclude_unset=True)
+    if "tags" in data:
+        data["tags"] = normalize_tags(data["tags"] or [])
     repository_ids = data.pop("repository_ids", None)
 
     before = {key: jsonable(getattr(task, key)) for key in data}

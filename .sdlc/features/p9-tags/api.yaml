@@ -1,0 +1,223 @@
+# session_link: http://localhost:10000/?session=ses_ed2936849ffePjqvp9kEDOH0mX
+# OpenAPI 3 contract for Task tags.
+# Normative API definition referenced by specification.md.
+# Covers the tag surface: reading and filtering tasks, and setting the tags on a
+# task when it is created or updated. The rest of the tasks API is unchanged and
+# is described in .sdlc/features/p1-tasks/specification.md.
+# Validate: npx -y @stoplight/spectral-cli lint --ruleset spectral:oas api.yaml
+# (pass a local ruleset file instead when the built-in name does not resolve)
+openapi: 3.1.0
+info:
+  title: "Task tags API"
+  version: 0.1.0
+  contact:
+    name: Agentic
+    url: https://github.com/TomzxCode/agentic
+  description: >
+    Tag-related surface of the Agentic tasks API.
+    A task carries a `tags` list (a JSON array of strings on the task row), the
+    task list can be filtered by one or more tags, and the set of tags in use can
+    be enumerated.
+    The surface is additive: new fields may appear on responses, and clients must
+    ignore unknown fields. New optional query parameters and new response fields
+    are non-breaking; removing or renaming one is breaking.
+servers:
+  - url: http://127.0.0.1:8600
+    description: Local single-user instance
+tags:
+  - name: tasks
+    description: Task listing, creation, and filtering.
+  - name: tags
+    description: The tags in use.
+paths:
+  /api/tasks:
+    get:
+      summary: List tasks, optionally filtered by status, query text, and tags
+      description: >
+        Returns tasks newest first. When `tag` is repeated, a task is returned
+        only if it carries every requested tag.
+      operationId: listTasks
+      tags: [tasks]
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [open, in_progress, blocked, done, archived]
+        - name: q
+          in: query
+          required: false
+          description: Substring match over title, description, and summary.
+          schema:
+            type: string
+        - name: tag
+          in: query
+          required: false
+          description: >
+            Repeat to require several tags. A task matches only when it carries
+            every requested tag (exact, trimmed match).
+          style: form
+          explode: true
+          schema:
+            type: array
+            items:
+              type: string
+      responses:
+        "200":
+          description: Tasks newest first, after the filters are applied
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Task"
+    post:
+      summary: Create a task, normalizing its tags
+      description: Creates a task from the given fields; the `tags` list is normalized on write.
+      operationId: createTask
+      tags: [tasks]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TaskCreate"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Task"
+        "400":
+          description: Missing title and no GitHub URL
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /api/tasks/{task_id}:
+    patch:
+      summary: Update a task, replacing its tags
+      description: Updates the given fields; a `tags` list replaces the stored one and is normalized on write.
+      operationId: updateTask
+      tags: [tasks]
+      parameters:
+        - name: task_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TaskUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Task"
+        "404":
+          description: Task not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /api/tags:
+    get:
+      summary: List the tags in use, with task counts
+      description: Returns each tag with the number of tasks that carry it.
+      operationId: listTags
+      tags: [tags]
+      responses:
+        "200":
+          description: Tags ordered by count descending, then case-insensitively by name
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Tag"
+components:
+  schemas:
+    Task:
+      type: object
+      additionalProperties: true  # tolerate unknown fields (forward compatibility)
+      required: [id, title, status, priority, tags]
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        status:
+          type: string
+          enum: [open, in_progress, blocked, done, archived]
+        priority:
+          type: integer
+          description: 0 low, 1 medium, 2 high, 3 urgent (not range-validated by the API)
+        tags:
+          type: array
+          description: Trimmed, de-duplicated labels, in insertion order.
+          items:
+            type: string
+    TaskCreate:
+      type: object
+      additionalProperties: true
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        status:
+          type: string
+          enum: [open, in_progress, blocked, done, archived]
+        priority:
+          type: integer
+        tags:
+          type: array
+          description: Normalized on write (trimmed, no empties, no duplicates).
+          items:
+            type: string
+        github_url:
+          type: string
+          description: Import an issue/PR and prefill title and description.
+    TaskUpdate:
+      type: object
+      additionalProperties: true
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        status:
+          type: string
+          enum: [open, in_progress, blocked, done, archived]
+        priority:
+          type: integer
+        tags:
+          type: array
+          description: Replaces the stored list; normalized on write.
+          items:
+            type: string
+        summary:
+          type: string
+    Tag:
+      type: object
+      additionalProperties: true
+      required: [name, count]
+      properties:
+        name:
+          type: string
+        count:
+          type: integer
+          description: How many tasks carry this tag.
+    Error:
+      type: object
+      required: [detail]
+      properties:
+        detail:
+          type: string

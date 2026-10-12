@@ -32,6 +32,31 @@ describe('CommandPalette', () => {
     expect(wrapper.findAll('.palette-item').map((i) => i.text())).toEqual(['Go to settings'])
   })
 
+  it('matches hidden keywords without showing them', async () => {
+    const wrapper = mount(CommandPalette, {
+      props: { items: [{ id: 't1', label: 'Fix login bug', group: 'Tasks', keywords: 'regression urgent' }] },
+      attachTo: document.body
+    })
+    await wrapper.get('.palette-input').setValue('regression')
+    const items = wrapper.findAll('.palette-item')
+    expect(items).toHaveLength(1)
+    expect(items[0].text()).toBe('Fix login bug')
+  })
+
+  it('orders the Tags group between Navigation and Tasks', () => {
+    const wrapper = mount(CommandPalette, {
+      props: {
+        items: [
+          { id: 't', label: 'Task', group: 'Tasks' },
+          { id: 'tag', label: 'Filter by tag: bug', group: 'Tags' },
+          { id: 'nav', label: 'Go to settings', group: 'Navigation' }
+        ]
+      },
+      attachTo: document.body
+    })
+    expect(wrapper.findAll('.palette-group-title').map((t) => t.text())).toEqual(['Navigation', 'Tags', 'Tasks'])
+  })
+
   it('shows an empty state when nothing matches', async () => {
     const wrapper = mountPalette()
     await wrapper.get('.palette-input').setValue('zzzzz')

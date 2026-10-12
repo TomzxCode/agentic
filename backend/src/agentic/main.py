@@ -16,6 +16,7 @@ from .config import settings
 from .db import create_db_and_tables, engine
 from .routers import agents, fs, gantt, github, groups, items, repositories, tasks, worktrees
 from .routers import settings as settings_router
+from .routers import tags as tags_router
 
 log = structlog.get_logger(__name__)
 
@@ -39,7 +40,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-for module in (repositories, groups, items, tasks, worktrees, agents, settings_router, fs, github, gantt):
+for module in (repositories, groups, items, tasks, worktrees, agents, settings_router, fs, github, gantt, tags_router):
     app.include_router(module.router)
 
 

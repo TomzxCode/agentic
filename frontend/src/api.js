@@ -34,6 +34,10 @@ export const api = {
     get: ({ includeDone = false } = {}) => request(`/gantt${includeDone ? '?include_done=true' : ''}`)
   },
 
+  tags: {
+    list: () => request('/tags')
+  },
+
   items: {
     list: ({ source, q } = {}) => {
       const qs = new URLSearchParams()

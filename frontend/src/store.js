@@ -3,12 +3,15 @@ import { api } from './api'
 
 export const store = reactive({
   tasks: [],
+  tags: [],
   harnesses: [],
   repositories: [],
   groups: [],
   settings: {},
   loading: false,
   toast: null,
+  // Tag filter applied to task lists ("" means every tag).
+  tagFilter: '',
   // Set by the active task page so the palette can jump to its fields.
   focusField: null,
   // Focus-hint mode: press f to reveal a letter over each control.
@@ -16,6 +19,9 @@ export const store = reactive({
 
   async loadTasks() {
     this.tasks = await api.tasks.list()
+  },
+  async loadTags() {
+    this.tags = await api.tags.list()
   },
   async loadHarnesses() {
     this.harnesses = await api.harnesses.list()
@@ -29,12 +35,19 @@ export const store = reactive({
   async loadSettings() {
     this.settings = (await api.settings.get()).effective
   },
+  toggleTagFilter(name) {
+    this.tagFilter = this.tagFilter === name ? '' : name
+  },
   notify(message, isError = false) {
     this.toast = { message, isError }
     clearTimeout(this._t)
     this._t = setTimeout(() => (this.toast = null), 4000)
   }
 })
+
+export function taskHasTag(task, name) {
+  return (task.tags || []).includes(name)
+}
 
 export function statusLabel(status) {
   return (

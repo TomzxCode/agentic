@@ -2,9 +2,10 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { api } from './api'
-import { store, timeAgo } from './store'
+import { store, timeAgo, taskHasTag } from './store'
 import SearchSelect from './components/SearchSelect.vue'
 import RepositorySelect from './components/RepositorySelect.vue'
+import TagInput from './components/TagInput.vue'
 import StatusIcon from './components/StatusIcon.vue'
 import PriorityIcon from './components/PriorityIcon.vue'
 import CommandPalette from './components/CommandPalette.vue'
@@ -19,6 +20,7 @@ const draft = ref({
   description: '',
   status: 'open',
   priority: 2,
+  tags: [],
   repository_ids: [],
   group_id: '',
   github_url: ''
@@ -87,8 +89,13 @@ watch(
 )
 const importRepoOptions = computed(() => githubRepos.value.map((r) => ({ value: r.id, label: r.name })))
 
-// The sidebar is for work in flight: hide done and archived tasks.
-const sidebarTasks = computed(() => store.tasks.filter((p) => p.status !== 'done' && p.status !== 'archived'))
+// The sidebar is for work in flight: hide done and archived tasks, and apply
+// the active tag filter so a tag can be viewed on its own.
+const sidebarTasks = computed(() =>
+  store.tasks
+    .filter((p) => p.status !== 'done' && p.status !== 'archived')
+    .filter((p) => !store.tagFilter || taskHasTag(p, store.tagFilter))
+)
 
 // Command palette: navigate anywhere (and a couple of actions) from the keyboard.
 const taskFieldItems = computed(() =>
@@ -108,24 +115,52 @@ const taskFieldItems = computed(() =>
           label: 'Add repository',
           group: 'This task',
           run: () => store.focusField?.('repository')
-        }
+        },
+        { id: 'field-tags', label: 'Set tags', group: 'This task', run: () => store.focusField?.('tags') }
       ]
     : []
+)
+
+// One palette entry per tag in use: pick it to filter the task list by that tag.
+const tagItems = computed(() =>
+  store.tags.map((tag) => ({
+    id: `tag-${tag.name}`,
+    label: `Filter by tag: ${tag.name}`,
+    group: 'Tags',
+    hint: store.tagFilter === tag.name ? 'active' : String(tag.count),
+    keywords: tag.name,
+    run: () => {
+      store.tagFilter = tag.name
+      router.push('/')
+    }
+  }))
 )
 
 const paletteItems = computed(() => [
   { id: 'new-task', label: 'New task', group: 'Actions', run: () => (showNew.value = true) },
   { id: 'focus-hints', label: 'Show focus hints', hint: 'f', group: 'Actions', run: () => (store.hintMode = true) },
+  ...(store.tagFilter
+    ? [
+        {
+          id: 'clear-tag-filter',
+          label: `Clear tag filter: ${store.tagFilter}`,
+          group: 'Actions',
+          run: () => (store.tagFilter = '')
+        }
+      ]
+    : []),
   ...taskFieldItems.value,
   { id: 'go-tasks', label: 'Go to tasks', group: 'Navigation', run: () => router.push('/') },
   { id: 'go-gantt', label: 'Go to gantt', group: 'Navigation', run: () => router.push('/gantt') },
   { id: 'go-items', label: 'Go to resources', group: 'Navigation', run: () => router.push('/items') },
   { id: 'go-settings', label: 'Go to settings', group: 'Navigation', run: () => router.push('/settings') },
+  ...tagItems.value,
   ...store.tasks.map((task) => ({
     id: `task-${task.id}`,
     label: task.title,
     group: 'Tasks',
-    hint: task.status.replace('_', ' '),
+    hint: [task.status.replace('_', ' '), ...(task.tags || []).map((tag) => `#${tag}`)].join(' '),
+    keywords: (task.tags || []).join(' '),
     run: () => router.push(`/task/${task.id}`)
   }))
 ])
@@ -258,6 +293,9 @@ async function refresh() {
   store.loading = true
   try {
     await store.loadTasks()
+    await store.loadTags()
+    // Drop a filter whose tag no longer exists on any task.
+    if (store.tagFilter && !store.tags.some((tag) => tag.name === store.tagFilter)) store.tagFilter = ''
   } catch (e) {
     store.notify(e.message, true)
   } finally {
@@ -271,6 +309,7 @@ function resetDraft() {
     description: '',
     status: 'open',
     priority: 2,
+    tags: [],
     repository_ids: [],
     group_id: '',
     github_url: ''
@@ -410,10 +449,38 @@ onUnmounted(() => {
           <span>Agentic</span>
         </router-link>
       </div>
+      <div v-if="store.tags.length" class="side-filters" aria-label="Filter by tag">
+        <button
+          class="tag-filter"
+          :class="{ active: !store.tagFilter }"
+          type="button"
+          title="Show every task"
+          @click="store.tagFilter = ''"
+        >
+          All
+        </button>
+        <button
+          v-for="tag in store.tags"
+          :key="tag.name"
+          class="tag-filter"
+          :class="{ active: store.tagFilter === tag.name }"
+          type="button"
+          :title="`Show tasks tagged ${tag.name}`"
+          @click="store.toggleTagFilter(tag.name)"
+        >
+          {{ tag.name }} <span class="count">{{ tag.count }}</span>
+        </button>
+      </div>
       <div class="side-scroll">
         <div v-if="store.loading && !store.tasks.length" class="empty"><span class="spinner"></span></div>
         <div v-else-if="!sidebarTasks.length" class="empty">
-          {{ store.tasks.length ? 'All caught up.' : 'No tasks yet.' }}
+          {{
+            store.tagFilter
+              ? `No tasks tagged "${store.tagFilter}".`
+              : store.tasks.length
+                ? 'All caught up.'
+                : 'No tasks yet.'
+          }}
         </div>
         <div v-for="p in sidebarTasks" :key="p.id" class="task-card" :class="{ active: route.params.id === p.id }">
           <SearchSelect
@@ -432,6 +499,9 @@ onUnmounted(() => {
             }}</span>
             <span class="faint when">{{ timeAgo(p.updated_at) }}</span>
           </router-link>
+          <div v-if="p.tags?.length" class="task-tags">
+            <span v-for="tag in p.tags" :key="tag" class="tag-chip">{{ tag }}</span>
+          </div>
         </div>
       </div>
 
@@ -565,6 +635,10 @@ onUnmounted(() => {
         <div class="field">
           <label>Priority</label>
           <SearchSelect v-model="draft.priority" :options="priorityOptions" :sort="false" placeholder="Priority" />
+        </div>
+        <div class="field">
+          <label>Tags (optional)</label>
+          <TagInput v-model="draft.tags" :suggestions="store.tags" placeholder="Add tags…" />
         </div>
         <div class="field">
           <label>Repository group (optional)</label>

@@ -34,6 +34,8 @@ const stub = { global: { stubs: { RouterLink: RouterLinkStub } } }
 beforeEach(() => {
   vi.clearAllMocks()
   store.toast = null
+  store.tagFilter = ''
+  store.tags = []
 })
 
 afterEach(() => {
@@ -78,6 +80,40 @@ describe('TasksView', () => {
     const wrapper = mount(TasksView, stub)
     await flushPromises()
     expect(wrapper.text()).toContain('Get started')
+  })
+
+  it('filters by tag, counts the filtered set, and shows tag pills', async () => {
+    store.tags = [
+      { name: 'bug', count: 1 },
+      { name: 'ui', count: 1 }
+    ]
+    store.tagFilter = 'bug'
+    store.tasks = [
+      { id: 't1', status: 'open', priority: 2, title: 'Bug task', next_steps: [], updated_at: null, tags: ['bug'] },
+      { id: 't2', status: 'open', priority: 2, title: 'UI task', next_steps: [], updated_at: null, tags: ['ui'] }
+    ]
+    const wrapper = mount(TasksView, stub)
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Bug task')
+    expect(wrapper.text()).not.toContain('UI task')
+    expect(wrapper.text()).toContain('Open 1')
+    expect(wrapper.findAll('.tag-filter').length).toBe(3) // All + two tags
+    expect(wrapper.find('.tag-filter.active').text()).toContain('bug')
+  })
+
+  it('toggles the tag filter from a row pill and clears it', async () => {
+    store.tags = [{ name: 'ui', count: 1 }]
+    store.tasks = [
+      { id: 't1', status: 'open', priority: 2, title: 'UI task', next_steps: [], updated_at: null, tags: ['ui'] }
+    ]
+    const wrapper = mount(TasksView, stub)
+    await flushPromises()
+
+    await wrapper.get('.item button.tag-chip').trigger('click')
+    expect(store.tagFilter).toBe('ui')
+    await wrapper.get('.tag-filter').trigger('click') // "All"
+    expect(store.tagFilter).toBe('')
   })
 })
 

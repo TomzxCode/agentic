@@ -80,7 +80,11 @@ def _join(rows: list, render) -> str:
 
 
 def _task_line(task: dict) -> str:
-    return f"{task['id']}  [{task['status']}] p{task['priority']}  {task['title']}"
+    line = f"{task['id']}  [{task['status']}] p{task['priority']}  {task['title']}"
+    tags = task.get("tags") or []
+    if tags:
+        line += "  " + " ".join(f"#{tag}" for tag in tags)
+    return line
 
 
 def _task_text(task: dict) -> str:
@@ -165,10 +169,10 @@ app.command(task_app)
 
 @task_app.command(name="list")
 @safe
-def task_list(status: TaskStatus | None = None, q: str | None = None) -> str:
-    """List tasks, newest first."""
+def task_list(status: TaskStatus | None = None, q: str | None = None, tag: list[str] | None = None) -> str:
+    """List tasks, newest first (optionally filtered by --tag, repeatable)."""
     with _client() as client:
-        tasks = client.list_tasks(status=status, q=q)
+        tasks = client.list_tasks(status=status, q=q, tags=tag)
     return emit(tasks, _join(tasks, _task_line))
 
 
@@ -256,6 +260,20 @@ def task_timeline(task_id: str) -> str:
         events = client.task_timeline(task_id)
     text = _join(events, lambda e: f"{e['created_at'][:19]}  {e['type']:<18} {e['message']}")
     return emit(events, text)
+
+
+# --- tags -----------------------------------------------------------------
+tag_app = App(name="tag", help="Inspect the tags carried by tasks.")
+app.command(tag_app)
+
+
+@tag_app.command(name="list")
+@safe
+def tag_list() -> str:
+    """List the tags in use, with how many tasks carry each."""
+    with _client() as client:
+        tags = client.list_tags()
+    return emit(tags, _join(tags, lambda t: f"{t['name']}  ({t['count']})"))
 
 
 # --- items ----------------------------------------------------------------

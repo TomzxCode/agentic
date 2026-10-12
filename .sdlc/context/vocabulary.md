@@ -17,6 +17,7 @@
 | Session link | A way to reopen an agent session: an OpenChamber URL, a terminal URL, or a copyable resume command. |
 | Source | The origin kind of an item: `slack`, `github`, `gdrive`, `url`, `note`, `commit`, or `file`. |
 | Summary | The agent-maintained short current-state paragraph for a task. |
+| Tag | A short label a task carries; stored as a list on the task, normalized on write, and usable to filter the task list. |
 | Task | The unit of work everything hangs off. |
 | Timeline event | A persisted record of a meaningful change to a task, shown as a chronological timeline. |
 | Worktree | An isolated `git worktree` created for a task from a registered repository. |

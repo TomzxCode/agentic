@@ -52,18 +52,28 @@ function mountApp() {
   return mount(App, { attachTo: document.body, global: { stubs } })
 }
 
+// Same App, but with the real command palette so its items can be inspected.
+function mountAppWithPalette() {
+  const withoutPalette = { ...stubs }
+  delete withoutPalette.CommandPalette
+  return mount(App, { attachTo: document.body, global: { stubs: withoutPalette } })
+}
+
 beforeEach(() => {
   vi.clearAllMocks()
   route.fullPath = '/'
   route.name = 'tasks'
   route.params = {}
   store.tasks = []
+  store.tags = []
+  store.tagFilter = ''
   store.repositories = []
   store.groups = []
   store.settings = {}
   store.hintMode = false
   store.toast = null
   vi.spyOn(store, 'loadTasks').mockResolvedValue()
+  vi.spyOn(store, 'loadTags').mockResolvedValue()
   vi.spyOn(store, 'loadGroups').mockResolvedValue()
   vi.spyOn(store, 'loadRepositories').mockResolvedValue()
   vi.spyOn(store, 'loadSettings').mockResolvedValue()
@@ -107,6 +117,50 @@ describe('App', () => {
     expect(sidebar.text()).toContain('In flight')
     expect(sidebar.text()).not.toContain('Finished')
     expect(sidebar.text()).not.toContain('Stored away')
+  })
+
+  it('filters the sidebar by tag and shows tag pills', async () => {
+    store.tags = [
+      { name: 'bug', count: 1 },
+      { name: 'ui', count: 1 }
+    ]
+    store.tasks = [
+      { id: 't1', title: 'Bug task', status: 'open', updated_at: null, next_steps: [], tags: ['bug'] },
+      { id: 't2', title: 'UI task', status: 'open', updated_at: null, next_steps: [], tags: ['ui'] }
+    ]
+    const wrapper = mountApp()
+    await flushPromises()
+    expect(wrapper.get('.side-scroll').text()).toContain('Bug task')
+    expect(wrapper.get('.task-tags').text()).toContain('bug')
+
+    await wrapper
+      .findAll('.side-filters .tag-filter')
+      .find((b) => b.text().startsWith('bug'))
+      .trigger('click')
+    expect(store.tagFilter).toBe('bug')
+    expect(wrapper.get('.side-scroll').text()).toContain('Bug task')
+    expect(wrapper.get('.side-scroll').text()).not.toContain('UI task')
+
+    await wrapper.get('.side-filters .tag-filter').trigger('click') // "All"
+    expect(store.tagFilter).toBe('')
+    expect(wrapper.get('.side-scroll').text()).toContain('UI task')
+  })
+
+  it('creates a task with tags from the modal', async () => {
+    mocks.tasksCreate.mockResolvedValue({ id: 'new3' })
+    const wrapper = mountApp()
+    await flushPromises()
+
+    await wrapper.get('.new-task').trigger('click')
+    await wrapper.get('input[placeholder="What needs to be solved?"]').setValue('Tagged')
+    const entry = wrapper.get('.modal .tag-entry')
+    await entry.setValue('bug')
+    await entry.trigger('keydown', { key: 'Enter' })
+    await wrapper.get('.modal .btn.primary').trigger('click')
+    await flushPromises()
+
+    expect(mocks.tasksCreate).toHaveBeenCalledWith(expect.objectContaining({ title: 'Tagged', tags: ['bug'] }))
+    expect(mocks.push).toHaveBeenCalledWith('/task/new3')
   })
 
   it('shows a caught-up message when every task is done', async () => {
@@ -239,6 +293,40 @@ describe('App', () => {
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
     await nextTick()
     expect(wrapper.find('.palette-stub').exists()).toBe(false)
+  })
+
+  it('offers tag filters in the command palette', async () => {
+    store.tags = [{ name: 'bug', count: 2 }]
+    store.tasks = [{ id: 't1', title: 'Task A', status: 'open', updated_at: null, next_steps: [], tags: ['bug'] }]
+    const wrapper = mountAppWithPalette()
+    await flushPromises()
+
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true }))
+    await nextTick()
+    await wrapper.get('.palette-input').setValue('bug')
+
+    const tagItem = wrapper.findAll('.palette-item').find((i) => i.text().includes('Filter by tag: bug'))
+    expect(tagItem).toBeTruthy()
+    await tagItem.trigger('click')
+    await flushPromises()
+    expect(store.tagFilter).toBe('bug')
+    expect(mocks.push).toHaveBeenCalledWith('/')
+  })
+
+  it('offers a clear-tag-filter action when a filter is active', async () => {
+    store.tags = [{ name: 'bug', count: 1 }]
+    store.tagFilter = 'bug'
+    const wrapper = mountAppWithPalette()
+    await flushPromises()
+
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true }))
+    await nextTick()
+    await wrapper.get('.palette-input').setValue('clear')
+
+    const clearItem = wrapper.findAll('.palette-item').find((i) => i.text().includes('Clear tag filter'))
+    expect(clearItem).toBeTruthy()
+    await clearItem.trigger('click')
+    expect(store.tagFilter).toBe('')
   })
 
   it('enters focus-hint mode with f and focuses a control by letter', async () => {
