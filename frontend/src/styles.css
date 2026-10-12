@@ -308,6 +308,9 @@ h3 {
   background: var(--bg-3);
   box-shadow: inset 0 0 0 1px rgba(110, 231, 183, 0.38);
 }
+.sidebar-nav .nav-link svg {
+  display: block;
+}
 .sidebar-nav-links {
   display: flex;
   align-items: center;

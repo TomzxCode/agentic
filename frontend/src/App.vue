@@ -550,44 +550,143 @@ onUnmounted(() => {
           </button>
         </div>
         <div class="sidebar-nav-links">
-          <router-link to="/" class="nav-link" :class="{ active: route.name === 'tasks' }" @click="sidebarOpen = false"
-            >Tasks</router-link
+          <router-link
+            to="/"
+            class="nav-link"
+            :class="{ active: route.name === 'tasks' }"
+            title="Tasks"
+            aria-label="Tasks"
+            @click="sidebarOpen = false"
           >
+            <svg
+              viewBox="0 0 24 24"
+              width="18"
+              height="18"
+              aria-hidden="true"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M9 6h11M9 12h11M9 18h11" />
+              <path d="M4 6l1 1 2-2M4 12l1 1 2-2M4 18l1 1 2-2" />
+            </svg>
+          </router-link>
           <router-link
             to="/gantt"
             class="nav-link"
             :class="{ active: route.name === 'gantt' }"
+            title="Gantt"
+            aria-label="Gantt"
             @click="sidebarOpen = false"
-            >Gantt</router-link
           >
+            <svg
+              viewBox="0 0 24 24"
+              width="18"
+              height="18"
+              aria-hidden="true"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+            >
+              <path d="M4 6h9M4 12h13M4 18h6" />
+            </svg>
+          </router-link>
           <router-link
             to="/metrics"
             class="nav-link"
             :class="{ active: route.name === 'metrics' }"
+            title="Metrics"
+            aria-label="Metrics"
             @click="sidebarOpen = false"
-            >Metrics</router-link
           >
+            <svg
+              viewBox="0 0 24 24"
+              width="18"
+              height="18"
+              aria-hidden="true"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+            >
+              <path d="M5 20V11M12 20V5M19 20v-6" />
+            </svg>
+          </router-link>
           <router-link
             to="/items"
             class="nav-link"
             :class="{ active: route.name === 'items' }"
+            title="Items"
+            aria-label="Items"
             @click="sidebarOpen = false"
-            >Items</router-link
           >
+            <svg
+              viewBox="0 0 24 24"
+              width="18"
+              height="18"
+              aria-hidden="true"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M4 13l2-7h12l2 7v5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z" />
+              <path d="M4 13h4l1.5 2h5L16 13h4" />
+            </svg>
+          </router-link>
           <router-link
             to="/people"
             class="nav-link"
             :class="{ active: route.name === 'people' }"
+            title="People"
+            aria-label="People"
             @click="sidebarOpen = false"
-            >People</router-link
           >
+            <svg
+              viewBox="0 0 24 24"
+              width="18"
+              height="18"
+              aria-hidden="true"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <circle cx="9" cy="8" r="3" />
+              <path d="M3 20c0-3 2.5-5 6-5s6 2 6 5" />
+              <path d="M16 5.5a3 3 0 0 1 0 5.5M18 15c2 .6 3 1.9 3 4" />
+            </svg>
+          </router-link>
           <router-link
             to="/settings"
             class="nav-link"
             :class="{ active: route.name === 'settings' }"
+            title="Settings"
+            aria-label="Settings"
             @click="sidebarOpen = false"
-            >Settings</router-link
           >
+            <svg
+              viewBox="0 0 24 24"
+              width="18"
+              height="18"
+              aria-hidden="true"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path
+                d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"
+              />
+              <circle cx="12" cy="12" r="3" />
+            </svg>
+          </router-link>
         </div>
       </nav>
     </aside>
