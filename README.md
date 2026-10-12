@@ -195,6 +195,20 @@ Two command-line tools are installed:
   can drive the app's content without touching the database.
 - **`agentic-server`** — the backend. Runs the server and reports its config.
 
+### Install
+
+`uv sync` puts both commands in the repository's `.venv`. To use `agentic` from
+anywhere, install the CLI as a [uv tool](https://docs.astral.sh/uv/concepts/tools/):
+
+```bash
+uv tool install ./cli          # from the repository root
+uv tool install -e ./cli       # editable: code changes apply immediately
+```
+
+With `-e`, the command links to the working tree, so edits under `cli/src/` take
+effect without reinstalling. This installs `agentic` only; run the backend from
+the workspace (`uv run agentic-server`).
+
 ### User client
 
 ```bash
