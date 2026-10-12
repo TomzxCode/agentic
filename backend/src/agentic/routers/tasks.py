@@ -49,7 +49,7 @@ from ..schemas import (
     TimelineRead,
     WorktreeRead,
 )
-from ..services import remove_worktree
+from ..services import github_owner_repo, remove_worktree
 from .items import _upsert_item
 from .people import link_item_people_to_task, task_people
 
@@ -74,6 +74,39 @@ def _set_task_repositories(session: Session, task_id: str, repository_ids: list[
         seen.add(repository_id)
         session.add(TaskRepository(task_id=task_id, repository_id=repository_id))
     session.commit()
+
+
+def _repository_for_item(session: Session, item: SourceItem) -> Repository | None:
+    """The repository a source item belongs to, matched by its GitHub owner/repo.
+
+    GitHub issue and PR links carry the repository they live in, so a task that
+    tracks one can be pointed at the matching local checkout automatically.
+    """
+    if item.source != "github":
+        return None
+    target = github_owner_repo(item.url)
+    if target is None:
+        return None
+    wanted = (target[0].lower(), target[1].lower())
+    for repository in session.exec(select(Repository)).all():
+        remote = github_owner_repo(repository.remote_url)
+        if remote and (remote[0].lower(), remote[1].lower()) == wanted:
+            return repository
+    return None
+
+
+def _link_repository_for_item(session: Session, task_id: str, item: SourceItem) -> Repository | None:
+    """Attach the item's repository to the task (idempotent) when it matches one."""
+    repository = _repository_for_item(session, item)
+    if repository is None:
+        return None
+    existing = session.exec(
+        select(TaskRepository).where(TaskRepository.task_id == task_id, TaskRepository.repository_id == repository.id)
+    ).first()
+    if existing is None:
+        session.add(TaskRepository(task_id=task_id, repository_id=repository.id))
+        session.commit()
+    return repository
 
 
 def _task_read(session: Session, task: Task) -> TaskRead:
@@ -147,6 +180,8 @@ def _link_item(session: Session, task_id: str, item: SourceItem, note: str = "")
     session.refresh(assoc)
     # A linked source brings its people: everyone already on the item joins the task.
     link_item_people_to_task(session, task_id, item.id)
+    # A linked GitHub issue or PR also brings its repository, when it is known.
+    _link_repository_for_item(session, task_id, item)
     return assoc
 
 

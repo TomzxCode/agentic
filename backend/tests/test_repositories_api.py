@@ -47,6 +47,25 @@ def test_create_repository_detects_remote_and_branch(monkeypatch, tmp_path):
         repo = client.post("/api/repositories", json={"path": str(_git_dir(tmp_path, "repo"))}).json()
         assert repo["remote_url"] == "git@github.com:o/r.git"
         assert repo["default_branch"] == "develop"
+        assert repo["name"] == "o/r"
+        client.delete(f"/api/repositories/{repo['id']}")
+
+
+def test_associating_github_item_links_its_repository(tmp_path):
+    with TestClient(app) as client:
+        repo = client.post(
+            "/api/repositories",
+            json={"path": str(_git_dir(tmp_path, "repo")), "remote_url": "git@github.com:o/r.git"},
+        ).json()
+        task = client.post("/api/tasks", json={"title": "T"}).json()
+
+        client.post(
+            f"/api/tasks/{task['id']}/items",
+            json={"item": {"url": "https://github.com/o/r/issues/5", "fetch": False}},
+        )
+        assert client.get(f"/api/tasks/{task['id']}").json()["repository_ids"] == [repo["id"]]
+
+        client.delete(f"/api/tasks/{task['id']}")
         client.delete(f"/api/repositories/{repo['id']}")
 
 

@@ -19,9 +19,15 @@ from ..schemas import (
     RepositoryCreate,
     RepositoryRead,
 )
-from ..services import detect_default_branch, detect_remote_url, remove_worktree
+from ..services import detect_default_branch, detect_remote_url, github_owner_repo, remove_worktree
 
 router = APIRouter(prefix="/api/repositories", tags=["repositories"])
+
+
+def _default_name(remote_url: str | None, path: Path) -> str:
+    """A repository's default name: ``owner/name`` when the remote says so."""
+    parsed = github_owner_repo(remote_url)
+    return f"{parsed[0]}/{parsed[1]}" if parsed else path.name
 
 
 def _upsert_repository(
@@ -37,11 +43,11 @@ def _upsert_repository(
         raise ValueError(f"{path} is not a git repository")
     repo = session.exec(select(Repository).where(Repository.path == str(path))).first()
     if repo is None:
-        repo = Repository(name=name or path.name, path=str(path))
+        repo = Repository(name=name or "", path=str(path))
         session.add(repo)
-    repo.name = name or repo.name or path.name
     repo.remote_url = remote_url or repo.remote_url or detect_remote_url(str(path))
     repo.default_branch = default_branch or repo.default_branch or detect_default_branch(str(path))
+    repo.name = name or repo.name or _default_name(repo.remote_url, path)
     session.add(repo)
     session.commit()
     session.refresh(repo)

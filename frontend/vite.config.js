@@ -46,7 +46,9 @@ export default defineConfig({
   },
   server: {
     host: true, // bind 0.0.0.0 so the dev server is reachable remotely
-    allowedHosts: ['squirtle'],
+    // Allow the local hostname and the Shopify dev environment's
+    // `<project>.<owner>.dev.internal` (service and hydroxy proxy) hostnames.
+    allowedHosts: ['squirtle', '.dev.internal'],
     port: 5173,
     proxy: {
       '/api': {
