@@ -262,10 +262,10 @@ make coverage-frontend # frontend tests, write frontend/coverage/
 make lint              # ruff format + check
 make typecheck         # ty static type checking
 make build             # build the SPA into backend/static
-make run               # serve API + built SPA on :8600
+make run               # start the API (:8600) and the frontend dev server (:5173)
 ```
 
-`make run` uses `agentic-server serve`; `agentic` is the separate client.
+`make run` starts both the API (`agentic-server serve`) and the Vite dev server; `agentic` is the separate client.
 
 ## Limitations (v1)
 

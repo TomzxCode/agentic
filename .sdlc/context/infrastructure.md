@@ -40,7 +40,7 @@ Type hints are checked statically with `ty` (`make typecheck`, `uv run ty check`
 
 | Environment | Branch | Purpose | URL |
 |---|---|---|---|
-| Local (dev, split) | any | Backend with reload and the Vite dev server | backend `http://127.0.0.1:8600`, frontend `http://localhost:5173` |
+| Local (dev, split) | any | Backend with reload and the Vite dev server (`make run` starts the backend and the Vite dev server together) | backend `http://127.0.0.1:8600`, frontend `http://localhost:5173` |
 | Local (single app) | main | Built SPA served by the API | `http://127.0.0.1:8600` |
 
 There is no staging or production environment; the app is run locally by its owner.
@@ -57,7 +57,8 @@ Both jobs run on `ubuntu-latest` (Python via uv, Node 22), cancel superseded run
 
 ## Deployment
 
-Deployment is local: `make build` builds the SPA into `backend/static`, then `make run` (or `uv run agentic-server serve --host 0.0.0.0 --port 8600`) serves the API and the built SPA from one process.
+Deployment is local: `make build` builds the SPA into `backend/static`, then `uv run agentic-server serve --host 0.0.0.0 --port 8600` serves the API and the built SPA from one process.
+`make run` starts that same server together with the Vite dev server, for development.
 There is no packaging or release pipeline beyond the two installable Python packages (`agentic`, `agentic-cli`).
 
 ### Rollback

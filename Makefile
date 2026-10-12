@@ -13,7 +13,7 @@ help:
 	@echo "lint-frontend       eslint + prettier check (frontend)"
 	@echo "typecheck           ty check (static type checking)"
 	@echo "build               build the SPA into backend/static"
-	@echo "run                 serve API + built SPA on 0.0.0.0:8600"
+	@echo "run                 serve API + frontend dev server (0.0.0.0:8600 and :5173)"
 
 install:
 	uv sync
@@ -52,4 +52,10 @@ build:
 	cd frontend && npm run build
 
 run:
-	uv run agentic-server serve --host 0.0.0.0 --port 8600
+	@echo "API on http://0.0.0.0:8600, frontend dev server on http://0.0.0.0:5173 (Ctrl+C stops both)"
+	@uv run agentic-server serve --host 0.0.0.0 --port 8600 & \
+	api_pid=$$!; \
+	( cd frontend && npm run dev ) & \
+	frontend_pid=$$!; \
+	trap 'kill $$api_pid $$frontend_pid 2>/dev/null' INT TERM EXIT; \
+	wait
