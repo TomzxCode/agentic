@@ -103,6 +103,13 @@ function onChanged() {
   emit('changed')
 }
 
+// Escape blurs the focused field so its own blur handler runs (committing an
+// inline edit, adding a typed tag, …) and the field leaves edit mode.
+function blurField() {
+  const el = document.activeElement
+  if (el && el !== document.body && typeof el.blur === 'function') el.blur()
+}
+
 onMounted(async () => {
   // The palette uses this to jump to a task field.
   store.focusField = (field) => {
@@ -142,7 +149,7 @@ watch(
 <template>
   <div v-if="loading" class="empty"><span class="spinner"></span></div>
   <div v-else-if="notFound" class="empty">Task not found. <router-link to="/">Back</router-link></div>
-  <div v-else>
+  <div v-else @keydown.esc="blurField">
     <div class="row page-head task-head">
       <div class="grow">
         <EditableText

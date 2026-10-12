@@ -258,6 +258,20 @@ describe('TaskView', () => {
     expect(wrapper.emitted('changed')).toBeTruthy()
   })
 
+  it('blurs the focused field on Escape', async () => {
+    const wrapper = mount(TaskView, {
+      props: { id: 't1' },
+      attachTo: document.body,
+      global: { stubs }
+    })
+    await flushPromises()
+    const entry = wrapper.get('.tag-entry')
+    entry.element.focus()
+    expect(document.activeElement).toBe(entry.element)
+    await entry.trigger('keydown', { key: 'Escape' })
+    expect(document.activeElement).not.toBe(entry.element)
+  })
+
   it('deletes the task when confirmed', async () => {
     mocks.tasksRemove.mockResolvedValue(null)
     vi.stubGlobal('confirm', () => true)
