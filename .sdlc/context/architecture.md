@@ -50,6 +50,10 @@ erDiagram
     REPOSITORYGROUP ||--o{ TASK : "scopes"
     HARNESS ||--o{ TASK : "default for"
     WORKTREE ||--o{ AGENTRUN : "runs in"
+    TASK ||--o{ CHANGE : "produces"
+    CHANGE ||--o{ CHANGEINTERVENTION : "records"
+    REPOSITORY ||--o{ CHANGE : "touched by"
+    WORKTREE ||--o{ CHANGE : "produced in"
 
     TASK {
         string id PK
@@ -151,6 +155,36 @@ erDiagram
         string key PK
         string value
     }
+    CHANGE {
+        string id PK
+        string task_id FK
+        string title
+        string change_class
+        string status
+        string repository_id FK
+        string worktree_id FK
+        string external_ref
+        bool human_intervened
+        int intervention_count
+        datetime opened_at
+        datetime verified_at
+        datetime accepted_at
+        datetime closed_at
+    }
+    CHANGEINTERVENTION {
+        string id PK
+        string change_id FK
+        string kind
+        string note
+    }
+    METRICBASELINE {
+        string metric PK
+        float value
+        int window_days
+        int observation_days
+        string note
+        datetime captured_at
+    }
 ```
 
 The full schema with types, constraints, and indexes lives in [`schema.dbml`](schema.dbml).
@@ -166,6 +200,8 @@ The full schema with types, constraints, and indexes lives in [`schema.dbml`](sc
 | Source services | Parse/infer/fetch items, build the context prompt, parse agent JSON | httpx, subprocess (`ghx`, `slackx`) |
 | Git services | Create/remove worktrees, detect remote and default branch | `git` subprocess |
 | Gantt view | Tasks as time bars with one marker per timeline event | `routers/gantt.py`, Vue GanttView |
+| Change lifecycle | Record changes and the human interventions on them, from a task page | `routers/changes.py`, Vue ChangesPanel |
+| Metrics engine | Compute autonomy rate and yield from changes, read against a baseline | `metrics.py`, `routers/metrics.py`, Vue MetricsView |
 | Session links | Build OpenChamber/terminal/resume-command links from settings | templating over stored settings |
 | SPA | Mobile-friendly task list, task detail, settings, live transcript, PWA install | Vue 3, Vite, vue-router, vite-plugin-pwa |
 | User CLI | Scriptable client over the HTTP API | cyclopts, httpx, rich |

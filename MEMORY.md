@@ -1,5 +1,11 @@
 # Memory
 
+## 2026-10-12: factory metrics are computed from explicit change records
+
+- A `change` is recorded explicitly (CLI `agentic change`, `POST /api/changes`); nothing auto-creates one from an agent run, commit, or PR yet, so autonomy and yield are only as complete as what is recorded.
+- autonomy_rate = touchless accepted changes / accepted changes in the window; yield = accepted changes not reverted / accepted changes whose observation window has elapsed. Changes still inside the observation window are pending and excluded from yield, so a recent change never counts as a survivor by default. Keep `metrics.py` pure (no DB) so the formulas stay deterministic.
+- direction compares the value to a stored `metricbaseline` with a flat tolerance (default 0.02); with no baseline it is `no-baseline` and with no value `no-data`. `change.repository_id` / `worktree_id` are cleared when a repository is deleted and changes/interventions are deleted with their task.
+
 ## 2026-10-12: Tags are a normalized JSON list on Task, filtered in process
 
 - Tags reuse the existing `task.tags` JSON column (no table, no migration). `crud.normalize_tags` trims, drops empties, and de-duplicates while preserving order, and the tasks router applies it on create and update. `GET /api/tasks` accepts a repeatable `tag` query parameter and keeps only tasks carrying every requested tag (AND), filtered in process like `q`. `GET /api/tags` derives `{name, count}` from the tasks, ordered by count descending then case-insensitive name. Tags are case-sensitive. The SPA filters the already-loaded list client-side (`store.tagFilter`), it does not send `tag` to the API; the CLI (`task list --tag`, `tag list`) does.

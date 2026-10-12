@@ -14,7 +14,7 @@ from sqlmodel import Session
 from .agents import seed_harnesses
 from .config import settings
 from .db import create_db_and_tables, engine
-from .routers import agents, fs, gantt, github, groups, items, repositories, tasks, worktrees
+from .routers import agents, changes, fs, gantt, github, groups, items, metrics, repositories, tasks, worktrees
 from .routers import settings as settings_router
 from .routers import tags as tags_router
 
@@ -40,7 +40,21 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-for module in (repositories, groups, items, tasks, worktrees, agents, settings_router, fs, github, gantt, tags_router):
+for module in (
+    repositories,
+    groups,
+    items,
+    tasks,
+    worktrees,
+    agents,
+    changes,
+    metrics,
+    settings_router,
+    fs,
+    github,
+    gantt,
+    tags_router,
+):
     app.include_router(module.router)
 
 

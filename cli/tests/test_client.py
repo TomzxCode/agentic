@@ -77,3 +77,51 @@ def test_error_raises_with_detail():
         _client(handler).get_task("missing")
     assert excinfo.value.status_code == 404
     assert excinfo.value.detail == "Task not found"
+
+
+def test_change_methods():
+    seen: dict = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["method"] = request.method
+        seen["path"] = request.url.path
+        seen["body"] = json.loads(request.content) if request.content else None
+        seen["params"] = httpx.QueryParams(request.url.query).multi_items()
+        return httpx.Response(200, json={"id": "c1"})
+
+    client = _client(handler)
+    client.list_changes(task_id="t1", status="accepted")
+    assert seen["path"] == "/api/changes"
+    assert seen["params"] == [("task_id", "t1"), ("status", "accepted")]
+
+    client.create_change(task_id="t1", title="T", change_class="bugfix", repository_id=None)
+    assert seen["path"] == "/api/changes" and seen["body"] == {"task_id": "t1", "title": "T", "change_class": "bugfix"}
+
+    client.transition_change("c1", "accepted")
+    assert seen["path"] == "/api/changes/c1/status" and seen["body"] == {"status": "accepted"}
+
+    client.add_intervention("c1", kind="correction", note="n")
+    assert seen["path"] == "/api/changes/c1/interventions"
+    assert seen["body"] == {"kind": "correction", "note": "n"}
+
+
+def test_metrics_methods():
+    seen: dict = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["method"] = request.method
+        seen["path"] = request.url.path
+        seen["body"] = json.loads(request.content) if request.content else None
+        seen["params"] = httpx.QueryParams(request.url.query).multi_items()
+        return httpx.Response(200, json={})
+
+    client = _client(handler)
+    client.get_metrics(window_days=30, observation_days=0, task_id="t1")
+    assert seen["path"] == "/api/metrics"
+    assert ("window_days", "30") in seen["params"]
+    assert ("observation_days", "0") in seen["params"]
+    assert ("task_id", "t1") in seen["params"]
+
+    client.set_baseline("yield", 0.2, note="before")
+    assert seen["method"] == "PUT" and seen["path"] == "/api/metrics/baselines/yield"
+    assert seen["body"] == {"value": 0.2, "note": "before"}

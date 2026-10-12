@@ -1633,6 +1633,62 @@ button.gantt-marker::after {
   background: var(--muted);
 }
 
+/* Metrics */
+.metric-window {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.metric-window .input {
+  width: 72px;
+  padding: 5px 8px;
+  font-size: 12px;
+  background: var(--bg-2);
+}
+.metric-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px;
+}
+.metric-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+.metric-card h2 {
+  margin: 0;
+  font-size: 14px;
+}
+.metric-value {
+  margin: 0;
+  font-size: 30px;
+  font-weight: 650;
+}
+.metric-counts {
+  margin: 14px 0 0;
+  font-size: 12px;
+}
+.metric-form {
+  flex-wrap: wrap;
+}
+.change-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+.change-row:last-child {
+  border-bottom: none;
+}
+
 /* Mobile */
 @media (max-width: 760px) {
   .app {
@@ -1697,6 +1753,17 @@ button.gantt-marker::after {
   }
   .panel-head {
     flex-wrap: wrap;
+  }
+
+  .metric-grid {
+    grid-template-columns: 1fr;
+  }
+  .metric-window .input {
+    font-size: 16px;
+    padding: 8px 10px;
+  }
+  .change-row {
+    align-items: flex-start;
   }
 
   /* Settings nav wraps into chips above the content. */

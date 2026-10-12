@@ -276,6 +276,221 @@ def tag_list() -> str:
     return emit(tags, _join(tags, lambda t: f"{t['name']}  ({t['count']})"))
 
 
+# --- changes --------------------------------------------------------------
+ChangeStatusArg = Literal["proposed", "verified", "accepted", "rejected", "reverted"]
+ChangeClassArg = Literal["feature", "bugfix", "refactor", "chore", "docs", "test", "trivial"]
+InterventionArg = Literal["question", "correction", "manual_fix", "rerun", "approval", "other"]
+
+change_app = App(name="change", help="Record the factory changes the metrics are computed from.")
+app.command(change_app)
+
+
+def _change_line(change: dict) -> str:
+    touch = "touched  " if change.get("human_intervened") else "touchless"
+    return (
+        f"{change['id']}  {change['status']:<9} {change.get('change_class', ''):<8} {touch} {change.get('title') or ''}"
+    )
+
+
+def _change_text(change: dict) -> str:
+    lines = [_change_line(change)]
+    if change.get("external_ref"):
+        lines.append(f"  ref: {change['external_ref']}")
+    for key in ("opened_at", "verified_at", "accepted_at", "closed_at"):
+        if change.get(key):
+            lines.append(f"  {key}: {change[key]}")
+    if change.get("notes"):
+        lines.append(f"  notes: {change['notes']}")
+    for intervention in change.get("interventions") or []:
+        lines.append(f"  intervention [{intervention['kind']}] {intervention.get('note') or ''}")
+    return "\n".join(lines)
+
+
+@change_app.command(name="list")
+@safe
+def change_list(
+    task_id: str | None = None,
+    status: ChangeStatusArg | None = None,
+    change_class: ChangeClassArg | None = None,
+) -> str:
+    """List changes, newest first."""
+    with _client() as client:
+        changes = client.list_changes(task_id=task_id, status=status, change_class=change_class)
+    return emit(changes, _join(changes, _change_line))
+
+
+@change_app.command(name="get")
+@safe
+def change_get(change_id: str) -> str:
+    """Show a change with its interventions."""
+    with _client() as client:
+        change = client.get_change(change_id)
+    return emit(change, _change_text(change))
+
+
+@change_app.command(name="create")
+@safe
+def change_create(
+    task_id: str,
+    title: str = "",
+    change_class: ChangeClassArg = "feature",
+    external_ref: str | None = None,
+    repository_id: str | None = None,
+    worktree_id: str | None = None,
+    notes: str = "",
+) -> str:
+    """Record a change against a task."""
+    with _client() as client:
+        change = client.create_change(
+            task_id=task_id,
+            title=title,
+            change_class=change_class,
+            external_ref=external_ref,
+            repository_id=repository_id,
+            worktree_id=worktree_id,
+            notes=notes,
+        )
+    return emit(change, f"created change {change['id']}  {_change_line(change)}")
+
+
+def _transition(change_id: str, status: str) -> str:
+    with _client() as client:
+        change = client.transition_change(change_id, status)
+    return emit(change, f"{status}: {_change_line(change)}")
+
+
+@change_app.command(name="verify")
+@safe
+def change_verify(change_id: str) -> str:
+    """Mark a change verified."""
+    return _transition(change_id, "verified")
+
+
+@change_app.command(name="accept")
+@safe
+def change_accept(change_id: str) -> str:
+    """Mark a change accepted (reached production)."""
+    return _transition(change_id, "accepted")
+
+
+@change_app.command(name="reject")
+@safe
+def change_reject(change_id: str) -> str:
+    """Reject a change before acceptance."""
+    return _transition(change_id, "rejected")
+
+
+@change_app.command(name="revert")
+@safe
+def change_revert(change_id: str) -> str:
+    """Mark an accepted change reverted (it did not survive observation)."""
+    return _transition(change_id, "reverted")
+
+
+@change_app.command(name="intervene")
+@safe
+def change_intervene(change_id: str, kind: InterventionArg = "other", note: str = "") -> str:
+    """Record a human intervention, which makes the change non-touchless."""
+    with _client() as client:
+        intervention = client.add_intervention(change_id, kind=kind, note=note)
+    return emit(intervention, f"intervened ({kind}) on {change_id}")
+
+
+@change_app.command(name="delete")
+@safe
+def change_delete(change_id: str) -> str:
+    """Delete a change and its interventions."""
+    with _client() as client:
+        client.delete_change(change_id)
+    return emit({"deleted": change_id}, f"deleted {change_id}")
+
+
+# --- metrics --------------------------------------------------------------
+def _metrics_text(report: dict) -> str:
+    lines = [
+        f"window {report['window_days']}d  observation {report['observation_days']}d  tolerance {report['tolerance']}"
+    ]
+    for metric in report["metrics"]:
+        value = "n/a" if metric["value"] is None else f"{metric['value']:.1%}"
+        baseline = "none" if metric["baseline"] is None else f"{metric['baseline']:.1%}"
+        delta = "" if metric["delta"] is None else f" ({metric['delta']:+.1%})"
+        lines.append(
+            f"{metric['label']:<14} {value:>6}  [{metric['direction']}]  "
+            f"baseline {baseline}{delta}  ({metric['numerator']}/{metric['denominator']})"
+        )
+    counts = report["counts"]
+    lines.append(
+        f"changes: accepted {counts['accepted']}, touchless {counts['touchless']}, "
+        f"reverted {counts['reverted']}, rejected {counts['rejected']}, "
+        f"pending {counts['pending_observation']}, open {counts['open']}"
+    )
+    return "\n".join(lines)
+
+
+metrics_app = App(name="metrics", help="Read autonomy rate and yield, and manage their baselines.")
+app.command(metrics_app)
+
+
+@metrics_app.command(name="show")
+@safe
+def metrics_show(
+    window_days: int = 30,
+    observation_days: int = 14,
+    tolerance: float = 0.02,
+    task_id: str | None = None,
+    change_class: ChangeClassArg | None = None,
+) -> str:
+    """Show autonomy rate and yield with their direction against the baseline."""
+    with _client() as client:
+        report = client.get_metrics(
+            window_days=window_days,
+            observation_days=observation_days,
+            tolerance=tolerance,
+            task_id=task_id,
+            change_class=change_class,
+        )
+    return emit(report, _metrics_text(report))
+
+
+baseline_app = App(name="baseline", help="Read and set the baseline each metric is compared against.")
+metrics_app.command(baseline_app)
+
+
+@baseline_app.command(name="list")
+@safe
+def baseline_list() -> str:
+    """List the stored metric baselines."""
+    with _client() as client:
+        baselines = client.list_baselines()
+    return emit(baselines, _join(baselines, lambda b: f"{b['metric']}  {b['value']:.1%}  {b['captured_at'][:19]}"))
+
+
+@baseline_app.command(name="set")
+@safe
+def baseline_set(
+    metric: Literal["autonomy_rate", "yield"],
+    value: float,
+    window_days: int = 30,
+    observation_days: int = 14,
+    note: str = "",
+) -> str:
+    """Set a metric's baseline to the value you measured before the factory run."""
+    with _client() as client:
+        baseline = client.set_baseline(
+            metric, value, window_days=window_days, observation_days=observation_days, note=note
+        )
+    return emit(baseline, f"{baseline['metric']} baseline = {baseline['value']:.1%}")
+
+
+@baseline_app.command(name="delete")
+@safe
+def baseline_delete(metric: Literal["autonomy_rate", "yield"]) -> str:
+    """Clear a metric's baseline."""
+    with _client() as client:
+        client.delete_baseline(metric)
+    return emit({"deleted": metric}, f"deleted baseline {metric}")
+
+
 # --- items ----------------------------------------------------------------
 item_app = App(name="item", help="Create and manage source items (Slack/GitHub/Drive/URL/note).")
 app.command(item_app)

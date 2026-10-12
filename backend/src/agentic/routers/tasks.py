@@ -19,6 +19,8 @@ from ..models import (
     AgentEvent,
     AgentRun,
     Association,
+    Change,
+    ChangeIntervention,
     Harness,
     Repository,
     RepositoryGroup,
@@ -33,6 +35,7 @@ from ..models import (
 from ..schemas import (
     AssociateRequest,
     AssociationDetail,
+    ChangeRead,
     ItemCreate,
     ItemRead,
     TaskBulkResult,
@@ -108,6 +111,9 @@ def _detail(session: Session, task: Task) -> TaskDetail:
     runs = session.exec(
         select(AgentRun).where(AgentRun.task_id == task.id).order_by(col(AgentRun.created_at).desc()).limit(20)
     ).all()
+    changes = session.exec(
+        select(Change).where(Change.task_id == task.id).order_by(col(Change.opened_at).desc()).limit(100)
+    ).all()
     timeline = session.exec(
         select(TimelineEvent)
         .where(TimelineEvent.task_id == task.id)
@@ -119,6 +125,7 @@ def _detail(session: Session, task: Task) -> TaskDetail:
         associations=details,
         worktrees=[WorktreeRead.model_validate(w) for w in worktrees],
         runs=[run_read(session, r) for r in runs],
+        changes=[ChangeRead.model_validate(c) for c in changes],
         timeline=[TimelineRead.model_validate(t) for t in timeline],
     )
 
@@ -345,6 +352,14 @@ async def delete_task(task_id: str, session: Session = Depends(get_session)) -> 
         session.exec(sa_delete(AgentEvent).where(col(AgentEvent.run_id).in_(run_ids)))
     session.exec(sa_delete(AgentRun).where(col(AgentRun.task_id) == task.id))
     session.exec(sa_delete(Association).where(col(Association.task_id) == task.id))
+    # Changes and their interventions belong to the task; drop them before the
+    # worktrees they may reference.
+    session.exec(
+        sa_delete(ChangeIntervention).where(
+            col(ChangeIntervention.change_id).in_(select(col(Change.id)).where(col(Change.task_id) == task.id))
+        )
+    )
+    session.exec(sa_delete(Change).where(col(Change.task_id) == task.id))
     session.exec(sa_delete(Worktree).where(col(Worktree.task_id) == task.id))
     session.exec(sa_delete(TimelineEvent).where(col(TimelineEvent.task_id) == task.id))
     session.exec(sa_delete(TaskRepository).where(col(TaskRepository.task_id) == task.id))

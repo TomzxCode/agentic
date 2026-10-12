@@ -26,6 +26,7 @@ It solves the problem of scattered context: the threads, issues, and checkouts r
 **In scope:**
 - Task tracking (status, priority, tags, inline editing, search, timeline).
 - A Gantt timeline view of tasks in flight, one marker per timeline event.
+- Factory metrics: an instrumented change lifecycle with autonomy rate and yield read against stored baselines.
 - Source items and many-to-many associations, with source inference and on-demand fetch.
 - A resources list of every item across sources, with search, refresh, and delete.
 - GitHub issue/PR import (paste a URL or pick from a repository) via `ghx`.

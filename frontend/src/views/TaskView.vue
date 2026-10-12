@@ -4,6 +4,7 @@ import { api, openTaskStream } from '../api'
 import { store } from '../store'
 import ContextPanel from '../components/ContextPanel.vue'
 import ItemsPanel from '../components/ItemsPanel.vue'
+import ChangesPanel from '../components/ChangesPanel.vue'
 import WorktreesPanel from '../components/WorktreesPanel.vue'
 import AgentPanel from '../components/AgentPanel.vue'
 import TimelinePanel from '../components/TimelinePanel.vue'
@@ -218,11 +219,12 @@ watch(
       <div>
         <ContextPanel :task="task" @changed="onChanged" />
         <AgentPanel :task="task" :harnesses="store.harnesses" @changed="onChanged" />
-        <ItemsPanel :task="task" @changed="onChanged" />
+        <TimelinePanel :events="task.timeline" :task="task" />
       </div>
       <div>
         <WorktreesPanel :task="task" :repositories="store.repositories" @changed="onChanged" />
-        <TimelinePanel :events="task.timeline" :task="task" />
+        <ItemsPanel :task="task" @changed="onChanged" />
+        <ChangesPanel :task="task" @changed="onChanged" />
       </div>
     </div>
   </div>

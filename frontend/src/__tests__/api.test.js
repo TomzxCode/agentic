@@ -71,3 +71,41 @@ describe('api query builders', () => {
     expect(fetchMock).toHaveBeenCalledWith('/api/fs/list?path=%2Fhome%2Fme&hidden=true', expect.anything())
   })
 })
+
+describe('api changes and metrics', () => {
+  it('builds the changes list query and writes', async () => {
+    const fetchMock = mockFetch({ body: '[]' })
+    await api.changes.list({ taskId: 't1', status: 'accepted' })
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/changes?task_id=t1&status=accepted',
+      expect.objectContaining({ method: 'GET' })
+    )
+
+    await api.changes.transition('c1', 'accepted')
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      '/api/changes/c1/status',
+      expect.objectContaining({ method: 'POST', body: '{"status":"accepted"}' })
+    )
+  })
+
+  it('builds the metrics query including a zero observation window', async () => {
+    const fetchMock = mockFetch({ body: '{}' })
+    await api.metrics.get({ windowDays: 30, observationDays: 0, taskId: 't1' })
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/metrics?window_days=30&observation_days=0&task_id=t1',
+      expect.objectContaining({ method: 'GET' })
+    )
+  })
+
+  it('upserts and clears a baseline', async () => {
+    const fetchMock = mockFetch({ body: '{}' })
+    await api.metrics.setBaseline('yield', { value: 0.2 })
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/metrics/baselines/yield',
+      expect.objectContaining({ method: 'PUT', body: '{"value":0.2}' })
+    )
+
+    mockFetch({ status: 204 })
+    await expect(api.metrics.removeBaseline('yield')).resolves.toBeNull()
+  })
+})

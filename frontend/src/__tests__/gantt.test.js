@@ -51,8 +51,11 @@ describe('gantt helpers', () => {
   })
 
   it('defaults an unset bound to the fitted bound', () => {
-    const fit = computeFitDomain([row()])
-    const resolved = resolveDomain([row()], '', toField(fit.hi))
+    // Pin now so the two fits use the same clock (otherwise the wall clock can
+    // tick between them and the fitted bounds differ).
+    const now = Date.now()
+    const fit = computeFitDomain([row()], { now })
+    const resolved = resolveDomain([row()], '', toField(fit.hi), { now })
     expect(resolved.lo).toBe(fit.lo)
     expect(resolved.invalid).toBe(false)
   })

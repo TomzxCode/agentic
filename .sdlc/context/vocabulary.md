@@ -8,9 +8,14 @@
 | Agent event | One normalized update in a run's transcript (message, thought, tool_call, tool_update, plan, usage, status, or error). |
 | Agent run | One prompt sent to a harness in a working directory, with its transcript and status. |
 | Association | A link between a source item and a task, carrying an optional note. |
+| Autonomy rate | The share of accepted changes that reached production with no human intervention. One of the two primary factory metrics. |
+| Change | A unit of factory output, recorded against a task with a lifecycle, a start and end time, and a human-intervened flag; the input the metrics are computed from. |
+| Change class | The kind of a change: feature, bugfix, refactor, chore, docs, test, or trivial. |
 | Context refresh | A special agent run that reads a task and its items and rewrites the task's summary and next steps. |
 | Harness | A coding-agent command reachable over ACP, stored as a row (`command` plus `args`). |
+| Human intervention | A recorded human touch on a change (question, correction, manual fix, rerun, or approval) that makes the change non-touchless. |
 | Item | A `SourceItem`: something external (Slack thread, GitHub issue or PR, Drive doc, URL, note, commit, file) that can be associated to tasks. |
+| Metric baseline | The stored value a metric's direction (improving, worsening, flat, or no-baseline) is measured against. |
 | Next steps | The agent-maintained list of concrete actions for a task, each with a `done` flag. |
 | Repository | A local git checkout registered with the app, from which worktrees are created. |
 | Repository group | A named set of repositories that tells a task's agent which checkouts may be relevant. |
@@ -20,7 +25,9 @@
 | Tag | A short label a task carries; stored as a list on the task, normalized on write, and usable to filter the task list. |
 | Task | The unit of work everything hangs off. |
 | Timeline event | A persisted record of a meaningful change to a task, shown as a chronological timeline. |
+| Touchless | A change with no recorded human intervention; the numerator of the autonomy rate. |
 | Worktree | An isolated `git worktree` created for a task from a registered repository. |
+| Yield | The share of accepted changes that survived the observation window without being reverted. One of the two primary factory metrics. |
 
 ## Technical Terms
 

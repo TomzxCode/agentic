@@ -39,6 +39,39 @@ export const api = {
     list: () => request('/tags')
   },
 
+  changes: {
+    list: ({ taskId, status, changeClass } = {}) => {
+      const qs = new URLSearchParams()
+      if (taskId) qs.set('task_id', taskId)
+      if (status) qs.set('status', status)
+      if (changeClass) qs.set('change_class', changeClass)
+      const query = qs.toString()
+      return request(`/changes${query ? `?${query}` : ''}`)
+    },
+    get: (id) => request(`/changes/${id}`),
+    create: (body) => request('/changes', { method: 'POST', body }),
+    update: (id, body) => request(`/changes/${id}`, { method: 'PATCH', body }),
+    transition: (id, status) => request(`/changes/${id}/status`, { method: 'POST', body: { status } }),
+    intervene: (id, body) => request(`/changes/${id}/interventions`, { method: 'POST', body }),
+    remove: (id) => request(`/changes/${id}`, { method: 'DELETE' })
+  },
+
+  metrics: {
+    get: ({ windowDays, observationDays, tolerance, taskId, changeClass } = {}) => {
+      const qs = new URLSearchParams()
+      if (windowDays) qs.set('window_days', String(windowDays))
+      if (observationDays !== undefined && observationDays !== null) qs.set('observation_days', String(observationDays))
+      if (tolerance !== undefined && tolerance !== null) qs.set('tolerance', String(tolerance))
+      if (taskId) qs.set('task_id', taskId)
+      if (changeClass) qs.set('change_class', changeClass)
+      const query = qs.toString()
+      return request(`/metrics${query ? `?${query}` : ''}`)
+    },
+    baselines: () => request('/metrics/baselines'),
+    setBaseline: (metric, body) => request(`/metrics/baselines/${metric}`, { method: 'PUT', body }),
+    removeBaseline: (metric) => request(`/metrics/baselines/${metric}`, { method: 'DELETE' })
+  },
+
   items: {
     list: ({ source, q } = {}) => {
       const qs = new URLSearchParams()

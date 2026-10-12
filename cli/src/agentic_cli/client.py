@@ -222,6 +222,68 @@ class AgenticClient:
     def list_tags(self) -> list[dict]:
         return self._request("GET", "/api/tags")
 
+    # --- changes ----------------------------------------------------------
+    def list_changes(
+        self,
+        task_id: str | None = None,
+        status: str | None = None,
+        change_class: str | None = None,
+    ) -> list[dict]:
+        params = {
+            key: value
+            for key, value in {"task_id": task_id, "status": status, "change_class": change_class}.items()
+            if value
+        }
+        return self._request("GET", "/api/changes", params=params)
+
+    def get_change(self, change_id: str) -> dict:
+        return self._request("GET", f"/api/changes/{change_id}")
+
+    def create_change(self, **fields: Any) -> dict:
+        return self._request("POST", "/api/changes", json=_compact(fields))
+
+    def update_change(self, change_id: str, **fields: Any) -> dict:
+        return self._request("PATCH", f"/api/changes/{change_id}", json=_compact(fields))
+
+    def transition_change(self, change_id: str, status: str) -> dict:
+        return self._request("POST", f"/api/changes/{change_id}/status", json={"status": status})
+
+    def add_intervention(self, change_id: str, kind: str = "other", note: str = "") -> dict:
+        return self._request("POST", f"/api/changes/{change_id}/interventions", json={"kind": kind, "note": note})
+
+    def delete_change(self, change_id: str) -> None:
+        self._request("DELETE", f"/api/changes/{change_id}")
+
+    # --- metrics ----------------------------------------------------------
+    def get_metrics(
+        self,
+        window_days: int | None = None,
+        observation_days: int | None = None,
+        tolerance: float | None = None,
+        task_id: str | None = None,
+        change_class: str | None = None,
+    ) -> dict:
+        params: list[tuple[str, Any]] = []
+        for key, value in (
+            ("window_days", window_days),
+            ("observation_days", observation_days),
+            ("tolerance", tolerance),
+            ("task_id", task_id),
+            ("change_class", change_class),
+        ):
+            if value is not None:
+                params.append((key, value))
+        return self._request("GET", "/api/metrics", params=params)
+
+    def list_baselines(self) -> list[dict]:
+        return self._request("GET", "/api/metrics/baselines")
+
+    def set_baseline(self, metric: str, value: float, **fields: Any) -> dict:
+        return self._request("PUT", f"/api/metrics/baselines/{metric}", json={"value": value, **_compact(fields)})
+
+    def delete_baseline(self, metric: str) -> None:
+        self._request("DELETE", f"/api/metrics/baselines/{metric}")
+
 
 def _compact(data: dict[str, Any]) -> dict[str, Any]:
     """Drop keys whose value is None so the API applies its own defaults."""

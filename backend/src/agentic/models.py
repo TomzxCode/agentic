@@ -47,6 +47,33 @@ class WorktreeStatus(StrEnum):
     removed = "removed"
 
 
+class ChangeStatus(StrEnum):
+    proposed = "proposed"
+    verified = "verified"
+    accepted = "accepted"
+    rejected = "rejected"
+    reverted = "reverted"
+
+
+class ChangeClass(StrEnum):
+    feature = "feature"
+    bugfix = "bugfix"
+    refactor = "refactor"
+    chore = "chore"
+    docs = "docs"
+    test = "test"
+    trivial = "trivial"
+
+
+class InterventionKind(StrEnum):
+    question = "question"
+    correction = "correction"
+    manual_fix = "manual_fix"
+    rerun = "rerun"
+    approval = "approval"
+    other = "other"
+
+
 class Repository(SQLModel, table=True):
     """A local git checkout that tasks can create worktrees from."""
 
@@ -210,3 +237,56 @@ class TimelineEvent(SQLModel, table=True):
     message: str = ""
     data_json: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
     created_at: datetime = Field(default_factory=utcnow)
+
+
+class Change(SQLModel, table=True):
+    """One unit of factory output, instrumented for the autonomy and yield metrics.
+
+    A change carries an id, a start (``opened_at``), an end (``accepted_at`` or
+    ``closed_at``), and a human-intervened flag, which is everything the metric
+    engine needs. It lives between the task that owns it and the interventions
+    recorded against it.
+    """
+
+    id: str = Field(default_factory=new_id, primary_key=True)
+    task_id: str = Field(foreign_key="task.id", index=True)
+    title: str = ""
+    change_class: ChangeClass = ChangeClass.feature
+    status: ChangeStatus = Field(default=ChangeStatus.proposed, index=True)
+    repository_id: str | None = Field(default=None, foreign_key="repository.id")
+    worktree_id: str | None = Field(default=None, foreign_key="worktree.id")
+    external_ref: str | None = None
+    human_intervened: bool = False
+    intervention_count: int = 0
+    opened_at: datetime = Field(default_factory=utcnow)
+    verified_at: datetime | None = None
+    accepted_at: datetime | None = Field(default=None, index=True)
+    closed_at: datetime | None = None
+    notes: str = ""
+    created_at: datetime = Field(default_factory=utcnow)
+    updated_at: datetime = Field(default_factory=utcnow)
+
+
+class ChangeIntervention(SQLModel, table=True):
+    """A recorded human touch on a change: a question, correction, fix, rerun, or approval."""
+
+    id: str = Field(default_factory=new_id, primary_key=True)
+    change_id: str = Field(foreign_key="change.id", index=True)
+    kind: InterventionKind = InterventionKind.other
+    note: str = ""
+    created_at: datetime = Field(default_factory=utcnow)
+
+
+class MetricBaseline(SQLModel, table=True):
+    """The comparison point a metric's direction is measured against.
+
+    One row per metric; the article's advice to write the baseline down before
+    the first factory run only means something if the value is stored.
+    """
+
+    metric: str = Field(primary_key=True)
+    value: float
+    window_days: int = 30
+    observation_days: int = 14
+    note: str = ""
+    captured_at: datetime = Field(default_factory=utcnow)

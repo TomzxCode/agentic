@@ -318,7 +318,33 @@ class TaskDetail(TaskRead):
     associations: list[AssociationDetail] = []
     worktrees: list[WorktreeRead] = []
     runs: list[RunRead] = []
+    changes: list[ChangeRead] = []
     timeline: list[TimelineRead] = []
+
+    name: str = ""
+    email: str | None = None
+    handle: str | None = None
+    notes: str = ""
+
+    name: str | None = None
+    email: str | None = None
+    handle: str | None = None
+    notes: str | None = None
+
+    id: str
+    name: str
+    email: str | None = None
+    handle: str | None = None
+    notes: str
+    created_at: datetime
+    updated_at: datetime
+    task_count: int = 0
+    item_count: int = 0
+
+    task_ids: list[str] = []
+    item_ids: list[str] = []
+
+    name: str = ""
 
 
 # --- Tags ------------------------------------------------------------------
@@ -327,6 +353,116 @@ class TagRead(BaseModel):
 
     name: str
     count: int
+
+
+# --- Changes (factory metrics) ---------------------------------------------
+class ChangeCreate(BaseModel):
+    task_id: str
+    title: str = ""
+    change_class: str = "feature"
+    repository_id: str | None = None
+    worktree_id: str | None = None
+    external_ref: str | None = None
+    notes: str = ""
+    human_intervened: bool = False
+    opened_at: datetime | None = None
+
+
+class ChangeUpdate(BaseModel):
+    title: str | None = None
+    change_class: str | None = None
+    repository_id: str | None = None
+    worktree_id: str | None = None
+    external_ref: str | None = None
+    notes: str | None = None
+
+
+class ChangeStatusUpdate(BaseModel):
+    status: str
+
+
+class InterventionCreate(BaseModel):
+    kind: str = "other"
+    note: str = ""
+
+
+class InterventionRead(ORMModel):
+    id: str
+    change_id: str
+    kind: str
+    note: str
+    created_at: datetime
+
+
+class ChangeRead(ORMModel):
+    id: str
+    task_id: str
+    title: str
+    change_class: str
+    status: str
+    repository_id: str | None = None
+    worktree_id: str | None = None
+    external_ref: str | None = None
+    human_intervened: bool
+    intervention_count: int
+    opened_at: datetime
+    verified_at: datetime | None = None
+    accepted_at: datetime | None = None
+    closed_at: datetime | None = None
+    notes: str
+    created_at: datetime
+    updated_at: datetime
+
+
+class ChangeDetail(ChangeRead):
+    interventions: list[InterventionRead] = []
+
+
+class MetricCounts(BaseModel):
+    accepted: int = 0
+    touchless: int = 0
+    reverted: int = 0
+    rejected: int = 0
+    pending_observation: int = 0
+    open: int = 0
+
+
+class MetricResult(BaseModel):
+    metric: str
+    label: str
+    value: float | None = None
+    numerator: int = 0
+    denominator: int = 0
+    baseline: float | None = None
+    delta: float | None = None
+    direction: str
+    unit: str = "ratio"
+
+
+class MetricsReport(BaseModel):
+    window_days: int
+    observation_days: int
+    tolerance: float
+    generated_at: datetime
+    metrics: list[MetricResult] = []
+    counts: MetricCounts = MetricCounts()
+
+
+class BaselineSet(BaseModel):
+    value: float
+    window_days: int = 30
+    observation_days: int = 14
+    note: str = ""
+    captured_at: datetime | None = None
+
+
+class BaselineRead(ORMModel):
+    metric: str
+    value: float
+    window_days: int
+    observation_days: int
+    note: str
+    captured_at: datetime
 
 
 # --- Gantt -----------------------------------------------------------------
@@ -380,6 +516,13 @@ __all__ = [
     "AssociateRequest",
     "AssociationDetail",
     "AssociationRead",
+    "BaselineRead",
+    "BaselineSet",
+    "ChangeCreate",
+    "ChangeDetail",
+    "ChangeRead",
+    "ChangeStatusUpdate",
+    "ChangeUpdate",
     "ContextPreview",
     "FsEntry",
     "FsListing",
@@ -390,9 +533,14 @@ __all__ = [
     "HarnessRead",
     "HarnessStatus",
     "HarnessUpdate",
+    "InterventionCreate",
+    "InterventionRead",
     "ItemCreate",
     "ItemRead",
     "ItemUpdate",
+    "MetricCounts",
+    "MetricResult",
+    "MetricsReport",
     "Task",
     "TaskBulkResult",
     "TaskBulkUpdate",
@@ -420,3 +568,6 @@ __all__ = [
     "WorktreeCreate",
     "WorktreeRead",
 ]
+
+# TaskDetail references ChangeRead defined later in this module; resolve it now.
+TaskDetail.model_rebuild()

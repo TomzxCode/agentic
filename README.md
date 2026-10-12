@@ -39,6 +39,7 @@ virtualenv.
 | **Repository group** | A named set of repositories. Picking one on a task tells the agent those checkouts may hold information relevant to it. |
 | **Agent run** | One prompt sent to a harness in a working directory. Events stream live to the UI. |
 | **Context refresh** | A special agent run that reads the task + its items and writes the `summary` and `next_steps`. |
+| **Change** | A unit of factory output recorded against a task: a class, a lifecycle, a start/end time, and a human-intervened flag. Autonomy rate and yield are computed from changes. |
 
 Every meaningful change writes a **Timeline event**, so a task's evolution is
 visible at a glance.
@@ -138,9 +139,18 @@ The **Items** page lists every resource the app tracks (Slack threads, GitHub
 issues/PRs, Drive docs, URLs, notes) with per-source filters, search, and links
 to the tasks each one is used by.
 
+Each task page has a **Changes** panel: record a change against the task, move
+it through verify, accept, or revert, and record an intervention whenever you
+touch it. The **Metrics** page then tracks the two primary factory metrics
+derived from those changes: **autonomy rate** (the share of accepted changes
+that had no human intervention) and **yield** (the share of accepted changes
+that survived the observation window without a revert). Each metric is shown
+against a stored baseline with a direction (improving, worsening, or flat).
+
 For hands-on-keyboard navigation, press **f** on any page: every field and
 button gets a letter badge; press the letter to focus that control (**Esc**
-exits). On a task page that covers the header, the Agent/Items/Worktrees panels,
+exits). On a task page that covers the header, the Agent/Items/Changes/Worktrees
+panels,
 and their buttons.
 
 ## Open a session in a terminal or OpenChamber
@@ -224,6 +234,10 @@ agentic context refresh <task>    # agent rewrites summary + next steps
 agentic run create <task> --prompt "Investigate the failure"
 agentic run wait <run-id>            # block until it finishes
 agentic run stream <run-id>          # live transcript
+agentic change create <task> --title "Fix the flaky ingest test" --change-class bugfix
+agentic change accept <change>       # also: verify, reject, revert, intervene
+agentic metrics show                 # autonomy rate and yield, with direction
+agentic metrics baseline set autonomy_rate 0.2
 ```
 
 Commands return data. Output is JSON when piped (or with `--format json`) and
@@ -235,7 +249,7 @@ AGENTIC_API_URL=http://box:8600 agentic task list | jq '.[].id'
 ```
 
 Resources: `task`, `tag`, `item`, `link`, `repository`, `worktree`, `run`,
-`context`, `harness`, `settings`, plus `health`.
+`context`, `harness`, `settings`, `change`, `metrics`, plus `health`.
 
 ### Backend
 
@@ -263,6 +277,12 @@ GET                 /api/github/issues                   (issue picker for impor
 GET                 /api/github/issue                    (single issue by URL)
 GET/POST/PATCH/DELETE /api/groups                        (repository groups)
 GET/POST/PATCH      /api/harnesses   /api/repositories   /api/items
+GET/POST            /api/changes
+GET/PATCH/DELETE    /api/changes/{id}
+POST                /api/changes/{id}/status             (lifecycle transition)
+POST                /api/changes/{id}/interventions      (record a human touch)
+GET                 /api/metrics                         (autonomy rate + yield)
+GET/PUT/DELETE      /api/metrics/baselines/{metric}
 ```
 
 ## Development
@@ -277,9 +297,10 @@ make lint              # ruff format + check
 make typecheck         # ty static type checking
 make build             # build the SPA into backend/static
 make run               # start the API (:8600) and the frontend dev server (:5173)
+make run-dev           # same as run, with the API reloading on changes
 ```
 
-`make run` starts both the API (`agentic-server serve`) and the Vite dev server; `agentic` is the separate client.
+`make run` starts both the API (`agentic-server serve`) and the Vite dev server; `make run-dev` starts the same pair with the API reloading on file changes. `agentic` is the separate client.
 
 ## Limitations (v1)
 
@@ -289,3 +310,6 @@ make run               # start the API (:8600) and the frontend dev server (:517
 - Agent runs are in-process; restarting the API drops in-flight runs (the
   transcript already written is kept).
 - Permission requests are auto-approved; there is no interactive approval UI yet.
+- Changes are recorded explicitly; nothing auto-creates a change from a run,
+  a git commit, or a GitHub PR yet, so the autonomy and yield metrics are only
+  as complete as what gets recorded.
