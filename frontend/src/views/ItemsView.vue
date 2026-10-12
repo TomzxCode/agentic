@@ -26,6 +26,10 @@ const sourceFilter = ref('')
 const expanded = ref({})
 // Chosen task per item in the "link to a task" picker (reset after linking).
 const linkChoice = ref({})
+// Chosen person per item in the "link a person" picker (reset after linking).
+const personChoice = ref({})
+
+const peopleById = computed(() => Object.fromEntries(store.people.map((person) => [person.id, person])))
 
 function label(source) {
   return SOURCE_LABELS[source] || source
@@ -83,6 +87,38 @@ async function linkTask(item, taskId) {
   }
 }
 
+function itemPeople(item) {
+  return (item.person_ids || []).map((id) => peopleById.value[id]).filter(Boolean)
+}
+
+function linkablePeople(item) {
+  const linked = new Set(item.person_ids || [])
+  return store.people
+    .filter((person) => !linked.has(person.id))
+    .map((person) => ({ value: person.id, label: person.name }))
+}
+
+async function linkPerson(item, personId) {
+  personChoice.value[item.id] = ''
+  if (!personId) return
+  try {
+    await api.people.linkItem(item.id, { person_id: personId })
+    item.person_ids = [...(item.person_ids || []), personId]
+    store.notify('Person linked')
+  } catch (e) {
+    store.notify(e.message, true)
+  }
+}
+
+async function unlinkPerson(item, personId) {
+  try {
+    await api.people.unlinkItem(item.id, personId)
+    item.person_ids = (item.person_ids || []).filter((id) => id !== personId)
+  } catch (e) {
+    store.notify(e.message, true)
+  }
+}
+
 async function load() {
   loading.value = true
   try {
@@ -121,6 +157,7 @@ async function remove(item) {
 
 onMounted(async () => {
   await store.loadTasks().catch(() => {})
+  await store.loadPeople().catch(() => {})
   await load()
 })
 </script>
@@ -186,6 +223,21 @@ onMounted(async () => {
             :model-value="linkChoice[item.id] || ''"
             :options="linkableTasks(item)"
             @update:model-value="(value) => linkTask(item, value)"
+          />
+        </div>
+        <div class="row" style="margin-top: 6px; gap: 6px; flex-wrap: wrap">
+          <span v-for="person in itemPeople(item)" :key="person.id" class="chip">
+            {{ person.name }}
+            <button class="chip-x" title="Unlink person" @click="unlinkPerson(item, person.id)">✕</button>
+          </span>
+          <SearchSelect
+            v-if="linkablePeople(item).length"
+            variant="inline"
+            placeholder="＋ Link a person…"
+            title="Link a person to this item"
+            :model-value="personChoice[item.id] || ''"
+            :options="linkablePeople(item)"
+            @update:model-value="(value) => linkPerson(item, value)"
           />
         </div>
         <div class="faint" style="margin-top: 4px">

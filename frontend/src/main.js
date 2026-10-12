@@ -4,6 +4,7 @@ import App from './App.vue'
 import TasksView from './views/TasksView.vue'
 import TaskView from './views/TaskView.vue'
 import ItemsView from './views/ItemsView.vue'
+import PeopleView from './views/PeopleView.vue'
 import GanttView from './views/GanttView.vue'
 import MetricsView from './views/MetricsView.vue'
 import SettingsView from './views/SettingsView.vue'
@@ -17,6 +18,7 @@ const router = createRouter({
     { path: '/gantt', name: 'gantt', component: GanttView },
     { path: '/metrics', name: 'metrics', component: MetricsView },
     { path: '/items', name: 'items', component: ItemsView },
+    { path: '/people', name: 'people', component: PeopleView },
     { path: '/settings', name: 'settings', component: SettingsView }
   ]
 })

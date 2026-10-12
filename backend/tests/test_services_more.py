@@ -170,13 +170,31 @@ def test_fetch_github_populates_the_result(monkeypatch):
     monkeypatch.setattr(
         services,
         "fetch_github_issue",
-        lambda *args, **kwargs: {"title": "T", "state": "OPEN", "number": 1, "body": "B"},
+        lambda *args, **kwargs: {
+            "title": "T",
+            "state": "OPEN",
+            "number": 1,
+            "body": "B",
+            "people": [{"name": "a", "handle": "a"}],
+        },
     )
     result: dict = {"title": "orig", "content": "", "metadata": {}}
     services._fetch_github("https://github.com/o/r/issues/1", result)
     assert result["title"] == "T"
     assert result["content"] == "B"
     assert result["metadata"]["state"] == "OPEN"
+    assert result["people"] == [{"name": "a", "handle": "a"}]
+
+
+def test_fetch_github_tolerates_a_payload_without_people(monkeypatch):
+    monkeypatch.setattr(
+        services,
+        "fetch_github_issue",
+        lambda *args, **kwargs: {"title": "T", "state": "OPEN", "number": 1, "body": "B"},
+    )
+    result: dict = {"title": "orig", "content": "", "metadata": {}}
+    services._fetch_github("https://github.com/o/r/issues/1", result)
+    assert result["people"] == []
 
 
 def test_fetch_github_ignores_bad_urls_and_missing_issues(monkeypatch):
@@ -201,7 +219,8 @@ def test_fetch_slack_prefers_show_then_falls_back_to_fetch(monkeypatch):
     services._fetch_slack("https://acme.slack.com/archives/C1/p1700000000000000", result)
     assert result["content"] == "transcript"
     assert result["metadata"]["channel"] == "C1"
-    assert calls == ["show"]
+    # The thread is read once for the transcript, once for the participants.
+    assert calls[0] == "show" and calls.count("show") == 2
 
     result = {"title": "t", "content": "", "metadata": {}}
     monkeypatch.setattr(services, "_run_cli", lambda cmd, timeout=60: None if cmd[2] == "show" else "fallback")

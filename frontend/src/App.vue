@@ -154,6 +154,7 @@ const paletteItems = computed(() => [
   { id: 'go-gantt', label: 'Go to gantt', group: 'Navigation', run: () => router.push('/gantt') },
   { id: 'go-metrics', label: 'Go to metrics', group: 'Navigation', run: () => router.push('/metrics') },
   { id: 'go-items', label: 'Go to resources', group: 'Navigation', run: () => router.push('/items') },
+  { id: 'go-people', label: 'Go to people', group: 'Navigation', run: () => router.push('/people') },
   { id: 'go-settings', label: 'Go to settings', group: 'Navigation', run: () => router.push('/settings') },
   ...tagItems.value,
   ...store.tasks.map((task) => ({
@@ -572,6 +573,13 @@ onUnmounted(() => {
             :class="{ active: route.name === 'items' }"
             @click="sidebarOpen = false"
             >Items</router-link
+          >
+          <router-link
+            to="/people"
+            class="nav-link"
+            :class="{ active: route.name === 'people' }"
+            @click="sidebarOpen = false"
+            >People</router-link
           >
           <router-link
             to="/settings"

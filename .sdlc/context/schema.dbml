@@ -101,6 +101,42 @@ Table taskrepository {
   }
 }
 
+Table person {
+  id varchar [pk]
+  name varchar [not null] // not unique; identity is the id
+  email varchar
+  handle varchar
+  notes text [not null, default: '']
+  created_at datetime [not null]
+  updated_at datetime [not null]
+}
+
+Table taskperson {
+  id varchar [pk]
+  task_id varchar [not null, ref: > task.id]
+  person_id varchar [not null, ref: > person.id]
+  created_at datetime [not null]
+
+  Indexes {
+    task_id
+    person_id
+    (task_id, person_id) [unique, name: 'uq_task_person']
+  }
+}
+
+Table itemperson {
+  id varchar [pk]
+  item_id varchar [not null, ref: > sourceitem.id]
+  person_id varchar [not null, ref: > person.id]
+  created_at datetime [not null]
+
+  Indexes {
+    item_id
+    person_id
+    (item_id, person_id) [unique, name: 'uq_item_person']
+  }
+}
+
 Table worktree {
   id varchar [pk]
   task_id varchar [not null, ref: > task.id]

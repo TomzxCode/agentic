@@ -14,7 +14,7 @@ from sqlmodel import Session
 from .agents import seed_harnesses
 from .config import settings
 from .db import create_db_and_tables, engine
-from .routers import agents, changes, fs, gantt, github, groups, items, metrics, repositories, tasks, worktrees
+from .routers import agents, changes, fs, gantt, github, groups, items, metrics, people, repositories, tasks, worktrees
 from .routers import settings as settings_router
 from .routers import tags as tags_router
 
@@ -54,8 +54,12 @@ for module in (
     github,
     gantt,
     tags_router,
+    people,
 ):
     app.include_router(module.router)
+
+# The task- and item-side people links are mounted at their natural paths.
+app.include_router(people.link_router)
 
 
 @app.get("/api/health")

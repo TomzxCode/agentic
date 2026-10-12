@@ -165,6 +165,45 @@ class Association(SQLModel, table=True):
     created_at: datetime = Field(default_factory=utcnow)
 
 
+class Person(SQLModel, table=True):
+    """An individual a task or a source item involves.
+
+    People are a flat directory: a name plus optional contact details. They link
+    to tasks and items many-to-many through the ``taskperson`` and ``itemperson``
+    join tables, so the same person can be seen from either side.
+    """
+
+    id: str = Field(default_factory=new_id, primary_key=True)
+    name: str
+    email: str | None = None
+    handle: str | None = None
+    notes: str = ""
+    created_at: datetime = Field(default_factory=utcnow)
+    updated_at: datetime = Field(default_factory=utcnow)
+
+
+class TaskPerson(SQLModel, table=True):
+    """Associates a task with 0..n people it involves."""
+
+    __table_args__ = (UniqueConstraint("task_id", "person_id", name="uq_task_person"),)
+
+    id: str = Field(default_factory=new_id, primary_key=True)
+    task_id: str = Field(foreign_key="task.id", index=True)
+    person_id: str = Field(foreign_key="person.id", index=True)
+    created_at: datetime = Field(default_factory=utcnow)
+
+
+class ItemPerson(SQLModel, table=True):
+    """Associates a source item with 0..n people behind it."""
+
+    __table_args__ = (UniqueConstraint("item_id", "person_id", name="uq_item_person"),)
+
+    id: str = Field(default_factory=new_id, primary_key=True)
+    item_id: str = Field(foreign_key="sourceitem.id", index=True)
+    person_id: str = Field(foreign_key="person.id", index=True)
+    created_at: datetime = Field(default_factory=utcnow)
+
+
 class Worktree(SQLModel, table=True):
     id: str = Field(default_factory=new_id, primary_key=True)
     task_id: str = Field(foreign_key="task.id", index=True)

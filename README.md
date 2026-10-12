@@ -35,6 +35,7 @@ virtualenv.
 | **Task** | The unit of work. Everything hangs off it. Carries an agent-maintained `summary` and `next_steps`. |
 | **Item** | Something external: a Slack thread, GitHub issue/PR, Drive doc, URL, note, or commit. Items are deduplicated by URL / external id. |
 | **Association** | A link between an item and a task (many-to-many), with a note. |
+| **Person** | An individual a task or an item involves: a name plus optional email, handle, and notes. Linked to tasks and items many-to-many. |
 | **Worktree** | An isolated `git worktree` created for a task from a registered repository. |
 | **Repository group** | A named set of repositories. Picking one on a task tells the agent those checkouts may hold information relevant to it. |
 | **Agent run** | One prompt sent to a harness in a working directory. Events stream live to the UI. |
@@ -139,6 +140,13 @@ The **Items** page lists every resource the app tracks (Slack threads, GitHub
 issues/PRs, Drive docs, URLs, notes) with per-source filters, search, and links
 to the tasks each one is used by.
 
+People are linked to both tasks and items. A task page has a **People** panel to
+link someone from the directory (or add a new person), and the **People** page
+lists everyone with the tasks and items each is attached to. People are also
+auto-populated when an item is fetched: a GitHub issue/PR brings its author,
+assignees, and commenters, and a Slack thread brings its participants; linking
+that item to a task links those people to the task too.
+
 Each task page has a **Changes** panel: record a change against the task, move
 it through verify, accept, or revert, and record an intervention whenever you
 touch it. The **Metrics** page then tracks the two primary factory metrics
@@ -238,6 +246,9 @@ agentic change create <task> --title "Fix the flaky ingest test" --change-class 
 agentic change accept <change>       # also: verify, reject, revert, intervene
 agentic metrics show                 # autonomy rate and yield, with direction
 agentic metrics baseline set autonomy_rate 0.2
+agentic person create --name "Ada Lovelace" --handle ada
+agentic person link <person> --task <task>   # also: --item <item>
+agentic person list                  # people with task and item counts
 ```
 
 Commands return data. Output is JSON when piped (or with `--format json`) and
@@ -248,7 +259,7 @@ human-readable text otherwise (`--format text`). Point it elsewhere with
 AGENTIC_API_URL=http://box:8600 agentic task list | jq '.[].id'
 ```
 
-Resources: `task`, `tag`, `item`, `link`, `repository`, `worktree`, `run`,
+Resources: `task`, `tag`, `item`, `link`, `person`, `repository`, `worktree`, `run`,
 `context`, `harness`, `settings`, `change`, `metrics`, plus `health`.
 
 ### Backend

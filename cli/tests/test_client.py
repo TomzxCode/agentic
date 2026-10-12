@@ -125,3 +125,32 @@ def test_metrics_methods():
     client.set_baseline("yield", 0.2, note="before")
     assert seen["method"] == "PUT" and seen["path"] == "/api/metrics/baselines/yield"
     assert seen["body"] == {"value": 0.2, "note": "before"}
+
+
+def test_people_methods():
+    seen: dict = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["method"] = request.method
+        seen["path"] = request.url.path
+        seen["body"] = json.loads(request.content) if request.content else None
+        return httpx.Response(200, json={"id": "p1", "name": "Ada"})
+
+    client = _client(handler)
+    assert client.list_people() == {"id": "p1", "name": "Ada"}
+    assert seen["path"] == "/api/people"
+
+    client.create_person(name="Ada", email=None, handle="ada")
+    assert seen["method"] == "POST" and seen["body"] == {"name": "Ada", "handle": "ada"}
+
+    client.link_person("p1", task_id="t1")
+    assert seen["path"] == "/api/tasks/t1/people" and seen["body"] == {"person_id": "p1"}
+
+    client.link_person("p1", item_id="i1")
+    assert seen["path"] == "/api/items/i1/people"
+
+    client.unlink_person("p1", task_id="t1")
+    assert seen["method"] == "DELETE" and seen["path"] == "/api/tasks/t1/people/p1"
+
+    client.unlink_person("p1", item_id="i1")
+    assert seen["path"] == "/api/items/i1/people/p1"

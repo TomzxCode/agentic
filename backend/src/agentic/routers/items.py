@@ -7,9 +7,10 @@ from sqlalchemy import delete as sa_delete
 from sqlmodel import Session, col, select
 
 from ..db import get_session
-from ..models import Association, SourceItem, utcnow
+from ..models import Association, ItemPerson, SourceItem, utcnow
 from ..schemas import ItemCreate, ItemRead, ItemUpdate
 from ..services import fetch_source, infer_item_source, looks_like_url
+from .people import item_person_ids, link_people_to_item
 
 router = APIRouter(prefix="/api/items", tags=["items"])
 
@@ -49,12 +50,14 @@ def _upsert_item(session: Session, payload: ItemCreate) -> SourceItem:
     if content:
         item.content = content
 
+    fetched_people: list[dict] = []
     if payload.fetch and item.url and not item.content:
         fetched = fetch_source(item.source, item.url, item.external_id, item.title)
         item.title = item.title or fetched.get("title") or item.url or item.source
         item.content = item.content or fetched.get("content", "")
         item.metadata_json = {**(item.metadata_json or {}), **fetched.get("metadata", {})}
         item.fetched_at = utcnow()
+        fetched_people = fetched.get("people") or []
 
     if not item.title and item.content:
         item.title = item.content.strip().splitlines()[0][:120]
@@ -63,6 +66,10 @@ def _upsert_item(session: Session, payload: ItemCreate) -> SourceItem:
     session.add(item)
     session.commit()
     session.refresh(item)
+    if fetched_people:
+        # The source named people (a GitHub author/commenter, a Slack
+        # participant): upsert them and link them to the item.
+        link_people_to_item(session, item.id, fetched_people)
     return item
 
 
@@ -71,6 +78,7 @@ def _item_read(session: Session, item: SourceItem) -> ItemRead:
     data.task_ids = [
         assoc.task_id for assoc in session.exec(select(Association).where(Association.item_id == item.id)).all()
     ]
+    data.person_ids = item_person_ids(session, item.id)
     return data
 
 
@@ -139,6 +147,7 @@ def refresh_item(item_id: str, session: Session = Depends(get_session)) -> ItemR
     session.add(item)
     session.commit()
     session.refresh(item)
+    link_people_to_item(session, item.id, fetched.get("people") or [])
     return _item_read(session, item)
 
 
@@ -148,6 +157,7 @@ def delete_item(item_id: str, session: Session = Depends(get_session)) -> None:
     if item is None:
         raise HTTPException(status_code=404, detail="Item not found")
     session.exec(sa_delete(Association).where(col(Association.item_id) == item_id))
+    session.exec(sa_delete(ItemPerson).where(col(ItemPerson.item_id) == item_id))
     session.exec(sa_delete(SourceItem).where(col(SourceItem.id) == item_id))
     session.commit()
 

@@ -4,6 +4,7 @@ import { api, openTaskStream } from '../api'
 import { store } from '../store'
 import ContextPanel from '../components/ContextPanel.vue'
 import ItemsPanel from '../components/ItemsPanel.vue'
+import PeoplePanel from '../components/PeoplePanel.vue'
 import ChangesPanel from '../components/ChangesPanel.vue'
 import WorktreesPanel from '../components/WorktreesPanel.vue'
 import AgentPanel from '../components/AgentPanel.vue'
@@ -101,6 +102,8 @@ async function removeTask() {
 
 function onChanged() {
   load()
+  // Auto-populated people may have joined the directory; keep the panel's picker fresh.
+  store.loadPeople().catch(() => {})
   emit('changed')
 }
 
@@ -127,6 +130,7 @@ onMounted(async () => {
   // Focus-hint mode uses the DOM scan in App; nothing to register here.
   await store.loadHarnesses().catch(() => {})
   await store.loadRepositories().catch(() => {})
+  await store.loadPeople().catch(() => {})
   await load()
   subscribe()
 })
@@ -224,6 +228,7 @@ watch(
       <div>
         <WorktreesPanel :task="task" :repositories="store.repositories" @changed="onChanged" />
         <ItemsPanel :task="task" @changed="onChanged" />
+        <PeoplePanel :task="task" @changed="onChanged" />
         <ChangesPanel :task="task" @changed="onChanged" />
       </div>
     </div>

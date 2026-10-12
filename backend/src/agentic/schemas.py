@@ -192,6 +192,7 @@ class ItemRead(ORMModel):
     created_at: datetime
     updated_at: datetime
     task_ids: list[str] = []
+    person_ids: list[str] = []
 
 
 class AssociationRead(ORMModel):
@@ -316,21 +317,29 @@ class TimelineRead(ORMModel):
 
 class TaskDetail(TaskRead):
     associations: list[AssociationDetail] = []
+    people: list[PersonRead] = []
     worktrees: list[WorktreeRead] = []
     runs: list[RunRead] = []
     changes: list[ChangeRead] = []
     timeline: list[TimelineRead] = []
 
+
+# --- People ----------------------------------------------------------------
+class PersonCreate(BaseModel):
     name: str = ""
     email: str | None = None
     handle: str | None = None
     notes: str = ""
 
+
+class PersonUpdate(BaseModel):
     name: str | None = None
     email: str | None = None
     handle: str | None = None
     notes: str | None = None
 
+
+class PersonRead(ORMModel):
     id: str
     name: str
     email: str | None = None
@@ -341,9 +350,16 @@ class TaskDetail(TaskRead):
     task_count: int = 0
     item_count: int = 0
 
+
+class PersonDetail(PersonRead):
     task_ids: list[str] = []
     item_ids: list[str] = []
 
+
+class PersonLink(BaseModel):
+    """Link an existing person (``person_id``) or create and link a new one (``name``)."""
+
+    person_id: str | None = None
     name: str = ""
 
 
@@ -541,6 +557,11 @@ __all__ = [
     "MetricCounts",
     "MetricResult",
     "MetricsReport",
+    "PersonCreate",
+    "PersonDetail",
+    "PersonLink",
+    "PersonRead",
+    "PersonUpdate",
     "Task",
     "TaskBulkResult",
     "TaskBulkUpdate",

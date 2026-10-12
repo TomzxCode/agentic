@@ -35,6 +35,37 @@ class FakeClient:
     def list_tags(self):
         return [{"name": "bug", "count": 1}]
 
+    def list_people(self):
+        return [{"id": "p1", "name": "Ada", "task_count": 1, "item_count": 0}]
+
+    def get_person(self, person_id):
+        return {
+            "id": person_id,
+            "name": "Ada",
+            "task_count": 1,
+            "item_count": 1,
+            "email": "ada@example.com",
+            "handle": "ada",
+            "notes": "n",
+            "task_ids": ["t1"],
+            "item_ids": ["i1"],
+        }
+
+    def create_person(self, **fields):
+        return {"id": "p2", "name": fields.get("name"), "task_count": 0, "item_count": 0}
+
+    def update_person(self, person_id, **fields):
+        return {"id": person_id, "name": fields.get("name") or "Ada", "task_count": 0, "item_count": 0}
+
+    def delete_person(self, person_id):
+        return None
+
+    def link_person(self, person_id, **kwargs):
+        return {"id": person_id, "name": "Ada", "task_count": 1, "item_count": 0}
+
+    def unlink_person(self, person_id, **kwargs):
+        return None
+
     def list_changes(self, task_id=None, status=None, change_class=None):
         return [{"id": "c1", "status": "proposed", "change_class": "feature", "title": "C", "human_intervened": False}]
 
@@ -337,6 +368,20 @@ def test_change_and_metrics_commands(text_format, fake_client):
     assert "autonomy_rate" in cli.baseline_list()
     assert "baseline = 20.0%" in cli.baseline_set("autonomy_rate", 0.2)
     assert "deleted baseline yield" in cli.baseline_delete("yield")
+
+
+def test_people_commands(text_format, fake_client, capsys):
+    assert "Ada" in cli.person_list()
+    text = cli.person_get("p1")
+    assert "email: ada@example.com" in text and "tasks: t1" in text
+    assert "created p2" in cli.person_create(name="Ada")
+    assert "updated p1" in cli.person_update("p1", handle="ada")
+    assert "deleted p1" in cli.person_delete("p1")
+    assert "linked p1 to task t1" in cli.person_link("p1", task="t1")
+    assert "linked p1 to item i1" in cli.person_link("p1", item="i1")
+    assert "unlinked p1 from task t1" in cli.person_unlink("p1", task="t1")
+    assert cli.person_link("p1") == 1
+    assert "provide --task or --item" in capsys.readouterr().err
 
 
 def test_run_wait_polls_until_terminal(monkeypatch, text_format):

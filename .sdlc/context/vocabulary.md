@@ -17,6 +17,7 @@
 | Item | A `SourceItem`: something external (Slack thread, GitHub issue or PR, Drive doc, URL, note, commit, file) that can be associated to tasks. |
 | Metric baseline | The stored value a metric's direction (improving, worsening, flat, or no-baseline) is measured against. |
 | Next steps | The agent-maintained list of concrete actions for a task, each with a `done` flag. |
+| Person | An individual a task or a source item involves: a name plus optional email, handle, and notes. |
 | Repository | A local git checkout registered with the app, from which worktrees are created. |
 | Repository group | A named set of repositories that tells a task's agent which checkouts may be relevant. |
 | Session link | A way to reopen an agent session: an OpenChamber URL, a terminal URL, or a copyable resume command. |
@@ -38,6 +39,7 @@
 | Directory picker | The server-side filesystem browser (`GET /api/fs/list`) used to add repositories, confined to `AGENTIC_FS_ROOT`. |
 | Event bus | The in-process asyncio publish/subscribe used to stream events to SSE subscribers. |
 | Gantt view | A timeline page showing each task in flight as a bar with one marker per timeline event. |
+| People page | The SPA route (`/people`) listing people with the tasks and items each is linked to. |
 | Mobile support | The application is designed with mobile in mind, so layouts and controls work on small phone screens as well as desktops. |
 | Source inference | Deriving an item's source, kind, and external id from a pasted value (URL or plain text). |
 | SSE | Server-Sent Events, used for the live run transcript and task-change streams. |

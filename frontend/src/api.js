@@ -39,6 +39,18 @@ export const api = {
     list: () => request('/tags')
   },
 
+  people: {
+    list: () => request('/people'),
+    get: (id) => request(`/people/${id}`),
+    create: (body) => request('/people', { method: 'POST', body }),
+    update: (id, body) => request(`/people/${id}`, { method: 'PATCH', body }),
+    remove: (id) => request(`/people/${id}`, { method: 'DELETE' }),
+    linkTask: (taskId, body) => request(`/tasks/${taskId}/people`, { method: 'POST', body }),
+    unlinkTask: (taskId, personId) => request(`/tasks/${taskId}/people/${personId}`, { method: 'DELETE' }),
+    linkItem: (itemId, body) => request(`/items/${itemId}/people`, { method: 'POST', body }),
+    unlinkItem: (itemId, personId) => request(`/items/${itemId}/people/${personId}`, { method: 'DELETE' })
+  },
+
   changes: {
     list: ({ taskId, status, changeClass } = {}) => {
       const qs = new URLSearchParams()

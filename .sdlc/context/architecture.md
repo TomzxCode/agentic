@@ -47,6 +47,10 @@ erDiagram
     REPOSITORY ||--o{ REPOSITORYGROUPMEMBER : "belongs to"
     TASK ||--o{ TASKREPOSITORY : "draws on"
     REPOSITORY ||--o{ TASKREPOSITORY : "referenced by"
+    TASK ||--o{ TASKPERSON : "involves"
+    PERSON ||--o{ TASKPERSON : "linked via"
+    SOURCEITEM ||--o{ ITEMPERSON : "involves"
+    PERSON ||--o{ ITEMPERSON : "linked via"
     REPOSITORYGROUP ||--o{ TASK : "scopes"
     HARNESS ||--o{ TASK : "default for"
     WORKTREE ||--o{ AGENTRUN : "runs in"
@@ -106,6 +110,23 @@ erDiagram
         string id PK
         string task_id FK
         string repository_id FK
+    }
+    PERSON {
+        string id PK
+        string name
+        string email
+        string handle
+        string notes
+    }
+    TASKPERSON {
+        string id PK
+        string task_id FK
+        string person_id FK
+    }
+    ITEMPERSON {
+        string id PK
+        string item_id FK
+        string person_id FK
     }
     WORKTREE {
         string id PK
@@ -200,6 +221,7 @@ The full schema with types, constraints, and indexes lives in [`schema.dbml`](sc
 | Source services | Parse/infer/fetch items, build the context prompt, parse agent JSON | httpx, subprocess (`ghx`, `slackx`) |
 | Git services | Create/remove worktrees, detect remote and default branch | `git` subprocess |
 | Gantt view | Tasks as time bars with one marker per timeline event | `routers/gantt.py`, Vue GanttView |
+| People directory | People linked to tasks and items, auto-populated from GitHub and Slack metadata, shown on the task page, the items list, and a People page | `routers/people.py`, `services.py`, Vue PeopleView/PeoplePanel |
 | Change lifecycle | Record changes and the human interventions on them, from a task page | `routers/changes.py`, Vue ChangesPanel |
 | Metrics engine | Compute autonomy rate and yield from changes, read against a baseline | `metrics.py`, `routers/metrics.py`, Vue MetricsView |
 | Session links | Build OpenChamber/terminal/resume-command links from settings | templating over stored settings |

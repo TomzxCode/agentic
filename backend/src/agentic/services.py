@@ -218,7 +218,7 @@ def infer_item_source(
 def fetch_source(source: str, url: str | None, external_id: str | None, title: str) -> dict[str, Any]:
     """Best-effort metadata/content pull. Never raises."""
 
-    result: dict[str, Any] = {"metadata": {}, "content": "", "title": title}
+    result: dict[str, Any] = {"metadata": {}, "content": "", "title": title, "people": []}
     try:
         if source == "github" and url:
             _fetch_github(url, result)
@@ -283,7 +283,43 @@ def fetch_github_issue(owner: str, repo: str, number: object, kind: str = "issue
         "author": (data.get("author") or {}).get("login"),
         "labels": [label.get("name") for label in data.get("labels") or [] if isinstance(label, dict)],
         "body": data.get("body") or "",
+        "people": github_people(data),
     }
+
+
+def github_people(data: dict[str, Any]) -> list[dict[str, Any]]:
+    """The people named by a ghx issue/PR payload: author, assignees, commenters.
+
+    Each person carries a ``handle`` (the GitHub login), which is the identity
+    used to de-duplicate them in the people directory.
+    """
+    people: list[dict[str, Any]] = []
+
+    def add(login: object) -> None:
+        if login:
+            people.append({"name": str(login), "handle": str(login), "source": "github"})
+
+    add((data.get("author") or {}).get("login"))
+    for assignee in data.get("assignees") or []:
+        if isinstance(assignee, dict):
+            add(assignee.get("login"))
+    for comment in data.get("comments") or []:
+        if isinstance(comment, dict):
+            add((comment.get("author") or {}).get("login"))
+    return dedupe_people(people)
+
+
+def dedupe_people(people: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Keep the first entry per handle (or name), case-insensitively."""
+    seen: set[str] = set()
+    result: list[dict[str, Any]] = []
+    for person in people:
+        key = str(person.get("handle") or person.get("name") or "").strip().lower()
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        result.append(person)
+    return result
 
 
 def _fetch_github(url: str, result: dict[str, Any]) -> None:
@@ -296,6 +332,59 @@ def _fetch_github(url: str, result: dict[str, Any]) -> None:
     result["title"] = issue["title"] or result["title"]
     result["metadata"] = {**parsed, "state": issue["state"], "number": issue["number"]}
     result["content"] = issue["body"]
+    result["people"] = issue.get("people") or []
+
+
+def slack_user_names() -> dict[str, str]:
+    """Map Slack user ids to a display name, via the slackx cache. Best effort."""
+    raw = _run_cli(["slackx", "users", "list", "--json", "--fields", "id,name,real_name"], timeout=30)
+    if not raw:
+        return {}
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError:
+        return {}
+    users = data.get("users") if isinstance(data, dict) else data
+    names: dict[str, str] = {}
+    for user in users or []:
+        if not isinstance(user, dict) or not user.get("id"):
+            continue
+        names[str(user["id"])] = user.get("real_name") or user.get("name") or str(user["id"])
+    return names
+
+
+def slack_people(payload: str, names: dict[str, str] | None = None) -> list[dict[str, Any]]:
+    """The distinct participants in a slackx thread payload.
+
+    Each person carries a ``handle`` (the Slack user id) and a display name,
+    resolved from ``names`` (or the message's ``user_name``) when available.
+    """
+    try:
+        data = json.loads(payload)
+    except json.JSONDecodeError:
+        return []
+    messages = data.get("messages") if isinstance(data, dict) else data
+    names = names or {}
+    people: list[dict[str, Any]] = []
+    for message in messages or []:
+        if not isinstance(message, dict):
+            continue
+        user_id = message.get("user")
+        if not user_id:
+            continue
+        display = names.get(str(user_id))
+        handle = str(user_id)
+        if not display:
+            # "tomzx (roctom)" -> name tomzx, handle roctom.
+            raw_name = str(message.get("user_name") or "").strip()
+            match = re.match(r"^(?P<name>.+?)\s*\((?P<handle>[^)]+)\)$", raw_name)
+            if match:
+                display = match.group("name").strip()
+                handle = match.group("handle").strip()
+            elif raw_name:
+                display = raw_name
+        people.append({"name": display or str(user_id), "handle": handle, "source": "slack"})
+    return dedupe_people(people)
 
 
 def _fetch_slack(url: str, result: dict[str, Any]) -> None:
@@ -307,6 +396,10 @@ def _fetch_slack(url: str, result: dict[str, Any]) -> None:
         text = _run_cli(["slackx", "conversations", "fetch", url], timeout=90)
     if text:
         result["content"] = text
+    # A second, structured read of the same (now cached) thread names its people.
+    raw = _run_cli(["slackx", "conversations", "show", url, "--json"], timeout=90)
+    if raw:
+        result["people"] = slack_people(raw, slack_user_names())
 
 
 def _fetch_url(url: str, result: dict[str, Any]) -> None:

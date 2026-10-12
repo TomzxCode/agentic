@@ -4,6 +4,7 @@ import { api } from './api'
 export const store = reactive({
   tasks: [],
   tags: [],
+  people: [],
   harnesses: [],
   repositories: [],
   groups: [],
@@ -22,6 +23,14 @@ export const store = reactive({
   },
   async loadTags() {
     this.tags = await api.tags.list()
+  },
+  async loadPeople() {
+    this.people = await api.people.list()
+  },
+  async createPerson(name) {
+    const person = await api.people.create({ name })
+    this.people = [...this.people, person].sort((a, b) => a.name.localeCompare(b.name))
+    return person
   },
   async loadHarnesses() {
     this.harnesses = await api.harnesses.list()

@@ -1,0 +1,332 @@
+# session_link: http://localhost:10000/?session=ses_ed1c7d2feffevews1ZEr34mSZC
+# OpenAPI 3 contract for People.
+# Normative API definition referenced by specification.md.
+# Covers the people directory and the task-side and item-side link surface. The
+# rest of the tasks and items APIs is unchanged and is described in
+# .sdlc/features/p1-tasks/specification.md and p2-source-items/specification.md.
+# Validate: npx -y @stoplight/spectral-cli lint --ruleset spectral:oas api.yaml
+# (pass a local ruleset file instead when the built-in name does not resolve)
+openapi: 3.1.0
+info:
+  title: "People API"
+  version: 0.1.0
+  contact:
+    name: Agentic
+    url: https://github.com/TomzxCode/agentic
+  description: >
+    People surface of the Agentic API. A person is a directory entry (a name,
+    plus optional email, handle, and notes) that can be linked to tasks and to
+    source items. Links are many-to-many on both sides and idempotent: linking a
+    person already linked returns the existing association.
+    The surface is additive: new fields may appear on responses, and clients must
+    ignore unknown fields. New optional query parameters and new response fields
+    are non-breaking; removing or renaming one is breaking.
+servers:
+  - url: http://127.0.0.1:8600
+    description: Local single-user instance
+tags:
+  - name: people
+    description: The people directory.
+  - name: links
+    description: Linking people to tasks and items.
+paths:
+  /api/people:
+    get:
+      summary: List people with their task and item counts
+      operationId: listPeople
+      tags: [people]
+      responses:
+        "200":
+          description: People, ordered by name (case-insensitive)
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Person"
+    post:
+      summary: Create a person
+      operationId: createPerson
+      tags: [people]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PersonCreate"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Person"
+        "400":
+          description: Name is required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /api/people/{person_id}:
+    get:
+      summary: Get a person with the tasks and items they are linked to
+      operationId: getPerson
+      tags: [people]
+      parameters:
+        - $ref: "#/components/parameters/PersonId"
+      responses:
+        "200":
+          description: The person
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PersonDetail"
+        "404":
+          description: Person not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    patch:
+      summary: Update a person's fields
+      operationId: updatePerson
+      tags: [people]
+      parameters:
+        - $ref: "#/components/parameters/PersonId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PersonUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Person"
+        "404":
+          description: Person not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    delete:
+      summary: Delete a person and their links
+      operationId: deletePerson
+      tags: [people]
+      parameters:
+        - $ref: "#/components/parameters/PersonId"
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Person not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /api/tasks/{task_id}/people:
+    post:
+      summary: Link a person to a task
+      description: >
+        Links an existing person (`person_id`) or creates and links a new one
+        (`name`). Linking a person already linked to the task is a no-op that
+        returns the existing person. Unknown ids return 404.
+      operationId: linkTaskPerson
+      tags: [links]
+      parameters:
+        - $ref: "#/components/parameters/TaskId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PersonLink"
+      responses:
+        "201":
+          description: Linked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Person"
+        "400":
+          description: Neither person_id nor name was given
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Task or person not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /api/tasks/{task_id}/people/{person_id}:
+    delete:
+      summary: Unlink a person from a task
+      operationId: unlinkTaskPerson
+      tags: [links]
+      parameters:
+        - $ref: "#/components/parameters/TaskId"
+        - $ref: "#/components/parameters/PersonId"
+      responses:
+        "204":
+          description: Unlinked
+        "404":
+          description: Link not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /api/items/{item_id}/people:
+    post:
+      summary: Link a person to an item
+      operationId: linkItemPerson
+      tags: [links]
+      parameters:
+        - $ref: "#/components/parameters/ItemId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PersonLink"
+      responses:
+        "201":
+          description: Linked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Person"
+        "400":
+          description: Neither person_id nor name was given
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Item or person not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /api/items/{item_id}/people/{person_id}:
+    delete:
+      summary: Unlink a person from an item
+      operationId: unlinkItemPerson
+      tags: [links]
+      parameters:
+        - $ref: "#/components/parameters/ItemId"
+        - $ref: "#/components/parameters/PersonId"
+      responses:
+        "204":
+          description: Unlinked
+        "404":
+          description: Link not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+components:
+  parameters:
+    PersonId:
+      name: person_id
+      in: path
+      required: true
+      schema:
+        type: string
+    TaskId:
+      name: task_id
+      in: path
+      required: true
+      schema:
+        type: string
+    ItemId:
+      name: item_id
+      in: path
+      required: true
+      schema:
+        type: string
+  schemas:
+    Person:
+      type: object
+      additionalProperties: true
+      required: [id, name]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        email:
+          type: string
+          nullable: true
+        handle:
+          type: string
+          nullable: true
+        notes:
+          type: string
+        task_count:
+          type: integer
+          description: How many tasks the person is linked to.
+        item_count:
+          type: integer
+          description: How many items the person is linked to.
+    PersonDetail:
+      allOf:
+        - $ref: "#/components/schemas/Person"
+        - type: object
+          properties:
+            task_ids:
+              type: array
+              items:
+                type: string
+            item_ids:
+              type: array
+              items:
+                type: string
+    PersonCreate:
+      type: object
+      additionalProperties: true
+      properties:
+        name:
+          type: string
+          description: Required; blank names are rejected.
+        email:
+          type: string
+          nullable: true
+        handle:
+          type: string
+          nullable: true
+        notes:
+          type: string
+    PersonUpdate:
+      type: object
+      additionalProperties: true
+      properties:
+        name:
+          type: string
+        email:
+          type: string
+          nullable: true
+        handle:
+          type: string
+          nullable: true
+        notes:
+          type: string
+    PersonLink:
+      type: object
+      additionalProperties: true
+      description: Provide `person_id` to link an existing person, or `name` to create and link a new one.
+      properties:
+        person_id:
+          type: string
+        name:
+          type: string
+    Error:
+      type: object
+      required: [detail]
+      properties:
+        detail:
+          type: string

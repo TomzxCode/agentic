@@ -89,6 +89,8 @@ def _task_line(task: dict) -> str:
 
 def _task_text(task: dict) -> str:
     lines = [_task_line(task)]
+    if task.get("people"):
+        lines.append("  people: " + ", ".join(person["name"] for person in task["people"]))
     if task.get("summary"):
         lines.append(f"  summary: {task['summary']}")
     for step in task.get("next_steps") or []:
@@ -274,6 +276,113 @@ def tag_list() -> str:
     with _client() as client:
         tags = client.list_tags()
     return emit(tags, _join(tags, lambda t: f"{t['name']}  ({t['count']})"))
+
+
+# --- people ---------------------------------------------------------------
+person_app = App(name="person", help="Create and manage people and their links.")
+app.command(person_app)
+
+
+def _person_line(person: dict) -> str:
+    return f"{person['id']}  {person['name']}  tasks:{person['task_count']} items:{person['item_count']}"
+
+
+def _person_text(person: dict) -> str:
+    lines = [_person_line(person)]
+    for key in ("email", "handle"):
+        if person.get(key):
+            lines.append(f"  {key}: {person[key]}")
+    if person.get("notes"):
+        lines.append(f"  notes: {person['notes']}")
+    if person.get("task_ids"):
+        lines.append("  tasks: " + ", ".join(person["task_ids"]))
+    if person.get("item_ids"):
+        lines.append("  items: " + ", ".join(person["item_ids"]))
+    return "\n".join(lines)
+
+
+@person_app.command(name="list")
+@safe
+def person_list() -> str:
+    """List people with their task and item counts."""
+    with _client() as client:
+        people = client.list_people()
+    return emit(people, _join(people, _person_line))
+
+
+@person_app.command(name="get")
+@safe
+def person_get(person_id: str) -> str:
+    """Show a person and what they are linked to."""
+    with _client() as client:
+        person = client.get_person(person_id)
+    return emit(person, _person_text(person))
+
+
+@person_app.command(name="create")
+@safe
+def person_create(
+    *,
+    name: str,
+    email: str | None = None,
+    handle: str | None = None,
+    notes: str = "",
+) -> str:
+    """Create a person."""
+    with _client() as client:
+        person = client.create_person(name=name, email=email, handle=handle, notes=notes)
+    return emit(person, f"created {person['id']}  {person['name']}")
+
+
+@person_app.command(name="update")
+@safe
+def person_update(
+    person_id: str,
+    *,
+    name: str | None = None,
+    email: str | None = None,
+    handle: str | None = None,
+    notes: str | None = None,
+) -> str:
+    """Update a person's fields."""
+    with _client() as client:
+        person = client.update_person(person_id, name=name, email=email, handle=handle, notes=notes)
+    return emit(person, f"updated {person['id']}  {_person_line(person)}")
+
+
+@person_app.command(name="delete")
+@safe
+def person_delete(person_id: str) -> str:
+    """Delete a person and their links."""
+    with _client() as client:
+        client.delete_person(person_id)
+    return emit({"deleted": person_id}, f"deleted {person_id}")
+
+
+@person_app.command(name="link")
+@safe
+def person_link(person_id: str, *, task: str | None = None, item: str | None = None) -> str | int:
+    """Link a person to a task (--task) or an item (--item)."""
+    if not task and not item:
+        print("error: provide --task or --item", file=sys.stderr)
+        return 1
+    with _client() as client:
+        person = client.link_person(person_id, task_id=task, item_id=item)
+    target = f"task {task}" if task else f"item {item}"
+    return emit(person, f"linked {person['id']} to {target}")
+
+
+@person_app.command(name="unlink")
+@safe
+def person_unlink(person_id: str, *, task: str | None = None, item: str | None = None) -> str | int:
+    """Unlink a person from a task (--task) or an item (--item)."""
+    if not task and not item:
+        print("error: provide --task or --item", file=sys.stderr)
+        return 1
+    with _client() as client:
+        client.unlink_person(person_id, task_id=task, item_id=item)
+    target = f"task {task}" if task else f"item {item}"
+    return emit({"unlinked": person_id}, f"unlinked {person_id} from {target}")
 
 
 # --- changes --------------------------------------------------------------

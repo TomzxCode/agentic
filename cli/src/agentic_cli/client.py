@@ -222,6 +222,33 @@ class AgenticClient:
     def list_tags(self) -> list[dict]:
         return self._request("GET", "/api/tags")
 
+    # --- people -----------------------------------------------------------
+    def list_people(self) -> list[dict]:
+        return self._request("GET", "/api/people")
+
+    def get_person(self, person_id: str) -> dict:
+        return self._request("GET", f"/api/people/{person_id}")
+
+    def create_person(self, **fields: Any) -> dict:
+        return self._request("POST", "/api/people", json=_compact(fields))
+
+    def update_person(self, person_id: str, **fields: Any) -> dict:
+        return self._request("PATCH", f"/api/people/{person_id}", json=_compact(fields))
+
+    def delete_person(self, person_id: str) -> None:
+        self._request("DELETE", f"/api/people/{person_id}")
+
+    def link_person(self, person_id: str, *, task_id: str | None = None, item_id: str | None = None) -> dict:
+        if task_id:
+            return self._request("POST", f"/api/tasks/{task_id}/people", json={"person_id": person_id})
+        return self._request("POST", f"/api/items/{item_id}/people", json={"person_id": person_id})
+
+    def unlink_person(self, person_id: str, *, task_id: str | None = None, item_id: str | None = None) -> None:
+        if task_id:
+            self._request("DELETE", f"/api/tasks/{task_id}/people/{person_id}")
+        else:
+            self._request("DELETE", f"/api/items/{item_id}/people/{person_id}")
+
     # --- changes ----------------------------------------------------------
     def list_changes(
         self,

@@ -26,6 +26,7 @@ from ..models import (
     RepositoryGroup,
     SourceItem,
     Task,
+    TaskPerson,
     TaskRepository,
     TimelineEvent,
     Worktree,
@@ -38,6 +39,7 @@ from ..schemas import (
     ChangeRead,
     ItemCreate,
     ItemRead,
+    PersonRead,
     TaskBulkResult,
     TaskBulkUpdate,
     TaskCreate,
@@ -49,6 +51,7 @@ from ..schemas import (
 )
 from ..services import remove_worktree
 from .items import _upsert_item
+from .people import link_item_people_to_task, task_people
 
 router = APIRouter(prefix="/api/tasks", tags=["tasks"])
 
@@ -123,6 +126,7 @@ def _detail(session: Session, task: Task) -> TaskDetail:
     return TaskDetail(
         **_task_read(session, task).model_dump(),
         associations=details,
+        people=[PersonRead.model_validate(person) for person in task_people(session, task.id)],
         worktrees=[WorktreeRead.model_validate(w) for w in worktrees],
         runs=[run_read(session, r) for r in runs],
         changes=[ChangeRead.model_validate(c) for c in changes],
@@ -141,6 +145,8 @@ def _link_item(session: Session, task_id: str, item: SourceItem, note: str = "")
     session.add(assoc)
     session.commit()
     session.refresh(assoc)
+    # A linked source brings its people: everyone already on the item joins the task.
+    link_item_people_to_task(session, task_id, item.id)
     return assoc
 
 
@@ -363,6 +369,7 @@ async def delete_task(task_id: str, session: Session = Depends(get_session)) -> 
     session.exec(sa_delete(Worktree).where(col(Worktree.task_id) == task.id))
     session.exec(sa_delete(TimelineEvent).where(col(TimelineEvent.task_id) == task.id))
     session.exec(sa_delete(TaskRepository).where(col(TaskRepository.task_id) == task.id))
+    session.exec(sa_delete(TaskPerson).where(col(TaskPerson.task_id) == task.id))
     session.exec(sa_delete(Task).where(col(Task.id) == task.id))
     session.commit()
     await bus.publish("tasks", {"kind": "task", "action": "deleted", "id": task_id})
