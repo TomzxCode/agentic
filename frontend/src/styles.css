@@ -729,6 +729,54 @@ button.tag-chip.active {
 .item .mono {
   overflow-wrap: anywhere;
 }
+/* Bulk select on the tasks dashboard */
+.bulk-bar {
+  background: var(--bg-2);
+}
+.bulk-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  color: var(--muted);
+}
+.bulk-count input,
+.row-check {
+  accent-color: var(--accent);
+  width: 16px;
+  height: 16px;
+}
+.bulk-status {
+  width: auto;
+  min-width: 130px;
+}
+.bulk-bar .tag-input {
+  flex: 1 1 160px;
+  min-width: 140px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 5px 8px;
+  background: var(--bg);
+}
+.select-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+.select-item.selected {
+  border-color: var(--accent);
+}
+.select-item .row-check {
+  margin-top: 3px;
+  flex: 0 0 auto;
+}
+.item-body {
+  flex: 1;
+  min-width: 0;
+}
+.select-item .title:hover {
+  text-decoration: underline;
+}
 /* Next steps */
 .steps {
   list-style: none;

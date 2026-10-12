@@ -23,6 +23,7 @@ export const api = {
     },
     get: (id) => request(`/tasks/${id}`),
     create: (body) => request('/tasks', { method: 'POST', body }),
+    bulkUpdate: (body) => request('/tasks/bulk', { method: 'POST', body }),
     update: (id, body) => request(`/tasks/${id}`, { method: 'PATCH', body }),
     remove: (id) => request(`/tasks/${id}`, { method: 'DELETE' }),
     timeline: (id) => request(`/tasks/${id}/timeline`),

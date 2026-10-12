@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import contextlib
+from typing import Any
 
 import anyio
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -34,6 +35,8 @@ from ..schemas import (
     AssociationDetail,
     ItemCreate,
     ItemRead,
+    TaskBulkResult,
+    TaskBulkUpdate,
     TaskCreate,
     TaskDetail,
     TaskRead,
@@ -203,14 +206,17 @@ def get_task(task_id: str, session: Session = Depends(get_session)) -> TaskDetai
     return _detail(session, task)
 
 
-@router.patch("/{task_id}", response_model=TaskRead)
-async def update_task(task_id: str, payload: TaskUpdate, session: Session = Depends(get_session)) -> TaskRead:
-    task = get_task_or_404(session, task_id)
-    data = payload.model_dump(exclude_unset=True)
-    if "tags" in data:
-        data["tags"] = normalize_tags(data["tags"] or [])
-    repository_ids = data.pop("repository_ids", None)
+async def _apply_task_update(
+    session: Session,
+    task: Task,
+    data: dict[str, Any],
+    repository_ids: list[str] | None = None,
+) -> TaskRead:
+    """Apply field edits to a task, record the diff, and announce the change.
 
+    Shared by the single-task PATCH and the bulk endpoint so both record the
+    same timeline event and SSE notification.
+    """
     before = {key: jsonable(getattr(task, key)) for key in data}
     for key, value in data.items():
         setattr(task, key, value)
@@ -264,6 +270,59 @@ async def update_task(task_id: str, payload: TaskUpdate, session: Session = Depe
         )
     await bus.publish(f"task:{task.id}", {"kind": "task", "action": "updated"})
     return _task_read(session, task)
+
+
+@router.patch("/{task_id}", response_model=TaskRead)
+async def update_task(task_id: str, payload: TaskUpdate, session: Session = Depends(get_session)) -> TaskRead:
+    task = get_task_or_404(session, task_id)
+    data = payload.model_dump(exclude_unset=True)
+    if "tags" in data:
+        data["tags"] = normalize_tags(data["tags"] or [])
+    repository_ids = data.pop("repository_ids", None)
+    return await _apply_task_update(session, task, data, repository_ids)
+
+
+@router.post("/bulk", response_model=TaskBulkResult)
+async def bulk_update_tasks(payload: TaskBulkUpdate, session: Session = Depends(get_session)) -> TaskBulkResult:
+    """Apply one status and/or tag edit to many tasks at once.
+
+    Tags are additive/removable here (unlike PATCH, which replaces the whole
+    list), and each task keeps its own timeline entry.
+    """
+    if not payload.ids:
+        raise HTTPException(status_code=400, detail="Provide at least one task id")
+    if payload.status is None and not payload.add_tags and not payload.remove_tags:
+        raise HTTPException(status_code=400, detail="Provide a status or a tag change")
+
+    remove = set(normalize_tags(payload.remove_tags))
+    add = normalize_tags(payload.add_tags)
+
+    updated: list[TaskRead] = []
+    missing: list[str] = []
+    seen: set[str] = set()
+    for task_id in payload.ids:
+        if task_id in seen:
+            continue
+        seen.add(task_id)
+        task = session.get(Task, task_id)
+        if task is None:
+            missing.append(task_id)
+            continue
+
+        data: dict[str, Any] = {}
+        if payload.status is not None and payload.status != task.status:
+            data["status"] = payload.status
+        next_tags = normalize_tags([tag for tag in (task.tags or []) if tag not in remove] + add)
+        if next_tags != (task.tags or []):
+            data["tags"] = next_tags
+
+        if data:
+            updated.append(await _apply_task_update(session, task, data))
+        else:
+            # Matched, but this task already holds the requested state.
+            updated.append(_task_read(session, task))
+
+    return TaskBulkResult(updated=updated, missing=missing)
 
 
 @router.delete("/{task_id}", status_code=204)

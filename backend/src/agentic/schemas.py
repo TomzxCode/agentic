@@ -243,6 +243,15 @@ class TaskUpdate(BaseModel):
     next_steps: list[dict[str, Any]] | None = None
 
 
+class TaskBulkUpdate(BaseModel):
+    """Apply one status and/or tag edit to many tasks at once."""
+
+    ids: list[str]
+    status: TaskStatus | None = None
+    add_tags: list[str] = []
+    remove_tags: list[str] = []
+
+
 class TaskRead(ORMModel):
     id: str
     title: str
@@ -258,6 +267,13 @@ class TaskRead(ORMModel):
     context_updated_at: datetime | None = None
     created_at: datetime
     updated_at: datetime
+
+
+class TaskBulkResult(BaseModel):
+    """The tasks a bulk edit matched, plus any ids that no longer exist."""
+
+    updated: list[TaskRead] = []
+    missing: list[str] = []
 
 
 class WorktreeRead(ORMModel):
@@ -378,6 +394,8 @@ __all__ = [
     "ItemRead",
     "ItemUpdate",
     "Task",
+    "TaskBulkResult",
+    "TaskBulkUpdate",
     "TaskCreate",
     "TaskDetail",
     "TaskRead",

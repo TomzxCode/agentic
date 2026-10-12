@@ -167,6 +167,43 @@ def test_tags_are_normalized_filtered_and_listed():
             client.delete(f"/api/tasks/{task['id']}")
 
 
+def test_bulk_update_tasks_changes_status_and_tags():
+    with TestClient(app) as client:
+        first = client.post("/api/tasks", json={"title": "Bulk A", "tags": ["bug"]}).json()
+        second = client.post("/api/tasks", json={"title": "Bulk B", "tags": ["bug", "ui"]}).json()
+
+        result = client.post(
+            "/api/tasks/bulk",
+            json={
+                "ids": [first["id"], second["id"], "missing"],
+                "status": "done",
+                "add_tags": ["shipped", " ui "],
+                "remove_tags": ["bug"],
+            },
+        )
+        assert result.status_code == 200
+        body = result.json()
+        assert body["missing"] == ["missing"]
+        assert {t["id"] for t in body["updated"]} == {first["id"], second["id"]}
+
+        # Tags are added/removed, not replaced; the second task keeps "ui".
+        assert client.get(f"/api/tasks/{first['id']}").json()["tags"] == ["shipped", "ui"]
+        detail = client.get(f"/api/tasks/{second['id']}").json()
+        assert detail["tags"] == ["ui", "shipped"]
+        assert detail["status"] == "done"
+
+        # Each task records its own timeline event.
+        event = next(e for e in detail["timeline"] if e["type"] == "updated")
+        assert set(event["data_json"]["changes"]) == {"status", "tags"}
+
+        # A bulk edit with nothing to change is rejected.
+        assert client.post("/api/tasks/bulk", json={"ids": [first["id"]]}).status_code == 400
+        assert client.post("/api/tasks/bulk", json={"ids": [], "status": "done"}).status_code == 400
+
+        for task in (first, second):
+            client.delete(f"/api/tasks/{task['id']}")
+
+
 def test_harnesses_are_seeded():
     with TestClient(app) as client:
         harnesses = client.get("/api/harnesses").json()

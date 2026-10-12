@@ -18,9 +18,10 @@ const tags = computed(() => props.modelValue || [])
 const suggestionNames = computed(() =>
   props.suggestions.map((s) => (typeof s === 'string' ? s : s.name)).filter(Boolean)
 )
-const remaining = computed(() =>
-  suggestionNames.value.filter((name) => !tags.value.includes(name)).slice(0, props.suggestionLimit)
-)
+// Every existing tag not yet applied feeds the datalist; the quick-pick chips
+// show only the first few so the control stays compact.
+const available = computed(() => suggestionNames.value.filter((name) => !tags.value.includes(name)))
+const remaining = computed(() => available.value.slice(0, props.suggestionLimit))
 
 function add(name) {
   const value = String(name ?? draft.value ?? '').trim()
@@ -62,12 +63,12 @@ const listId = `tag-suggestions-${useId()}`
       v-model="draft"
       class="tag-entry"
       :placeholder="tags.length ? 'Add…' : placeholder"
-      :list="remaining.length ? listId : undefined"
+      :list="available.length ? listId : undefined"
       @keydown="onKeydown"
       @blur="draft.trim() && add()"
     />
     <datalist :id="listId">
-      <option v-for="name in remaining" :key="name" :value="name" />
+      <option v-for="name in available" :key="name" :value="name" />
     </datalist>
     <button
       v-for="name in remaining"

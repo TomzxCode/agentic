@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   itemsRefresh: vi.fn(),
   itemsRemove: vi.fn(),
   tasksAssociate: vi.fn(),
+  tasksBulkUpdate: vi.fn(),
   ganttGet: vi.fn(),
   push: vi.fn()
 }))
@@ -15,7 +16,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock('../api', () => ({
   api: {
     items: { list: mocks.itemsList, refresh: mocks.itemsRefresh, remove: mocks.itemsRemove },
-    tasks: { associate: mocks.tasksAssociate },
+    tasks: { associate: mocks.tasksAssociate, bulkUpdate: mocks.tasksBulkUpdate },
     gantt: { get: mocks.ganttGet }
   }
 }))
@@ -48,7 +49,7 @@ describe('TasksView', () => {
     vi.spyOn(store, 'loadTasks').mockResolvedValue()
   })
 
-  it('counts statuses and lists focus tasks', async () => {
+  it('counts statuses and lists in-flight tasks by default', async () => {
     store.tasks = [
       {
         id: 't1',
@@ -70,9 +71,9 @@ describe('TasksView', () => {
     expect(wrapper.text()).toContain('Done 1')
     expect(store.loadTasks).toHaveBeenCalled()
 
-    const focus = wrapper.findAll('.item').map((item) => item.text())
-    expect(focus.some((text) => text.includes('One'))).toBe(true)
-    expect(focus.some((text) => text.includes('Three'))).toBe(false)
+    const rows = wrapper.findAll('.item').map((item) => item.text())
+    expect(rows.some((text) => text.includes('One'))).toBe(true)
+    expect(rows.some((text) => text.includes('Three'))).toBe(false)
   })
 
   it('shows the getting-started panel when nothing is in flight', async () => {
@@ -114,6 +115,43 @@ describe('TasksView', () => {
     expect(store.tagFilter).toBe('ui')
     await wrapper.get('.tag-filter').trigger('click') // "All"
     expect(store.tagFilter).toBe('')
+  })
+
+  it('bulk edits the status and tags of selected in-flight tasks', async () => {
+    store.tags = [{ name: 'bug', count: 1 }]
+    store.tasks = [
+      { id: 't1', status: 'open', priority: 2, title: 'One', next_steps: [], updated_at: null, tags: [] },
+      { id: 't2', status: 'blocked', priority: 1, title: 'Two', next_steps: [], updated_at: null, tags: [] },
+      { id: 't3', status: 'done', priority: 3, title: 'Three', next_steps: [], updated_at: null, tags: [] }
+    ]
+    mocks.tasksBulkUpdate.mockResolvedValue({ updated: [{ id: 't1' }, { id: 't2' }], missing: [] })
+
+    const wrapper = mount(TasksView, stub)
+    await flushPromises()
+
+    // The selectable list is the default view; only in-flight tasks show.
+    const selectable = wrapper.findAll('.select-item')
+    expect(selectable).toHaveLength(2)
+    expect(wrapper.text()).not.toContain('Three')
+
+    // The bulk bar stays hidden until at least one task is selected.
+    expect(wrapper.find('.bulk-bar').exists()).toBe(false)
+
+    await wrapper.findAll('.select-item .row-check')[0].setValue(true)
+    expect(wrapper.find('.bulk-bar').exists()).toBe(true)
+    await wrapper.find('input[aria-label="Select every task in flight"]').setValue(true)
+    expect(wrapper.text()).toContain('2 selected')
+
+    await wrapper.get('select.bulk-status').setValue('done')
+    await wrapper
+      .findAll('button')
+      .find((b) => b.text() === 'Apply')
+      .trigger('click')
+    await flushPromises()
+
+    expect(mocks.tasksBulkUpdate).toHaveBeenCalledWith({ ids: ['t1', 't2'], status: 'done' })
+    expect(store.loadTasks).toHaveBeenCalled()
+    expect(store.toast).toEqual({ message: 'Updated 2 tasks', isError: false })
   })
 })
 
