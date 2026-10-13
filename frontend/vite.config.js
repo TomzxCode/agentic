@@ -10,8 +10,16 @@ export default defineConfig({
     vue(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['icon.svg', 'maskable.svg'],
+      includeAssets: [
+        'icon.svg',
+        'maskable.svg',
+        'icon-192.png',
+        'icon-512.png',
+        'maskable-192.png',
+        'maskable-512.png'
+      ],
       manifest: {
+        id: '/',
         name: 'Agentic',
         short_name: 'Agentic',
         description: 'Track work as tasks and collaborate with LLM coding agents.',
@@ -21,8 +29,11 @@ export default defineConfig({
         start_url: '/',
         scope: '/',
         icons: [
-          { src: 'icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' },
-          { src: 'maskable.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'maskable' }
+          { src: 'icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+          { src: 'icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+          { src: 'maskable-192.png', sizes: '192x192', type: 'image/png', purpose: 'maskable' },
+          { src: 'maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+          { src: 'icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' }
         ]
       },
       workbox: {
@@ -38,7 +49,15 @@ export default defineConfig({
           }
         ]
       },
-      devOptions: { enabled: false }
+      // Register the manifest and service worker on the dev server too, so the
+      // app is installable while running `make run-dev` (Chrome only offers
+      // install when a manifest and a service worker are present).
+      devOptions: {
+        enabled: true,
+        type: 'module',
+        navigateFallback: 'index.html',
+        suppressWarnings: true
+      }
     })
   ],
   resolve: {
