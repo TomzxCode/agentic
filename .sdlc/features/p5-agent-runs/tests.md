@@ -28,7 +28,7 @@ Out of scope: spawning a real harness process (integration with opencode/pi), wh
 
 | ID | Description | Preconditions | Expected Outcome |
 |---|---|---|---|
-| TC-9 | Harnesses are seeded | fresh database | opencode and pi present |
+| TC-9 | Harnesses are seeded | fresh database | opencode2, opencode, and pi present, exactly one marked default |
 | TC-10 | Context prompt includes a group | task with a group | prompt lists the group's repositories |
 | TC-11 | Backend CLI reports harness availability | fresh database | info prints harnesses |
 

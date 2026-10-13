@@ -6,7 +6,8 @@ a coding agent keep a current summary and next-steps list so resuming is quick.
 
 - **Backend**: FastAPI + SQLModel (SQLite), single-user and local-first.
 - **Agents**: any [ACP](https://agentclientprotocol.com/) harness. OpenCode
-  (`opencode acp`) and pi (`pi-acp`) are preconfigured; add more in Settings.
+  (`opencode acp` / `opencode2 acp`) and pi (`pi-acp`) are preconfigured; add
+  more in Settings.
 - **Frontend**: Vue 3 + Vite, built as an installable PWA and served by the API.
   Responsive down to phones: the task list becomes an off-canvas drawer and
   the detail view stacks into a single column.
@@ -63,17 +64,21 @@ FastAPI ──enqueue──▶ queue (SQLite) ◀──dequeue── worker ─�
    └── SSE ◀── normalized events (message / thought / tool_call / plan / usage)
 ```
 
-Default harnesses (seeded on first run):
+Default harnesses (seeded automatically):
 
 | Id | Command | Notes |
 | --- | --- | --- |
-| `opencode` | `opencode acp` | Default. |
+| `opencode2` | `opencode2 acp` | OpenCode v2. Seeded as the default when installed. |
+| `opencode` | `opencode acp` | OpenCode v1. Default when v2 is not installed. |
 | `pi` | `pi-acp` | `pi` via the pi-acp adapter. |
+
+The default harness runs when a task does not pick one; change it under
+Settings → Agent harnesses (the default is marked with a badge).
 
 ## Quickstart
 
 Prerequisites: Python 3.12+, [uv](https://docs.astral.sh/uv/), Node 20+, and at
-least one harness on your `PATH` (`opencode` and/or `pi-acp`).
+least one harness on your `PATH` (`opencode`/`opencode2` and/or `pi-acp`).
 
 ```bash
 # 1. Backend + CLI (API on :8600), from the repository root
@@ -209,7 +214,7 @@ Environment variables (prefix `AGENTIC_`) or `backend/.env`:
 | `AGENTIC_WORKTREE_ROOT` | `~/.agentic/worktrees` | Where worktrees are created. |
 | `AGENTIC_FS_ROOT` | `~` | Root the repository picker may browse (`/` for anywhere). |
 | `AGENTIC_STATIC_DIR` | `backend/static` | Built SPA to serve. |
-| `AGENTIC_DEFAULT_HARNESS` | `opencode` | Harness used when a task doesn't pick one. |
+| `AGENTIC_DEFAULT_HARNESS` | `opencode` | Fallback harness (by name) when no harness is marked default. |
 | `AGENTIC_AUTO_APPROVE_PERMISSIONS` | `true` | Auto-approve ACP permission requests. |
 | `AGENTIC_OPENCHAMBER_URL` | (unset) | Base URL for "Open in OpenChamber" links. |
 | `AGENTIC_OPENCHAMBER_SESSION_PATH` | `/?session={session}` | Path appended to the base. |

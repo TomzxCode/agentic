@@ -273,10 +273,11 @@ data dir:     /home/user/.agentic
 database:     /home/user/.agentic/agentic.db
 worktrees:    /home/user/.agentic/worktrees
 static dir:   /home/user/src/agentic/backend/static (built: True)
-default harness: opencode
+default harness: opencode2
 harnesses:
+ *ok  opencode2  opencode2
   ok  opencode   opencode
-      pi         pi-acp
+  ok  pi         pi-acp
 ```
 
 ### Error path

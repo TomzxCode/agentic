@@ -177,6 +177,21 @@ describe('AgentPanel', () => {
     expect(wrapper.text()).toContain('/w')
   })
 
+  it('names the default harness on the default option', async () => {
+    const wrapper = mount(AgentPanel, {
+      props: {
+        task,
+        harnesses: [
+          { id: 'opencode2', name: 'OpenCode v2', available: true, is_default: true },
+          { id: 'pi', name: 'pi', available: true, is_default: false }
+        ]
+      },
+      global: { stubs: { SessionLinks: true } }
+    })
+    await flushPromises()
+    expect(wrapper.get('.ss-label').text()).toContain('OpenCode v2')
+  })
+
   it('starts a run, streams events into blocks, and finishes', async () => {
     let onEvent
     mocks.runsCreate.mockResolvedValue({ id: 'r1', status: 'running', kind: 'chat', links: [] })

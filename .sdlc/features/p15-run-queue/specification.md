@@ -20,7 +20,7 @@ flowchart LR
     W[agentic-server worker] -->|dequeue| Q
     W --> P[jobs.process_run]
     P --> E[agents.execute_*]
-    E --> H[harness: opencode acp / pi-acp]
+    E --> H[harness: opencode/opencode2 acp / pi-acp]
     E --> DB[(agentic.db: agentrun, timelineevent)]
     E --> B[events.bus] --> SSE[SSE to SPA]
     API -->|queue.job / queue.abort| Q

@@ -25,8 +25,13 @@ const liveCwd = computed(() => {
   return active?.path || '(task repository)'
 })
 
+const defaultHarnessLabel = computed(() => {
+  const harness = props.harnesses.find((h) => h.is_default)
+  if (!harness) return 'Default harness'
+  return `Default harness (${harness.name}${harness.available === false ? ', unavailable' : ''})`
+})
 const harnessOptions = computed(() => [
-  { value: '', label: 'Default harness' },
+  { value: '', label: defaultHarnessLabel.value },
   ...props.harnesses.map((h) => ({ value: h.id, label: h.available ? h.name : `${h.name} (unavailable)` }))
 ])
 const worktreeOptions = computed(() => [

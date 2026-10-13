@@ -902,11 +902,15 @@ app.command(harness_app)
 @harness_app.command(name="list")
 @safe
 def harness_list() -> str:
-    """List harnesses and whether they are on PATH."""
+    """List harnesses, whether they are on PATH, and which is the default."""
     with _client() as client:
         harnesses = client.list_harnesses()
     text = _join(
-        harnesses, lambda h: f"{h['id']:<10} {'available' if h['available'] else 'missing':<10} {h.get('detail', '')}"
+        harnesses,
+        lambda h: (
+            f"{'*' if h.get('is_default') else ' '} {h['id']:<10} "
+            f"{'available' if h['available'] else 'missing':<10} {h.get('detail', '')}"
+        ),
     )
     return emit(harnesses, text)
 

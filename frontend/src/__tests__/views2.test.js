@@ -173,6 +173,24 @@ describe('SettingsView', () => {
     await flushPromises()
     expect(mocks.repositoriesRemove).toHaveBeenCalledWith('r1')
   })
+
+  it('sets a default harness', async () => {
+    mocks.harnessesUpdate.mockResolvedValue({})
+    mocks.harnessesFull.mockResolvedValue([
+      { id: 'opencode2', name: 'OpenCode v2', command: 'opencode2', is_default: true, resume_command: '' },
+      { id: 'pi', name: 'pi', command: 'pi-acp', is_default: false, resume_command: '' }
+    ])
+
+    const wrapper = mountView()
+    await flushPromises()
+    await wrapper
+      .findAll('button')
+      .find((b) => b.text() === 'Set default')
+      .trigger('click')
+    await flushPromises()
+    expect(mocks.harnessesUpdate).toHaveBeenCalledWith('pi', { is_default: true })
+    expect(store.toast.message).toBe('Default harness updated')
+  })
 })
 
 describe('TaskView', () => {

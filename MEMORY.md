@@ -1,5 +1,10 @@
 # Memory
 
+## 2026-10-13: the default harness is an is_default row, not AGENTIC_DEFAULT_HARNESS
+
+- `Harness.is_default` (at most one row) is the harness a run uses when a task picks none; `AGENTIC_DEFAULT_HARNESS` is now only a name fallback for when no row is flagged. `seed_harnesses` picks it once (installed `opencode2`, else `opencode`) and records the non-overridable key `harness_default_seeded` in the `setting` table, so a later choice made in Settings is never overwritten.
+- `GET /api/harnesses` reports `is_default` per harness and `PATCH /api/harnesses/{id}` demotes the others, which is what the Settings page uses. The marker row is not in `OVERRIDABLE_KEYS`, so it is invisible to the settings API (do not expect to see it under `/api/settings`).
+
 ## 2026-10-12: opencode ACP defaults to its own model, not the CLI's
 
 - `opencode acp` creates sessions with opencode's built-in default model (observed `opencode/big-pickle`), which is independent of the model `opencode run` resolves (observed `zai-coding-plan/glm-5.3`). With no valid `opencode` provider credential, that default fails with `Upstream request failed: Invalid credential`, and the ACP turn errors.

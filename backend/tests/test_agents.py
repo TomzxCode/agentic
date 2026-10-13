@@ -119,14 +119,95 @@ def test_harness_available_reports_missing_and_present_commands():
     assert available is True and detail
 
 
-def test_seed_harnesses_populates_presets_with_resume_commands():
+def test_seed_harnesses_populates_presets_with_resume_commands_and_default(monkeypatch):
+    monkeypatch.setattr(agents_mod, "_preferred_opencode_default", lambda: "opencode2")
     session = _fresh_session()
     seed_harnesses(session)
     harnesses = {h.id: h for h in session.exec(select(Harness)).all()}
-    assert set(harnesses) == {"opencode", "pi"}
+    assert set(harnesses) == {"opencode", "opencode2", "pi"}
     assert harnesses["opencode"].resume_command == "opencode --session {session}"
-    assert harnesses["opencode"].is_default is True
+    assert harnesses["opencode2"].resume_command == "opencode2 --session {session}"
     assert harnesses["pi"].resume_command == "pi --session {session}"
+    assert harnesses["opencode2"].is_default is True
+    assert harnesses["opencode"].is_default is False
+    assert harnesses["pi"].is_default is False
+
+
+def test_seed_harnesses_picks_opencode_v1_when_v2_is_absent(monkeypatch):
+    monkeypatch.setattr(agents_mod, "_preferred_opencode_default", lambda: "opencode")
+    session = _fresh_session()
+    seed_harnesses(session)
+    harnesses = {h.id: h for h in session.exec(select(Harness)).all()}
+    assert harnesses["opencode"].is_default is True
+    assert harnesses["opencode2"].is_default is False
+
+
+def test_seed_harnesses_adds_missing_presets_without_overwriting_custom_edits(monkeypatch):
+    monkeypatch.setattr(agents_mod, "_preferred_opencode_default", lambda: "opencode2")
+    session = _fresh_session()
+    session.add(Harness(id="opencode", name="Mine", command="my-opencode", is_default=True))
+    session.commit()
+
+    seed_harnesses(session)
+
+    opencode = session.get(Harness, "opencode")
+    assert opencode is not None and opencode.command == "my-opencode"
+    assert session.get(Harness, "opencode2") is not None
+    assert session.get(Harness, "pi") is not None
+
+
+def test_seed_harnesses_moves_an_opencode_default_to_v2(monkeypatch):
+    monkeypatch.setattr(agents_mod, "_preferred_opencode_default", lambda: "opencode2")
+    session = _fresh_session()
+    session.add(Harness(id="opencode", name="OpenCode", command="opencode", is_default=True))
+    session.commit()
+
+    seed_harnesses(session)
+
+    v1 = session.get(Harness, "opencode")
+    v2 = session.get(Harness, "opencode2")
+    assert v1 is not None and v2 is not None
+    assert v1.is_default is False
+    assert v2.is_default is True
+
+
+def test_seed_harnesses_keeps_a_default_outside_the_opencode_family(monkeypatch):
+    monkeypatch.setattr(agents_mod, "_preferred_opencode_default", lambda: "opencode2")
+    session = _fresh_session()
+    session.add(Harness(id="pi", name="pi", command="pi-acp", is_default=True))
+    session.commit()
+
+    seed_harnesses(session)
+
+    pi = session.get(Harness, "pi")
+    v2 = session.get(Harness, "opencode2")
+    assert pi is not None and v2 is not None
+    assert pi.is_default is True
+    assert v2.is_default is False
+
+
+def test_seed_harnesses_does_not_override_a_default_chosen_later(monkeypatch):
+    monkeypatch.setattr(agents_mod, "_preferred_opencode_default", lambda: "opencode2")
+    session = _fresh_session()
+    seed_harnesses(session)
+
+    # The user switches the default to v1 after seeding.
+    v1 = session.get(Harness, "opencode")
+    v2 = session.get(Harness, "opencode2")
+    assert v1 is not None and v2 is not None
+    v1.is_default = True
+    v2.is_default = False
+    session.add(v1)
+    session.add(v2)
+    session.commit()
+
+    seed_harnesses(session)
+
+    v1 = session.get(Harness, "opencode")
+    v2 = session.get(Harness, "opencode2")
+    assert v1 is not None and v2 is not None
+    assert v1.is_default is True
+    assert v2.is_default is False
 
 
 def test_seed_harnesses_backfills_resume_command_by_id_and_name():
@@ -181,6 +262,16 @@ def test_get_harness_falls_back_to_first_and_raises_when_empty():
     empty = _fresh_session()
     with pytest.raises(RuntimeError):
         get_harness(empty, None)
+
+
+def test_get_harness_resolves_the_default_then_falls_back(monkeypatch):
+    monkeypatch.setattr(agents_mod, "_preferred_opencode_default", lambda: "opencode2")
+    session = _fresh_session()
+    seed_harnesses(session)
+
+    assert get_harness(session, None).id == "opencode2"
+    # An explicit choice wins over the default.
+    assert get_harness(session, "opencode").id == "opencode"
 
 
 # --- AgenticClient callbacks ----------------------------------------------

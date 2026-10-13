@@ -20,14 +20,33 @@ async def _no_enqueue(run_id: str) -> None:
     return None
 
 
-def test_list_harnesses_reports_availability():
+def test_list_harnesses_reports_availability_and_a_single_default():
     with TestClient(app) as client:
         statuses = client.get("/api/harnesses").json()
-        assert {status["id"] for status in statuses} >= {"opencode", "pi"}
+        assert {status["id"] for status in statuses} >= {"opencode", "opencode2", "pi"}
         assert all("available" in status and "detail" in status for status in statuses)
+        # Exactly one harness is the default.
+        assert sum(1 for status in statuses if status["is_default"]) == 1
 
         full = client.get("/api/harnesses/full").json()
         assert any(harness["command"] for harness in full)
+
+
+def test_setting_a_default_harness_demotes_the_others():
+    with TestClient(app) as client:
+        before = client.get("/api/harnesses").json()
+        current = next(status["id"] for status in before if status["is_default"])
+        other = next(status["id"] for status in before if not status["is_default"])
+
+        updated = client.patch(f"/api/harnesses/{other}", json={"is_default": True})
+        assert updated.json()["is_default"] is True
+
+        after = {status["id"]: status["is_default"] for status in client.get("/api/harnesses").json()}
+        assert after[other] is True
+        assert after[current] is False
+        assert sum(after.values()) == 1
+
+        client.patch(f"/api/harnesses/{current}", json={"is_default": True})
 
 
 def test_harness_crud_and_delete_detaches_task():

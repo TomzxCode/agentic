@@ -59,7 +59,15 @@ def list_harnesses(session: Session = Depends(get_session)) -> list[HarnessStatu
     statuses: list[HarnessStatus] = []
     for harness in session.exec(select(Harness)).all():
         available, detail = harness_available(harness)
-        statuses.append(HarnessStatus(id=harness.id, name=harness.name, available=available, detail=detail))
+        statuses.append(
+            HarnessStatus(
+                id=harness.id,
+                name=harness.name,
+                available=available,
+                detail=detail,
+                is_default=harness.is_default,
+            )
+        )
     return statuses
 
 
@@ -72,6 +80,8 @@ def list_harnesses_full(session: Session = Depends(get_session)) -> list[Harness
 @router.post("/harnesses", response_model=HarnessRead, status_code=201)
 def create_harness(payload: HarnessCreate, session: Session = Depends(get_session)) -> Harness:
     harness = Harness(**payload.model_dump())
+    if harness.is_default:
+        session.exec(sa_update(Harness).where(col(Harness.id) != harness.id).values(is_default=False))
     session.add(harness)
     session.commit()
     session.refresh(harness)
@@ -83,7 +93,11 @@ def update_harness(harness_id: str, payload: HarnessUpdate, session: Session = D
     harness = session.get(Harness, harness_id)
     if harness is None:
         raise HTTPException(status_code=404, detail="Harness not found")
-    for key, value in payload.model_dump(exclude_unset=True).items():
+    data = payload.model_dump(exclude_unset=True)
+    # At most one default: promoting a harness demotes the others.
+    if data.get("is_default"):
+        session.exec(sa_update(Harness).where(col(Harness.id) != harness_id).values(is_default=False))
+    for key, value in data.items():
         setattr(harness, key, value)
     session.add(harness)
     session.commit()

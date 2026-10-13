@@ -141,6 +141,17 @@ async function saveResume(id) {
   }
 }
 
+async function setDefault(id) {
+  try {
+    await api.harnesses.update(id, { is_default: true })
+    await loadHarnesses()
+    await store.loadHarnesses().catch(() => {})
+    store.notify('Default harness updated')
+  } catch (e) {
+    store.notify(e.message, true)
+  }
+}
+
 async function saveLinkField(key) {
   savingLinks.value = true
   try {
@@ -250,12 +261,14 @@ onMounted(load)
         <section v-show="active === 'harnesses'" class="panel">
           <div class="panel-head"><h2>Agent harnesses</h2></div>
           <p class="faint" style="margin-top: 0">
-            Any ACP-compatible coding agent. OpenCode (<code>opencode acp</code>) and pi (<code>pi-acp</code>) are
-            preconfigured. The resume command is what "open in terminal" copies.
+            Any ACP-compatible coding agent. OpenCode v2 (<code>opencode2 acp</code>), v1 (<code>opencode acp</code>),
+            and pi (<code>pi-acp</code>) are preconfigured. The default harness runs when a task does not pick one; the
+            resume command is what "open in terminal" copies.
           </p>
           <div v-for="h in fullHarnesses" :key="h.id" class="item">
             <div class="item-top">
               <span class="title">{{ h.name }}</span>
+              <span v-if="h.is_default" class="badge ok">default</span>
               <span
                 class="badge"
                 :class="{ ok: harnessStatus[h.id]?.available, danger: !harnessStatus[h.id]?.available }"
@@ -267,6 +280,7 @@ onMounted(load)
             <div class="row" style="margin-top: 8px">
               <input v-model="resumeDrafts[h.id]" class="input grow mono" placeholder="opencode --session {session}" />
               <button class="btn sm" @click="saveResume(h.id)">Save</button>
+              <button v-if="!h.is_default" class="btn sm" @click="setDefault(h.id)">Set default</button>
             </div>
           </div>
           <div class="row" style="margin-top: 10px">

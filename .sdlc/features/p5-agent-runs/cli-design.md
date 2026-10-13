@@ -307,7 +307,7 @@ agentic context refresh 8dcb9b08ca12
 
 ### `agentic harness list`
 
-**Description:** Lists harnesses and whether each command is available on `PATH`.
+**Description:** Lists harnesses, whether each command is available on `PATH`, and which is the default (marked with a leading `*`).
 Serves FR-1.
 
 **Synopsis:**

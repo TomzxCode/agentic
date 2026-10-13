@@ -22,8 +22,8 @@ It manages harnesses (any ACP-compatible agent), runs a prompt in a working dire
 
 | ID | Priority | Requirement |
 |---|---|---|
-| FR-1 | Must | The system shall seed default harnesses (`opencode`, `pi`) on first run and report whether each is on `PATH`. |
-| FR-2 | Must | The system shall create, update, and delete harnesses (command, args, env, model, resume command, default flag). |
+| FR-1 | Must | The system shall seed default harnesses (`opencode2`, `opencode`, `pi`), adding any missing preset on startup without overwriting existing rows, report whether each is on `PATH`, and mark one as the default (installed `opencode2` when present, else `opencode`). |
+| FR-2 | Must | The system shall create, update, and delete harnesses (command, args, env, model, resume command, default flag), keeping at most one default and letting the default be changed from the web UI. |
 | FR-3 | Must | The system shall create an agent run, resolving the working directory from an explicit path, a worktree, the newest active worktree, the first task repository, or the worktree root, in that order. |
 | FR-4 | Must | The system shall run the harness over ACP, normalize each update into an agent event, persist it, and stream it over SSE. |
 | FR-5 | Must | The system shall cancel a running agent run. |
@@ -56,6 +56,17 @@ It manages harnesses (any ACP-compatible agent), runs a prompt in a working dire
       Given a task with an active worktree
       When the user starts a run without a cwd
       Then the run uses the newest active worktree path
+    ```
+
+- [ ] **FR-2**
+
+    ```gherkin
+    @FR-2
+    Scenario: Change the default harness
+      Given several harnesses
+      When the user marks one as the default
+      Then that harness is the only one marked default
+      And a run that does not pick a harness uses it
     ```
 
 - [ ] **FR-6**

@@ -14,7 +14,7 @@ from __future__ import annotations
 from cyclopts import App
 from sqlmodel import Session, select
 
-from .agents import harness_available, seed_harnesses
+from .agents import get_harness, harness_available, seed_harnesses
 from .config import settings
 from .db import create_db_and_tables, engine
 from .models import Harness
@@ -47,6 +47,7 @@ def info() -> None:
     with Session(engine) as session:
         seed_harnesses(session)
         harnesses = session.exec(select(Harness)).all()
+        default = get_harness(session, None)
 
     static = settings.static_dir
     built = static.is_dir() and (static / "index.html").exists()
@@ -55,12 +56,13 @@ def info() -> None:
     print(f"queue:        {settings.queue_dsn}")
     print(f"worktrees:    {settings.worktree_root}")
     print(f"static dir:   {static} (built: {built})")
-    print(f"default harness: {settings.default_harness}")
+    print(f"default harness: {default.id}")
     print("harnesses:")
     for harness in harnesses:
         available, detail = harness_available(harness)
         mark = "ok " if available else "   "
-        print(f"  {mark} {harness.id:<10} {detail or harness.command}")
+        star = "*" if harness.id == default.id else " "
+        print(f" {star}{mark} {harness.id:<10} {detail or harness.command}")
 
 
 app = App(name="agentic-server", help="Run and inspect the Agentic backend.")

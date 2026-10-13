@@ -41,7 +41,7 @@ flowchart LR
 | env | JSON | default {} | Extra environment |
 | model | string | nullable | Optional model flag |
 | resume_command | string | nullable | Resume template |
-| is_default | bool | default false | Default harness |
+| is_default | bool | default false | The default harness (at most one); runs use it when a task picks none |
 
 ### AgentRun
 
@@ -75,7 +75,7 @@ The normative contract is in [`api.yaml`](api.yaml) once written; the table belo
 
 | Method | Path | Purpose |
 |---|---|---|
-| GET | /api/harnesses | Harness availability |
+| GET | /api/harnesses | Harness availability and which one is the default |
 | GET | /api/harnesses/full | Full harness rows |
 | POST | /api/harnesses | Add a harness |
 | PATCH | /api/harnesses/{harness_id} | Update a harness |
@@ -117,6 +117,7 @@ sequenceDiagram
 | Decision | Choice | Rationale |
 |---|---|---|
 | Agent abstraction | ACP over stdio | A harness is a table row, never special-cased in code |
+| Default harness | One `is_default` row, seeded once to installed `opencode2` else `opencode` | Runs resolve it when a task picks none; Settings can change it, and seeding never overrides that choice |
 | Event normalization | One `session_update` branch per kind | A stable event vocabulary for UI and persistence |
 | Cancellation | `asyncio.Event` per run, raced against the prompt task | Cancel without killing the process abruptly |
 | Context parsing | Balanced-brace scan plus truncated-JSON repair | Models hit output limits and wrap JSON in prose |

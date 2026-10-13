@@ -1,8 +1,9 @@
 """Coding-agent harnesses, driven over ACP (Agent Client Protocol).
 
-Both OpenCode (`opencode acp`) and pi (via `pi-acp`) speak ACP over stdio, so a
-single client here drives any harness. Adding a new harness is a row in the
-``harness`` table (or a preset below), not new code.
+OpenCode (`opencode acp`, v1 or v2), pi (via `pi-acp`), and any other ACP agent
+speak the protocol over stdio, so a single client here drives any harness.
+Adding a new harness is a row in the ``harness`` table (or a preset below), not
+new code.
 """
 
 from __future__ import annotations
@@ -37,7 +38,7 @@ from sqlmodel import Session, col, select
 
 from .config import settings
 from .db import engine
-from .models import AgentEvent, AgentRun, Harness, RunStatus, utcnow
+from .models import AgentEvent, AgentRun, Harness, RunStatus, Setting, utcnow
 
 log = structlog.get_logger(__name__)
 
@@ -49,7 +50,14 @@ HARNESS_PRESETS: list[dict[str, Any]] = [
         "command": "opencode",
         "args": ["acp"],
         "resume_command": "opencode --session {session}",
-        "is_default": True,
+    },
+    {
+        "id": "opencode2",
+        "name": "OpenCode v2",
+        "description": "OpenCode v2's built-in ACP server (`opencode2 acp`).",
+        "command": "opencode2",
+        "args": ["acp"],
+        "resume_command": "opencode2 --session {session}",
     },
     {
         "id": "pi",
@@ -58,28 +66,55 @@ HARNESS_PRESETS: list[dict[str, Any]] = [
         "command": "pi-acp",
         "args": [],
         "resume_command": "pi --session {session}",
-        "is_default": False,
     },
 ]
 
-RESUME_DEFAULTS = {"opencode": "opencode --session {session}", "pi": "pi --session {session}"}
+RESUME_DEFAULTS = {
+    "opencode": "opencode --session {session}",
+    "opencode2": "opencode2 --session {session}",
+    "pi": "pi --session {session}",
+}
+
+# OpenCode v2 is seeded as the default when its binary is installed. The seeded
+# choice is recorded once, so a default later chosen in Settings always wins.
+OPENCODE_DEFAULT_PREFERENCE = ("opencode2", "opencode")
+OPENCODE_DEFAULT_MARKER = "harness_default_seeded"
+
+
+def _preferred_opencode_default() -> str:
+    for harness_id in OPENCODE_DEFAULT_PREFERENCE:
+        if shutil.which(harness_id):
+            return harness_id
+    return OPENCODE_DEFAULT_PREFERENCE[-1]
 
 
 def seed_harnesses(session: Session) -> None:
-    if session.exec(select(Harness)).first() is None:
-        for preset in HARNESS_PRESETS:
-            session.add(
-                Harness(
-                    id=preset["id"],
-                    name=preset["name"],
-                    description=preset["description"],
-                    command=preset["command"],
-                    args=preset["args"],
-                    resume_command=preset.get("resume_command"),
-                    is_default=preset["is_default"],
-                )
+    """Create the built-in harness presets, pick a default, and backfill fields.
+
+    Missing presets are inserted on every call, so upgrading adds new built-ins
+    (for example ``opencode2``) to an existing database. Existing rows are never
+    overwritten, so custom edits survive.
+    """
+    existing = {harness.id for harness in session.exec(select(Harness)).all()}
+    changed = False
+    for preset in HARNESS_PRESETS:
+        if preset["id"] in existing:
+            continue
+        session.add(
+            Harness(
+                id=preset["id"],
+                name=preset["name"],
+                description=preset["description"],
+                command=preset["command"],
+                args=preset["args"],
+                resume_command=preset.get("resume_command"),
+                is_default=False,
             )
+        )
+        changed = True
+    if changed:
         session.commit()
+    _ensure_default_harness(session)
     # Backfill resume commands for harnesses created before the column existed.
     changed = False
     for harness in session.exec(select(Harness)).all():
@@ -93,18 +128,47 @@ def seed_harnesses(session: Session) -> None:
         session.commit()
 
 
+def _ensure_default_harness(session: Session) -> None:
+    """Guarantee a single default harness, preferring installed OpenCode v2.
+
+    Seeding picks the default once, and only while no default is set or the set
+    one is an OpenCode variant, so a deliberate choice (including one made in
+    Settings) is never overwritten.
+    """
+    current = session.exec(select(Harness).where(Harness.is_default == True)).first()  # noqa: E712
+    if session.get(Setting, OPENCODE_DEFAULT_MARKER) is not None and current is not None:
+        return
+    if current is not None and current.id not in OPENCODE_DEFAULT_PREFERENCE:
+        _mark_default_seeded(session)
+        session.commit()
+        return
+    target = session.get(Harness, _preferred_opencode_default()) or session.exec(select(Harness)).first()
+    if target is None:
+        return
+    for harness in session.exec(select(Harness)).all():
+        want = harness.id == target.id
+        if harness.is_default != want:
+            harness.is_default = want
+            session.add(harness)
+    _mark_default_seeded(session)
+    session.commit()
+
+
+def _mark_default_seeded(session: Session) -> None:
+    if session.get(Setting, OPENCODE_DEFAULT_MARKER) is None:
+        session.add(Setting(key=OPENCODE_DEFAULT_MARKER, value="1"))
+
+
 def get_harness(session: Session, harness_id: str | None) -> Harness:
     if harness_id:
         harness = session.get(Harness, harness_id)
         if harness is not None:
             return harness
     harness = session.exec(select(Harness).where(Harness.is_default == True)).first()  # noqa: E712
-    if harness is not None:
-        return harness
-    harness = session.exec(select(Harness).where(Harness.name == settings.default_harness)).first()
-    if harness is not None:
-        return harness
-    harness = session.exec(select(Harness)).first()
+    if harness is None:
+        harness = session.exec(select(Harness).where(Harness.name == settings.default_harness)).first()
+    if harness is None:
+        harness = session.exec(select(Harness)).first()
     if harness is None:
         raise RuntimeError("No harness configured")
     return harness

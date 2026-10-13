@@ -18,7 +18,7 @@ flowchart LR
         ACP["ACP client"]
     end
     DB[("SQLite\n~/.agentic/agentic.db")]
-    Harness["ACP harness\n(opencode acp / pi-acp)"]
+    Harness["ACP harness\n(opencode/opencode2 acp / pi-acp)"]
     Ext["ghx/git/slackx\n(GitHub, Slack, URLs)"]
 
     SPA -- "REST + SSE" --> API
