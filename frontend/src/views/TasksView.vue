@@ -3,6 +3,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { store, statusLabel, timeAgo, taskHasTag } from '../store'
 import { api } from '../api'
 import TagInput from '../components/TagInput.vue'
+import SearchSelect from '../components/SearchSelect.vue'
 import StatusIcon from '../components/StatusIcon.vue'
 
 const matchesFilter = (p) => !store.tagFilter || taskHasTag(p, store.tagFilter)
@@ -30,8 +31,30 @@ const inFlight = computed(() =>
   store.tasks.filter((p) => p.status !== 'done' && p.status !== 'archived').filter(matchesFilter)
 )
 
-// --- Bulk edit -------------------------------------------------------------
 const STATUS_VALUES = ['open', 'in_progress', 'blocked', 'done', 'archived']
+
+// The status picker shown on each row, the same icon-only control the sidebar uses.
+const statusOptions = STATUS_VALUES.map((value) => ({
+  value,
+  label: statusLabel(value),
+  icon: StatusIcon,
+  iconProps: { status: value, label: statusLabel(value) }
+}))
+
+// Change a task's status straight from its row.
+async function changeStatus(task, status) {
+  if (status === task.status) return
+  const previous = task.status
+  task.status = status
+  try {
+    await api.tasks.update(task.id, { status })
+  } catch (e) {
+    task.status = previous
+    store.notify(e.message, true)
+  }
+}
+
+// --- Bulk edit -------------------------------------------------------------
 
 const selected = ref([])
 const bulkStatus = ref('')
@@ -158,7 +181,15 @@ onMounted(() => store.loadTasks())
         />
         <div class="item-body">
           <div class="item-top">
-            <StatusIcon :status="p.status" :label="statusLabel(p.status)" />
+            <SearchSelect
+              class="task-status-select"
+              variant="icon"
+              :model-value="p.status"
+              :options="statusOptions"
+              :sort="false"
+              title="Change status"
+              @update:model-value="(value) => changeStatus(p, value)"
+            />
             <router-link :to="`/task/${p.id}`" class="title">{{ p.title }}</router-link>
             <span class="faint">{{ taskAge(p) }}</span>
           </div>

@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   itemsRefresh: vi.fn(),
   itemsRemove: vi.fn(),
   tasksAssociate: vi.fn(),
+  tasksUpdate: vi.fn(),
   tasksBulkUpdate: vi.fn(),
   ganttGet: vi.fn(),
   push: vi.fn()
@@ -16,7 +17,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock('../api', () => ({
   api: {
     items: { list: mocks.itemsList, refresh: mocks.itemsRefresh, remove: mocks.itemsRemove },
-    tasks: { associate: mocks.tasksAssociate, bulkUpdate: mocks.tasksBulkUpdate },
+    tasks: { associate: mocks.tasksAssociate, update: mocks.tasksUpdate, bulkUpdate: mocks.tasksBulkUpdate },
     gantt: { get: mocks.ganttGet }
   }
 }))
@@ -182,6 +183,45 @@ describe('TasksView', () => {
     expect(mocks.tasksBulkUpdate).toHaveBeenCalledWith({ ids: ['t1', 't2'], status: 'done' })
     expect(store.loadTasks).toHaveBeenCalled()
     expect(store.toast).toEqual({ message: 'Updated 2 tasks', isError: false })
+  })
+
+  it('changes a task status inline from its row, like the sidebar', async () => {
+    store.tasks = [{ id: 't1', status: 'open', priority: 2, title: 'One', next_steps: [], updated_at: null }]
+    mocks.tasksUpdate.mockResolvedValue({ id: 't1', status: 'blocked' })
+
+    const wrapper = mount(TasksView, stub)
+    await flushPromises()
+
+    // The row shows an icon-only status picker, not a read-only icon.
+    const select = wrapper.get('.select-item .task-status-select')
+    await select.get('.ss-trigger').trigger('click')
+    await wrapper
+      .findAll('.ss-option')
+      .find((o) => o.text().includes('Blocked'))
+      .trigger('click')
+    await flushPromises()
+
+    expect(mocks.tasksUpdate).toHaveBeenCalledWith('t1', { status: 'blocked' })
+    expect(store.tasks[0].status).toBe('blocked')
+  })
+
+  it('reverts a row status when the update fails', async () => {
+    store.tasks = [{ id: 't1', status: 'open', priority: 2, title: 'One', next_steps: [], updated_at: null }]
+    mocks.tasksUpdate.mockRejectedValue(new Error('offline'))
+
+    const wrapper = mount(TasksView, stub)
+    await flushPromises()
+
+    const select = wrapper.get('.select-item .task-status-select')
+    await select.get('.ss-trigger').trigger('click')
+    await wrapper
+      .findAll('.ss-option')
+      .find((o) => o.text().includes('Blocked'))
+      .trigger('click')
+    await flushPromises()
+
+    expect(store.tasks[0].status).toBe('open')
+    expect(store.toast).toEqual({ message: 'offline', isError: true })
   })
 })
 
