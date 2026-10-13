@@ -74,6 +74,21 @@ class InterventionKind(StrEnum):
     other = "other"
 
 
+class OperationClient(StrEnum):
+    """Which client sent a request: the web UI, the CLI, or the raw API."""
+
+    web = "web"
+    cli = "cli"
+    api = "api"
+
+
+class OperationActor(StrEnum):
+    """Who is behind a request: a person or a coding agent."""
+
+    human = "human"
+    agent = "agent"
+
+
 class Repository(SQLModel, table=True):
     """A local git checkout that tasks can create worktrees from."""
 
@@ -275,6 +290,26 @@ class TimelineEvent(SQLModel, table=True):
     type: str
     message: str = ""
     data_json: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
+    client: OperationClient = Field(default=OperationClient.api)
+    actor: OperationActor = Field(default=OperationActor.human)
+    created_at: datetime = Field(default_factory=utcnow)
+
+
+class Operation(SQLModel, table=True):
+    """One mutating request, kept as an audit log of how work entered the system.
+
+    Records the method and path, the resulting status, which client sent it, and
+    whether a person or a coding agent was behind it. This is the cross-cutting
+    counterpart to a task's timeline: it covers operations with no task to hang a
+    ``TimelineEvent`` off, such as settings, repositories, and harnesses.
+    """
+
+    id: str = Field(default_factory=new_id, primary_key=True)
+    method: str = ""
+    path: str = ""
+    status_code: int = 0
+    client: OperationClient = Field(default=OperationClient.api, index=True)
+    actor: OperationActor = Field(default=OperationActor.human, index=True)
     created_at: datetime = Field(default_factory=utcnow)
 
 

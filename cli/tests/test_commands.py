@@ -248,6 +248,19 @@ class FakeClient:
     def stream_run(self, run_id):
         return iter([{"type": "message", "text": "hi"}, {"type": "run_finished", "text": ""}])
 
+    def list_operations(self, client=None, actor=None, limit=100):
+        return [
+            {
+                "id": "o1",
+                "method": "POST",
+                "path": "/api/tasks",
+                "status_code": 201,
+                "client": "cli",
+                "actor": "agent",
+                "created_at": "2026-01-01T00:00:00",
+            }
+        ]
+
 
 @pytest.fixture
 def fake_client(monkeypatch):
@@ -443,3 +456,8 @@ def test_run_stream_prints_until_finished(monkeypatch, capsys, text_format):
     monkeypatch.setattr(cli, "_client", FakeClient)
     cli.run_stream("r1")
     assert "[message] hi" in capsys.readouterr().out
+
+
+def test_operation_list_command(text_format, fake_client):
+    text = cli.operation_list()
+    assert "POST" in text and "/api/tasks" in text and "cli" in text and "agent" in text

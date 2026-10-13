@@ -6,12 +6,18 @@ remote instance. Base URL comes from ``--api-url`` or ``AGENTIC_API_URL``.
 
 from __future__ import annotations
 
+import os
 from collections.abc import Iterator
 from typing import Any
 
 import httpx
 
 DEFAULT_API_URL = "http://127.0.0.1:8600"
+
+# Declare the CLI, and whether a person or a coding agent is running it. The
+# harness sets AGENTIC_ACTOR=agent for the agent process it spawns.
+CLIENT_HEADER = "X-Agentic-Client"
+ACTOR_HEADER = "X-Agentic-Actor"
 
 
 class ApiError(RuntimeError):
@@ -28,9 +34,16 @@ class AgenticClient:
         *,
         timeout: float = 60.0,
         transport: httpx.BaseTransport | None = None,
+        actor: str | None = None,
     ) -> None:
         self.base_url = (base_url or DEFAULT_API_URL).rstrip("/")
-        self._client = httpx.Client(base_url=self.base_url, timeout=timeout, transport=transport)
+        self.actor = actor or os.environ.get("AGENTIC_ACTOR", "human")
+        self._client = httpx.Client(
+            base_url=self.base_url,
+            timeout=timeout,
+            transport=transport,
+            headers={CLIENT_HEADER: "cli", ACTOR_HEADER: self.actor},
+        )
 
     def close(self) -> None:
         self._client.close()
@@ -310,6 +323,19 @@ class AgenticClient:
 
     def delete_baseline(self, metric: str) -> None:
         self._request("DELETE", f"/api/metrics/baselines/{metric}")
+
+    # --- operations (provenance audit log) --------------------------------
+    def list_operations(
+        self,
+        *,
+        client: str | None = None,
+        actor: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict]:
+        params = {
+            key: value for key, value in {"client": client, "actor": actor, "limit": limit}.items() if value is not None
+        }
+        return self._request("GET", "/api/operations", params=params)
 
 
 def _compact(data: dict[str, Any]) -> dict[str, Any]:

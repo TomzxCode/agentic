@@ -42,9 +42,15 @@ virtualenv.
 | **Agent run** | One prompt sent to a harness in a working directory, delivered to the worker through the run queue. Events stream live to the UI. |
 | **Context refresh** | A special agent run that reads the task + its items and writes the `summary` and `next_steps`. |
 | **Change** | A unit of factory output recorded against a task: a class, a lifecycle, a start/end time, and a human-intervened flag. Autonomy rate and yield are computed from changes. |
+| **Operation** | An audit record of a mutating request: its method, path, and status, plus which client sent it (web UI, CLI, or raw API) and whether a human or a coding agent was behind it. |
 
 Every meaningful change writes a **Timeline event**, so a task's evolution is
-visible at a glance.
+visible at a glance. Each timeline event also carries its **provenance**: the
+client it came from and whether a person or an agent performed it. The web UI
+sends `web`/`human`; the CLI sends `cli` plus whatever actor its environment
+declares, and the ACP runner sets `AGENTIC_ACTOR=agent` for a harness, so agent
+work is told apart from human work. Every mutating request is also recorded in
+the operations log (`GET /api/operations`).
 
 ## How agents are wired
 
@@ -272,6 +278,7 @@ agentic change create <task> --title "Fix the flaky ingest test" --change-class 
 agentic change accept <change>       # also: verify, reject, revert, intervene
 agentic metrics show                 # autonomy rate and yield, with direction
 agentic metrics baseline set autonomy_rate 0.2
+agentic operation list --actor agent # audit log: what changed, from where, by whom
 agentic person create --name "Ada Lovelace" --handle ada
 agentic person link <person> --task <task>   # also: --item <item>
 agentic person list                  # people with task and item counts
@@ -286,7 +293,7 @@ AGENTIC_API_URL=http://box:8600 agentic task list | jq '.[].id'
 ```
 
 Resources: `task`, `tag`, `item`, `link`, `person`, `repository`, `worktree`, `run`,
-`context`, `harness`, `settings`, `change`, `metrics`, plus `health`.
+`context`, `harness`, `settings`, `change`, `metrics`, `operation`, plus `health`.
 
 ### Backend
 
@@ -314,6 +321,7 @@ POST                /api/repositories/bulk               (add several at once)
 GET                 /api/github/issues                   (issue picker for import)
 GET                 /api/github/issue                    (single issue by URL)
 GET/POST/PATCH/DELETE /api/groups                        (repository groups)
+GET                 /api/operations                      (provenance audit log)
 GET/POST/PATCH      /api/harnesses   /api/repositories   /api/items
 GET/POST            /api/changes
 GET/PATCH/DELETE    /api/changes/{id}

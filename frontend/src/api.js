@@ -1,9 +1,14 @@
 const API = '/api'
 
+// Every request declares its provenance: the web UI is always a human.
+const PROVENANCE_HEADERS = { 'X-Agentic-Client': 'web', 'X-Agentic-Actor': 'human' }
+
 async function request(path, { method = 'GET', body } = {}) {
+  const headers = { ...PROVENANCE_HEADERS }
+  if (body !== undefined) headers['Content-Type'] = 'application/json'
   const res = await fetch(API + path, {
     method,
-    headers: body !== undefined ? { 'Content-Type': 'application/json' } : {},
+    headers,
     body: body !== undefined ? JSON.stringify(body) : undefined
   })
   if (res.status === 204) return null
@@ -82,6 +87,17 @@ export const api = {
     baselines: () => request('/metrics/baselines'),
     setBaseline: (metric, body) => request(`/metrics/baselines/${metric}`, { method: 'PUT', body }),
     removeBaseline: (metric) => request(`/metrics/baselines/${metric}`, { method: 'DELETE' })
+  },
+
+  operations: {
+    list: ({ client, actor, limit } = {}) => {
+      const qs = new URLSearchParams()
+      if (client) qs.set('client', client)
+      if (actor) qs.set('actor', actor)
+      if (limit) qs.set('limit', String(limit))
+      const query = qs.toString()
+      return request(`/operations${query ? `?${query}` : ''}`)
+    }
   },
 
   items: {

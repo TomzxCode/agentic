@@ -105,6 +105,8 @@ describe('TimelinePanel', () => {
     type: 'updated',
     message: 'Updated: title',
     created_at: new Date().toISOString(),
+    client: 'web',
+    actor: 'human',
     data_json: { changes: { title: { from: 'A', to: 'B' } } },
     ...over
   })
@@ -175,6 +177,13 @@ describe('TimelinePanel', () => {
     expect(wrapper.text()).toContain('Repo One')
     expect(wrapper.text()).toContain('(empty)')
     expect(wrapper.text()).toContain('…')
+  })
+
+  it('shows how the event entered the system', () => {
+    const wrapper = mount(TimelinePanel, {
+      props: { events: [event({ client: 'cli', actor: 'agent' })] }
+    })
+    expect(wrapper.text()).toContain('cli · agent')
   })
 
   it('ignores malformed change data', () => {

@@ -9,7 +9,8 @@ from typing import Any
 from fastapi import HTTPException
 from sqlmodel import Session
 
-from .models import Task, TimelineEvent
+from . import provenance
+from .models import OperationActor, OperationClient, Task, TimelineEvent
 
 
 def jsonable(value: Any) -> Any:
@@ -51,8 +52,18 @@ def add_timeline(
     type_: str,
     message: str = "",
     data: dict[str, Any] | None = None,
+    *,
+    client: OperationClient | None = None,
+    actor: OperationActor | None = None,
 ) -> TimelineEvent:
-    event = TimelineEvent(task_id=task_id, type=type_, message=message, data_json=data or {})
+    event = TimelineEvent(
+        task_id=task_id,
+        type=type_,
+        message=message,
+        data_json=data or {},
+        client=client or provenance.current_client(),
+        actor=actor or provenance.current_actor(),
+    )
     session.add(event)
     session.commit()
     session.refresh(event)

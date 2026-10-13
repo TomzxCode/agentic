@@ -101,7 +101,10 @@ function changes(event) {
           <span class="dot"></span>
           <span class="grow">
             <span
-              >{{ event.message || event.type }} <span class="faint">· {{ event.type }}</span></span
+              >{{ event.message || event.type }} <span class="faint">· {{ event.type }}</span>
+              <span class="badge" :title="`Recorded via ${event.client} by a ${event.actor}`"
+                >{{ event.client }} · {{ event.actor }}</span
+              ></span
             >
             <span v-if="changes(event).length" class="changes">
               <span v-for="change in changes(event)" :key="change.field" class="change">

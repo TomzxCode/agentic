@@ -30,8 +30,23 @@ describe('api request', () => {
       '/api/tasks',
       expect.objectContaining({
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Agentic-Client': 'web',
+          'X-Agentic-Actor': 'human'
+        },
         body: '{"title":"Hi"}'
+      })
+    )
+  })
+
+  it('declares web provenance on every request', async () => {
+    const fetchMock = mockFetch({ body: '[]' })
+    await api.tasks.list({})
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/tasks',
+      expect.objectContaining({
+        headers: { 'X-Agentic-Client': 'web', 'X-Agentic-Actor': 'human' }
       })
     )
   })

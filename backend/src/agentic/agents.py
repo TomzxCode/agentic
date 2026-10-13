@@ -38,7 +38,7 @@ from sqlmodel import Session, col, select
 
 from .config import settings
 from .db import engine
-from .models import AgentEvent, AgentRun, Harness, RunStatus, Setting, utcnow
+from .models import AgentEvent, AgentRun, Harness, OperationActor, OperationClient, RunStatus, Setting, utcnow
 
 log = structlog.get_logger(__name__)
 
@@ -347,6 +347,16 @@ async def _acquire_session(conn: Any, cwd: str, resume_session_id: str | None) -
     return session.session_id
 
 
+def harness_env(harness: Harness) -> dict[str, str]:
+    """The environment for a harness process, marking it as an agent.
+
+    The ACP transport merges this over the default environment. Setting
+    ``AGENTIC_ACTOR=agent`` means any ``agentic`` CLI call the harness makes is
+    attributed to an agent rather than a person.
+    """
+    return {**(harness.env or {}), "AGENTIC_ACTOR": "agent"}
+
+
 async def run_agent(
     *,
     run_id: str,
@@ -365,7 +375,7 @@ async def run_agent(
     ``resume_session_id`` continues an existing session rather than starting a new
     one. Returns a summary dict (``session_id``, ``stop_reason``).
     """
-    env = {**harness.env} if harness.env else None
+    env = harness_env(harness)
     args = list(harness.args or [])
     if harness.model:
         # Both opencode and pi accept --model; harmless if ignored.
@@ -558,7 +568,15 @@ async def execute_context_refresh(
             task.context_updated_at = utcnow()
             session.add(task)
             session.commit()
-            add_timeline(session, task_id, "context_updated", "Context and next steps refreshed", {"run_id": run_id})
+            add_timeline(
+                session,
+                task_id,
+                "context_updated",
+                "Context and next steps refreshed",
+                {"run_id": run_id},
+                client=OperationClient.api,
+                actor=OperationActor.agent,
+            )
             parsed = True
         else:
             add_timeline(
@@ -567,6 +585,8 @@ async def execute_context_refresh(
                 "context_refresh_failed",
                 "Could not parse context from the agent reply",
                 {"run_id": run_id},
+                client=OperationClient.api,
+                actor=OperationActor.agent,
             )
     await bus.publish(
         f"task:{task_id}",
@@ -617,7 +637,13 @@ async def execute_slack_summary(
             session.add(task)
             session.commit()
             add_timeline(
-                session, task_id, "summary_updated", "Titled and summarized the Slack thread", {"run_id": run_id}
+                session,
+                task_id,
+                "summary_updated",
+                "Titled and summarized the Slack thread",
+                {"run_id": run_id},
+                client=OperationClient.api,
+                actor=OperationActor.agent,
             )
             parsed = True
         else:
@@ -627,6 +653,8 @@ async def execute_slack_summary(
                 "summary_failed",
                 "Could not parse a title and summary from the agent reply",
                 {"run_id": run_id},
+                client=OperationClient.api,
+                actor=OperationActor.agent,
             )
     await bus.publish(
         f"task:{task_id}",

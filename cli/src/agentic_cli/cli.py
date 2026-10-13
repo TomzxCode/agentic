@@ -33,6 +33,9 @@ CONTEXT: dict[str, Any] = {
     "api_url": os.environ.get("AGENTIC_API_URL", DEFAULT_API_URL),
     "format": os.environ.get("AGENTIC_FORMAT", "auto"),
     "timeout": float(os.environ.get("AGENTIC_TIMEOUT", "60")),
+    # Who is driving the CLI. The harness sets AGENTIC_ACTOR=agent for the agent
+    # process it spawns, so the server can tell agent work from human work.
+    "actor": os.environ.get("AGENTIC_ACTOR", "human"),
 }
 
 TaskStatus = Literal["open", "in_progress", "blocked", "done", "archived"]
@@ -54,7 +57,7 @@ def emit(data: Any, text: str | None = None) -> str:
 
 
 def _client() -> AgenticClient:
-    return AgenticClient(CONTEXT["api_url"], timeout=CONTEXT["timeout"])
+    return AgenticClient(CONTEXT["api_url"], timeout=CONTEXT["timeout"], actor=CONTEXT["actor"])
 
 
 def safe(fn):
@@ -998,6 +1001,32 @@ def settings_set(
     effective = settings["effective"]
     text = "\n".join(f"{key} = {value!r}" for key, value in effective.items())
     return emit(settings, text)
+
+
+# --- operations (provenance audit log) ------------------------------------
+def _operation_line(operation: dict) -> str:
+    when = str(operation.get("created_at") or "")[:19]
+    return (
+        f"{when}  {operation['method']:<6} {operation['status_code']}  "
+        f"{operation['client']:<4} {operation['actor']:<5}  {operation['path']}"
+    )
+
+
+operation_app = App(name="operation", help="Read the audit log of mutating operations.")
+app.command(operation_app)
+
+
+@operation_app.command(name="list")
+@safe
+def operation_list(
+    client: Literal["web", "cli", "api"] | None = None,
+    actor: Literal["human", "agent"] | None = None,
+    limit: int = 100,
+) -> str:
+    """List recorded operations, newest first."""
+    with _client() as c:
+        operations = c.list_operations(client=client, actor=actor, limit=limit)
+    return emit(operations, _join(operations, _operation_line))
 
 
 def main() -> None:

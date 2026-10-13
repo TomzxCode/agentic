@@ -96,6 +96,14 @@ def _ensure_columns() -> None:
         if "group_id" not in task_columns:
             with engine.begin() as connection:
                 connection.execute(text("ALTER TABLE task ADD COLUMN group_id VARCHAR"))
+    if "timelineevent" in inspector.get_table_names():
+        timeline_columns = {column["name"] for column in inspector.get_columns("timelineevent")}
+        with engine.begin() as connection:
+            # The DEFAULT backfills pre-existing rows, so they read as api/human.
+            if "client" not in timeline_columns:
+                connection.execute(text("ALTER TABLE timelineevent ADD COLUMN client VARCHAR NOT NULL DEFAULT 'api'"))
+            if "actor" not in timeline_columns:
+                connection.execute(text("ALTER TABLE timelineevent ADD COLUMN actor VARCHAR NOT NULL DEFAULT 'human'"))
 
 
 def get_session() -> Iterator[Session]:

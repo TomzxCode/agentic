@@ -154,3 +154,41 @@ def test_people_methods():
 
     client.unlink_person("p1", item_id="i1")
     assert seen["path"] == "/api/items/i1/people/p1"
+
+
+def test_provenance_headers_default_to_cli_and_human(monkeypatch):
+    monkeypatch.delenv("AGENTIC_ACTOR", raising=False)
+    seen: dict = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["client"] = request.headers.get("X-Agentic-Client")
+        seen["actor"] = request.headers.get("X-Agentic-Actor")
+        return httpx.Response(200, json={"status": "ok"})
+
+    _client(handler).health()
+    assert seen == {"client": "cli", "actor": "human"}
+
+
+def test_actor_comes_from_the_environment(monkeypatch):
+    monkeypatch.setenv("AGENTIC_ACTOR", "agent")
+    seen: dict = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["actor"] = request.headers.get("X-Agentic-Actor")
+        return httpx.Response(200, json={"status": "ok"})
+
+    _client(handler).health()
+    assert seen["actor"] == "agent"
+
+
+def test_list_operations_passes_filters():
+    seen: dict = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["path"] = request.url.path
+        seen["params"] = httpx.QueryParams(request.url.query).multi_items()
+        return httpx.Response(200, json=[])
+
+    _client(handler).list_operations(client="cli", actor="agent", limit=5)
+    assert seen["path"] == "/api/operations"
+    assert seen["params"] == [("client", "cli"), ("actor", "agent"), ("limit", "5")]

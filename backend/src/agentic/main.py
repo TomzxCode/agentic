@@ -15,7 +15,22 @@ from .agents import seed_harnesses
 from .config import settings
 from .db import create_db_and_tables, engine
 from .jobs import close_queue, get_queue, reconcile_runs
-from .routers import agents, changes, fs, gantt, github, groups, items, metrics, people, repositories, tasks, worktrees
+from .provenance import ProvenanceMiddleware
+from .routers import (
+    agents,
+    changes,
+    fs,
+    gantt,
+    github,
+    groups,
+    items,
+    metrics,
+    operations,
+    people,
+    repositories,
+    tasks,
+    worktrees,
+)
 from .routers import settings as settings_router
 from .routers import tags as tags_router
 
@@ -45,6 +60,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Records each mutating request (client + actor) and exposes the context to handlers.
+app.add_middleware(ProvenanceMiddleware)
+
 for module in (
     repositories,
     groups,
@@ -54,6 +72,7 @@ for module in (
     agents,
     changes,
     metrics,
+    operations,
     settings_router,
     fs,
     github,
