@@ -1,5 +1,10 @@
 # Memory
 
+## 2026-10-13: list rows render through shared card components
+
+- Every `.item` list row is built from `EntityCard.vue` (header row with lead/title/title-extra/actions slots, body, meta), so repositories, people, harnesses, worktrees, runs, and groups share one layout instead of each view styling its own. Items use `ItemCard.vue` and tasks use `TaskCard.vue`, both wrapping `EntityCard`. A reference to a task or item from another entity (a person, a repository item) uses `TaskLink.vue` / `ItemLink.vue`, not a hand-written button. Add a new list row by composing these rather than writing `.item` markup by hand.
+- `store.sourceLabel` is the single source of item-source labels (GitHub, Slack, …); the old per-view `SOURCE_LABELS` map is gone. `TaskCard` owns the status picker, priority icon, person/tag filter chips, deadline badge, and age, so task rows are identical wherever they appear.
+
 ## 2026-10-13: the default harness is an is_default row, not AGENTIC_DEFAULT_HARNESS
 
 - `Harness.is_default` (at most one row) is the harness a run uses when a task picks none; `AGENTIC_DEFAULT_HARNESS` is now only a name fallback for when no row is flagged. `seed_harnesses` picks it once (installed `opencode2`, else `opencode`) and records the non-overridable key `harness_default_seeded` in the `setting` table, so a later choice made in Settings is never overwritten.

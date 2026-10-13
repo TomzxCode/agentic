@@ -551,6 +551,11 @@ button.status-badge.active {
   font-size: 10px;
   letter-spacing: 0.05em;
 }
+/* A Slack item's speech emoji, standing in for a source badge in item links. */
+.item-emoji {
+  font-size: 12px;
+  line-height: 1;
+}
 .src-slack {
   color: #e8a33d;
 }

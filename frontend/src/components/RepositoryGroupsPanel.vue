@@ -2,6 +2,7 @@
 import { onMounted, reactive, ref } from 'vue'
 import { api } from '../api'
 import { store } from '../store'
+import EntityCard from './EntityCard.vue'
 import RepositorySelect from './RepositorySelect.vue'
 
 defineProps({ repositories: { type: Array, default: () => [] } })
@@ -72,23 +73,27 @@ onMounted(load)
       relevant to it.
     </p>
 
-    <div v-for="group in store.groups" :key="group.id" class="item">
-      <template v-if="editingId !== group.id">
-        <div class="item-top">
+    <template v-for="group in store.groups" :key="group.id">
+      <EntityCard v-if="editingId !== group.id">
+        <template #title>
           <span class="title">{{ group.name }}</span>
+        </template>
+        <template #actions>
           <span class="badge"
             >{{ group.repository_ids.length }} repo{{ group.repository_ids.length === 1 ? '' : 's' }}</span
           >
           <button class="btn sm" @click="startEdit(group)">Edit</button>
           <button class="btn sm danger" @click="remove(group.id)">Remove</button>
-        </div>
+        </template>
         <div v-if="group.description" class="faint">{{ group.description }}</div>
-        <div class="faint mono">
-          {{ group.repository_ids.map(repoName).join(' · ') || 'no repositories yet' }}
-        </div>
-      </template>
+        <template #meta>
+          <div class="faint mono">
+            {{ group.repository_ids.map(repoName).join(' · ') || 'no repositories yet' }}
+          </div>
+        </template>
+      </EntityCard>
 
-      <template v-else>
+      <div v-else class="item">
         <div class="field"><label>Name</label><input v-model="editDraft.name" class="input" /></div>
         <div class="field"><label>Description</label><input v-model="editDraft.description" class="input" /></div>
         <div class="field">
@@ -103,8 +108,8 @@ onMounted(load)
           <button class="btn ghost" @click="editingId = ''">Cancel</button>
           <button class="btn primary" @click="saveEdit(group.id)">Save</button>
         </div>
-      </template>
-    </div>
+      </div>
+    </template>
     <div v-if="!store.groups.length" class="faint" style="margin-bottom: 12px">No groups yet.</div>
 
     <div style="border-top: 1px solid var(--border); padding-top: 12px; margin-top: 4px">

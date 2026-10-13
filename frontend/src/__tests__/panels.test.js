@@ -16,7 +16,8 @@ const mocks = vi.hoisted(() => ({
   worktreeRemove: vi.fn(),
   refreshContext: vi.fn(),
   refreshSummary: vi.fn(),
-  settingsGet: vi.fn()
+  settingsGet: vi.fn(),
+  changeCreate: vi.fn()
 }))
 
 vi.mock('../api', () => ({
@@ -25,7 +26,8 @@ vi.mock('../api', () => ({
     items: { refresh: mocks.itemRefresh },
     worktrees: { create: mocks.worktreeCreate, remove: mocks.worktreeRemove },
     runs: { refreshContext: mocks.refreshContext, refreshSummary: mocks.refreshSummary },
-    settings: { get: mocks.settingsGet }
+    settings: { get: mocks.settingsGet },
+    changes: { create: mocks.changeCreate }
   }
 }))
 
@@ -133,7 +135,7 @@ describe('ItemsPanel', () => {
 
   it('groups items by source and shows notes', () => {
     const wrapper = mount(ItemsPanel, { props: { task: task() } })
-    expect(wrapper.text()).toContain('github')
+    expect(wrapper.text()).toContain('GitHub')
     expect(wrapper.text()).toContain('Issue 1')
     expect(wrapper.text()).toContain('a note')
   })
@@ -213,6 +215,78 @@ describe('ItemsPanel', () => {
     const wrapper = mount(ItemsPanel, { props: { task: withPr } })
     expect(wrapper.text()).toContain('pull request')
     expect(wrapper.get('.badge.st-draft').text()).toBe('Draft')
+  })
+
+  const prTask = (over = {}) =>
+    task({
+      associations: [
+        {
+          id: 'a1',
+          note: '',
+          created_at: new Date().toISOString(),
+          item: {
+            id: 'i1',
+            source: 'github',
+            kind: 'pull_request',
+            title: 'Fix the thing',
+            url: 'https://gh/pull/3',
+            external_id: 'o/r#3',
+            content: '',
+            metadata_json: { state: 'OPEN' },
+            fetched_at: null
+          }
+        }
+      ],
+      ...over
+    })
+
+  it('offers to record a change for a PR no change references yet', async () => {
+    mocks.changeCreate.mockResolvedValue({})
+    const wrapper = mount(ItemsPanel, { props: { task: prTask() } })
+    await wrapper.get('button[title="Record a change for this PR"]').trigger('click')
+    await flushPromises()
+    expect(mocks.changeCreate).toHaveBeenCalledWith({
+      task_id: 't1',
+      title: 'Fix the thing',
+      external_ref: 'https://gh/pull/3'
+    })
+    expect(wrapper.emitted('changed')).toHaveLength(1)
+  })
+
+  it('opens a merged PR as an accepted change dated to the merge', async () => {
+    mocks.changeCreate.mockResolvedValue({})
+    const merged = prTask()
+    merged.associations[0].item.metadata_json = { state: 'MERGED', merged_at: '2026-10-11T05:23:53Z' }
+    const wrapper = mount(ItemsPanel, { props: { task: merged } })
+    await wrapper.get('button[title="Record a change for this PR"]').trigger('click')
+    await flushPromises()
+    expect(mocks.changeCreate).toHaveBeenCalledWith({
+      task_id: 't1',
+      title: 'Fix the thing',
+      external_ref: 'https://gh/pull/3',
+      status: 'accepted',
+      opened_at: '2026-10-11T05:23:53Z',
+      accepted_at: '2026-10-11T05:23:53Z'
+    })
+  })
+
+  it('hides the record button when a change already references the PR', () => {
+    const wrapper = mount(ItemsPanel, {
+      props: { task: prTask({ changes: [{ id: 'c1', external_ref: 'https://gh/pull/3' }] }) }
+    })
+    expect(wrapper.find('button[title="Record a change for this PR"]').exists()).toBe(false)
+  })
+
+  it('matches a change recorded against the PR external id', () => {
+    const wrapper = mount(ItemsPanel, {
+      props: { task: prTask({ changes: [{ id: 'c1', external_ref: 'o/r#3' }] }) }
+    })
+    expect(wrapper.find('button[title="Record a change for this PR"]').exists()).toBe(false)
+  })
+
+  it('does not offer a change for a non-PR item', () => {
+    const wrapper = mount(ItemsPanel, { props: { task: task() } })
+    expect(wrapper.find('button[title="Record a change for this PR"]').exists()).toBe(false)
   })
 })
 

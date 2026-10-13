@@ -1,27 +1,14 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
-import { deadlineInfo, formatDeadline, store, statusLabel, taskHasPerson, taskHasTag, timeAgo } from '../store'
+import { store, statusLabel, taskHasPerson, taskHasTag } from '../store'
 import { api } from '../api'
 import TagInput from '../components/TagInput.vue'
-import SearchSelect from '../components/SearchSelect.vue'
-import StatusIcon from '../components/StatusIcon.vue'
-import PriorityIcon from '../components/PriorityIcon.vue'
+import TaskCard from '../components/TaskCard.vue'
 
 // A task matches when it carries the active tag filter and is linked to the
 // active person filter, if either is set.
 const matchesFilter = (p) =>
   (!store.tagFilter || taskHasTag(p, store.tagFilter)) && (!store.personFilter || taskHasPerson(p, store.personFilter))
-
-// Row timestamps: how long the task has existed and how long since it last
-// changed. The two collapse to one when they describe the same moment (a task
-// that has not been touched since it was created).
-function taskAge(p) {
-  const created = timeAgo(p.created_at)
-  const updated = timeAgo(p.updated_at)
-  if (created && updated && created !== updated) return `created ${created} · updated ${updated}`
-  if (created) return `created ${created}`
-  return updated ? `updated ${updated}` : ''
-}
 
 const counts = computed(() => {
   const c = { open: 0, in_progress: 0, blocked: 0, done: 0, archived: 0 }
@@ -53,14 +40,6 @@ const peopleFilters = computed(() => {
 
 const personFilterName = computed(() => store.people.find((person) => person.id === store.personFilter)?.name || '')
 
-const peopleById = computed(() => Object.fromEntries(store.people.map((person) => [person.id, person])))
-
-// People linked to a task, in link order, skipping any id that no longer
-// resolves to a person in the directory.
-function taskPeople(task) {
-  return (task.person_ids || []).map((id) => peopleById.value[id]).filter(Boolean)
-}
-
 // Deadlines coming up: in-flight tasks whose deadline falls within the selected
 // window, soonest first. Overdue deadlines always qualify (they are <= the
 // window) and sort to the top, which is where they belong.
@@ -84,18 +63,6 @@ const STATUS_BADGES = [
   { value: 'blocked', tone: 'warn' },
   { value: 'done', tone: 'ok' }
 ]
-
-// 0 = low, 1 = medium, 2 = high, 3 = urgent. Used as the priority icon's label.
-const PRIORITY_NAMES = { 0: 'low', 1: 'medium', 2: 'high', 3: 'urgent' }
-const priorityLabel = (priority) => `Priority: ${PRIORITY_NAMES[Number(priority)] || 'medium'}`
-
-// The status picker shown on each row, the same icon-only control the sidebar uses.
-const statusOptions = STATUS_VALUES.map((value) => ({
-  value,
-  label: statusLabel(value),
-  icon: StatusIcon,
-  iconProps: { status: value, label: statusLabel(value) }
-}))
 
 // Change a task's status straight from its row.
 async function changeStatus(task, status) {
@@ -256,15 +223,19 @@ onMounted(() => {
           </select>
         </label>
       </div>
-      <div v-for="p in upcomingDeadlines" :key="p.id" class="item deadline-row">
-        <div class="item-body">
-          <div class="item-top">
-            <span class="badge" :class="deadlineInfo(p.deadline).tone">{{ deadlineInfo(p.deadline).label }}</span>
-            <router-link :to="`/task/${p.id}`" class="title">{{ p.title }}</router-link>
-            <span class="faint">{{ formatDeadline(p.deadline) }}</span>
-          </div>
-        </div>
-      </div>
+      <TaskCard
+        v-for="p in upcomingDeadlines"
+        :key="p.id"
+        class="deadline-row"
+        :task="p"
+        :show-status="false"
+        :show-priority="false"
+        :show-people="false"
+        :show-deadline-time="true"
+        :show-age="false"
+        :show-next-step="false"
+        :show-tags="false"
+      />
     </section>
 
     <div v-if="visible.length && selected.length" class="panel bulk-bar" aria-label="Bulk edit">
@@ -294,67 +265,16 @@ onMounted(() => {
     </div>
 
     <section v-if="visible.length" class="panel">
-      <div v-for="p in visible" :key="p.id" class="item select-item" :class="{ selected: selectedSet.has(p.id) }">
-        <input
-          type="checkbox"
-          class="row-check"
-          :checked="selectedSet.has(p.id)"
-          :aria-label="`Select ${p.title}`"
-          @change="toggle(p.id)"
-        />
-        <div class="item-body">
-          <div class="item-top">
-            <SearchSelect
-              class="task-status-select"
-              variant="icon"
-              :model-value="p.status"
-              :options="statusOptions"
-              :sort="false"
-              title="Change status"
-              @update:model-value="(value) => changeStatus(p, value)"
-            />
-            <PriorityIcon :priority="p.priority" :label="priorityLabel(p.priority)" />
-            <div class="title-group">
-              <router-link :to="`/task/${p.id}`" class="title">{{ p.title }}</router-link>
-              <button
-                v-for="person in taskPeople(p)"
-                :key="person.id"
-                type="button"
-                class="person-chip"
-                :class="{ active: store.personFilter === person.id }"
-                :title="`Filter by ${person.name}`"
-                @click="store.togglePersonFilter(person.id)"
-              >
-                {{ person.name }}
-              </button>
-            </div>
-            <span
-              v-if="p.deadline"
-              class="badge"
-              :class="deadlineInfo(p.deadline).tone"
-              :title="`Deadline: ${formatDeadline(p.deadline)}`"
-              >{{ deadlineInfo(p.deadline).label }}</span
-            >
-            <span class="faint">{{ taskAge(p) }}</span>
-          </div>
-          <div v-if="p.next_steps?.filter((s) => !s.done).length" class="faint" style="margin-top: 6px">
-            Next: {{ p.next_steps.find((s) => !s.done).text }}
-          </div>
-          <div v-if="p.tags?.length" class="task-tags" style="margin-top: 6px">
-            <button
-              v-for="tag in p.tags"
-              :key="tag"
-              type="button"
-              class="tag-chip"
-              :class="{ active: store.tagFilter === tag }"
-              :title="`Filter by ${tag}`"
-              @click="store.toggleTagFilter(tag)"
-            >
-              {{ tag }}
-            </button>
-          </div>
-        </div>
-      </div>
+      <TaskCard
+        v-for="p in visible"
+        :key="p.id"
+        :task="p"
+        :people="store.people"
+        selectable
+        :selected="selectedSet.has(p.id)"
+        @toggle="toggle"
+        @change-status="changeStatus"
+      />
     </section>
 
     <section v-else class="panel">

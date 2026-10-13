@@ -2,9 +2,11 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { api } from '../api'
-import { aliasLabel, store } from '../store'
+import { aliasLabel, SOURCE_ORDER, sourceLabel, store } from '../store'
 import EditableText from '../components/EditableText.vue'
+import ItemLink from '../components/ItemLink.vue'
 import SearchSelect from '../components/SearchSelect.vue'
+import TaskLink from '../components/TaskLink.vue'
 
 const props = defineProps({ id: { type: String, required: true } })
 const router = useRouter()
@@ -18,19 +20,33 @@ const newAlias = ref('')
 const itemById = computed(() => Object.fromEntries(items.value.map((item) => [item.id, item])))
 const taskById = computed(() => Object.fromEntries(store.tasks.map((task) => [task.id, task])))
 const aliases = computed(() => person.value?.aliases || [])
+// The person's linked tasks and items, skipping any id that no longer resolves.
+const linkedTasks = computed(() => (person.value?.task_ids || []).map((id) => taskById.value[id]).filter(Boolean))
+const linkedItems = computed(() => (person.value?.item_ids || []).map((id) => itemById.value[id]).filter(Boolean))
+
+// The person's linked items grouped by source, in display order, so a long list
+// is scannable by type.
+const itemGroups = computed(() => {
+  const groups = new Map()
+  for (const item of linkedItems.value) {
+    const source = item.source || 'other'
+    if (!groups.has(source)) groups.set(source, [])
+    groups.get(source).push(item)
+  }
+  return [...groups.entries()]
+    .map(([source, items]) => ({ source, label: sourceLabel(source), items }))
+    .sort((a, b) => {
+      const ai = SOURCE_ORDER.indexOf(a.source)
+      const bi = SOURCE_ORDER.indexOf(b.source)
+      const rank = (i) => (i === -1 ? SOURCE_ORDER.length : i)
+      return rank(ai) - rank(bi) || a.label.localeCompare(b.label)
+    })
+})
+
 // Every other person, offered as a merge target.
 const mergeTargets = computed(() =>
   store.people.filter((other) => other.id !== props.id).map((other) => ({ value: other.id, label: other.name }))
 )
-
-function taskTitle(id) {
-  return taskById.value[id]?.title || id
-}
-
-function itemTitle(id) {
-  const item = itemById.value[id]
-  return item ? item.title || item.url || id : id
-}
 
 async function load() {
   loading.value = true
@@ -187,30 +203,21 @@ onMounted(async () => {
           Not linked to any task or item.
         </div>
         <template v-else>
-          <div v-if="person.task_ids?.length" class="field" :style="person.item_ids?.length ? '' : 'margin-bottom: 0'">
+          <div v-if="linkedTasks.length" class="field" :style="linkedItems.length ? '' : 'margin-bottom: 0'">
             <label>Tasks</label>
             <div class="row" style="gap: 6px; flex-wrap: wrap">
-              <button
-                v-for="taskId in person.task_ids"
-                :key="`t-${taskId}`"
-                class="btn sm ghost"
-                @click="router.push(`/task/${taskId}`)"
-              >
-                {{ taskTitle(taskId) }}
-              </button>
+              <TaskLink v-for="task in linkedTasks" :key="task.id" :task="task" />
             </div>
           </div>
-          <div v-if="person.item_ids?.length" class="field" style="margin-bottom: 0">
+          <div v-if="linkedItems.length" class="field" style="margin-bottom: 0">
             <label>Items</label>
-            <div class="row" style="gap: 6px; flex-wrap: wrap">
-              <button
-                v-for="itemId in person.item_ids"
-                :key="`i-${itemId}`"
-                class="btn sm ghost"
-                @click="router.push('/items')"
-              >
-                {{ itemTitle(itemId) }}
-              </button>
+            <div v-for="group in itemGroups" :key="group.source" style="margin-bottom: 8px">
+              <div :class="`src-${group.source}`" style="font-size: 11px; margin-bottom: 4px">
+                {{ group.label }} <span class="faint">{{ group.items.length }}</span>
+              </div>
+              <div class="row" style="gap: 6px; flex-wrap: wrap">
+                <ItemLink v-for="item in group.items" :key="item.id" :item="item" :show-source="false" />
+              </div>
             </div>
           </div>
         </template>

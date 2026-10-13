@@ -1,23 +1,11 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
 import { api } from '../api'
-import { store, statusLabel, timeAgo, prStatus } from '../store'
+import { SOURCE_ORDER, sourceLabel, store, statusLabel } from '../store'
+import ItemCard from '../components/ItemCard.vue'
 import SearchSelect from '../components/SearchSelect.vue'
 import StatusIcon from '../components/StatusIcon.vue'
-
-const router = useRouter()
-
-const SOURCE_LABELS = {
-  github: 'GitHub',
-  slack: 'Slack',
-  gdrive: 'Google Drive',
-  url: 'Web',
-  note: 'Note',
-  commit: 'Commit',
-  file: 'File'
-}
-const SOURCE_ORDER = ['github', 'slack', 'gdrive', 'url', 'note', 'commit', 'file']
+import TaskLink from '../components/TaskLink.vue'
 
 const items = ref([])
 const loading = ref(true)
@@ -30,10 +18,6 @@ const linkChoice = ref({})
 const personChoice = ref({})
 
 const peopleById = computed(() => Object.fromEntries(store.people.map((person) => [person.id, person])))
-
-function label(source) {
-  return SOURCE_LABELS[source] || source
-}
 
 const counts = computed(() => {
   const result = {}
@@ -143,8 +127,8 @@ async function refresh(item) {
 async function remove(item) {
   const linked = linkedTasks(item).length
   const message = linked
-    ? `Delete this ${label(item.source)} item? It will also be unlinked from ${linked} task(s).`
-    : `Delete this ${label(item.source)} item?`
+    ? `Delete this ${sourceLabel(item.source)} item? It will also be unlinked from ${linked} task(s).`
+    : `Delete this ${sourceLabel(item.source)} item?`
   if (!confirm(message)) return
   try {
     await api.items.remove(item.id)
@@ -184,42 +168,24 @@ onMounted(async () => {
         :class="{ primary: sourceFilter === source }"
         @click="sourceFilter = source"
       >
-        {{ label(source) }} {{ counts[source] }}
+        {{ sourceLabel(source) }} {{ counts[source] }}
       </button>
     </div>
 
     <div v-if="loading" class="empty"><span class="spinner"></span></div>
     <div v-else-if="!visible.length" class="empty">No resources.</div>
     <div v-else>
-      <div v-for="item in visible" :key="item.id" class="item">
-        <div class="item-top">
-          <span class="badge chip-source" :class="`src-${item.source}`">{{ label(item.source) }}</span>
-          <a v-if="item.url" :href="item.url" target="_blank" class="title">{{ item.title || item.url }}</a>
-          <span v-else class="title">{{ item.title }}</span>
+      <ItemCard v-for="item in visible" :key="item.id" :item="item" :expanded="!!expanded[item.id]">
+        <template #actions>
           <button class="btn sm ghost" title="Refresh" @click="refresh(item)">↻</button>
           <button class="btn sm ghost" title="Expand" @click="expanded[item.id] = !expanded[item.id]">
             {{ expanded[item.id] ? '▾' : '▸' }}
           </button>
           <button class="btn sm danger" title="Delete" @click="remove(item)">✕</button>
-        </div>
-        <div v-if="item.kind || prStatus(item)" class="row" style="gap: 6px; margin-top: 2px">
-          <span v-if="item.kind" class="faint">{{ item.kind.replace('_', ' ') }}</span>
-          <span v-if="prStatus(item)" class="badge" :class="prStatus(item).className">
-            {{ prStatus(item).label }}
-          </span>
-        </div>
-        <div v-if="item.content" class="content" :class="{ clamp: !expanded[item.id] }">{{ item.content }}</div>
+        </template>
         <div class="row" style="margin-top: 6px; gap: 6px">
           <span v-if="!linkedTasks(item).length" class="faint">not linked to a task</span>
-          <button
-            v-for="task in linkedTasks(item)"
-            :key="task.id"
-            class="btn sm ghost"
-            @click="router.push(`/task/${task.id}`)"
-          >
-            <StatusIcon :status="task.status" :label="statusLabel(task.status)" />
-            {{ task.title }}
-          </button>
+          <TaskLink v-for="task in linkedTasks(item)" :key="task.id" :task="task" />
           <SearchSelect
             v-if="linkableTasks(item).length"
             variant="inline"
@@ -245,11 +211,7 @@ onMounted(async () => {
             @update:model-value="(value) => linkPerson(item, value)"
           />
         </div>
-        <div class="faint" style="margin-top: 4px">
-          added {{ timeAgo(item.created_at) }}
-          <span v-if="item.fetched_at"> · fetched {{ timeAgo(item.fetched_at) }}</span>
-        </div>
-      </div>
+      </ItemCard>
     </div>
   </div>
 </template>

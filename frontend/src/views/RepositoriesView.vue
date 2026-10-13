@@ -4,6 +4,7 @@ import { api } from '../api'
 import { store } from '../store'
 import { groupItemsByRepository } from '../repositories'
 import DirectoryPicker from '../components/DirectoryPicker.vue'
+import EntityCard from '../components/EntityCard.vue'
 
 const loading = ref(true)
 const error = ref(false)
@@ -117,11 +118,11 @@ onMounted(load)
     </div>
 
     <div v-else>
-      <div v-for="repo in summaries" :key="repo.id" class="item">
-        <div class="row" style="justify-content: space-between">
-          <router-link :to="`/repositories/${repo.id}`"
-            ><strong>{{ repo.name }}</strong></router-link
-          >
+      <EntityCard v-for="repo in summaries" :key="repo.id">
+        <template #title>
+          <router-link :to="`/repositories/${repo.id}`" class="title">{{ repo.name }}</router-link>
+        </template>
+        <template #actions>
           <span class="row" style="gap: 6px">
             <span v-if="repo.default_branch" class="badge">{{ repo.default_branch }}</span>
             <span class="badge">{{ repo.issue_count }} issues</span>
@@ -134,13 +135,15 @@ onMounted(load)
               Remove
             </button>
           </span>
-        </div>
+        </template>
         <div class="faint mono" style="margin-top: 6px">{{ repo.path }}</div>
         <div v-if="repo.remote_url" class="faint">{{ repo.remote_url }}</div>
-        <div v-if="repo.states.length" class="faint" style="margin-top: 6px">
-          {{ stateLine(repo) }}
-        </div>
-      </div>
+        <template #meta>
+          <div v-if="repo.states.length" class="faint" style="margin-top: 6px">
+            {{ stateLine(repo) }}
+          </div>
+        </template>
+      </EntityCard>
     </div>
 
     <DirectoryPicker

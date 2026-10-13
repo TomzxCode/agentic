@@ -181,14 +181,17 @@ describe('PeopleView', () => {
 describe('PersonView', () => {
   beforeEach(() => {
     store.tasks = [{ id: 't1', title: 'Fix flaky test' }]
-    mocks.itemsList.mockResolvedValue([{ id: 'i1', title: 'Issue 1' }])
+    mocks.itemsList.mockResolvedValue([
+      { id: 'i1', title: 'Issue 1', source: 'github', metadata_json: { state: 'OPEN' } },
+      { id: 'i2', title: 'A thread', source: 'slack' }
+    ])
     mocks.peopleGet.mockResolvedValue({
       id: 'p1',
       name: 'Ada',
       aliases: ['ada', 'ada@example.com'],
       notes: '',
       task_ids: ['t1'],
-      item_ids: ['i1']
+      item_ids: ['i1', 'i2']
     })
   })
 
@@ -200,7 +203,14 @@ describe('PersonView', () => {
     expect(wrapper.text()).toContain('@ada')
     expect(wrapper.text()).toContain('ada@example.com')
     expect(wrapper.text()).toContain('Fix flaky test')
+    // Linked items are grouped by source, each group labelled with its type.
+    expect(wrapper.text()).toContain('GitHub')
+    expect(wrapper.text()).toContain('Slack')
     expect(wrapper.text()).toContain('Issue 1')
+    expect(wrapper.text()).toContain('A thread')
+    // A GitHub item shows its state; a Slack item shows a speech emoji.
+    expect(wrapper.get('.badge.st-open').text()).toBe('Open')
+    expect(wrapper.get('.item-emoji').text()).toBe('💬')
   })
 
   it('renames a person', async () => {

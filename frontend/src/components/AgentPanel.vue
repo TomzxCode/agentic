@@ -2,6 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { api, openRunStream } from '../api'
 import { store, timeAgo } from '../store'
+import EntityCard from './EntityCard.vue'
 import SessionLinks from './SessionLinks.vue'
 import SearchSelect from './SearchSelect.vue'
 
@@ -212,22 +213,24 @@ onMounted(loadRuns)
     </div>
 
     <h3 v-if="runs.length" style="margin-top: 16px">History</h3>
-    <div v-for="run in runs" :key="run.id" class="item" style="cursor: pointer" @click="viewRun(run)">
-      <div class="item-top">
+    <EntityCard v-for="run in runs" :key="run.id" style="cursor: pointer" @click="viewRun(run)">
+      <template #lead>
         <span
           class="badge"
           :class="{ run: run.status === 'running', ok: run.status === 'succeeded', danger: run.status === 'failed' }"
         >
           {{ run.status }}
         </span>
-        <span class="grow" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap">
-          {{ run.prompt.slice(0, 90) }}
-        </span>
+      </template>
+      <template #title>
+        <span class="title">{{ run.prompt.slice(0, 90) }}</span>
+      </template>
+      <template #actions>
         <span class="faint">{{ timeAgo(run.created_at) }}</span>
-      </div>
+      </template>
       <div v-if="run.links?.length" @click.stop>
         <SessionLinks :links="run.links" compact />
       </div>
-    </div>
+    </EntityCard>
   </section>
 </template>

@@ -31,7 +31,7 @@ import ItemsView from '../views/ItemsView.vue'
 import TasksView from '../views/TasksView.vue'
 import { store } from '../store'
 
-const RouterLinkStub = { props: ['to'], template: '<a><slot /></a>' }
+const RouterLinkStub = { props: ['to'], template: '<a :href="to"><slot /></a>' }
 
 const stub = { global: { stubs: { RouterLink: RouterLinkStub } } }
 
@@ -443,11 +443,7 @@ describe('ItemsView', () => {
     expect(wrapper.text()).not.toContain('A note')
 
     await wrapper.get('input.input').setValue('')
-    await wrapper
-      .findAll('button')
-      .find((b) => b.text().includes('Task One'))
-      .trigger('click')
-    expect(mocks.push).toHaveBeenCalledWith('/task/t1')
+    expect(wrapper.get('a[href="/task/t1"]').text()).toContain('Task One')
   })
 
   it('refreshes and removes an item', async () => {

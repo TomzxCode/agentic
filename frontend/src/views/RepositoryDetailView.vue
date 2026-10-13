@@ -11,7 +11,8 @@ import {
   sortItems,
   stateBreakdown
 } from '../repositories'
-import StatusIcon from '../components/StatusIcon.vue'
+import ItemCard from '../components/ItemCard.vue'
+import TaskLink from '../components/TaskLink.vue'
 
 const props = defineProps({ id: { type: String, required: true } })
 
@@ -292,74 +293,78 @@ onMounted(load)
             <h2 class="group-head">
               Issues <span class="faint">{{ issues.length }}</span>
             </h2>
-            <div v-for="item in issues" :key="item.id" class="item">
-              <div class="row">
+            <ItemCard
+              v-for="item in issues"
+              :key="item.id"
+              :item="item"
+              :show-source="false"
+              :show-status="false"
+              :show-content="false"
+              :show-times="false"
+            >
+              <template #lead>
                 <span class="badge">issue</span>
                 <span v-if="itemStatus(item)" class="badge" :class="itemStatus(item).className">
                   {{ itemStatus(item).label }}
                 </span>
                 <span v-if="item.number" class="faint">#{{ item.number }}</span>
-                <a v-if="item.url" :href="item.url" target="_blank">{{ item.title || item.url }}</a>
-                <span v-else>{{ item.title }}</span>
+              </template>
+              <template #actions>
                 <span v-if="itemAuthor(item)" class="faint">
                   <router-link v-if="authorPerson(item)" :to="`/person/${authorPerson(item).id}`">
                     @{{ itemAuthor(item) }}
                   </router-link>
                   <span v-else>@{{ itemAuthor(item) }}</span>
                 </span>
-              </div>
+              </template>
               <div v-if="tasksFor(item).length" class="row" style="margin-top: 8px; gap: 6px">
-                <router-link
-                  v-for="task in tasksFor(item)"
-                  :key="task.id"
-                  :to="`/task/${task.id}`"
-                  class="btn sm ghost"
-                >
-                  <StatusIcon :status="task.status" :label="statusLabel(task.status)" />
-                  {{ task.title }}
-                </router-link>
+                <TaskLink v-for="task in tasksFor(item)" :key="task.id" :task="task" />
               </div>
-              <div v-if="item.fetched_at" class="faint" style="margin-top: 6px">
-                fetched {{ timeAgo(item.fetched_at) }}
-              </div>
-            </div>
+              <template #meta>
+                <div v-if="item.fetched_at" class="faint" style="margin-top: 6px">
+                  fetched {{ timeAgo(item.fetched_at) }}
+                </div>
+              </template>
+            </ItemCard>
           </template>
 
           <template v-if="pulls.length">
             <h2 class="group-head">
               Pull requests <span class="faint">{{ pulls.length }}</span>
             </h2>
-            <div v-for="item in pulls" :key="item.id" class="item">
-              <div class="row">
+            <ItemCard
+              v-for="item in pulls"
+              :key="item.id"
+              :item="item"
+              :show-source="false"
+              :show-status="false"
+              :show-content="false"
+              :show-times="false"
+            >
+              <template #lead>
                 <span class="badge">PR</span>
                 <span v-if="itemStatus(item)" class="badge" :class="itemStatus(item).className">
                   {{ itemStatus(item).label }}
                 </span>
                 <span v-if="item.number" class="faint">#{{ item.number }}</span>
-                <a v-if="item.url" :href="item.url" target="_blank">{{ item.title || item.url }}</a>
-                <span v-else>{{ item.title }}</span>
+              </template>
+              <template #actions>
                 <span v-if="itemAuthor(item)" class="faint">
                   <router-link v-if="authorPerson(item)" :to="`/person/${authorPerson(item).id}`">
                     @{{ itemAuthor(item) }}
                   </router-link>
                   <span v-else>@{{ itemAuthor(item) }}</span>
                 </span>
-              </div>
+              </template>
               <div v-if="tasksFor(item).length" class="row" style="margin-top: 8px; gap: 6px">
-                <router-link
-                  v-for="task in tasksFor(item)"
-                  :key="task.id"
-                  :to="`/task/${task.id}`"
-                  class="btn sm ghost"
-                >
-                  <StatusIcon :status="task.status" :label="statusLabel(task.status)" />
-                  {{ task.title }}
-                </router-link>
+                <TaskLink v-for="task in tasksFor(item)" :key="task.id" :task="task" />
               </div>
-              <div v-if="item.fetched_at" class="faint" style="margin-top: 6px">
-                fetched {{ timeAgo(item.fetched_at) }}
-              </div>
-            </div>
+              <template #meta>
+                <div v-if="item.fetched_at" class="faint" style="margin-top: 6px">
+                  fetched {{ timeAgo(item.fetched_at) }}
+                </div>
+              </template>
+            </ItemCard>
           </template>
         </template>
       </template>

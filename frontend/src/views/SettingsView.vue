@@ -3,6 +3,7 @@ import { onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { api } from '../api'
 import { store } from '../store'
+import EntityCard from '../components/EntityCard.vue'
 import RepositoryGroupsPanel from '../components/RepositoryGroupsPanel.vue'
 
 const route = useRoute()
@@ -242,9 +243,11 @@ onMounted(load)
             and pi (<code>pi-acp</code>) are preconfigured. The default harness runs when a task does not pick one; the
             resume command is what "open in terminal" copies.
           </p>
-          <div v-for="h in fullHarnesses" :key="h.id" class="item">
-            <div class="item-top">
+          <EntityCard v-for="h in fullHarnesses" :key="h.id">
+            <template #title>
               <span class="title">{{ h.name }}</span>
+            </template>
+            <template #actions>
               <span v-if="h.is_default" class="badge ok">default</span>
               <span
                 class="badge"
@@ -252,7 +255,7 @@ onMounted(load)
               >
                 {{ harnessStatus[h.id]?.available ? 'available' : 'missing' }}
               </span>
-            </div>
+            </template>
             <div class="faint mono">{{ harnessStatus[h.id]?.detail || h.command }}</div>
             <div class="row" style="margin-top: 8px">
               <input v-model="resumeDrafts[h.id]" class="input grow mono" placeholder="opencode --session {session}" />
@@ -267,7 +270,7 @@ onMounted(load)
               />
               <button class="btn sm" @click="saveModel(h.id)">Save</button>
             </div>
-          </div>
+          </EntityCard>
           <div class="row" style="margin-top: 10px">
             <input v-model="harnessDraft.name" class="input grow" placeholder="Name" />
             <input v-model="harnessDraft.command" class="input grow" placeholder="command (e.g. opencode)" />

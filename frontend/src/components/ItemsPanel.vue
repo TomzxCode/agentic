@@ -1,7 +1,8 @@
 <script setup>
 import { computed, reactive, ref } from 'vue'
 import { api } from '../api'
-import { store, timeAgo, prStatus } from '../store'
+import { sourceLabel, store, timeAgo } from '../store'
+import ItemCard from './ItemCard.vue'
 
 const props = defineProps({ task: { type: Object, required: true } })
 const emit = defineEmits(['changed'])
@@ -18,6 +19,43 @@ const grouped = computed(() => {
   }
   return groups
 })
+
+const changes = computed(() => props.task.changes || [])
+
+// A GitHub pull request item, from either its inferred kind or its fetched metadata.
+function isPullRequest(item) {
+  return item?.kind === 'pull_request' || item?.metadata_json?.kind === 'pull_request'
+}
+
+// A change references a PR when its external ref names that PR; we record the
+// PR's URL there when the change is created from the item.
+function changeReferencesPr(change, item) {
+  const ref = (change.external_ref || '').trim()
+  if (!ref) return false
+  return [item.url, item.external_id].some((value) => value && value.trim() === ref)
+}
+
+// Offer to record a change for a linked PR that no change references yet.
+function needsChange(item) {
+  return isPullRequest(item) && !changes.value.some((change) => changeReferencesPr(change, item))
+}
+
+async function recordChange(item) {
+  try {
+    // A merged PR already landed: open the change as accepted, dated to the
+    // merge rather than to the click. An open PR opens as proposed.
+    const mergedAt = item.metadata_json?.merged_at
+    await api.changes.create({
+      task_id: props.task.id,
+      title: item.title || item.url || '',
+      external_ref: item.url || item.external_id || null,
+      ...(mergedAt ? { status: 'accepted', opened_at: mergedAt, accepted_at: mergedAt } : {})
+    })
+    emit('changed')
+  } catch (e) {
+    store.notify(e.message, true)
+  }
+}
 
 function toggle(id) {
   expanded.value[id] = !expanded.value[id]
@@ -74,35 +112,39 @@ async function refreshItem(itemId) {
     </div>
 
     <div v-for="(items, source) in grouped" :key="source" style="margin-bottom: 12px">
-      <h3 :class="`src-${source}`" style="margin-bottom: 6px">{{ source }}</h3>
-      <div v-for="assoc in items" :key="assoc.id" class="item">
-        <div class="item-top">
-          <span class="badge chip-source" :class="`src-${source}`">{{ source }}</span>
-          <a v-if="assoc.item.url" :href="assoc.item.url" target="_blank" class="title">{{
-            assoc.item.title || assoc.item.url
-          }}</a>
-          <span v-else class="title">{{ assoc.item.title }}</span>
+      <h3 :class="`src-${source}`" style="margin-bottom: 6px">{{ sourceLabel(source) }}</h3>
+      <ItemCard
+        v-for="assoc in items"
+        :key="assoc.id"
+        :item="assoc.item"
+        :expanded="!!expanded[assoc.item.id]"
+        :show-source="false"
+      >
+        <template #note>
+          <div v-if="assoc.note" class="faint" style="margin-top: 4px">{{ assoc.note }}</div>
+        </template>
+        <template #actions>
+          <button
+            v-if="needsChange(assoc.item)"
+            class="btn sm"
+            title="Record a change for this PR"
+            @click="recordChange(assoc.item)"
+          >
+            Record change
+          </button>
           <button class="btn sm ghost" title="Refresh" @click="refreshItem(assoc.item.id)">↻</button>
           <button class="btn sm ghost" title="Expand" @click="toggle(assoc.item.id)">
             {{ expanded[assoc.item.id] ? '▾' : '▸' }}
           </button>
           <button class="btn sm danger" title="Remove" @click="remove(assoc.item.id)">✕</button>
-        </div>
-        <div v-if="assoc.item.kind || prStatus(assoc.item)" class="row" style="gap: 6px; margin-top: 4px">
-          <span v-if="assoc.item.kind" class="faint">{{ assoc.item.kind.replace('_', ' ') }}</span>
-          <span v-if="prStatus(assoc.item)" class="badge" :class="prStatus(assoc.item).className">
-            {{ prStatus(assoc.item).label }}
-          </span>
-        </div>
-        <div v-if="assoc.note" class="faint" style="margin-top: 4px">{{ assoc.note }}</div>
-        <div v-if="assoc.item.content" class="content" :class="{ clamp: !expanded[assoc.item.id] }">
-          {{ assoc.item.content }}
-        </div>
-        <div class="faint" style="margin-top: 4px">
-          added {{ timeAgo(assoc.created_at) }}
-          <span v-if="assoc.item.fetched_at"> · fetched {{ timeAgo(assoc.item.fetched_at) }}</span>
-        </div>
-      </div>
+        </template>
+        <template #meta>
+          <div class="faint" style="margin-top: 4px">
+            added {{ timeAgo(assoc.created_at) }}
+            <span v-if="assoc.item.fetched_at"> · fetched {{ timeAgo(assoc.item.fetched_at) }}</span>
+          </div>
+        </template>
+      </ItemCard>
     </div>
 
     <div style="border-top: 1px solid var(--border); padding-top: 12px; margin-top: 4px">

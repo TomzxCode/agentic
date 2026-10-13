@@ -2,6 +2,7 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { api } from '../api'
 import { store, timeAgo } from '../store'
+import EntityCard from './EntityCard.vue'
 import SearchSelect from './SearchSelect.vue'
 
 const props = defineProps({ task: { type: Object, required: true }, repositories: { type: Array, default: () => [] } })
@@ -76,12 +77,14 @@ onMounted(() => {
       No worktrees. Create one to give an agent an isolated checkout for this task.
     </div>
 
-    <div v-for="w in task.worktrees" :key="w.id" class="item">
-      <div class="item-top">
+    <EntityCard v-for="w in task.worktrees" :key="w.id">
+      <template #lead>
         <span class="badge" :class="{ ok: w.status === 'active', danger: w.status === 'removed' }">{{ w.status }}</span>
-        <span class="mono grow" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap">{{
-          w.branch
-        }}</span>
+      </template>
+      <template #title>
+        <span class="mono title">{{ w.branch }}</span>
+      </template>
+      <template #actions>
         <button
           v-if="w.status === 'active' && editorUrl(w)"
           class="btn sm ghost"
@@ -92,10 +95,12 @@ onMounted(() => {
         </button>
         <button class="btn sm ghost" title="Copy path" @click="copy(w.path)">⧉</button>
         <button v-if="w.status === 'active'" class="btn sm danger" @click="remove(w.id)">Remove</button>
-      </div>
+      </template>
       <div class="faint mono" style="margin-top: 4px">{{ w.path }}</div>
-      <div class="faint">created {{ timeAgo(w.created_at) }}</div>
-    </div>
+      <template #meta>
+        <div class="faint">created {{ timeAgo(w.created_at) }}</div>
+      </template>
+    </EntityCard>
 
     <div v-if="!task.worktrees?.length" class="field" style="margin-top: 8px">
       <label>Repository</label>

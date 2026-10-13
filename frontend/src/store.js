@@ -83,6 +83,25 @@ export function aliasLabel(value) {
   return String(value).includes('@') ? String(value) : `@${value}`
 }
 
+// An item's source (github, slack, note, …) rendered as a human label, falling
+// back to the raw value for a source with no label. SOURCE_ORDER is the display
+// order for grouping and filtering items by source.
+export const SOURCE_LABELS = {
+  github: 'GitHub',
+  slack: 'Slack',
+  gdrive: 'Google Drive',
+  url: 'Web',
+  note: 'Note',
+  commit: 'Commit',
+  file: 'File'
+}
+
+export const SOURCE_ORDER = ['github', 'slack', 'gdrive', 'url', 'note', 'commit', 'file']
+
+export function sourceLabel(source) {
+  return SOURCE_LABELS[source] || source
+}
+
 export function statusLabel(status) {
   return (
     {

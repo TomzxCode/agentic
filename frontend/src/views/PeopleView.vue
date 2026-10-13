@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { aliasLabel, store } from '../store'
+import EntityCard from '../components/EntityCard.vue'
 
 const people = ref([])
 const loading = ref(true)
@@ -67,15 +68,19 @@ onMounted(load)
     <div v-if="loading" class="empty"><span class="spinner"></span></div>
     <div v-else-if="!visible.length" class="empty">No people.</div>
     <div v-else>
-      <div v-for="person in visible" :key="person.id" class="item">
-        <div class="item-top">
+      <EntityCard v-for="person in visible" :key="person.id">
+        <template #title>
           <router-link class="title" :to="`/person/${person.id}`">{{ person.name }}</router-link>
+        </template>
+        <template #actions>
           <span class="faint">tasks:{{ person.task_count || 0 }} items:{{ person.item_count || 0 }}</span>
-        </div>
-        <div v-if="person.aliases?.length" class="faint">
-          {{ person.aliases.map(aliasLabel).join(' · ') }}
-        </div>
-      </div>
+        </template>
+        <template #meta>
+          <div v-if="person.aliases?.length" class="faint">
+            {{ person.aliases.map(aliasLabel).join(' · ') }}
+          </div>
+        </template>
+      </EntityCard>
     </div>
   </div>
 </template>
