@@ -534,6 +534,18 @@ h3 {
   color: var(--danger);
   border-color: #5b2a2a;
 }
+/* The status badges on the tasks page double as filters. */
+button.status-badge {
+  cursor: pointer;
+}
+button.status-badge:hover {
+  border-color: var(--muted);
+  color: var(--text);
+}
+button.status-badge.active {
+  border-color: var(--accent);
+  color: var(--accent);
+}
 .chip-source {
   text-transform: uppercase;
   font-size: 10px;

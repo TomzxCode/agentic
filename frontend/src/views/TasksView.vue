@@ -29,11 +29,14 @@ const counts = computed(() => {
   return c
 })
 
-// Every task still in flight and matching the active filters. This is the
-// page's default view: a selectable list you can edit in bulk.
-const inFlight = computed(() =>
-  store.tasks.filter((p) => p.status !== 'done' && p.status !== 'archived').filter(matchesFilter)
-)
+// The tasks shown in the selectable list. The default view is the work still
+// in flight (not done or archived); a status badge at the top narrows it to a
+// single status instead. Tag and person filters apply on top of either.
+const visible = computed(() => {
+  const byStatus = (p) =>
+    store.statusFilter ? p.status === store.statusFilter : p.status !== 'done' && p.status !== 'archived'
+  return store.tasks.filter(byStatus).filter(matchesFilter)
+})
 
 // People linked to at least one in-flight task, with how many each has. Each
 // button narrows the page to the tasks linked to that person.
@@ -73,6 +76,15 @@ const upcomingDeadlines = computed(() => {
 
 const STATUS_VALUES = ['open', 'in_progress', 'blocked', 'done', 'archived']
 
+// The status badges at the top double as filters: click one to show only the
+// tasks in that status, click it again to return to the in-flight list.
+const STATUS_BADGES = [
+  { value: 'open', tone: '' },
+  { value: 'in_progress', tone: 'run' },
+  { value: 'blocked', tone: 'warn' },
+  { value: 'done', tone: 'ok' }
+]
+
 // 0 = low, 1 = medium, 2 = high, 3 = urgent. Used as the priority icon's label.
 const PRIORITY_NAMES = { 0: 'low', 1: 'medium', 2: 'high', 3: 'urgent' }
 const priorityLabel = (priority) => `Priority: ${PRIORITY_NAMES[Number(priority)] || 'medium'}`
@@ -107,7 +119,7 @@ const removeTags = ref([])
 const applying = ref(false)
 
 const selectedSet = computed(() => new Set(selected.value))
-const allSelected = computed(() => inFlight.value.length > 0 && selected.value.length === inFlight.value.length)
+const allSelected = computed(() => visible.value.length > 0 && selected.value.length === visible.value.length)
 const canApply = computed(
   () => selected.value.length > 0 && (bulkStatus.value || addTags.value.length || removeTags.value.length)
 )
@@ -121,14 +133,14 @@ function resetBulk() {
 
 // Changing a filter hides some rows; drop any selection that goes with them
 // so a bulk edit only ever touches what is on screen.
-watch(() => [store.tagFilter, store.personFilter], resetBulk)
+watch(() => [store.tagFilter, store.personFilter, store.statusFilter], resetBulk)
 
 function toggle(id) {
   selected.value = selectedSet.value.has(id) ? selected.value.filter((x) => x !== id) : [...selected.value, id]
 }
 
 function toggleAll() {
-  selected.value = allSelected.value ? [] : inFlight.value.map((p) => p.id)
+  selected.value = allSelected.value ? [] : visible.value.map((p) => p.id)
 }
 
 async function applyBulk() {
@@ -207,14 +219,30 @@ onMounted(() => {
       </button>
     </div>
 
-    <div class="row" style="gap: 10px; margin-bottom: 20px">
-      <span class="badge">Open {{ counts.open }}</span>
-      <span class="badge run">In progress {{ counts.in_progress }}</span>
-      <span class="badge warn">Blocked {{ counts.blocked }}</span>
-      <span class="badge ok">Done {{ counts.done }}</span>
+    <div class="row" style="gap: 10px; margin-bottom: 20px" role="group" aria-label="Filter by status">
+      <button
+        v-for="badge in STATUS_BADGES"
+        :key="badge.value"
+        type="button"
+        class="badge status-badge"
+        :class="[badge.tone, { active: store.statusFilter === badge.value }]"
+        :aria-pressed="store.statusFilter === badge.value"
+        :title="
+          store.statusFilter === badge.value
+            ? 'Show every task in flight'
+            : `Show only ${statusLabel(badge.value).toLowerCase()} tasks`
+        "
+        @click="store.toggleStatusFilter(badge.value)"
+      >
+        {{ statusLabel(badge.value) }} {{ counts[badge.value] }}
+      </button>
     </div>
 
-    <section v-if="upcomingDeadlines.length" class="panel deadline-panel" aria-label="Upcoming deadlines">
+    <section
+      v-if="upcomingDeadlines.length && !store.statusFilter"
+      class="panel deadline-panel"
+      aria-label="Upcoming deadlines"
+    >
       <div class="panel-head">
         <h2>Upcoming deadlines</h2>
         <label class="faint deadline-window">
@@ -239,10 +267,10 @@ onMounted(() => {
       </div>
     </section>
 
-    <div v-if="inFlight.length && selected.length" class="panel bulk-bar" aria-label="Bulk edit">
+    <div v-if="visible.length && selected.length" class="panel bulk-bar" aria-label="Bulk edit">
       <div class="row" style="gap: 10px">
         <label class="bulk-count">
-          <input type="checkbox" :checked="allSelected" aria-label="Select every task in flight" @change="toggleAll" />
+          <input type="checkbox" :checked="allSelected" aria-label="Select every shown task" @change="toggleAll" />
           {{ selected.length }} selected
         </label>
         <select v-model="bulkStatus" class="select bulk-status" aria-label="Set status">
@@ -265,8 +293,8 @@ onMounted(() => {
       </div>
     </div>
 
-    <section v-if="inFlight.length" class="panel">
-      <div v-for="p in inFlight" :key="p.id" class="item select-item" :class="{ selected: selectedSet.has(p.id) }">
+    <section v-if="visible.length" class="panel">
+      <div v-for="p in visible" :key="p.id" class="item select-item" :class="{ selected: selectedSet.has(p.id) }">
         <input
           type="checkbox"
           class="row-check"
@@ -330,7 +358,14 @@ onMounted(() => {
     </section>
 
     <section v-else class="panel">
-      <template v-if="store.tagFilter">
+      <template v-if="store.statusFilter">
+        <h2 style="margin-bottom: 8px">No {{ statusLabel(store.statusFilter).toLowerCase() }} tasks</h2>
+        <p class="muted">
+          No task is currently {{ statusLabel(store.statusFilter).toLowerCase() }}.
+          <button class="btn sm ghost" @click="store.statusFilter = ''">Clear filter</button>
+        </p>
+      </template>
+      <template v-else-if="store.tagFilter">
         <h2 style="margin-bottom: 8px">Nothing tagged "{{ store.tagFilter }}"</h2>
         <p class="muted">
           No in-flight task carries this tag.

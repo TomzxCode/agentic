@@ -16,6 +16,8 @@ export const store = reactive({
   tagFilter: '',
   // Person filter applied to the tasks page ("" means every person).
   personFilter: '',
+  // Status filter applied to the tasks page ("" means the in-flight default).
+  statusFilter: '',
   // Set by the active task page so the palette can jump to its fields.
   focusField: null,
   // Focus-hint mode: press f to reveal a letter over each control.
@@ -55,6 +57,9 @@ export const store = reactive({
   },
   togglePersonFilter(id) {
     this.personFilter = this.personFilter === id ? '' : id
+  },
+  toggleStatusFilter(status) {
+    this.statusFilter = this.statusFilter === status ? '' : status
   },
   notify(message, isError = false) {
     this.toast = { message, isError }

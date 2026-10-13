@@ -170,7 +170,10 @@ the keyboard.
 
 The **Tasks in flight** page also lists the people linked to the current
 in-flight work, so you can narrow the list (and its status counts and upcoming
-deadlines) to a single person's tasks.
+deadlines) to a single person's tasks. The status badges at the top (Open,
+In progress, Blocked, Done) are filters: click one to show only the tasks in
+that status, including Done, which the in-flight list otherwise hides; click it
+again to go back.
 
 The **Items** page lists every resource the app tracks (Slack threads, GitHub
 issues/PRs, Drive docs, URLs, notes) with per-source filters, search, and links

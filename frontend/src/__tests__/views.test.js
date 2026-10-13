@@ -40,6 +40,7 @@ beforeEach(() => {
   store.toast = null
   store.tagFilter = ''
   store.personFilter = ''
+  store.statusFilter = ''
   store.tags = []
   store.people = []
   mocks.peopleList.mockResolvedValue([])
@@ -80,6 +81,52 @@ describe('TasksView', () => {
     const rows = wrapper.findAll('.item').map((item) => item.text())
     expect(rows.some((text) => text.includes('One'))).toBe(true)
     expect(rows.some((text) => text.includes('Three'))).toBe(false)
+  })
+
+  it('filters the list by status from the badges at the top', async () => {
+    store.tasks = [
+      { id: 't1', status: 'open', priority: 2, title: 'One', next_steps: [], updated_at: null },
+      { id: 't2', status: 'blocked', priority: 1, title: 'Two', next_steps: [], updated_at: null },
+      { id: 't3', status: 'done', priority: 3, title: 'Three', next_steps: [], updated_at: null }
+    ]
+    const wrapper = mount(TasksView, stub)
+    await flushPromises()
+
+    const badges = wrapper.findAll('.status-badge')
+    expect(badges.map((b) => b.text())).toEqual(['Open 1', 'In progress 0', 'Blocked 1', 'Done 1'])
+
+    // Clicking "Blocked" narrows the list to blocked tasks and reads as active.
+    await badges[2].trigger('click')
+    expect(store.statusFilter).toBe('blocked')
+    let rows = wrapper.findAll('.select-item').map((item) => item.text())
+    expect(rows.some((text) => text.includes('Two'))).toBe(true)
+    expect(rows.some((text) => text.includes('One'))).toBe(false)
+    expect(wrapper.get('.status-badge.active').text()).toContain('Blocked')
+
+    // Clicking the active badge again returns to the in-flight list.
+    await wrapper.get('.status-badge.active').trigger('click')
+    expect(store.statusFilter).toBe('')
+    rows = wrapper.findAll('.select-item').map((item) => item.text())
+    expect(rows.some((text) => text.includes('One'))).toBe(true)
+    expect(rows.some((text) => text.includes('Three'))).toBe(false)
+
+    // "Done" is normally hidden, so its badge is the only way to see those tasks.
+    await wrapper.findAll('.status-badge')[3].trigger('click')
+    expect(store.statusFilter).toBe('done')
+    rows = wrapper.findAll('.select-item').map((item) => item.text())
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toContain('Three')
+  })
+
+  it('shows a status-specific empty state and clears it', async () => {
+    store.statusFilter = 'blocked'
+    store.tasks = [{ id: 't1', status: 'open', title: 'One', next_steps: [], updated_at: null }]
+    const wrapper = mount(TasksView, stub)
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('No blocked tasks')
+    await wrapper.get('.panel .btn.ghost').trigger('click')
+    expect(store.statusFilter).toBe('')
   })
 
   it('shows how long ago each task was created alongside its last update', async () => {
@@ -248,7 +295,7 @@ describe('TasksView', () => {
 
     await wrapper.findAll('.select-item .row-check')[0].setValue(true)
     expect(wrapper.find('.bulk-bar').exists()).toBe(true)
-    await wrapper.find('input[aria-label="Select every task in flight"]').setValue(true)
+    await wrapper.find('input[aria-label="Select every shown task"]').setValue(true)
     expect(wrapper.text()).toContain('2 selected')
 
     await wrapper.get('select.bulk-status').setValue('done')
