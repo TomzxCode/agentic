@@ -101,6 +101,24 @@ def test_unlink_records_a_timeline_event_and_removes_the_link():
         client.delete(f"/api/tasks/{task}")
 
 
+def test_task_people_are_exposed_on_the_task_list():
+    """The task list carries linked person ids, so a client can filter by person."""
+    with TestClient(app) as client:
+        person = _person(client)
+        task = _task(client)
+        client.post(f"/api/tasks/{task}/people", json={"person_id": person})
+
+        listed = {t["id"]: t for t in client.get("/api/tasks").json()}
+        assert listed[task]["person_ids"] == [person]
+
+        assert client.delete(f"/api/tasks/{task}/people/{person}").status_code == 204
+        listed = {t["id"]: t for t in client.get("/api/tasks").json()}
+        assert listed[task]["person_ids"] == []
+
+        client.delete(f"/api/people/{person}")
+        client.delete(f"/api/tasks/{task}")
+
+
 def test_item_people_are_exposed_on_the_item():
     with TestClient(app) as client:
         person = _person(client)

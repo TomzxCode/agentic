@@ -13,6 +13,8 @@ export const store = reactive({
   toast: null,
   // Tag filter applied to task lists ("" means every tag).
   tagFilter: '',
+  // Person filter applied to the tasks page ("" means every person).
+  personFilter: '',
   // Set by the active task page so the palette can jump to its fields.
   focusField: null,
   // Focus-hint mode: press f to reveal a letter over each control.
@@ -47,6 +49,9 @@ export const store = reactive({
   toggleTagFilter(name) {
     this.tagFilter = this.tagFilter === name ? '' : name
   },
+  togglePersonFilter(id) {
+    this.personFilter = this.personFilter === id ? '' : id
+  },
   notify(message, isError = false) {
     this.toast = { message, isError }
     clearTimeout(this._t)
@@ -56,6 +61,10 @@ export const store = reactive({
 
 export function taskHasTag(task, name) {
   return (task.tags || []).includes(name)
+}
+
+export function taskHasPerson(task, id) {
+  return (task.person_ids || []).includes(id)
 }
 
 export function statusLabel(status) {

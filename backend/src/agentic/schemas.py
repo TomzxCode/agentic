@@ -280,6 +280,7 @@ class TaskRead(ORMModel):
     tags: list[str]
     deadline: datetime | None = None
     repository_ids: list[str] = []
+    person_ids: list[str] = []
     group_id: str | None = None
     harness_id: str | None = None
     summary: str

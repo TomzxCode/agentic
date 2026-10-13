@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   tasksUpdate: vi.fn(),
   tasksBulkUpdate: vi.fn(),
   ganttGet: vi.fn(),
+  peopleList: vi.fn(),
   push: vi.fn()
 }))
 
@@ -18,7 +19,8 @@ vi.mock('../api', () => ({
   api: {
     items: { list: mocks.itemsList, refresh: mocks.itemsRefresh, remove: mocks.itemsRemove },
     tasks: { associate: mocks.tasksAssociate, update: mocks.tasksUpdate, bulkUpdate: mocks.tasksBulkUpdate },
-    gantt: { get: mocks.ganttGet }
+    gantt: { get: mocks.ganttGet },
+    people: { list: mocks.peopleList }
   }
 }))
 
@@ -37,7 +39,10 @@ beforeEach(() => {
   vi.clearAllMocks()
   store.toast = null
   store.tagFilter = ''
+  store.personFilter = ''
   store.tags = []
+  store.people = []
+  mocks.peopleList.mockResolvedValue([])
 })
 
 afterEach(() => {
@@ -146,6 +151,55 @@ describe('TasksView', () => {
     expect(store.tagFilter).toBe('ui')
     await wrapper.get('.tag-filter').trigger('click') // "All"
     expect(store.tagFilter).toBe('')
+  })
+
+  it('filters in-flight tasks by linked person and clears it', async () => {
+    mocks.peopleList.mockResolvedValue([
+      { id: 'p1', name: 'Ada' },
+      { id: 'p2', name: 'Grace' },
+      { id: 'p3', name: 'Unlinked' }
+    ])
+    store.tasks = [
+      { id: 't1', status: 'open', title: 'Ada task', next_steps: [], updated_at: null, person_ids: ['p1'] },
+      { id: 't2', status: 'open', title: 'Grace task', next_steps: [], updated_at: null, person_ids: ['p2'] },
+      { id: 't3', status: 'done', title: 'Closed', next_steps: [], updated_at: null, person_ids: ['p1'] }
+    ]
+    const wrapper = mount(TasksView, stub)
+    await flushPromises()
+
+    // Only people linked to an in-flight task get a button, with their count.
+    const personRow = wrapper.get('[aria-label="Filter by person"]')
+    const names = personRow.findAll('.tag-filter').map((b) => b.text())
+    expect(names).toHaveLength(3) // Anyone + two people
+    expect(names[1]).toContain('Ada')
+    expect(names[2]).toContain('Grace')
+    expect(personRow.text()).not.toContain('Unlinked')
+    expect(personRow.findAll('.count').map((c) => c.text())).toEqual(['1', '1'])
+
+    await personRow
+      .findAll('.tag-filter')
+      .find((b) => b.text().includes('Ada'))
+      .trigger('click')
+    expect(store.personFilter).toBe('p1')
+    const rows = wrapper.findAll('.select-item').map((item) => item.text())
+    expect(rows.some((text) => text.includes('Ada task'))).toBe(true)
+    expect(rows.some((text) => text.includes('Grace task'))).toBe(false)
+    expect(wrapper.text()).toContain('Open 1')
+
+    await wrapper.get('[aria-label="Filter by person"] .tag-filter').trigger('click') // "Anyone"
+    expect(store.personFilter).toBe('')
+  })
+
+  it('shows a person-specific empty state when no task matches the filter', async () => {
+    mocks.peopleList.mockResolvedValue([{ id: 'p1', name: 'Ada' }])
+    store.personFilter = 'p1'
+    store.tasks = [{ id: 't1', status: 'open', title: 'Other', next_steps: [], updated_at: null, person_ids: [] }]
+    const wrapper = mount(TasksView, stub)
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Nothing linked to "Ada"')
+    await wrapper.get('.panel .btn.ghost').trigger('click')
+    expect(store.personFilter).toBe('')
   })
 
   it('bulk edits the status and tags of selected in-flight tasks', async () => {

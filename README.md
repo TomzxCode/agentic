@@ -167,6 +167,10 @@ them without tabbing across the page. It also lists every tag in use under
 **Tags**, so you can filter the task list by a tag (and clear the filter) from
 the keyboard.
 
+The **Tasks in flight** page also lists the people linked to the current
+in-flight work, so you can narrow the list (and its status counts and upcoming
+deadlines) to a single person's tasks.
+
 The **Items** page lists every resource the app tracks (Slack threads, GitHub
 issues/PRs, Drive docs, URLs, notes) with per-source filters, search, and links
 to the tasks each one is used by.

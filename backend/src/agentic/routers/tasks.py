@@ -54,7 +54,7 @@ from ..schemas import (
 from ..services import SLACK_PLACEHOLDER_TITLE, github_owner_repo, remove_worktree
 from .agents import start_slack_summary
 from .items import _upsert_item
-from .people import link_item_people_to_task, task_people
+from .people import link_item_people_to_task, task_people, task_person_ids
 
 router = APIRouter(prefix="/api/tasks", tags=["tasks"])
 
@@ -115,6 +115,7 @@ def _link_repository_for_item(session: Session, task_id: str, item: SourceItem) 
 def _task_read(session: Session, task: Task) -> TaskRead:
     data = TaskRead.model_validate(task)
     data.repository_ids = _task_repository_ids(session, task.id)
+    data.person_ids = task_person_ids(session, task.id)
     return data
 
 

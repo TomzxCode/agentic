@@ -1,12 +1,15 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
-import { deadlineInfo, formatDeadline, store, statusLabel, timeAgo, taskHasTag } from '../store'
+import { deadlineInfo, formatDeadline, store, statusLabel, taskHasPerson, taskHasTag, timeAgo } from '../store'
 import { api } from '../api'
 import TagInput from '../components/TagInput.vue'
 import SearchSelect from '../components/SearchSelect.vue'
 import StatusIcon from '../components/StatusIcon.vue'
 
-const matchesFilter = (p) => !store.tagFilter || taskHasTag(p, store.tagFilter)
+// A task matches when it carries the active tag filter and is linked to the
+// active person filter, if either is set.
+const matchesFilter = (p) =>
+  (!store.tagFilter || taskHasTag(p, store.tagFilter)) && (!store.personFilter || taskHasPerson(p, store.personFilter))
 
 // Row timestamps: how long the task has existed and how long since it last
 // changed. The two collapse to one when they describe the same moment (a task
@@ -25,11 +28,26 @@ const counts = computed(() => {
   return c
 })
 
-// Every task still in flight and matching the active tag filter. This is the
+// Every task still in flight and matching the active filters. This is the
 // page's default view: a selectable list you can edit in bulk.
 const inFlight = computed(() =>
   store.tasks.filter((p) => p.status !== 'done' && p.status !== 'archived').filter(matchesFilter)
 )
+
+// People linked to at least one in-flight task, with how many each has. Each
+// button narrows the page to the tasks linked to that person.
+const peopleFilters = computed(() => {
+  const byPerson = {}
+  for (const p of store.tasks) {
+    if (p.status === 'done' || p.status === 'archived') continue
+    for (const id of p.person_ids || []) byPerson[id] = (byPerson[id] || 0) + 1
+  }
+  return store.people
+    .filter((person) => byPerson[person.id])
+    .map((person) => ({ id: person.id, name: person.name, count: byPerson[person.id] }))
+})
+
+const personFilterName = computed(() => store.people.find((person) => person.id === store.personFilter)?.name || '')
 
 // Deadlines coming up: in-flight tasks whose deadline falls within the selected
 // window, soonest first. Overdue deadlines always qualify (they are <= the
@@ -88,9 +106,9 @@ function resetBulk() {
   removeTags.value = []
 }
 
-// Changing the filter hides some rows; drop any selection that goes with them
+// Changing a filter hides some rows; drop any selection that goes with them
 // so a bulk edit only ever touches what is on screen.
-watch(() => store.tagFilter, resetBulk)
+watch(() => [store.tagFilter, store.personFilter], resetBulk)
 
 function toggle(id) {
   selected.value = selectedSet.value.has(id) ? selected.value.filter((x) => x !== id) : [...selected.value, id]
@@ -120,7 +138,10 @@ async function applyBulk() {
   }
 }
 
-onMounted(() => store.loadTasks())
+onMounted(() => {
+  store.loadTasks()
+  store.loadPeople().catch(() => {})
+})
 </script>
 
 <template>
@@ -147,6 +168,29 @@ onMounted(() => store.loadTasks())
         @click="store.toggleTagFilter(tag.name)"
       >
         {{ tag.name }} <span class="count">{{ tag.count }}</span>
+      </button>
+    </div>
+
+    <div v-if="peopleFilters.length" class="tag-filters" aria-label="Filter by person">
+      <button
+        class="tag-filter"
+        :class="{ active: !store.personFilter }"
+        type="button"
+        title="Show tasks for anyone"
+        @click="store.personFilter = ''"
+      >
+        Anyone
+      </button>
+      <button
+        v-for="person in peopleFilters"
+        :key="person.id"
+        class="tag-filter"
+        :class="{ active: store.personFilter === person.id }"
+        type="button"
+        :title="`Show tasks linked to ${person.name}`"
+        @click="store.togglePersonFilter(person.id)"
+      >
+        {{ person.name }} <span class="count">{{ person.count }}</span>
       </button>
     </div>
 
@@ -264,6 +308,13 @@ onMounted(() => store.loadTasks())
         <p class="muted">
           No in-flight task carries this tag.
           <button class="btn sm ghost" @click="store.tagFilter = ''">Clear filter</button>
+        </p>
+      </template>
+      <template v-else-if="store.personFilter">
+        <h2 style="margin-bottom: 8px">Nothing linked to "{{ personFilterName || 'this person' }}"</h2>
+        <p class="muted">
+          No in-flight task is linked to this person.
+          <button class="btn sm ghost" @click="store.personFilter = ''">Clear filter</button>
         </p>
       </template>
       <template v-else>

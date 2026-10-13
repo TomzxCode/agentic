@@ -75,6 +75,14 @@ def task_people(session: Session, task_id: str) -> list[Person]:
     return people
 
 
+def task_person_ids(session: Session, task_id: str) -> list[str]:
+    """The ids of people linked to a task, in link order."""
+    links = session.exec(
+        select(TaskPerson).where(TaskPerson.task_id == task_id).order_by(col(TaskPerson.created_at))
+    ).all()
+    return [link.person_id for link in links]
+
+
 def item_person_ids(session: Session, item_id: str) -> list[str]:
     return [link.person_id for link in session.exec(select(ItemPerson).where(ItemPerson.item_id == item_id)).all()]
 
@@ -267,5 +275,6 @@ __all__ = [
     "link_item_people_to_task",
     "link_people_to_item",
     "task_people",
+    "task_person_ids",
     "upsert_person",
 ]
