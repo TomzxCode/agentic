@@ -189,6 +189,31 @@ describe('ItemsPanel', () => {
     await expand.trigger('click')
     expect(wrapper.get('button[title="Expand"]').text()).toBe('▾')
   })
+
+  it('shows the status of a pull request item', () => {
+    const withPr = task({
+      associations: [
+        {
+          id: 'a1',
+          note: '',
+          created_at: new Date().toISOString(),
+          item: {
+            id: 'i1',
+            source: 'github',
+            kind: 'pull_request',
+            title: 'Fix the thing',
+            url: 'https://gh/pull/3',
+            content: '',
+            metadata_json: { state: 'OPEN', is_draft: true },
+            fetched_at: null
+          }
+        }
+      ]
+    })
+    const wrapper = mount(ItemsPanel, { props: { task: withPr } })
+    expect(wrapper.text()).toContain('pull request')
+    expect(wrapper.get('.badge.pr-draft').text()).toBe('Draft')
+  })
 })
 
 describe('RepositorySelect', () => {

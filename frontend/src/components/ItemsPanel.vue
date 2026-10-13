@@ -1,7 +1,7 @@
 <script setup>
 import { computed, reactive, ref } from 'vue'
 import { api } from '../api'
-import { store, timeAgo } from '../store'
+import { store, timeAgo, prStatus } from '../store'
 
 const props = defineProps({ task: { type: Object, required: true } })
 const emit = defineEmits(['changed'])
@@ -87,6 +87,12 @@ async function refreshItem(itemId) {
             {{ expanded[assoc.item.id] ? '▾' : '▸' }}
           </button>
           <button class="btn sm danger" title="Remove" @click="remove(assoc.item.id)">✕</button>
+        </div>
+        <div v-if="assoc.item.kind || prStatus(assoc.item)" class="row" style="gap: 6px; margin-top: 4px">
+          <span v-if="assoc.item.kind" class="faint">{{ assoc.item.kind.replace('_', ' ') }}</span>
+          <span v-if="prStatus(assoc.item)" class="badge" :class="prStatus(assoc.item).className">
+            {{ prStatus(assoc.item).label }}
+          </span>
         </div>
         <div v-if="assoc.note" class="faint" style="margin-top: 4px">{{ assoc.note }}</div>
         <div v-if="assoc.item.content" class="content" :class="{ clamp: !expanded[assoc.item.id] }">

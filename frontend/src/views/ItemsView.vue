@@ -2,7 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { api } from '../api'
-import { store, statusLabel, timeAgo } from '../store'
+import { store, statusLabel, timeAgo, prStatus } from '../store'
 import SearchSelect from '../components/SearchSelect.vue'
 import StatusIcon from '../components/StatusIcon.vue'
 
@@ -202,7 +202,12 @@ onMounted(async () => {
           </button>
           <button class="btn sm danger" title="Delete" @click="remove(item)">✕</button>
         </div>
-        <div v-if="item.kind" class="faint">{{ item.kind.replace('_', ' ') }}</div>
+        <div v-if="item.kind || prStatus(item)" class="row" style="gap: 6px; margin-top: 2px">
+          <span v-if="item.kind" class="faint">{{ item.kind.replace('_', ' ') }}</span>
+          <span v-if="prStatus(item)" class="badge" :class="prStatus(item).className">
+            {{ prStatus(item).label }}
+          </span>
+        </div>
         <div v-if="item.content" class="content" :class="{ clamp: !expanded[item.id] }">{{ item.content }}</div>
         <div class="row" style="margin-top: 6px; gap: 6px">
           <span v-if="!linkedTasks(item).length" class="faint">not linked to a task</span>

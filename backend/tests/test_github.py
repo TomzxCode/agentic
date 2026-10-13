@@ -75,6 +75,33 @@ def test_fetch_github_issue(monkeypatch):
     assert seen["cmd"][1] == "pr"
 
 
+def test_fetch_github_pull_request_carries_draft_and_state(monkeypatch):
+    payload = json.dumps(
+        {
+            "number": 7,
+            "title": "Draft PR",
+            "url": "https://github.com/o/r/pull/7",
+            "state": "OPEN",
+            "isDraft": True,
+            "author": {"login": "a"},
+            "labels": [],
+            "body": "wip",
+        }
+    )
+    monkeypatch.setattr(services, "_run_cli", lambda cmd, timeout=60: payload)
+
+    issue = services.fetch_github_issue("o", "r", 7, kind="pull_request")
+    assert issue["state"] == "OPEN"
+    assert issue["is_draft"] is True
+
+    # The fetched metadata carries the state and draft flag through to the item.
+    result = {"metadata": {}, "content": "", "title": "", "people": []}
+    services._fetch_github("https://github.com/o/r/pull/7", result)
+    assert result["metadata"]["kind"] == "pull_request"
+    assert result["metadata"]["state"] == "OPEN"
+    assert result["metadata"]["is_draft"] is True
+
+
 def test_issue_endpoint(monkeypatch):
     payload = json.dumps({"number": 9, "title": "Single", "url": "http://x", "author": {"login": "a"}, "body": "b"})
     monkeypatch.setattr(services, "_run_cli", lambda cmd, timeout=60: payload)

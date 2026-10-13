@@ -82,6 +82,20 @@ export function statusClass(status) {
   )
 }
 
+// A GitHub pull request item's display status, or null when the item is not a
+// PR or carries no fetched state. ghx reports state as OPEN / CLOSED / MERGED,
+// with a separate draft flag for an open PR.
+export function prStatus(item) {
+  const meta = item?.metadata_json || {}
+  if (item?.kind !== 'pull_request' && meta.kind !== 'pull_request') return null
+  const state = String(meta.state || '').toUpperCase()
+  if (state === 'MERGED') return { label: 'Merged', className: 'pr-merged' }
+  if (state === 'CLOSED') return { label: 'Closed', className: 'pr-closed' }
+  if (state === 'OPEN')
+    return meta.is_draft ? { label: 'Draft', className: 'pr-draft' } : { label: 'Open', className: 'pr-open' }
+  return state ? { label: state, className: 'pr-open' } : null
+}
+
 export function timeAgo(iso) {
   if (!iso) return ''
   const then = new Date(iso).getTime()

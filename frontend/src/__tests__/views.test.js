@@ -323,6 +323,27 @@ describe('ItemsView', () => {
     expect(store.toast).toEqual({ message: 'offline', isError: true })
   })
 
+  it('shows the fetched status of a pull request item', async () => {
+    mocks.itemsList.mockResolvedValue([
+      {
+        id: 'i1',
+        source: 'github',
+        kind: 'pull_request',
+        title: 'Fix the thing',
+        url: 'https://gh/pull/3',
+        content: '',
+        metadata_json: { state: 'MERGED' },
+        task_ids: [],
+        created_at: new Date().toISOString(),
+        fetched_at: null
+      }
+    ])
+    const wrapper = mount(ItemsView, stub)
+    await flushPromises()
+    expect(wrapper.text()).toContain('pull request')
+    expect(wrapper.get('.badge.pr-merged').text()).toBe('Merged')
+  })
+
   it('links an unlinked item to a task', async () => {
     mocks.itemsList.mockResolvedValue([
       {

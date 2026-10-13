@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { formatDuration, statusClass, statusDurations, statusLabel, store, timeAgo } from '../store'
+import { formatDuration, prStatus, statusClass, statusDurations, statusLabel, store, timeAgo } from '../store'
 
 describe('statusLabel', () => {
   it('maps every known status to a human label', () => {
@@ -26,6 +26,36 @@ describe('statusClass', () => {
 
   it('defaults unknown statuses to the plain badge', () => {
     expect(statusClass('weird')).toBe('badge')
+  })
+})
+
+describe('prStatus', () => {
+  const pr = (over = {}) => ({ kind: 'pull_request', metadata_json: { state: 'OPEN' }, ...over })
+
+  it('is null for non-PR items or ones without a fetched state', () => {
+    expect(prStatus(null)).toBeNull()
+    expect(prStatus({ kind: 'issue', metadata_json: { state: 'OPEN' } })).toBeNull()
+    expect(prStatus({ kind: 'pull_request', metadata_json: {} })).toBeNull()
+  })
+
+  it('maps each PR state to a label and badge class', () => {
+    expect(prStatus(pr())).toEqual({ label: 'Open', className: 'pr-open' })
+    expect(prStatus(pr({ metadata_json: { state: 'MERGED' } }))).toEqual({ label: 'Merged', className: 'pr-merged' })
+    expect(prStatus(pr({ metadata_json: { state: 'CLOSED' } }))).toEqual({ label: 'Closed', className: 'pr-closed' })
+  })
+
+  it('shows an open PR flagged as a draft as Draft', () => {
+    expect(prStatus(pr({ metadata_json: { state: 'OPEN', is_draft: true } }))).toEqual({
+      label: 'Draft',
+      className: 'pr-draft'
+    })
+  })
+
+  it('accepts the kind recorded in the fetched metadata', () => {
+    expect(prStatus({ kind: '', metadata_json: { kind: 'pull_request', state: 'MERGED' } })).toEqual({
+      label: 'Merged',
+      className: 'pr-merged'
+    })
   })
 })
 

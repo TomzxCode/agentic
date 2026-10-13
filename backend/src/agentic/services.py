@@ -280,6 +280,9 @@ def fetch_github_issue(owner: str, repo: str, number: object, kind: str = "issue
         "title": data.get("title") or "",
         "url": data.get("url") or "",
         "state": data.get("state") or "",
+        # ghx exposes the draft flag only on pull requests; the state alone
+        # cannot distinguish an open draft from an open PR.
+        "is_draft": bool(data.get("isDraft")),
         "author": (data.get("author") or {}).get("login"),
         "labels": [label.get("name") for label in data.get("labels") or [] if isinstance(label, dict)],
         "body": data.get("body") or "",
@@ -330,7 +333,12 @@ def _fetch_github(url: str, result: dict[str, Any]) -> None:
     if issue is None:
         return
     result["title"] = issue["title"] or result["title"]
-    result["metadata"] = {**parsed, "state": issue["state"], "number": issue["number"]}
+    result["metadata"] = {
+        **parsed,
+        "state": issue["state"],
+        "number": issue["number"],
+        "is_draft": issue.get("is_draft", False),
+    }
     result["content"] = issue["body"]
     result["people"] = issue.get("people") or []
 
