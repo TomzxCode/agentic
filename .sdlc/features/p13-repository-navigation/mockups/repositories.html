@@ -1,0 +1,198 @@
+<!-- session_link: http://localhost:10000/?session=ses_ed1823a65ffe7LJmF4SEXBZr08 -->
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Repositories page - mockup</title>
+  <style>
+    :root {
+      --bg: #0f1115; --bg-1: #161a21; --bg-2: #1c222c; --bg-3: #232a36;
+      --border: #2a3140; --text: #e6e9ef; --muted: #94a0b4;
+      --accent: #6ee7b7; --accent-2: #3b82f6; --danger: #f87171; --warn: #fbbf24; --ok: #34d399;
+      --radius: 10px; --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--text);
+      font: 14px/1.5 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .app { display: flex; min-height: 100vh; }
+    .sidebar { width: 240px; flex: 0 0 240px; background: var(--bg-1); border-right: 1px solid var(--border); padding: 14px; }
+    .brand { font-weight: 700; margin-bottom: 12px; }
+    .palette { display: flex; justify-content: space-between; align-items: center; width: 100%;
+      padding: 7px 10px; border-radius: 8px; background: var(--bg-2); border: 1px solid var(--border); color: var(--muted); }
+    .newtask { width: 100%; margin-top: 8px; padding: 9px; border-radius: 8px; background: var(--accent);
+      border: none; color: #06231a; font-weight: 600; }
+    .tags { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 12px; }
+    .tags span { font-size: 12px; color: var(--muted); border: 1px solid var(--border); border-radius: 999px; padding: 1px 8px; }
+    .taskcard { font-size: 13px; color: var(--muted); padding: 6px 0; border-bottom: 1px solid var(--border); }
+    .nav { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
+    .nav a { width: 32px; height: 32px; display: grid; place-items: center; border-radius: 8px;
+      background: var(--bg-2); border: 1px solid var(--border); color: var(--muted); font-size: 13px; }
+    .nav a.active { color: var(--accent); border-color: var(--accent); }
+    .main { flex: 1; padding: 20px; max-width: 900px; }
+    .menu-btn { display: none; align-items: center; gap: 6px; margin-bottom: 12px; padding: 8px 12px;
+      border-radius: 8px; background: var(--bg-3); border: 1px solid var(--border); color: var(--text); }
+    h1 { font-size: 20px; margin: 0; }
+    .row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .spread { justify-content: space-between; }
+    .muted { color: var(--muted); }
+    .mono { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+    .panel { background: var(--bg-1); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; margin-top: 14px; }
+    .item { background: var(--bg-2); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; margin-top: 10px; }
+    .badge { display: inline-block; padding: 1px 8px; border-radius: 999px; background: var(--bg-3);
+      border: 1px solid var(--border); color: var(--muted); font-size: 12px; }
+    .badge.issue { color: var(--text); border-color: var(--accent-2); }
+    .badge.pr { color: var(--text); border-color: var(--warn); }
+    .btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 12px; border-radius: 8px;
+      background: var(--bg-3); border: 1px solid var(--border); color: var(--text); cursor: pointer; min-height: 38px; }
+    .btn.primary { background: var(--accent); border-color: var(--accent); color: #06231a; font-weight: 600; }
+    .btn.danger { color: var(--danger); }
+    .input { flex: 1; min-width: 160px; padding: 9px 11px; border-radius: 8px; background: var(--bg-2);
+      border: 1px solid var(--border); color: var(--text); font-size: 16px; }
+    .spinner { width: 18px; height: 18px; border: 2px solid var(--border); border-top-color: var(--accent);
+      border-radius: 50%; display: inline-block; }
+    .empty { text-align: center; color: var(--muted); padding: 18px; }
+    .state { margin-top: 26px; }
+    .state > .label { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted);
+      border-top: 1px dashed var(--border); padding-top: 10px; margin-bottom: 6px; }
+    .error { color: var(--danger); }
+    .drawer { background: var(--bg-1); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; max-width: 240px; }
+    @media (max-width: 760px) {
+      .sidebar { display: none; }
+      .menu-btn { display: inline-flex; }
+      .main { padding: 14px; }
+    }
+    @media (min-width: 761px) and (max-width: 1000px) {
+      .sidebar { width: 240px; flex-basis: 240px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand">Agentic</div>
+      <button class="palette">🔍 Search <span>⌘K</span></button>
+      <button class="newtask">＋ New task</button>
+      <div class="tags"><span>All</span><span>bug 3</span><span>ui 2</span></div>
+      <div style="margin-top:10px">
+        <div class="taskcard">Fix login redirect</div>
+        <div class="taskcard">Add rate limiting</div>
+      </div>
+      <nav class="nav" aria-label="Primary">
+        <a href="#" title="Tasks" aria-label="Tasks">☰</a>
+        <a href="#" title="Gantt" aria-label="Gantt">▤</a>
+        <a href="#" title="Metrics" aria-label="Metrics">▮</a>
+        <a href="#" title="Items" aria-label="Items">▧</a>
+        <a href="#" title="People" aria-label="People">◍</a>
+        <a href="#" class="active" title="Repositories" aria-label="Repositories">▦</a>
+        <a href="#" title="Settings" aria-label="Settings">⚙</a>
+      </nav>
+    </aside>
+
+    <main class="main">
+      <button class="menu-btn" aria-label="Toggle navigation">☰ Menu</button>
+
+      <div class="row spread">
+        <h1>Repositories</h1>
+        <span class="muted">3 repositories · 5 issues · 2 PRs</span>
+      </div>
+
+      <div class="state">
+        <div class="label">Populated</div>
+        <div class="panel">
+          <div class="row">
+            <input class="input" placeholder="/absolute/path/to/git/repo" aria-label="Repository path">
+            <button class="btn">Browse…</button>
+            <button class="btn primary">Add repository</button>
+          </div>
+        </div>
+
+        <div class="item">
+          <div class="row spread">
+            <a href="repository-detail.html"><strong>api</strong> <span class="badge">main</span></a>
+            <span class="row" style="gap:6px">
+              <span class="badge issue">3 issues</span>
+              <span class="badge pr">2 PRs</span>
+              <button class="btn danger" aria-label="Remove repository api">Remove</button>
+            </span>
+          </div>
+          <div class="mono" style="margin-top:6px">/home/tomzx/src/api</div>
+          <div class="muted">https://github.com/acme/api.git</div>
+        </div>
+
+        <div class="item">
+          <div class="row spread">
+            <a href="repository-detail.html"><strong>web</strong> <span class="badge">main</span></a>
+            <span class="row" style="gap:6px">
+              <span class="badge issue">2 issues</span>
+              <span class="badge pr">0 PRs</span>
+              <button class="btn danger" aria-label="Remove repository web">Remove</button>
+            </span>
+          </div>
+          <div class="mono" style="margin-top:6px">/home/tomzx/src/web</div>
+          <div class="muted">git@github.com:acme/web.git</div>
+        </div>
+
+        <div class="item">
+          <div class="row spread">
+            <a href="repository-detail.html"><strong>tools</strong> <span class="badge">main</span></a>
+            <span class="row" style="gap:6px">
+              <span class="badge issue">0 issues</span>
+              <span class="badge pr">0 PRs</span>
+              <button class="btn danger" aria-label="Remove repository tools">Remove</button>
+            </span>
+          </div>
+          <div class="mono" style="margin-top:6px">/home/tomzx/src/tools</div>
+          <div class="muted">(no GitHub remote)</div>
+        </div>
+      </div>
+
+      <div class="state">
+        <div class="label">Empty (no repositories registered)</div>
+        <div class="panel">
+          <p class="muted" style="margin-top:0">No repositories are registered yet. Add a local git checkout to group its issues and PRs by repository.</p>
+          <div class="row">
+            <input class="input" placeholder="/absolute/path/to/git/repo" aria-label="Repository path">
+            <button class="btn">Browse…</button>
+            <button class="btn primary">Add repository</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="state">
+        <div class="label">Loading</div>
+        <div class="empty"><span class="spinner" aria-hidden="true"></span> Loading repositories…</div>
+      </div>
+
+      <div class="state">
+        <div class="label">Error</div>
+        <div class="panel">
+          <p class="error" style="margin-top:0">Could not load repositories.</p>
+          <button class="btn">Retry</button>
+        </div>
+      </div>
+
+      <div class="state">
+        <div class="label">Mobile (&lt;760px): top-bar toggle opens the sidebar drawer</div>
+        <button class="menu-btn" style="display:inline-flex" aria-label="Toggle navigation">☰ Menu</button>
+        <div class="drawer">
+          <div class="brand">Agentic</div>
+          <button class="palette">🔍 Search <span>⌘K</span></button>
+          <button class="newtask">＋ New task</button>
+          <nav class="nav" aria-label="Primary (drawer)">
+            <a href="#" title="Tasks" aria-label="Tasks">☰</a>
+            <a href="#" title="Gantt" aria-label="Gantt">▤</a>
+            <a href="#" title="Metrics" aria-label="Metrics">▮</a>
+            <a href="#" title="Items" aria-label="Items">▧</a>
+            <a href="#" title="People" aria-label="People">◍</a>
+            <a href="#" class="active" title="Repositories" aria-label="Repositories">▦</a>
+            <a href="#" title="Settings" aria-label="Settings">⚙</a>
+          </nav>
+        </div>
+      </div>
+    </main>
+  </div>
+</body>
+</html>
