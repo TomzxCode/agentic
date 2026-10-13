@@ -399,9 +399,10 @@ def _fetch_slack(url: str, result: dict[str, Any]) -> None:
     parsed = parse_slack(url)
     if parsed:
         result["metadata"] = parsed
-    text = _run_cli(["slackx", "conversations", "show", url], timeout=90)
-    if not text:
-        text = _run_cli(["slackx", "conversations", "fetch", url], timeout=90)
+    # ``--fetch`` refreshes an already-cached thread, so a refresh from the web UI
+    # (POST /api/items/{id}/refresh) sees new replies instead of the stale cache.
+    # It also fetches on a cache miss, so no separate ``conversations fetch``.
+    text = _run_cli(["slackx", "conversations", "show", url, "--fetch"], timeout=90)
     if text:
         result["content"] = text
     # A second, structured read of the same (now cached) thread names its people.

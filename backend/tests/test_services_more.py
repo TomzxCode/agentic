@@ -207,25 +207,34 @@ def test_fetch_github_ignores_bad_urls_and_missing_issues(monkeypatch):
     assert result["title"] == "orig"
 
 
-def test_fetch_slack_prefers_show_then_falls_back_to_fetch(monkeypatch):
+def test_fetch_slack_refreshes_with_fetch_then_reads_participants(monkeypatch):
     calls: list = []
 
     def fake(cmd, timeout=60):
-        calls.append(cmd[2])
-        return "transcript" if cmd[2] == "show" else "fallback"
+        calls.append(cmd)
+        return "transcript" if "--json" not in cmd else '{"messages": []}'
 
     monkeypatch.setattr(services, "_run_cli", fake)
     result: dict = {"title": "t", "content": "", "metadata": {}}
     services._fetch_slack("https://acme.slack.com/archives/C1/p1700000000000000", result)
     assert result["content"] == "transcript"
     assert result["metadata"]["channel"] == "C1"
-    # The thread is read once for the transcript, once for the participants.
-    assert calls[0] == "show" and calls.count("show") == 2
+    # Both conversation reads are `show`: the transcript forces a refresh with
+    # --fetch, and the participants read comes from the refreshed cache (no
+    # second fetch). Names come from `users list`.
+    assert [(cmd[1], cmd[2]) for cmd in calls] == [
+        ("conversations", "show"),
+        ("conversations", "show"),
+        ("users", "list"),
+    ]
+    assert "--fetch" in calls[0]
+    assert "--json" in calls[1] and "--fetch" not in calls[1]
 
+    # No slackx output: the item still gets its metadata and no content.
     result = {"title": "t", "content": "", "metadata": {}}
-    monkeypatch.setattr(services, "_run_cli", lambda cmd, timeout=60: None if cmd[2] == "show" else "fallback")
+    monkeypatch.setattr(services, "_run_cli", lambda cmd, timeout=60: None)
     services._fetch_slack("https://acme.slack.com/archives/C1/p1700000000000000", result)
-    assert result["content"] == "fallback"
+    assert result["content"] == "" and result["metadata"]["channel"] == "C1"
 
 
 def test_fetch_url_extracts_title_and_strips_markup(monkeypatch):
