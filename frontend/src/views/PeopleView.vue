@@ -1,6 +1,6 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
-import { store } from '../store'
+import { aliasLabel, store } from '../store'
 
 const people = ref([])
 const loading = ref(true)
@@ -13,9 +13,7 @@ const visible = computed(() => {
   if (!q) return people.value
   return people.value.filter(
     (person) =>
-      person.name.toLowerCase().includes(q) ||
-      (person.handle || '').toLowerCase().includes(q) ||
-      (person.email || '').toLowerCase().includes(q)
+      person.name.toLowerCase().includes(q) || (person.aliases || []).some((alias) => alias.toLowerCase().includes(q))
   )
 })
 
@@ -58,7 +56,7 @@ onMounted(load)
     </div>
 
     <div class="row" style="margin-bottom: 12px">
-      <input v-model="search" class="input grow" placeholder="Search name, handle, or email…" />
+      <input v-model="search" class="input grow" placeholder="Search name or alias…" />
     </div>
 
     <div class="row" style="gap: 8px; margin-bottom: 16px; flex-wrap: wrap">
@@ -74,10 +72,8 @@ onMounted(load)
           <router-link class="title" :to="`/person/${person.id}`">{{ person.name }}</router-link>
           <span class="faint">tasks:{{ person.task_count || 0 }} items:{{ person.item_count || 0 }}</span>
         </div>
-        <div v-if="person.handle || person.email" class="faint">
-          <span v-if="person.handle">@{{ person.handle }}</span>
-          <span v-if="person.handle && person.email"> · </span>
-          <span v-if="person.email">{{ person.email }}</span>
+        <div v-if="person.aliases?.length" class="faint">
+          {{ person.aliases.map(aliasLabel).join(' · ') }}
         </div>
       </div>
     </div>

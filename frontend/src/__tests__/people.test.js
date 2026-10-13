@@ -126,7 +126,7 @@ describe('PeoplePanel', () => {
 
 describe('PeopleView', () => {
   beforeEach(() => {
-    store.people = [{ id: 'p1', name: 'Ada', handle: 'ada', email: 'ada@example.com', task_count: 1, item_count: 1 }]
+    store.people = [{ id: 'p1', name: 'Ada', aliases: ['ada', 'ada@example.com'], task_count: 1, item_count: 1 }]
   })
 
   it('lists people, each linking to their detail page', async () => {
@@ -134,6 +134,7 @@ describe('PeopleView', () => {
     await flushPromises()
     expect(wrapper.text()).toContain('Ada')
     expect(wrapper.text()).toContain('@ada')
+    expect(wrapper.text()).toContain('ada@example.com')
     expect(wrapper.text()).toContain('tasks:1 items:1')
     expect(wrapper.get('a.title').attributes('href')).toBe('/person/p1')
   })
@@ -156,8 +157,7 @@ describe('PersonView', () => {
     mocks.peopleGet.mockResolvedValue({
       id: 'p1',
       name: 'Ada',
-      email: 'ada@example.com',
-      handle: 'ada',
+      aliases: ['ada', 'ada@example.com'],
       notes: '',
       task_ids: ['t1'],
       item_ids: ['i1']
@@ -169,7 +169,7 @@ describe('PersonView', () => {
     await flushPromises()
     expect(mocks.peopleGet).toHaveBeenCalledWith('p1')
     expect(wrapper.text()).toContain('Ada')
-    expect(wrapper.text()).toContain('ada')
+    expect(wrapper.text()).toContain('@ada')
     expect(wrapper.text()).toContain('ada@example.com')
     expect(wrapper.text()).toContain('Fix flaky test')
     expect(wrapper.text()).toContain('Issue 1')
@@ -184,13 +184,25 @@ describe('PersonView', () => {
     expect(mocks.peopleUpdate).toHaveBeenCalledWith('p1', { name: 'Ada L' })
   })
 
-  it('updates an alias', async () => {
+  it('adds an alias', async () => {
     mocks.peopleUpdate.mockResolvedValue({})
     const wrapper = mount(PersonView, { props: { id: 'p1' }, ...stub })
     await flushPromises()
-    wrapper.findAllComponents(EditableText)[1].vm.$emit('save', 'ada-l')
+    await wrapper.get('input.input').setValue('ada-l')
+    await wrapper.get('.panel .btn').trigger('click')
     await flushPromises()
-    expect(mocks.peopleUpdate).toHaveBeenCalledWith('p1', { handle: 'ada-l' })
+    expect(mocks.peopleUpdate).toHaveBeenCalledWith('p1', {
+      aliases: ['ada', 'ada@example.com', 'ada-l']
+    })
+  })
+
+  it('removes an alias', async () => {
+    mocks.peopleUpdate.mockResolvedValue({})
+    const wrapper = mount(PersonView, { props: { id: 'p1' }, ...stub })
+    await flushPromises()
+    await wrapper.get('.chip .chip-x').trigger('click')
+    await flushPromises()
+    expect(mocks.peopleUpdate).toHaveBeenCalledWith('p1', { aliases: ['ada@example.com'] })
   })
 
   it('deletes a person when confirmed and returns to the list', async () => {

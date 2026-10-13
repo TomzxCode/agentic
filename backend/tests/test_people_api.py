@@ -49,10 +49,27 @@ def test_name_is_required():
 def test_update_person_fields_and_reject_blank_name():
     with TestClient(app) as client:
         person = _person(client)
-        updated = client.patch(f"/api/people/{person}", json={"handle": "ada", "email": "ada@example.com"}).json()
-        assert updated["handle"] == "ada" and updated["email"] == "ada@example.com"
+        updated = client.patch(f"/api/people/{person}", json={"aliases": ["ada", "ada@example.com"]}).json()
+        assert updated["aliases"] == ["ada", "ada@example.com"]
         assert client.patch(f"/api/people/{person}", json={"name": ""}).status_code == 400
         client.delete(f"/api/people/{person}")
+
+
+def test_a_person_carries_many_aliases():
+    with TestClient(app) as client:
+        person = client.post(
+            "/api/people",
+            json={"name": "Ada", "aliases": ["ada", "ada@example.com", "U123", "ada"]},
+        ).json()
+        # Blank and duplicate aliases are dropped on the way in.
+        assert person["aliases"] == ["ada", "ada@example.com", "U123"]
+
+        updated = client.patch(
+            f"/api/people/{person['id']}", json={"aliases": ["ada", "a.lovelace@example.com"]}
+        ).json()
+        assert updated["aliases"] == ["ada", "a.lovelace@example.com"]
+
+        client.delete(f"/api/people/{person['id']}")
 
 
 def test_linking_a_person_is_idempotent():
@@ -240,7 +257,7 @@ def test_item_fetch_auto_populates_people(monkeypatch):
         item = client.post("/api/items", json={"url": "https://github.com/o/r/issues/1", "fetch": True}).json()
         assert len(item["person_ids"]) == 1
         person = client.get(f"/api/people/{item['person_ids'][0]}").json()
-        assert person["handle"] == "ada" and person["name"] == "ada"
+        assert person["aliases"] == ["ada"] and person["name"] == "ada"
 
         client.delete(f"/api/items/{item['id']}")
         client.delete(f"/api/people/{person['id']}")
@@ -254,9 +271,24 @@ def test_associating_an_item_links_its_people_to_the_task(monkeypatch):
         client.post(f"/api/tasks/{task}/items", json={"item_id": item["id"]})
 
         detail = client.get(f"/api/tasks/{task}").json()
-        assert [person["handle"] for person in detail["people"]] == ["ada"]
+        assert [person["aliases"] for person in detail["people"]] == [["ada"]]
         assert "person_added" in [event["type"] for event in detail["timeline"]]
 
         client.delete(f"/api/tasks/{task}")
         client.delete(f"/api/items/{item['id']}")
         client.delete(f"/api/people/{item['person_ids'][0]}")
+
+
+def test_upsert_matches_an_existing_person_by_alias(monkeypatch):
+    """A fetched person whose alias already belongs to someone joins them."""
+    with TestClient(app) as client:
+        existing = client.post("/api/people", json={"name": "Ada", "aliases": ["ada@example.com"]}).json()
+        _stub_fetch(monkeypatch, [{"name": "Ada L", "email": "ada@example.com", "source": "github"}])
+        item = client.post("/api/items", json={"url": "https://github.com/o/r/issues/9", "fetch": True}).json()
+
+        assert item["person_ids"] == [existing["id"]]
+        detail = client.get(f"/api/people/{existing['id']}").json()
+        assert "ada@example.com" in detail["aliases"]
+
+        client.delete(f"/api/items/{item['id']}")
+        client.delete(f"/api/people/{existing['id']}")

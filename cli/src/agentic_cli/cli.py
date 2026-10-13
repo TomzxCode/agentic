@@ -321,9 +321,8 @@ def _person_line(person: dict) -> str:
 
 def _person_text(person: dict) -> str:
     lines = [_person_line(person)]
-    for key in ("email", "handle"):
-        if person.get(key):
-            lines.append(f"  {key}: {person[key]}")
+    if person.get("aliases"):
+        lines.append("  aliases: " + ", ".join(person["aliases"]))
     if person.get("notes"):
         lines.append(f"  notes: {person['notes']}")
     if person.get("task_ids"):
@@ -356,13 +355,12 @@ def person_get(person_id: str) -> str:
 def person_create(
     *,
     name: str,
-    email: str | None = None,
-    handle: str | None = None,
+    aliases: list[str] | None = None,
     notes: str = "",
 ) -> str:
-    """Create a person."""
+    """Create a person. Pass --aliases once per handle or email."""
     with _client() as client:
-        person = client.create_person(name=name, email=email, handle=handle, notes=notes)
+        person = client.create_person(name=name, aliases=aliases, notes=notes)
     return emit(person, f"created {person['id']}  {person['name']}")
 
 
@@ -372,13 +370,12 @@ def person_update(
     person_id: str,
     *,
     name: str | None = None,
-    email: str | None = None,
-    handle: str | None = None,
+    aliases: list[str] | None = None,
     notes: str | None = None,
 ) -> str:
-    """Update a person's fields."""
+    """Update a person's fields. --aliases replaces the whole list."""
     with _client() as client:
-        person = client.update_person(person_id, name=name, email=email, handle=handle, notes=notes)
+        person = client.update_person(person_id, name=name, aliases=aliases, notes=notes)
     return emit(person, f"updated {person['id']}  {_person_line(person)}")
 
 

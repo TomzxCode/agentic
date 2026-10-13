@@ -19,7 +19,7 @@ from sqlmodel import Session, col, select
 from ..crud import add_timeline, get_task_or_404
 from ..db import get_session
 from ..events import bus
-from ..models import ItemPerson, Person, SourceItem, TaskPerson, utcnow
+from ..models import ItemPerson, Person, PersonAlias, SourceItem, TaskPerson, utcnow
 from ..schemas import PersonCreate, PersonDetail, PersonLink, PersonRead, PersonUpdate
 
 router = APIRouter(prefix="/api/people", tags=["people"])
@@ -34,8 +34,65 @@ def get_person_or_404(session: Session, person_id: str) -> Person:
     return person
 
 
+def normalize_aliases(values: list[str] | None) -> list[str]:
+    """Trim, drop empties, and de-duplicate aliases case-insensitively, keeping order."""
+    seen: set[str] = set()
+    result: list[str] = []
+    for value in values or []:
+        text = str(value).strip()
+        key = text.lower()
+        if not text or key in seen:
+            continue
+        seen.add(key)
+        result.append(text)
+    return result
+
+
+def person_aliases(session: Session, person_id: str) -> list[str]:
+    """A person's aliases, in the order they were added."""
+    rows = session.exec(
+        select(PersonAlias).where(PersonAlias.person_id == person_id).order_by(col(PersonAlias.created_at))
+    ).all()
+    return [row.value for row in rows]
+
+
+def _set_aliases(session: Session, person_id: str, values: list[str]) -> None:
+    """Replace a person's aliases with exactly ``values`` (already normalized)."""
+    session.exec(sa_delete(PersonAlias).where(col(PersonAlias.person_id) == person_id))
+    for value in values:
+        session.add(PersonAlias(person_id=person_id, value=value))
+    session.commit()
+
+
+def _add_aliases(session: Session, person_id: str, values: list[str]) -> bool:
+    """Add aliases a person does not already have; return True when any were added."""
+    existing = {row.value.lower() for row in session.exec(select(PersonAlias).where(PersonAlias.person_id == person_id)).all()}
+    added = False
+    for value in values:
+        if value.lower() in existing:
+            continue
+        session.add(PersonAlias(person_id=person_id, value=value))
+        existing.add(value.lower())
+        added = True
+    if added:
+        session.commit()
+    return added
+
+
+def _find_by_alias(session: Session, values: list[str]) -> Person | None:
+    """The person carrying any of the given aliases (case-insensitive), if any."""
+    for value in values:
+        row = session.exec(select(PersonAlias).where(func.lower(col(PersonAlias.value)) == value.lower())).first()
+        if row is not None:
+            person = session.get(Person, row.person_id)
+            if person is not None:
+                return person
+    return None
+
+
 def _person_read(session: Session, person: Person) -> PersonRead:
     data = PersonRead.model_validate(person)
+    data.aliases = person_aliases(session, person.id)
     data.task_count = len(session.exec(select(TaskPerson).where(TaskPerson.person_id == person.id)).all())
     data.item_count = len(session.exec(select(ItemPerson).where(ItemPerson.person_id == person.id)).all())
     return data
@@ -45,10 +102,11 @@ def _create_person(session: Session, payload: PersonCreate) -> Person:
     name = (payload.name or "").strip()
     if not name:
         raise HTTPException(status_code=400, detail="Name is required")
-    person = Person(name=name, email=payload.email, handle=payload.handle, notes=payload.notes or "")
+    person = Person(name=name, notes=payload.notes or "")
     session.add(person)
     session.commit()
     session.refresh(person)
+    _add_aliases(session, person.id, normalize_aliases(payload.aliases))
     return person
 
 
@@ -110,27 +168,36 @@ def _link_item(session: Session, item_id: str, person: Person) -> bool:
     return True
 
 
-def upsert_person(session: Session, *, name: str, handle: str | None = None, email: str | None = None) -> Person | None:
-    """Find a person by handle (then by name), creating one when absent.
+def upsert_person(
+    session: Session,
+    *,
+    name: str,
+    aliases: list[str] | None = None,
+    handle: str | None = None,
+    email: str | None = None,
+) -> Person | None:
+    """Find a person by alias (then by name), creating one when absent.
 
-    Handles (a GitHub login, a Slack user id) are the identity used to
-    de-duplicate auto-populated people across sources.
+    Aliases (a GitHub login, a Slack user id, an email) are the identity used to
+    de-duplicate auto-populated people across sources. ``handle`` and ``email``
+    are accepted for callers that have them as separate fields and are folded
+    into the alias list.
     """
-    handle = (handle or "").strip() or None
-    name = (name or "").strip() or (handle or "")
+    values = normalize_aliases([*(aliases or []), handle or "", email or ""])
+    name = (name or "").strip() or (values[0] if values else "")
     if not name:
         return None
-    existing: Person | None = None
-    if handle:
-        existing = session.exec(select(Person).where(Person.handle == handle)).first()
+    existing = _find_by_alias(session, values)
     if existing is None:
         existing = session.exec(select(Person).where(func.lower(col(Person.name)) == name.lower())).first()
     if existing is not None:
+        _add_aliases(session, existing.id, values)
         return existing
-    person = Person(name=name, handle=handle, email=email)
+    person = Person(name=name)
     session.add(person)
     session.commit()
     session.refresh(person)
+    _add_aliases(session, person.id, values)
     return person
 
 
@@ -143,6 +210,7 @@ def link_people_to_item(session: Session, item_id: str, people: list[dict[str, A
         person = upsert_person(
             session,
             name=str(entry.get("name") or entry.get("handle") or ""),
+            aliases=entry.get("aliases"),
             handle=entry.get("handle"),
             email=entry.get("email"),
         )
@@ -192,6 +260,7 @@ def get_person(person_id: str, session: Session = Depends(get_session)) -> Perso
 def update_person(person_id: str, payload: PersonUpdate, session: Session = Depends(get_session)) -> PersonRead:
     person = get_person_or_404(session, person_id)
     data = payload.model_dump(exclude_unset=True)
+    aliases = data.pop("aliases", None)
     if "name" in data:
         name = (data["name"] or "").strip()
         if not name:
@@ -203,6 +272,8 @@ def update_person(person_id: str, payload: PersonUpdate, session: Session = Depe
     session.add(person)
     session.commit()
     session.refresh(person)
+    if aliases is not None:
+        _set_aliases(session, person.id, normalize_aliases(aliases))
     return _person_read(session, person)
 
 
@@ -211,6 +282,7 @@ def delete_person(person_id: str, session: Session = Depends(get_session)) -> No
     person = get_person_or_404(session, person_id)
     session.exec(sa_delete(TaskPerson).where(col(TaskPerson.person_id) == person.id))
     session.exec(sa_delete(ItemPerson).where(col(ItemPerson.person_id) == person.id))
+    session.exec(sa_delete(PersonAlias).where(col(PersonAlias.person_id) == person.id))
     session.exec(sa_delete(Person).where(col(Person.id) == person.id))
     session.commit()
 
@@ -274,6 +346,8 @@ __all__ = [
     "item_person_ids",
     "link_item_people_to_task",
     "link_people_to_item",
+    "normalize_aliases",
+    "person_aliases",
     "task_people",
     "task_person_ids",
     "upsert_person",

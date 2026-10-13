@@ -41,7 +41,6 @@ from ..schemas import (
     ChangeRead,
     ItemCreate,
     ItemRead,
-    PersonRead,
     TaskBulkResult,
     TaskBulkUpdate,
     TaskCreate,
@@ -54,7 +53,7 @@ from ..schemas import (
 from ..services import SLACK_PLACEHOLDER_TITLE, github_owner_repo, remove_worktree
 from .agents import start_slack_summary
 from .items import _upsert_item
-from .people import link_item_people_to_task, task_people, task_person_ids
+from .people import _person_read, link_item_people_to_task, task_people, task_person_ids
 
 router = APIRouter(prefix="/api/tasks", tags=["tasks"])
 
@@ -163,7 +162,7 @@ def _detail(session: Session, task: Task) -> TaskDetail:
     return TaskDetail(
         **_task_read(session, task).model_dump(),
         associations=details,
-        people=[PersonRead.model_validate(person) for person in task_people(session, task.id)],
+        people=[_person_read(session, person) for person in task_people(session, task.id)],
         worktrees=[WorktreeRead.model_validate(w) for w in worktrees],
         runs=[run_read(session, r) for r in runs],
         changes=[ChangeRead.model_validate(c) for c in changes],

@@ -67,6 +67,12 @@ export function taskHasPerson(task, id) {
   return (task.person_ids || []).includes(id)
 }
 
+// A person's alias rendered with a leading @ when it is a handle (has no @)
+// rather than an email.
+export function aliasLabel(value) {
+  return String(value).includes('@') ? String(value) : `@${value}`
+}
+
 export function statusLabel(status) {
   return (
     {

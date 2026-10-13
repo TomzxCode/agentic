@@ -34,6 +34,7 @@ def create_db_and_tables() -> None:
     _migrate_problem_to_task()
     SQLModel.metadata.create_all(engine)
     _migrate_task_repositories()
+    _migrate_person_aliases()
     _ensure_columns()
 
 
@@ -58,6 +59,31 @@ def _migrate_task_repositories() -> None:
             )
         )
         connection.execute(text("UPDATE task SET repository_id = NULL"))
+
+
+def _migrate_person_aliases() -> None:
+    """Move a person's old single handle and email into the personalias table.
+
+    The columns are left in place (SQLite column drops are disruptive) but are
+    emptied, so they no longer carry identity. A fresh database never has them.
+    """
+    tables = set(inspect(engine).get_table_names())
+    if "person" not in tables or "personalias" not in tables:
+        return
+    columns = {column["name"] for column in inspect(engine).get_columns("person")}
+    legacy = [column for column in ("handle", "email") if column in columns]
+    if not legacy:
+        return
+    with engine.begin() as connection:
+        for column in legacy:
+            connection.execute(
+                text(
+                    f"INSERT OR IGNORE INTO personalias (id, person_id, value, created_at) "
+                    f"SELECT lower(hex(randomblob(6))), id, {column}, CURRENT_TIMESTAMP "
+                    f"FROM person WHERE {column} IS NOT NULL AND trim({column}) <> ''"
+                )
+            )
+            connection.execute(text(f"UPDATE person SET {column} = NULL"))
 
 
 def _migrate_problem_to_task() -> None:

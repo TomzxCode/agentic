@@ -2,7 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { api } from '../api'
-import { store } from '../store'
+import { aliasLabel, store } from '../store'
 import EditableText from '../components/EditableText.vue'
 
 const props = defineProps({ id: { type: String, required: true } })
@@ -12,9 +12,11 @@ const person = ref(null)
 const items = ref([])
 const loading = ref(true)
 const notFound = ref(false)
+const newAlias = ref('')
 
 const itemById = computed(() => Object.fromEntries(items.value.map((item) => [item.id, item])))
 const taskById = computed(() => Object.fromEntries(store.tasks.map((task) => [task.id, task])))
+const aliases = computed(() => person.value?.aliases || [])
 
 function taskTitle(id) {
   return taskById.value[id]?.title || id
@@ -36,7 +38,7 @@ async function load() {
   }
 }
 
-// Rename the person, or change one of their aliases (handle, email) or notes.
+// Rename the person, or change their aliases or notes.
 async function save(field, value) {
   if (field === 'name' && !String(value).trim()) {
     await load()
@@ -50,6 +52,24 @@ async function save(field, value) {
     store.notify(e.message, true)
     await load()
   }
+}
+
+async function addAlias() {
+  const value = newAlias.value.trim()
+  if (!value) return
+  if (aliases.value.some((alias) => alias.toLowerCase() === value.toLowerCase())) {
+    newAlias.value = ''
+    return
+  }
+  newAlias.value = ''
+  await save('aliases', [...aliases.value, value])
+}
+
+async function removeAlias(value) {
+  await save(
+    'aliases',
+    aliases.value.filter((alias) => alias !== value)
+  )
 }
 
 async function remove() {
@@ -106,13 +126,16 @@ onMounted(async () => {
         <div class="panel-head">
           <h2>Aliases</h2>
         </div>
-        <div class="field">
-          <label>Handle</label>
-          <EditableText :value="person.handle || ''" placeholder="No handle" @save="(value) => save('handle', value)" />
+        <div v-if="!aliases.length" class="faint" style="margin-bottom: 12px">No aliases yet.</div>
+        <div v-else class="row" style="gap: 6px; flex-wrap: wrap; margin-bottom: 12px">
+          <span v-for="alias in aliases" :key="alias" class="chip">
+            {{ aliasLabel(alias) }}
+            <button class="chip-x" title="Remove" @click="removeAlias(alias)">✕</button>
+          </span>
         </div>
-        <div class="field" style="margin-bottom: 0">
-          <label>Email</label>
-          <EditableText :value="person.email || ''" placeholder="No email" @save="(value) => save('email', value)" />
+        <div class="row" style="gap: 8px; flex-wrap: wrap">
+          <input v-model="newAlias" class="input grow" placeholder="Add a handle or email…" @keyup.enter="addAlias" />
+          <button class="btn" :disabled="!newAlias.trim()" @click="addAlias">Add</button>
         </div>
       </section>
 

@@ -361,23 +361,20 @@ class OperationRead(ORMModel):
 # --- People ----------------------------------------------------------------
 class PersonCreate(BaseModel):
     name: str = ""
-    email: str | None = None
-    handle: str | None = None
+    aliases: list[str] = []
     notes: str = ""
 
 
 class PersonUpdate(BaseModel):
     name: str | None = None
-    email: str | None = None
-    handle: str | None = None
+    aliases: list[str] | None = None
     notes: str | None = None
 
 
 class PersonRead(ORMModel):
     id: str
     name: str
-    email: str | None = None
-    handle: str | None = None
+    aliases: list[str] = []
     notes: str
     created_at: datetime
     updated_at: datetime

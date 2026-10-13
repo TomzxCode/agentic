@@ -140,8 +140,8 @@ def test_people_methods():
     assert client.list_people() == {"id": "p1", "name": "Ada"}
     assert seen["path"] == "/api/people"
 
-    client.create_person(name="Ada", email=None, handle="ada")
-    assert seen["method"] == "POST" and seen["body"] == {"name": "Ada", "handle": "ada"}
+    client.create_person(name="Ada", aliases=["ada"])
+    assert seen["method"] == "POST" and seen["body"] == {"name": "Ada", "aliases": ["ada"]}
 
     client.link_person("p1", task_id="t1")
     assert seen["path"] == "/api/tasks/t1/people" and seen["body"] == {"person_id": "p1"}

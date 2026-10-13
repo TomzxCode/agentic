@@ -185,18 +185,32 @@ class Association(SQLModel, table=True):
 class Person(SQLModel, table=True):
     """An individual a task or a source item involves.
 
-    People are a flat directory: a name plus optional contact details. They link
-    to tasks and items many-to-many through the ``taskperson`` and ``itemperson``
+    People are a flat directory: a name plus a set of aliases. They link to
+    tasks and items many-to-many through the ``taskperson`` and ``itemperson``
     join tables, so the same person can be seen from either side.
     """
 
     id: str = Field(default_factory=new_id, primary_key=True)
     name: str
-    email: str | None = None
-    handle: str | None = None
     notes: str = ""
     created_at: datetime = Field(default_factory=utcnow)
     updated_at: datetime = Field(default_factory=utcnow)
+
+
+class PersonAlias(SQLModel, table=True):
+    """An identifier for a person: a handle (GitHub login, Slack user id) or an email.
+
+    A person carries many aliases in one flat list; the value is the identity
+    used to de-duplicate people across sources, so a handle and an email are the
+    same concept here (an identifier string).
+    """
+
+    __table_args__ = (UniqueConstraint("person_id", "value", name="uq_person_alias"),)
+
+    id: str = Field(default_factory=new_id, primary_key=True)
+    person_id: str = Field(foreign_key="person.id", index=True)
+    value: str = Field(index=True)
+    created_at: datetime = Field(default_factory=utcnow)
 
 
 class TaskPerson(SQLModel, table=True):
