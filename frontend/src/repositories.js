@@ -50,6 +50,19 @@ export function itemNumber(item) {
   return match ? match[1] : null
 }
 
+// An item's GitHub state, normalized for filtering: "open", "draft", "merged",
+// or "closed", or null when nothing was stored. ghx reports OPEN / CLOSED /
+// MERGED and flags a draft PR separately, so an open draft reads as "draft".
+// State is stored on the item's metadata; no GitHub call is involved.
+export function itemState(item) {
+  const meta = item?.metadata_json || {}
+  const state = String(meta.state || '').toUpperCase()
+  if (state === 'MERGED') return 'merged'
+  if (state === 'CLOSED') return 'closed'
+  if (state === 'OPEN') return meta.is_draft ? 'draft' : 'open'
+  return null
+}
+
 // The GitHub issue/PR items a repository owns: source "github", associated to
 // at least one task, with a URL whose owner/repo matches the repository remote.
 // Each returned item carries a normalized kind and number.

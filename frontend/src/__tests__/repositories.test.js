@@ -3,6 +3,7 @@ import {
   groupItemsByRepository,
   itemKind,
   itemNumber,
+  itemState,
   itemsForRepository,
   parseGithubUrl,
   parseRemote,
@@ -77,6 +78,24 @@ describe('itemNumber', () => {
 
   it('returns null when neither carries a number', () => {
     expect(itemNumber({ url: 'https://github.com/a/b', external_id: null })).toBeNull()
+  })
+})
+
+describe('itemState', () => {
+  it('normalizes the stored GitHub state', () => {
+    expect(itemState({ metadata_json: { state: 'OPEN' } })).toBe('open')
+    expect(itemState({ metadata_json: { state: 'MERGED' } })).toBe('merged')
+    expect(itemState({ metadata_json: { state: 'CLOSED' } })).toBe('closed')
+  })
+
+  it('reports an open draft PR as a draft', () => {
+    expect(itemState({ metadata_json: { state: 'OPEN', is_draft: true } })).toBe('draft')
+  })
+
+  it('returns null when no state is stored', () => {
+    expect(itemState({ metadata_json: {} })).toBeNull()
+    expect(itemState({})).toBeNull()
+    expect(itemState(null)).toBeNull()
   })
 })
 

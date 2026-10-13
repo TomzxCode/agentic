@@ -47,6 +47,7 @@ vi.mock('../api', () => ({
 
 import SettingsView from '../views/SettingsView.vue'
 import TaskView from '../views/TaskView.vue'
+import RepositoryDetailView from '../views/RepositoryDetailView.vue'
 import { store } from '../store'
 
 const RouterLinkStub = { props: ['to'], template: '<a><slot /></a>' }
@@ -313,5 +314,104 @@ describe('TaskView', () => {
     expect(typeof store.focusField).toBe('function')
     wrapper.unmount()
     expect(store.focusField).toBeNull()
+  })
+})
+
+describe('RepositoryDetailView', () => {
+  const repository = {
+    id: 'r1',
+    name: 'api',
+    remote_url: 'https://github.com/acme/api.git',
+    default_branch: 'main'
+  }
+
+  const ghItem = (id, kind, number, title, metadata_json) => ({
+    id,
+    source: 'github',
+    kind,
+    title,
+    url: `https://github.com/acme/api/${kind === 'pr' ? 'pull' : 'issues'}/${number}`,
+    metadata_json,
+    task_ids: ['t1'],
+    fetched_at: null
+  })
+
+  beforeEach(() => {
+    vi.spyOn(store, 'loadRepositories').mockResolvedValue()
+    vi.spyOn(store, 'loadItems').mockResolvedValue()
+    vi.spyOn(store, 'loadTasks').mockResolvedValue()
+    store.repositories = [repository]
+    store.tasks = [{ id: 't1', title: 'Task One', status: 'open' }]
+    store.items = [
+      ghItem('i1', 'issue', 1, 'Open issue', { state: 'OPEN' }),
+      ghItem('i2', 'issue', 2, 'Closed issue', { state: 'CLOSED' }),
+      ghItem('i3', 'pr', 3, 'Open PR', { state: 'OPEN' }),
+      ghItem('i4', 'pr', 4, 'Draft PR', { state: 'OPEN', is_draft: true }),
+      ghItem('i5', 'pr', 5, 'Merged PR', { state: 'MERGED' })
+    ]
+  })
+
+  const mountView = () =>
+    mount(RepositoryDetailView, {
+      props: { id: 'r1' },
+      global: { stubs: { RouterLink: RouterLinkStub, StatusIcon: true } }
+    })
+
+  it('lists issues and PRs and filters them by kind', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Open issue')
+    expect(wrapper.text()).toContain('Merged PR')
+
+    const kindRow = wrapper.get('[aria-label="Filter by kind"]')
+    await kindRow
+      .findAll('.btn')
+      .find((b) => b.text().startsWith('Issues'))
+      .trigger('click')
+
+    expect(wrapper.text()).toContain('Open issue')
+    expect(wrapper.text()).not.toContain('Merged PR')
+    expect(kindRow.find('.btn.primary').text()).toContain('Issues')
+  })
+
+  it('filters by stored state with counts', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+
+    const stateRow = wrapper.get('[aria-label="Filter by state"]')
+    expect(stateRow.findAll('.btn').map((b) => b.text())).toEqual([
+      'Any state',
+      'Open 2',
+      'Draft 1',
+      'Merged 1',
+      'Closed 1'
+    ])
+
+    await stateRow
+      .findAll('.btn')
+      .find((b) => b.text().startsWith('Merged'))
+      .trigger('click')
+    expect(wrapper.text()).toContain('Merged PR')
+    expect(wrapper.text()).not.toContain('Open issue')
+    expect(wrapper.text()).not.toContain('Open PR')
+  })
+
+  it('keeps the title and number search', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+
+    await wrapper.get('input[aria-label="Filter items"]').setValue('closed issue')
+    expect(wrapper.text()).toContain('Closed issue')
+    expect(wrapper.text()).not.toContain('Open issue')
+    expect(wrapper.text()).not.toContain('Merged PR')
+  })
+
+  it('hides the kind filter when the repository has one kind', async () => {
+    store.items = [ghItem('i1', 'issue', 1, 'Only issue', { state: 'OPEN' })]
+    const wrapper = mountView()
+    await flushPromises()
+    expect(wrapper.find('[aria-label="Filter by kind"]').exists()).toBe(false)
+    expect(wrapper.find('[aria-label="Filter by state"]').exists()).toBe(true)
   })
 })
