@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { statusClass, statusLabel, store, timeAgo } from '../store'
+import { formatDuration, statusClass, statusDurations, statusLabel, store, timeAgo } from '../store'
 
 describe('statusLabel', () => {
   it('maps every known status to a human label', () => {
@@ -52,6 +52,67 @@ describe('timeAgo', () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-01-10T12:00:00Z'))
     expect(timeAgo(new Date(Date.now() + 60_000).toISOString())).toBe('just now')
+  })
+})
+
+describe('formatDuration', () => {
+  it('rounds each bucket to a readable value', () => {
+    expect(formatDuration(0)).toBe('<1m')
+    expect(formatDuration(30_000)).toBe('<1m')
+    expect(formatDuration(5 * 60_000)).toBe('5m')
+    expect(formatDuration(3 * 3_600_000 + 20 * 60_000)).toBe('3h 20m')
+    expect(formatDuration(2 * 86_400_000 + 4 * 3_600_000)).toBe('2d 4h')
+  })
+
+  it('never goes below zero', () => {
+    expect(formatDuration(-5000)).toBe('<1m')
+  })
+})
+
+describe('statusDurations', () => {
+  const task = (over = {}) => ({ status: 'open', created_at: '2026-01-01T00:00:00Z', ...over })
+
+  it('is empty without a task or creation time', () => {
+    expect(statusDurations(null, [])).toEqual([])
+    expect(statusDurations({ status: 'open' }, [])).toEqual([])
+  })
+
+  it('charges the whole span to the current status when it never changed', () => {
+    const now = new Date('2026-01-01T02:00:00Z').getTime()
+    expect(statusDurations(task(), [], now)).toEqual([{ status: 'open', ms: 2 * 3_600_000 }])
+  })
+
+  it('splits time across status changes and charges the rest to now', () => {
+    const now = new Date('2026-01-01T03:00:00Z').getTime()
+    const events = [
+      {
+        created_at: '2026-01-01T01:00:00Z',
+        data_json: { changes: { status: { from: 'open', to: 'in_progress' } } }
+      },
+      {
+        created_at: '2026-01-01T02:00:00Z',
+        data_json: { changes: { status: { from: 'in_progress', to: 'done' } } }
+      },
+      // A non-status edit is ignored.
+      { created_at: '2026-01-01T02:30:00Z', data_json: { changes: { title: { from: 'a', to: 'b' } } } }
+    ]
+    expect(statusDurations(task(), events, now)).toEqual([
+      { status: 'open', ms: 3_600_000 },
+      { status: 'in_progress', ms: 3_600_000 },
+      { status: 'done', ms: 3_600_000 }
+    ])
+  })
+
+  it('accumulates time when a status is re-entered', () => {
+    const now = new Date('2026-01-01T03:00:00Z').getTime()
+    const events = [
+      { created_at: '2026-01-01T01:00:00Z', data_json: { changes: { status: { from: 'open', to: 'blocked' } } } },
+      { created_at: '2026-01-01T02:00:00Z', data_json: { changes: { status: { from: 'blocked', to: 'open' } } } }
+    ]
+    expect(statusDurations(task(), events, now)).toEqual([
+      { status: 'open', ms: 2 * 3_600_000 },
+      { status: 'blocked', ms: 3_600_000 }
+    ])
   })
 })
 

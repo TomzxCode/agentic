@@ -1,7 +1,8 @@
 <script setup>
 import { computed, nextTick, onUnmounted, ref } from 'vue'
-import { store, timeAgo } from '../store'
+import { formatDuration, statusDurations, statusLabel, store, timeAgo } from '../store'
 import GanttChart from './GanttChart.vue'
+import StatusIcon from './StatusIcon.vue'
 import { resolveDomain } from '../gantt'
 
 const props = defineProps({
@@ -27,6 +28,14 @@ const row = computed(() => {
 // Fit to the task's own span rather than to now, so an old task does not get
 // squeezed against the left edge.
 const domain = computed(() => resolveDomain([row.value], '', '', { includeNow: false }))
+
+// Total time spent in each status, in the order the statuses were first entered,
+// each with its share of the task's total elapsed time.
+const statusSpans = computed(() => {
+  const spans = statusDurations(props.task, props.events)
+  const total = spans.reduce((sum, span) => sum + span.ms, 0)
+  return spans.map((span) => ({ ...span, pct: total ? Math.round((span.ms / total) * 100) : 0 }))
+})
 
 // Clicking a marker jumps to its row in the event list and highlights it.
 const eventEls = new Map()
@@ -88,6 +97,13 @@ function changes(event) {
     <div class="panel-head"><h2>Timeline</h2></div>
     <div v-if="!events.length" class="faint">Nothing yet.</div>
     <template v-else>
+      <div v-if="statusSpans.length" class="status-spans">
+        <span class="status-spans-label faint">Time in status</span>
+        <span v-for="span in statusSpans" :key="span.status" class="status-span">
+          <StatusIcon :status="span.status" :label="statusLabel(span.status)" />
+          <span class="status-span-time">{{ formatDuration(span.ms) }} · {{ span.pct }}%</span>
+        </span>
+      </div>
       <div class="timeline-gantt">
         <GanttChart :rows="[row]" :domain="domain" compact click-markers @marker-click="focusEvent" />
       </div>

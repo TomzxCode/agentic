@@ -95,3 +95,53 @@ export function timeAgo(iso) {
   if (days < 30) return `${days}d ago`
   return new Date(iso).toLocaleDateString()
 }
+
+export function formatDuration(ms) {
+  const secs = Math.max(0, Math.floor((ms || 0) / 1000))
+  if (secs < 60) return '<1m'
+  const mins = Math.floor(secs / 60)
+  if (mins < 60) return `${mins}m`
+  const hours = Math.floor(mins / 60)
+  if (hours < 24) return `${hours}h ${mins % 60}m`
+  const days = Math.floor(hours / 24)
+  return `${days}d ${hours % 24}h`
+}
+
+// Total time a task spent in each status, reconstructed from its status changes.
+// The first change's "from" is the status at creation; with no changes the task
+// has held its current status since it was created. Spans are returned in the
+// order the statuses were first entered.
+export function statusDurations(task, events, now = Date.now()) {
+  if (!task || !task.created_at) return []
+  const created = new Date(task.created_at).getTime()
+  if (Number.isNaN(created)) return []
+
+  const transitions = (events || [])
+    .map((event) => {
+      const delta = event?.data_json?.changes?.status
+      if (!delta || !delta.from || !delta.to || delta.from === delta.to) return null
+      const at = new Date(event.created_at).getTime()
+      if (Number.isNaN(at)) return null
+      return { at, from: delta.from, to: delta.to }
+    })
+    .filter(Boolean)
+    .sort((a, b) => a.at - b.at)
+
+  const spans = []
+  const add = (status, ms) => {
+    if (!status || ms <= 0) return
+    const existing = spans.find((span) => span.status === status)
+    if (existing) existing.ms += ms
+    else spans.push({ status, ms })
+  }
+
+  let current = transitions.length ? transitions[0].from : task.status
+  let cursor = created
+  for (const transition of transitions) {
+    add(current, transition.at - cursor)
+    current = transition.to
+    cursor = transition.at
+  }
+  add(current, Math.max(0, now - cursor))
+  return spans
+}
