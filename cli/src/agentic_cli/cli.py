@@ -199,8 +199,13 @@ def task_create(
     group_id: str | None = None,
     harness_id: str | None = None,
     github_url: str | None = None,
+    slack_url: str | None = None,
 ) -> str:
-    """Create a task (or import one from a GitHub issue with --github-url)."""
+    """Create a task.
+
+    Import one from a GitHub issue with --github-url, or from a Slack thread
+    with --slack-url (an agent then names it and summarizes the discussion).
+    """
     with _client() as client:
         task = client.create_task(
             title=title,
@@ -212,6 +217,7 @@ def task_create(
             group_id=group_id,
             harness_id=harness_id,
             github_url=github_url,
+            slack_url=slack_url,
         )
     return emit(task, f"created {task['id']}  {task['title']}")
 

@@ -13,13 +13,28 @@ from sqlalchemy import update as sa_update
 from sqlmodel import Session, col, select
 from sse_starlette.sse import EventSourceResponse
 
-from ..agents import execute_context_refresh, execute_run, get_harness, harness_available, seed_harnesses
+from ..agents import get_harness, harness_available, seed_harnesses
 from ..config import settings
 from ..crud import add_timeline, get_task_or_404
 from ..db import engine, get_session
-from ..events import bus, runs
+from ..events import bus
+from ..jobs import cancel_run as cancel_queued_run
+from ..jobs import enqueue_run
 from ..links import run_read
-from ..models import AgentEvent, AgentRun, Harness, Repository, RunStatus, Task, TaskRepository, Worktree
+from ..models import (
+    AgentEvent,
+    AgentRun,
+    Association,
+    Harness,
+    Repository,
+    RunStatus,
+    SourceItem,
+    Task,
+    TaskRepository,
+    TimelineEvent,
+    Worktree,
+    utcnow,
+)
 from ..schemas import (
     AgentEventRead,
     ContextPreview,
@@ -30,19 +45,11 @@ from ..schemas import (
     RunCreate,
     RunRead,
 )
-from ..services import build_context_prompt
+from ..services import build_context_prompt, build_summary_prompt
 
 router = APIRouter(prefix="/api", tags=["agents"])
 
-# Strong references to in-flight run tasks so they are not garbage-collected
-# mid-execution (asyncio only keeps weak references to running tasks).
-_run_tasks: set[asyncio.Task] = set()
-
-
-def _dispatch(coro) -> None:
-    task = asyncio.create_task(coro)
-    _run_tasks.add(task)
-    task.add_done_callback(_run_tasks.discard)
+# Runs are processed by SAQ workers (see `agentic.jobs`); the API only enqueues.
 
 
 # --- harnesses ------------------------------------------------------------
@@ -173,10 +180,7 @@ async def create_run(task_id: str, payload: RunCreate, session: Session = Depend
         worktree_id=payload.worktree_id,
     )
     add_timeline(session, task_id, "run_started", f"Agent run: {payload.prompt[:120]}", {"run_id": run.id})
-    cancel_event = runs.register(run.id)
-    _dispatch(
-        execute_run(run_id=run.id, harness_id=run.harness_id, cwd=cwd, prompt=payload.prompt, cancel_event=cancel_event)
-    )
+    await enqueue_run(run.id)
     await bus.publish(f"task:{task_id}", {"kind": "task", "action": "run_started", "run_id": run.id})
     return run_read(session, run)
 
@@ -235,20 +239,58 @@ async def refresh_context(task_id: str, session: Session = Depends(get_session))
     cwd = _resolve_cwd(session, task, RunCreate(prompt="context"))
     run = _spawn(session, task, prompt=prompt, kind="refresh_context", harness_id=None, cwd=cwd, worktree_id=None)
     add_timeline(session, task_id, "context_refresh", "Requested context refresh", {"run_id": run.id})
-    cancel_event = runs.register(run.id)
-    ctx = {"title": task.title, "description": task.description}
-    _dispatch(
-        execute_context_refresh(
-            run_id=run.id,
-            task_id=task_id,
-            harness_id=run.harness_id,
-            cwd=cwd,
-            prompt=prompt,
-            cancel_event=cancel_event,
-            task_ctx=ctx,
-        )
-    )
+    await enqueue_run(run.id)
     await bus.publish(f"task:{task_id}", {"kind": "task", "action": "context_refreshing", "run_id": run.id})
+    return run_read(session, run)
+
+
+async def start_slack_summary(session: Session, task: Task, *, thread: str) -> AgentRun:
+    """Queue a run that an agent uses to name the task and summarize its Slack thread.
+
+    Called when a task is created from a Slack URL: the thread content fetched by
+    ``slackx`` is handed to the agent, and the parsed title and summary are
+    written back onto the task when the run finishes. Whether the run names the
+    task is decided by the worker from the task's current title.
+    """
+    cwd = _resolve_cwd(session, task, RunCreate(prompt="summary"))
+    prompt = build_summary_prompt(thread)
+    run = _spawn(session, task, prompt=prompt, kind="summarize_slack", harness_id=None, cwd=cwd, worktree_id=None)
+    add_timeline(
+        session,
+        task.id,
+        "summary_requested",
+        "Requested a title and summary for the Slack thread",
+        {"run_id": run.id},
+    )
+    await enqueue_run(run.id)
+    return run
+
+
+def _task_slack_item(session: Session, task_id: str) -> SourceItem | None:
+    """The first Slack thread item associated with a task, if any."""
+    for assoc in session.exec(select(Association).where(Association.task_id == task_id)).all():
+        item = session.get(SourceItem, assoc.item_id)
+        if item is not None and item.source == "slack":
+            return item
+    return None
+
+
+@router.post("/tasks/{task_id}/summary/refresh", response_model=RunRead, status_code=201)
+async def refresh_summary(task_id: str, session: Session = Depends(get_session)) -> RunRead:
+    """Re-dispatch the Slack naming and summarizing run for a task.
+
+    Lets an import run that failed or was interrupted be retried without
+    recreating the task.
+    """
+    task = get_task_or_404(session, task_id)
+    item = _task_slack_item(session, task_id)
+    if item is None:
+        raise HTTPException(status_code=400, detail="Task has no associated Slack thread")
+    thread = (item.content or "").strip()
+    if not thread:
+        raise HTTPException(status_code=400, detail="The Slack thread has no content to summarize")
+    run = await start_slack_summary(session, task, thread=thread)
+    await bus.publish(f"task:{task_id}", {"kind": "task", "action": "summary_refreshing", "run_id": run.id})
     return run_read(session, run)
 
 
@@ -270,8 +312,14 @@ async def cancel_run(run_id: str, session: Session = Depends(get_session)) -> Ru
     run = session.get(AgentRun, run_id)
     if run is None:
         raise HTTPException(status_code=404, detail="Run not found")
-    # Must run on the event loop: asyncio.Event.set() is not thread-safe.
-    runs.cancel(run_id)
+    # Aborts the queued/running job; the worker cancels an active turn. A job that
+    # never started is aborted here, so record the outcome on the run too.
+    await cancel_queued_run(run_id)
+    if run.status in (RunStatus.queued, RunStatus.running):
+        run.status = RunStatus.cancelled
+        run.ended_at = utcnow()
+        session.add(run)
+        session.commit()
     return run_read(session, run)
 
 
@@ -281,11 +329,33 @@ def _sse(event: dict) -> dict:
     return {"event": "message", "data": json.dumps(event)}
 
 
+def _task_signature(session: Session, task_id: str) -> tuple:
+    """A cheap value that changes when anything the task page shows changes.
+
+    The worker runs in another process, so its in-process event bus cannot reach
+    these streams; the signature lets a stream notice its writes by polling the DB.
+    """
+    task = session.get(Task, task_id)
+    if task is None:
+        return ("deleted",)
+    runs = session.exec(select(AgentRun).where(AgentRun.task_id == task_id)).all()
+    last_event = session.exec(
+        select(TimelineEvent.created_at)
+        .where(TimelineEvent.task_id == task_id)
+        .order_by(col(TimelineEvent.created_at).desc())
+    ).first()
+    return (
+        task.title,
+        task.summary,
+        task.updated_at.isoformat() if task.updated_at else "",
+        tuple(sorted((r.id, str(r.status)) for r in runs)),
+        last_event.isoformat() if last_event else "",
+    )
+
+
 @router.get("/runs/{run_id}/stream")
 async def stream_run(run_id: str) -> EventSourceResponse:
     async def generator() -> AsyncIterator[dict]:
-        # Subscribe before reading state so no event can slip between the replay
-        # and the subscription; dedupe replayed events against the live stream.
         async with bus.subscribe(f"run:{run_id}") as queue:
             with Session(engine) as session:
                 run = session.get(AgentRun, run_id)
@@ -295,23 +365,45 @@ async def stream_run(run_id: str) -> EventSourceResponse:
                 finished = run.status in (RunStatus.succeeded, RunStatus.failed, RunStatus.cancelled)
                 replay = list(
                     session.exec(
-                        select(AgentEvent).where(AgentEvent.run_id == run_id).order_by(col(AgentEvent.seq))
+                        select(AgentEvent).where(AgentEvent.run_id == run_id).order_by(col(AgentEvent.id))
                     ).all()
                 )
-            last_seq = 0
+            last_id = 0
+            if replay and replay[-1].id is not None:
+                last_id = replay[-1].id
             for row in replay:
-                last_seq = row.seq
                 yield _sse({"seq": row.seq, "type": row.type, "text": row.text, "data": row.data_json})
             if finished:
                 yield _sse({"type": "run_finished", "data": {"run_id": run_id}})
                 return
             while True:
-                event = await queue.get()
-                if isinstance(event.get("seq"), int) and event["seq"] <= last_seq:
-                    continue
-                yield _sse(event)
-                if event.get("type") == "run_finished":
+                # A run executed in this process publishes on the local bus.
+                while True:
+                    try:
+                        event = queue.get_nowait()
+                    except asyncio.QueueEmpty:
+                        break
+                    yield _sse(event)
+                    if event.get("type") == "run_finished":
+                        return
+                # A worker (another process) persists its events, so poll for them.
+                with Session(engine) as session:
+                    rows = list(
+                        session.exec(
+                            select(AgentEvent)
+                            .where(AgentEvent.run_id == run_id, col(AgentEvent.id) > last_id)
+                            .order_by(col(AgentEvent.id))
+                        ).all()
+                    )
+                    run = session.get(AgentRun, run_id)
+                    status = run.status if run is not None else RunStatus.failed
+                for row in rows:
+                    last_id = row.id or last_id
+                    yield _sse({"seq": row.seq, "type": row.type, "text": row.text, "data": row.data_json})
+                if status in (RunStatus.succeeded, RunStatus.failed, RunStatus.cancelled):
+                    yield _sse({"type": "run_finished", "data": {"run_id": run_id}})
                     return
+                await asyncio.sleep(1)
 
     return EventSourceResponse(generator(), ping=15)
 
@@ -322,9 +414,26 @@ async def stream_task(task_id: str, session: Session = Depends(get_session)) -> 
 
     async def generator() -> AsyncIterator[dict]:
         async with bus.subscribe(f"task:{task_id}") as queue:
+            last: tuple | None = None
             while True:
-                event = await queue.get()
-                yield {"event": "message", "data": json.dumps(event)}
+                # API-originated events arrive on the local bus; a worker's writes
+                # are picked up by the signature poll below.
+                while True:
+                    try:
+                        event = queue.get_nowait()
+                    except asyncio.QueueEmpty:
+                        break
+                    yield {"event": "message", "data": json.dumps(event)}
+                with Session(engine) as s:
+                    signature = _task_signature(s, task_id)
+                if last is None:
+                    last = signature
+                elif signature != last:
+                    last = signature
+                    yield {"event": "message", "data": json.dumps({"kind": "task", "action": "updated"})}
+                await asyncio.sleep(1)
+
+    return EventSourceResponse(generator(), ping=15)
 
     return EventSourceResponse(generator(), ping=15)
 

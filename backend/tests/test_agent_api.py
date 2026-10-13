@@ -1,5 +1,8 @@
 """Harnesses and agent-run endpoints, including SSE replay and cwd resolution."""
 
+import threading
+import time
+
 from fastapi.testclient import TestClient
 from sqlmodel import Session
 
@@ -7,14 +10,14 @@ from agentic.agents import persist_event
 from agentic.config import settings
 from agentic.db import create_db_and_tables, engine
 from agentic.main import app
-from agentic.models import AgentRun, RunStatus, Task
+from agentic.models import AgentRun, RunStatus, Task, utcnow
 from agentic.routers import agents as agents_router
 from agentic.routers import worktrees as worktrees_router
 
 
-def _no_dispatch(coro):
-    """Close the coroutine instead of running the agent, so no process spawns."""
-    coro.close()
+async def _no_enqueue(run_id: str) -> None:
+    """Skip the queue write; tests never start a worker."""
+    return None
 
 
 def test_list_harnesses_reports_availability():
@@ -49,8 +52,12 @@ def test_harness_crud_and_delete_detaches_task():
 
 
 def test_create_run_dispatches_and_records_timeline(monkeypatch, tmp_path):
-    dispatched: list = []
-    monkeypatch.setattr(agents_router, "_dispatch", lambda coro: (dispatched.append(coro), coro.close()))
+    enqueued: list = []
+
+    async def record(run_id: str) -> None:
+        enqueued.append(run_id)
+
+    monkeypatch.setattr(agents_router, "enqueue_run", record)
     with TestClient(app) as client:
         repo_dir = tmp_path / "repo"
         (repo_dir / ".git").mkdir(parents=True)
@@ -62,7 +69,7 @@ def test_create_run_dispatches_and_records_timeline(monkeypatch, tmp_path):
         run = client.post(f"/api/tasks/{task['id']}/runs", json={"prompt": "do it"}).json()
         assert run["status"] == "queued"
         assert run["cwd"] == str(repo_dir)  # resolved from the task's repository
-        assert dispatched
+        assert enqueued == [run["id"]]
 
         listed = client.get(f"/api/tasks/{task['id']}/runs").json()
         assert any(item["id"] == run["id"] for item in listed)
@@ -71,6 +78,7 @@ def test_create_run_dispatches_and_records_timeline(monkeypatch, tmp_path):
         assert client.get(f"/api/runs/{run['id']}/events").json() == []
 
         assert client.post(f"/api/runs/{run['id']}/cancel").status_code == 200
+        assert client.get(f"/api/runs/{run['id']}").json()["status"] == "cancelled"
         assert client.post("/api/runs/missing/cancel").status_code == 404
 
         timeline = client.get(f"/api/tasks/{task['id']}/timeline").json()
@@ -81,7 +89,7 @@ def test_create_run_dispatches_and_records_timeline(monkeypatch, tmp_path):
 
 
 def test_create_run_resolves_cwd_variants(monkeypatch, tmp_path):
-    monkeypatch.setattr(agents_router, "_dispatch", _no_dispatch)
+    monkeypatch.setattr(agents_router, "enqueue_run", _no_enqueue)
     with TestClient(app) as client:
         task = client.post("/api/tasks", json={"title": "C"}).json()
 
@@ -102,7 +110,7 @@ def test_create_run_resolves_cwd_variants(monkeypatch, tmp_path):
 
 
 def test_create_run_uses_a_worktree(monkeypatch, tmp_path):
-    monkeypatch.setattr(agents_router, "_dispatch", _no_dispatch)
+    monkeypatch.setattr(agents_router, "enqueue_run", _no_enqueue)
     monkeypatch.setattr(worktrees_router, "create_worktree", lambda *args, **kwargs: None)
     with TestClient(app) as client:
         repo_dir = tmp_path / "repo"
@@ -125,7 +133,7 @@ def test_create_run_uses_a_worktree(monkeypatch, tmp_path):
 
 
 def test_refresh_context_builds_a_prompt_and_dispatches(monkeypatch, tmp_path):
-    monkeypatch.setattr(agents_router, "_dispatch", _no_dispatch)
+    monkeypatch.setattr(agents_router, "enqueue_run", _no_enqueue)
     with TestClient(app) as client:
         repo_dir = tmp_path / "repo"
         (repo_dir / ".git").mkdir(parents=True)
@@ -182,3 +190,63 @@ def test_stream_run_replays_a_finished_run():
 def test_stream_task_rejects_an_unknown_task():
     with TestClient(app) as client:
         assert client.get("/api/tasks/missing/stream").status_code == 404
+
+
+def test_stream_run_delivers_events_written_after_subscribe():
+    """A worker runs in another process, so its persisted events must be polled."""
+    with TestClient(app) as client:
+        task = client.post("/api/tasks", json={"title": "worker stream"}).json()
+        # Create the run after startup, so the startup reconcile does not touch it.
+        with Session(engine) as session:
+            run = AgentRun(task_id=task["id"], prompt="p", status=RunStatus.running)
+            session.add(run)
+            session.commit()
+            session.refresh(run)
+            run_id = run.id
+
+        def write_like_a_worker() -> None:
+            time.sleep(1.0)
+            with Session(engine) as session:
+                persist_event(session, run_id, {"seq": 1, "type": "message", "text": "from-worker", "data": {}})
+                row = session.get(AgentRun, run_id)
+                assert row is not None
+                row.status = RunStatus.succeeded
+                row.ended_at = utcnow()
+                session.add(row)
+                session.commit()
+
+        thread = threading.Thread(target=write_like_a_worker)
+        thread.start()
+        try:
+            body = client.get(f"/api/runs/{run_id}/stream").text
+        finally:
+            thread.join()
+        assert "from-worker" in body
+        assert "run_finished" in body
+        client.delete(f"/api/tasks/{task['id']}")
+
+
+def test_task_signature_tracks_worker_visible_changes():
+    create_db_and_tables()
+    with Session(engine) as session:
+        task = Task(title="sig")
+        session.add(task)
+        session.commit()
+        session.refresh(task)
+        task_id = task.id
+        baseline = agents_router._task_signature(session, task_id)
+
+        # A new run changes the signature.
+        session.add(AgentRun(task_id=task_id, prompt="p", status=RunStatus.queued))
+        session.commit()
+        with_runs = agents_router._task_signature(session, task_id)
+        assert with_runs != baseline
+
+        # So does a rename (what the Slack summary run does).
+        task.title = "renamed"
+        session.add(task)
+        session.commit()
+        assert agents_router._task_signature(session, task_id) != with_runs
+
+    with TestClient(app) as client:
+        client.delete(f"/api/tasks/{task_id}")

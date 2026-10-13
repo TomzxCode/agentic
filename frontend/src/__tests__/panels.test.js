@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => ({
   worktreeCreate: vi.fn(),
   worktreeRemove: vi.fn(),
   refreshContext: vi.fn(),
+  refreshSummary: vi.fn(),
   settingsGet: vi.fn()
 }))
 
@@ -23,7 +24,7 @@ vi.mock('../api', () => ({
     tasks: { update: mocks.taskUpdate, associate: mocks.associate, unassociate: mocks.unassociate },
     items: { refresh: mocks.itemRefresh },
     worktrees: { create: mocks.worktreeCreate, remove: mocks.worktreeRemove },
-    runs: { refreshContext: mocks.refreshContext },
+    runs: { refreshContext: mocks.refreshContext, refreshSummary: mocks.refreshSummary },
     settings: { get: mocks.settingsGet }
   }
 }))
@@ -93,6 +94,26 @@ describe('ContextPanel', () => {
     await wrapper.get('.panel-head button').trigger('click')
     await flushPromises()
     expect(store.toast).toEqual({ message: 'agent down', isError: true })
+  })
+
+  it('offers to name and summarize a task with a Slack thread', async () => {
+    mocks.refreshSummary.mockResolvedValue({})
+    const withSlack = task({
+      associations: [{ id: 'a1', note: '', created_at: 'x', item: { id: 'i1', source: 'slack', content: 'th' } }]
+    })
+    const wrapper = mount(ContextPanel, { props: { task: withSlack } })
+    const buttons = wrapper.findAll('.panel-head button')
+    expect(buttons.map((b) => b.text()).join(' ')).toContain('Name & summarize')
+
+    await buttons[1].trigger('click')
+    await flushPromises()
+    expect(mocks.refreshSummary).toHaveBeenCalledWith('t1')
+    expect(store.toast.message).toContain('naming the task')
+  })
+
+  it('hides the summarize action without a Slack thread', () => {
+    const wrapper = mount(ContextPanel, { props: { task: task() } })
+    expect(wrapper.text()).not.toContain('Name & summarize')
   })
 })
 

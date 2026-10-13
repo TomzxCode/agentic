@@ -30,6 +30,7 @@ from agentic.db import create_db_and_tables, engine
 from agentic.models import AgentEvent, AgentRun, Harness, RunStatus, Task, TimelineEvent
 
 VALID_CONTEXT = '{"summary": "Do the thing.", "next_steps": [{"text": "One", "done": false}]}'
+VALID_SUMMARY = '{"title": "Ship the thing", "summary": "They agreed to ship it."}'
 
 # Throwaway in-memory engines/sessions built by the pure-helper tests; tracked
 # here so they are closed at test teardown instead of leaking pooled SQLite
@@ -306,7 +307,7 @@ async def test_execute_run_succeeds_and_persists_events(monkeypatch):
     task_id, run_id = _create_task_and_run()
     try:
 
-        async def fake_run_agent(*, run_id, harness, cwd, prompt, publish, cancel_event):
+        async def fake_run_agent(*, run_id, harness, cwd, prompt, publish, cancel_event, **kwargs):
             await publish({"seq": 1, "type": "message", "text": "hello", "data": {"k": "v"}})
             return {"session_id": "ses_1", "stop_reason": "end_turn"}
 
@@ -331,7 +332,7 @@ async def test_execute_run_marks_cancelled(monkeypatch):
     task_id, run_id = _create_task_and_run()
     try:
 
-        async def fake_run_agent(*, run_id, harness, cwd, prompt, publish, cancel_event):
+        async def fake_run_agent(*, run_id, harness, cwd, prompt, publish, cancel_event, **kwargs):
             return {"session_id": "ses_2", "stop_reason": "cancelled"}
 
         monkeypatch.setattr(agents_mod, "run_agent", fake_run_agent)
@@ -349,7 +350,7 @@ async def test_execute_run_records_failure(monkeypatch):
     task_id, run_id = _create_task_and_run()
     try:
 
-        async def fake_run_agent(*, run_id, harness, cwd, prompt, publish, cancel_event):
+        async def fake_run_agent(*, run_id, harness, cwd, prompt, publish, cancel_event, **kwargs):
             raise RuntimeError("boom")
 
         monkeypatch.setattr(agents_mod, "run_agent", fake_run_agent)
@@ -372,6 +373,98 @@ async def test_execute_run_with_unknown_run_is_a_noop():
     await agents_mod.execute_run(
         run_id="does-not-exist", harness_id=None, cwd=".", prompt="p", cancel_event=asyncio.Event()
     )
+
+
+class _FakeConn:
+    """A stand-in ACP connection for ``_acquire_session``."""
+
+    def __init__(self, new_id: str = "ses_new", resume_error: Exception | None = None) -> None:
+        self.new_id = new_id
+        self.resume_error = resume_error
+        self.resumed: list[str] = []
+        self.created = 0
+
+    async def resume_session(self, *, session_id: str, cwd: str) -> None:
+        if self.resume_error is not None:
+            raise self.resume_error
+        self.resumed.append(session_id)
+
+    async def new_session(self, *, cwd: str) -> SimpleNamespace:
+        self.created += 1
+        return SimpleNamespace(session_id=self.new_id)
+
+
+@pytest.mark.asyncio
+async def test_acquire_session_creates_a_new_session_without_a_resume_id():
+    conn = _FakeConn(new_id="ses_fresh")
+    assert await agents_mod._acquire_session(conn, ".", None) == "ses_fresh"
+    assert conn.created == 1 and conn.resumed == []
+
+
+@pytest.mark.asyncio
+async def test_acquire_session_resumes_when_asked():
+    conn = _FakeConn()
+    assert await agents_mod._acquire_session(conn, ".", "ses_prev") == "ses_prev"
+    assert conn.resumed == ["ses_prev"] and conn.created == 0
+
+
+@pytest.mark.asyncio
+async def test_acquire_session_falls_back_when_resume_fails():
+    conn = _FakeConn(new_id="ses_fresh", resume_error=RuntimeError("gone"))
+    assert await agents_mod._acquire_session(conn, ".", "ses_missing") == "ses_fresh"
+    assert conn.created == 1
+
+
+@pytest.mark.asyncio
+async def test_execute_run_records_the_session_before_the_turn_finishes(monkeypatch):
+    task_id, run_id = _create_task_and_run()
+    try:
+
+        async def fake_run_agent(
+            *, run_id, harness, cwd, prompt, publish, cancel_event, resume_session_id=None, on_session=None
+        ):
+            assert on_session is not None
+            await on_session("ses_early")
+            # The handle is on the row before the harness turn returns.
+            with Session(engine) as session:
+                row = session.get(AgentRun, run_id)
+                assert row is not None and row.session_id == "ses_early"
+            return {"session_id": "ses_early", "stop_reason": "end_turn"}
+
+        monkeypatch.setattr(agents_mod, "run_agent", fake_run_agent)
+        await agents_mod.execute_run(run_id=run_id, harness_id=None, cwd=".", prompt="p", cancel_event=asyncio.Event())
+
+        with Session(engine) as session:
+            run = session.get(AgentRun, run_id)
+            assert run is not None and run.session_id == "ses_early" and run.status == RunStatus.succeeded
+    finally:
+        _delete_task(task_id)
+
+
+@pytest.mark.asyncio
+async def test_execute_run_resumes_an_existing_session(monkeypatch):
+    task_id, run_id = _create_task_and_run()
+    try:
+        with Session(engine) as session:
+            run = session.get(AgentRun, run_id)
+            assert run is not None
+            run.session_id = "ses_prev"
+            session.add(run)
+            session.commit()
+
+        seen: dict = {}
+
+        async def fake_run_agent(
+            *, run_id, harness, cwd, prompt, publish, cancel_event, resume_session_id=None, on_session=None
+        ):
+            seen["resume"] = resume_session_id
+            return {"session_id": resume_session_id or "ses_new", "stop_reason": "end_turn"}
+
+        monkeypatch.setattr(agents_mod, "run_agent", fake_run_agent)
+        await agents_mod.execute_run(run_id=run_id, harness_id=None, cwd=".", prompt="p", cancel_event=asyncio.Event())
+        assert seen == {"resume": "ses_prev"}
+    finally:
+        _delete_task(task_id)
 
 
 @pytest.mark.asyncio
@@ -440,5 +533,131 @@ async def test_context_refresh_records_failure_when_unparseable(monkeypatch):
             assert task is not None and task.summary == ""
             types = [e.type for e in session.exec(select(TimelineEvent).where(TimelineEvent.task_id == task_id)).all()]
             assert "context_refresh_failed" in types
+    finally:
+        _delete_task(task_id)
+
+
+@pytest.mark.asyncio
+async def test_slack_summary_writes_the_agent_title_and_summary(monkeypatch):
+    task_id, run_id = _create_task_and_run()
+    try:
+
+        async def fake_execute_run(*, run_id, harness_id, cwd, prompt, cancel_event):
+            with Session(engine) as session:
+                persist_event(session, run_id, {"seq": 1, "type": "message", "text": VALID_SUMMARY, "data": {}})
+
+        monkeypatch.setattr(agents_mod, "execute_run", fake_execute_run)
+        await agents_mod.execute_slack_summary(
+            run_id=run_id, task_id=task_id, harness_id=None, cwd=".", prompt="p", cancel_event=asyncio.Event()
+        )
+
+        with Session(engine) as session:
+            task = session.get(Task, task_id)
+            assert task is not None
+            assert task.title == "Ship the thing"
+            assert task.summary == "They agreed to ship it."
+            assert task.context_updated_at is not None
+            types = [e.type for e in session.exec(select(TimelineEvent).where(TimelineEvent.task_id == task_id)).all()]
+            assert "summary_updated" in types
+    finally:
+        _delete_task(task_id)
+
+
+@pytest.mark.asyncio
+async def test_slack_summary_keeps_a_user_supplied_title(monkeypatch):
+    task_id, run_id = _create_task_and_run()
+    try:
+
+        async def fake_execute_run(*, run_id, harness_id, cwd, prompt, cancel_event):
+            with Session(engine) as session:
+                persist_event(session, run_id, {"seq": 1, "type": "message", "text": VALID_SUMMARY, "data": {}})
+
+        monkeypatch.setattr(agents_mod, "execute_run", fake_execute_run)
+        await agents_mod.execute_slack_summary(
+            run_id=run_id,
+            task_id=task_id,
+            harness_id=None,
+            cwd=".",
+            prompt="p",
+            cancel_event=asyncio.Event(),
+            generate_title=False,
+        )
+
+        with Session(engine) as session:
+            task = session.get(Task, task_id)
+            assert task is not None
+            assert task.title == "run test"  # untouched
+            assert task.summary == "They agreed to ship it."
+    finally:
+        _delete_task(task_id)
+
+
+@pytest.mark.asyncio
+async def test_slack_summary_falls_back_to_thoughts(monkeypatch):
+    task_id, run_id = _create_task_and_run()
+    try:
+
+        async def fake_execute_run(*, run_id, harness_id, cwd, prompt, cancel_event):
+            with Session(engine) as session:
+                persist_event(session, run_id, {"seq": 1, "type": "thought", "text": VALID_SUMMARY, "data": {}})
+
+        monkeypatch.setattr(agents_mod, "execute_run", fake_execute_run)
+        await agents_mod.execute_slack_summary(
+            run_id=run_id, task_id=task_id, harness_id=None, cwd=".", prompt="p", cancel_event=asyncio.Event()
+        )
+
+        with Session(engine) as session:
+            task = session.get(Task, task_id)
+            assert task is not None and task.title == "Ship the thing"
+    finally:
+        _delete_task(task_id)
+
+
+@pytest.mark.asyncio
+async def test_slack_summary_keeps_the_title_when_only_a_summary_is_returned(monkeypatch):
+    task_id, run_id = _create_task_and_run()
+    try:
+
+        async def fake_execute_run(*, run_id, harness_id, cwd, prompt, cancel_event):
+            with Session(engine) as session:
+                persist_event(
+                    session, run_id, {"seq": 1, "type": "message", "text": '{"summary": "Only a summary."}', "data": {}}
+                )
+
+        monkeypatch.setattr(agents_mod, "execute_run", fake_execute_run)
+        await agents_mod.execute_slack_summary(
+            run_id=run_id, task_id=task_id, harness_id=None, cwd=".", prompt="p", cancel_event=asyncio.Event()
+        )
+
+        with Session(engine) as session:
+            task = session.get(Task, task_id)
+            assert task is not None
+            assert task.title == "run test"  # no title in the reply, so it stays
+            assert task.summary == "Only a summary."
+            types = [e.type for e in session.exec(select(TimelineEvent).where(TimelineEvent.task_id == task_id)).all()]
+            assert "summary_updated" in types
+    finally:
+        _delete_task(task_id)
+
+
+@pytest.mark.asyncio
+async def test_slack_summary_records_failure_when_unparseable(monkeypatch):
+    task_id, run_id = _create_task_and_run()
+    try:
+
+        async def fake_execute_run(*, run_id, harness_id, cwd, prompt, cancel_event):
+            with Session(engine) as session:
+                persist_event(session, run_id, {"seq": 1, "type": "message", "text": "no json here", "data": {}})
+
+        monkeypatch.setattr(agents_mod, "execute_run", fake_execute_run)
+        await agents_mod.execute_slack_summary(
+            run_id=run_id, task_id=task_id, harness_id=None, cwd=".", prompt="p", cancel_event=asyncio.Event()
+        )
+
+        with Session(engine) as session:
+            task = session.get(Task, task_id)
+            assert task is not None and task.summary == ""
+            types = [e.type for e in session.exec(select(TimelineEvent).where(TimelineEvent.task_id == task_id)).all()]
+            assert "summary_failed" in types
     finally:
         _delete_task(task_id)

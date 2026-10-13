@@ -49,7 +49,8 @@ from ..schemas import (
     TimelineRead,
     WorktreeRead,
 )
-from ..services import github_owner_repo, remove_worktree
+from ..services import SLACK_PLACEHOLDER_TITLE, github_owner_repo, remove_worktree
+from .agents import start_slack_summary
 from .items import _upsert_item
 from .people import link_item_people_to_task, task_people
 
@@ -214,18 +215,33 @@ def list_tasks(
 
 @router.post("", response_model=TaskRead, status_code=201)
 async def create_task(payload: TaskCreate, session: Session = Depends(get_session)) -> TaskRead:
-    data = payload.model_dump(exclude={"github_url", "repository_ids"})
+    data = payload.model_dump(exclude={"github_url", "slack_url", "repository_ids"})
     data["tags"] = normalize_tags(data.get("tags") or [])
 
-    # Import from GitHub: fetch the issue, use it to fill the task, and link it.
+    # Import: fetch the source, use it to fill the task, and link it. A Slack
+    # import also asks an agent to name the task and summarize the thread.
     item: SourceItem | None = None
+    import_source = ""
+    slack_import = False
+    slack_thread: str | None = None
     if payload.github_url:
         item = await anyio.to_thread.run_sync(_upsert_item, session, ItemCreate(url=payload.github_url, fetch=True))
         data["title"] = data.get("title") or item.title or payload.github_url
         data["description"] = data.get("description") or item.content
+        import_source = "GitHub"
+    elif payload.slack_url:
+        item = await anyio.to_thread.run_sync(_upsert_item, session, ItemCreate(url=payload.slack_url, fetch=True))
+        import_source = "Slack"
+        slack_import = True
+        # slackx runs lazily; an empty fetch (no slackx, not authenticated) still
+        # yields an item, but there is nothing for the agent to summarize.
+        slack_thread = (item.content or "").strip()
+        # The agent names the task, so keep a placeholder until the run finishes.
+        if not str(data.get("title") or "").strip():
+            data["title"] = item.title if item.title and item.title != item.url else SLACK_PLACEHOLDER_TITLE
 
     if not str(data.get("title") or "").strip():
-        raise HTTPException(status_code=400, detail="Title is required (or provide github_url)")
+        raise HTTPException(status_code=400, detail="Title is required (or provide a github_url or slack_url)")
 
     task = Task(**data)
     session.add(task)
@@ -235,7 +251,7 @@ async def create_task(payload: TaskCreate, session: Session = Depends(get_sessio
     _set_task_repositories(session, task.id, payload.repository_ids)
 
     if item is not None:
-        _link_item(session, task.id, item, note="imported from GitHub")
+        _link_item(session, task.id, item, note=f"imported from {import_source}")
         add_timeline(
             session,
             task.id,
@@ -244,6 +260,17 @@ async def create_task(payload: TaskCreate, session: Session = Depends(get_sessio
             {"item_id": item.id},
         )
     add_timeline(session, task.id, "created", f"Task created: {task.title}")
+    if slack_import and slack_thread:
+        await start_slack_summary(session, task, thread=slack_thread)
+    elif slack_import:
+        # The thread could not be gathered, so name and summarize nothing.
+        add_timeline(
+            session,
+            task.id,
+            "summary_failed",
+            "Could not fetch the Slack thread to summarize",
+            {"item_id": item.id} if item is not None else {},
+        )
     await bus.publish(f"task:{task.id}", {"kind": "task", "action": "created"})
     return _task_read(session, task)
 

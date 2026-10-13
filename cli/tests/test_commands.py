@@ -353,6 +353,20 @@ def test_commands_emit_text(text_format, fake_client):
     assert "openchamber_url" in cli.settings_set(openchamber_url="x")
 
 
+def test_task_create_forwards_slack_url(text_format, monkeypatch):
+    seen: dict = {}
+
+    class Recorder(FakeClient):
+        def create_task(self, **fields):
+            seen.update(fields)
+            return {"id": "t9", "title": fields.get("title") or "Slack thread"}
+
+    monkeypatch.setattr(cli, "_client", Recorder)
+    out = cli.task_create(slack_url="https://acme.slack.com/archives/C1/p2")
+    assert seen["slack_url"] == "https://acme.slack.com/archives/C1/p2"
+    assert "created t9" in out
+
+
 def test_change_and_metrics_commands(text_format, fake_client):
     assert "c1" in cli.change_list()
     text = cli.change_get("c1")

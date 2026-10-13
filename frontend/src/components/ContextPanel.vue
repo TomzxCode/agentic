@@ -6,10 +6,15 @@ import { store, timeAgo } from '../store'
 const props = defineProps({ task: { type: Object, required: true } })
 const emit = defineEmits(['changed'])
 const refreshing = ref(false)
+const summarizing = ref(false)
 
 // An empty list means the task has no next steps defined, which we surface
 // prominently so the user notices it and can refresh the context.
 const hasNextSteps = computed(() => (props.task.next_steps || []).length > 0)
+
+// A task imported from Slack can be re-named and re-summarized with an agent,
+// which is also the recovery path when the import run failed or was interrupted.
+const hasSlackItem = computed(() => (props.task.associations || []).some((a) => a.item?.source === 'slack'))
 
 async function toggleStep(index) {
   const steps = (props.task.next_steps || []).map((s, i) => (i === index ? { ...s, done: !s.done } : s))
@@ -29,6 +34,19 @@ async function refresh() {
     setTimeout(() => (refreshing.value = false), 1500)
   }
 }
+
+async function summarize() {
+  summarizing.value = true
+  try {
+    await api.runs.refreshSummary(props.task.id)
+    store.notify('Agent is naming the task and summarizing the Slack thread…')
+    emit('changed')
+  } catch (e) {
+    store.notify(e.message, true)
+  } finally {
+    setTimeout(() => (summarizing.value = false), 1500)
+  }
+}
 </script>
 
 <template>
@@ -41,6 +59,10 @@ async function refresh() {
       <button class="btn sm" :disabled="refreshing" @click="refresh">
         <span v-if="refreshing" class="spinner"></span>
         <span v-else>↻</span> Refresh with agent
+      </button>
+      <button v-if="hasSlackItem" class="btn sm" :disabled="summarizing" @click="summarize">
+        <span v-if="summarizing" class="spinner"></span>
+        <span v-else>↻</span> Name &amp; summarize
       </button>
     </div>
 

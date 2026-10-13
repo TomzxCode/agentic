@@ -1,8 +1,8 @@
-"""The in-process event bus and run cancellation registry."""
+"""The in-process event bus."""
 
 import pytest
 
-from agentic.events import EventBus, RunRegistry
+from agentic.events import EventBus
 
 
 @pytest.mark.asyncio
@@ -51,28 +51,3 @@ async def test_second_subscriber_is_removed_without_dropping_the_topic():
         # One subscriber remains, so the topic is kept.
         assert "t" in bus._subscribers
     assert bus._subscribers == {}
-
-
-def test_run_registry_register_cancel_and_unregister():
-    registry = RunRegistry()
-    event = registry.register("r1")
-    assert not event.is_set()
-
-    assert registry.cancel("r1") is True
-    assert event.is_set()
-
-    # Cancelling an unknown run reports no handle.
-    assert registry.cancel("missing") is False
-
-    registry.unregister("r1")
-    assert registry.cancel("r1") is False
-    # Unregistering twice is harmless.
-    registry.unregister("r1")
-
-
-def test_run_registry_event_is_bound_to_its_run():
-    registry = RunRegistry()
-    first = registry.register("a")
-    second = registry.register("b")
-    registry.cancel("a")
-    assert first.is_set() and not second.is_set()

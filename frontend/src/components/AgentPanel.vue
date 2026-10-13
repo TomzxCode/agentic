@@ -101,6 +101,8 @@ function handleEvent(ev) {
     emit('changed')
     return
   }
+  // The first streamed event means a worker has picked the run up.
+  if (activeRun.value && activeRun.value.status !== 'running') activeRun.value.status = 'running'
   // Merge streaming tool updates into the existing tool_call entry.
   events.value.push(ev)
 }

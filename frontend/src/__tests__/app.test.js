@@ -199,6 +199,51 @@ describe('App', () => {
     expect(wrapper.find('.modal').exists()).toBe(false)
   })
 
+  it('creates a task from a pasted Slack URL', async () => {
+    mocks.tasksCreate.mockResolvedValue({ id: 'new2' })
+    const wrapper = mountApp()
+    await flushPromises()
+
+    await wrapper.get('.new-task').trigger('click')
+    const create = wrapper.get('.modal .btn.primary')
+    expect(create.attributes('disabled')).toBeDefined()
+
+    await wrapper
+      .get('input[placeholder="Paste an issue, PR, or Slack thread URL…"]')
+      .setValue('https://acme.slack.com/archives/C1/p2')
+    expect(create.attributes('disabled')).toBeUndefined()
+
+    await create.trigger('click')
+    await flushPromises()
+
+    expect(mocks.tasksCreate).toHaveBeenCalledWith(
+      expect.objectContaining({ slack_url: 'https://acme.slack.com/archives/C1/p2' })
+    )
+    expect(mocks.push).toHaveBeenCalledWith('/task/new2')
+  })
+
+  it('previews a GitHub URL pasted into the same import field', async () => {
+    mocks.githubIssue.mockResolvedValue({
+      number: 7,
+      title: 'Past bug',
+      body: 'body',
+      url: 'https://github.com/o/r/issues/7'
+    })
+    const wrapper = mountApp()
+    await flushPromises()
+
+    await wrapper.get('.new-task').trigger('click')
+    await wrapper
+      .get('input[placeholder="Paste an issue, PR, or Slack thread URL…"]')
+      .setValue('https://github.com/o/r/issues/7')
+    // The GitHub preview is debounced; wait past the 500 ms window.
+    await new Promise((resolve) => setTimeout(resolve, 550))
+    await flushPromises()
+
+    expect(mocks.githubIssue).toHaveBeenCalledWith('https://github.com/o/r/issues/7')
+    expect(wrapper.get('input[placeholder="What needs to be solved?"]').element.value).toBe('Past bug')
+  })
+
   it('shows the repository group before the repositories in the modal', async () => {
     const wrapper = mountApp()
     await flushPromises()

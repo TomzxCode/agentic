@@ -38,7 +38,7 @@ virtualenv.
 | **Person** | An individual a task or an item involves: a name plus optional email, handle, and notes. Linked to tasks and items many-to-many. |
 | **Worktree** | An isolated `git worktree` created for a task from a registered repository. |
 | **Repository group** | A named set of repositories. Picking one on a task tells the agent those checkouts may hold information relevant to it. |
-| **Agent run** | One prompt sent to a harness in a working directory. Events stream live to the UI. |
+| **Agent run** | One prompt sent to a harness in a working directory, delivered to the worker through the run queue. Events stream live to the UI. |
 | **Context refresh** | A special agent run that reads the task + its items and writes the `summary` and `next_steps`. |
 | **Change** | A unit of factory output recorded against a task: a class, a lifecycle, a start/end time, and a human-intervened flag. Autonomy rate and yield are computed from changes. |
 
@@ -51,10 +51,15 @@ The backend speaks **ACP (Agent Client Protocol) over stdio**. That is the
 abstraction that lets you switch harnesses without touching app code: each
 harness is just a command row in the `harness` table.
 
+Each agent run is a **job on a queue** (SAQ, backed by SQLite by default), not an
+in-process task. The API only enqueues; one or more worker processes dequeue and
+run the harness. That way a long agent turn survives an API restart and can be
+retried, and workers scale independently of the API.
+
 ```
-FastAPI ──spawn──▶ opencode acp   ┐
-   ▲                pi-acp        ├── ACP JSON-RPC over stdio ──▶ agent
-   │              (your harness)  ┘
+FastAPI ──enqueue──▶ queue (SQLite) ◀──dequeue── worker ──spawn──▶ opencode acp   ┐
+   ▲                                                                 pi-acp        ├── ACP JSON-RPC over stdio ──▶ agent
+   │                                                               (your harness)  ┘
    └── SSE ◀── normalized events (message / thought / tool_call / plan / usage)
 ```
 
@@ -75,13 +80,17 @@ least one harness on your `PATH` (`opencode` and/or `pi-acp`).
 uv sync
 uv run agentic-server serve --host 0.0.0.0 --port 8600 --reload
 
-# 2. Frontend (dev server on :5173, proxies /api to :8600)
+# 2. Worker (processes queued agent runs; run it alongside the API)
+uv run agentic-server worker
+
+# 3. Frontend (dev server on :5173, proxies /api to :8600)
 cd frontend
 npm install
 npm run dev
 ```
 
 Open http://localhost:5173.
+`make run` starts the API, the worker, and the frontend together.
 
 ### Single-app mode
 
@@ -90,6 +99,7 @@ Build the SPA into `backend/static` and let FastAPI serve everything:
 ```bash
 cd frontend && npm run build      # writes ../backend/static
 uv run agentic-server serve --host 0.0.0.0 --port 8600   # from the repo root
+uv run agentic-server worker                             # in another shell
 ```
 
 Open http://127.0.0.1:8600. The PWA installs from there.
@@ -108,13 +118,17 @@ only expose this on a trusted network.
 
 ## Using it
 
-1. **Create a task** (the `+` in the sidebar). To **import from GitHub**, paste
-   an issue or PR URL (it prefills the title/description and links the issue);
-   or expand "or pick from a repository", choose a registered repo, and pick an
-   issue (filterable, newest first). Optionally pick a **repository group** so
-   the agent knows which checkouts to consider, and add **tags** to label the
-   task. Tags show as pills on the task and in the sidebar; pick one in the
-   sidebar or on the Tasks page to see only the tasks that carry it.
+1. **Create a task** (the `+` in the sidebar). To **import**, paste a GitHub
+   issue/PR URL or a Slack thread URL into the import field, which detects the
+   source: a GitHub URL prefills the title and description and links the issue,
+   while a Slack URL is gathered with `slackx` so an agent can name the task and
+   summarize the discussion (if that run fails, use **Name & summarize** in the
+   task's Context panel to retry). You can also expand "or pick from a repository",
+   choose a registered repo, and pick an issue (filterable, newest first).
+   Optionally pick a **repository group** so the agent knows which checkouts to
+   consider, and add **tags** to label the task. Tags show as pills on the task
+   and in the sidebar; pick one in the sidebar or on the Tasks page to see only
+   the tasks that carry it.
 2. **Associate items**: paste a Slack thread permalink, a GitHub issue/PR URL, a
    Drive doc, or write a note. The source (Slack/GitHub/Drive/URL/note) is
    inferred from what you paste. GitHub and Slack/URL items are fetched on demand
@@ -201,6 +215,12 @@ Environment variables (prefix `AGENTIC_`) or `backend/.env`:
 | `AGENTIC_OPENCHAMBER_SESSION_PATH` | `/?session={session}` | Path appended to the base. |
 | `AGENTIC_TERMINAL_URL_TEMPLATE` | (unset) | URL template for "Open in terminal" links. |
 | `AGENTIC_EDITOR_URL_TEMPLATE` | (unset) | URL template for the worktree "Open in editor" button. |
+| `AGENTIC_QUEUE_URL` | `sqlite:///<data_dir>/queue.db` | Agent-run queue. Use a `redis://` or `postgres://` URL to share the queue. |
+| `AGENTIC_WORKER_CONCURRENCY` | `4` | Agent runs a worker processes concurrently. |
+| `AGENTIC_WORKER_SWEEP` | `60` | Seconds between sweeps for stuck jobs (a dead worker's run). |
+| `AGENTIC_JOB_TIMEOUT` | `0` | Per-run job timeout in seconds (0 disables it). |
+| `AGENTIC_JOB_HEARTBEAT` | `120` | Seconds a job may go untouched before a sweep retries it. |
+| `AGENTIC_JOB_RETRIES` | `1` | Times a run is retried after a failure or a dead worker. |
 
 All three session-link settings can also be overridden on the Settings page;
 the stored override wins over the environment variable.
@@ -232,6 +252,7 @@ the workspace (`uv run agentic-server`).
 ```bash
 agentic --help                       # everything, grouped by resource
 agentic task create --title "Fix the flaky ingest test" --tags bug --tags ci
+agentic task create --slack-url https://acme.slack.com/archives/C123/p1700000000000000
 agentic task list --status open
 agentic task list --tag bug          # every given tag must match
 agentic tag list                     # tags in use, with task counts
@@ -267,7 +288,8 @@ Resources: `task`, `tag`, `item`, `link`, `person`, `repository`, `worktree`, `r
 ```bash
 agentic-server                  # start the server (same as: agentic-server serve)
 agentic-server serve --reload
-agentic-server info             # data dir, database, harness availability
+agentic-server worker           # process queued agent runs (run alongside the API)
+agentic-server info             # data dir, database, queue, harness availability
 ```
 
 ## API sketch
@@ -307,19 +329,26 @@ make coverage-frontend # frontend tests, write frontend/coverage/
 make lint              # ruff format + check
 make typecheck         # ty static type checking
 make build             # build the SPA into backend/static
-make run               # start the API (:8600) and the frontend dev server (:5173)
+make dev-worker        # run the agent-run worker on its own
+make run               # start the API (:8600), worker, and frontend dev server (:5173)
 make run-dev           # same as run, with the API reloading on changes
 ```
 
-`make run` starts both the API (`agentic-server serve`) and the Vite dev server; `make run-dev` starts the same pair with the API reloading on file changes. `agentic` is the separate client.
+`make run` starts the API (`agentic-server serve`), the worker (`agentic-server worker`), and the Vite dev server; `make run-dev` starts the same set with the API reloading on file changes. `agentic` is the separate client.
+The worker does not need to reload: restart it to pick up backend changes.
 
 ## Limitations (v1)
 
 - Single-user, no auth, no multi-tenant isolation.
 - Integrations are lightweight: metadata/content pulled on demand, no OAuth
   webhooks or continuous sync.
-- Agent runs are in-process; restarting the API drops in-flight runs (the
-  transcript already written is kept).
+- Agent runs go through a durable queue: the API only enqueues, and a worker
+  (`agentic-server worker`) executes them. A run therefore survives an API or
+  worker restart (a worker that dies mid-run is retried once its heartbeat
+  lapses), and a retried run resumes the session it recorded as soon as it
+  started, so it continues the conversation instead of beginning again. Runs left
+  queued or running with no live job are marked failed when the API starts. You
+  must run a worker for runs to make progress.
 - Permission requests are auto-approved; there is no interactive approval UI yet.
 - Changes are recorded explicitly; nothing auto-creates a change from a run,
   a git commit, or a GitHub PR yet, so the autonomy and yield metrics are only

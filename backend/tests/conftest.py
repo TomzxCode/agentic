@@ -14,3 +14,16 @@ def _dispose_engine():
 
     yield
     engine.dispose()
+
+
+@pytest.fixture(autouse=True)
+def _reset_queue():
+    """Drop the SAQ queue after each test.
+
+    Each async test runs in its own event loop, and a cached aiosqlite connection
+    belongs to the loop that opened it, so the queue must be rebuilt per test.
+    """
+    yield
+    from agentic import jobs
+
+    jobs._queue = None

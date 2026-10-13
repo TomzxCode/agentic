@@ -158,6 +158,7 @@ export const api = {
     list: (taskId) => request(`/tasks/${taskId}/runs`),
     create: (taskId, body) => request(`/tasks/${taskId}/runs`, { method: 'POST', body }),
     refreshContext: (taskId) => request(`/tasks/${taskId}/context/refresh`, { method: 'POST' }),
+    refreshSummary: (taskId) => request(`/tasks/${taskId}/summary/refresh`, { method: 'POST' }),
     context: (taskId) => request(`/tasks/${taskId}/context`),
     get: (runId) => request(`/runs/${runId}`),
     events: (runId) => request(`/runs/${runId}/events`),

@@ -267,6 +267,22 @@ class AgenticClient(Client):
         return None
 
 
+async def _acquire_session(conn: Any, cwd: str, resume_session_id: str | None) -> str:
+    """Resume an existing session when asked, else open a new one.
+
+    Resuming keeps the conversation context, so a retried run continues where the
+    previous attempt stopped instead of starting over.
+    """
+    if resume_session_id:
+        try:
+            await conn.resume_session(session_id=resume_session_id, cwd=cwd)
+            return resume_session_id
+        except Exception as exc:  # noqa: BLE001 - a missing session is recoverable
+            log.info("could not resume session; starting a new one", session_id=resume_session_id, error=str(exc))
+    session = await conn.new_session(cwd=cwd)
+    return session.session_id
+
+
 async def run_agent(
     *,
     run_id: str,
@@ -275,10 +291,15 @@ async def run_agent(
     prompt: str,
     publish: EventPublisher,
     cancel_event: asyncio.Event,
+    resume_session_id: str | None = None,
+    on_session: Callable[[str], Awaitable[None]] | None = None,
 ) -> dict[str, Any]:
     """Spawn a harness, run one prompt, stream updates through ``publish``.
 
-    Returns a summary dict (``session_id``, ``stop_reason``).
+    ``on_session`` is called with the session id as soon as it exists (created or
+    resumed), so the caller can persist it before the turn finishes. A
+    ``resume_session_id`` continues an existing session rather than starting a new
+    one. Returns a summary dict (``session_id``, ``stop_reason``).
     """
     env = {**harness.env} if harness.env else None
     args = list(harness.args or [])
@@ -299,28 +320,39 @@ async def run_agent(
             client_info=Implementation(name="agentic", title="Agentic", version="0.1.0"),
         )
         result["agent_info"] = _dump(getattr(init, "agent_info", None) or getattr(init, "agentInfo", None))
-        session = await conn.new_session(cwd=cwd)
-        session_id = session.session_id
+        session_id = await _acquire_session(conn, cwd, resume_session_id)
         result["session_id"] = session_id
+        if on_session is not None:
+            # Persist the handle before the turn runs, so a crash leaves a resumable run.
+            await on_session(session_id)
 
         cancel_task = asyncio.create_task(cancel_event.wait())
         prompt_task = asyncio.create_task(conn.prompt(session_id, [TextContentBlock(type="text", text=prompt)]))
+        # Watch the harness process too: if it exits before answering, the prompt
+        # never resolves and the run would stay "running" forever.
+        exit_task = asyncio.create_task(process.wait())
         try:
-            done, _pending = await asyncio.wait({prompt_task, cancel_task}, return_when=asyncio.FIRST_COMPLETED)
-            if cancel_task in done and not prompt_task.done():
+            done, _pending = await asyncio.wait(
+                {prompt_task, cancel_task, exit_task}, return_when=asyncio.FIRST_COMPLETED
+            )
+            if prompt_task in done:
+                response = prompt_task.result()
+                result["stop_reason"] = getattr(response, "stop_reason", None)
+                usage = getattr(response, "usage", None)
+                if usage is not None:
+                    await publish({"seq": client.seq + 1, "type": "usage", "text": "", "data": _dump(usage)})
+            elif cancel_task in done:
                 with contextlib.suppress(Exception):
                     await conn.cancel(session_id)
                 with contextlib.suppress(Exception):
                     await prompt_task
                 result["stop_reason"] = "cancelled"
             else:
-                response = prompt_task.result()
-                result["stop_reason"] = getattr(response, "stop_reason", None)
-                usage = getattr(response, "usage", None)
-                if usage is not None:
-                    await publish({"seq": client.seq + 1, "type": "usage", "text": "", "data": _dump(usage)})
+                code = exit_task.result()
+                raise RuntimeError(f"agent process exited (code {code}) before completing the prompt")
         finally:
-            cancel_task.cancel()
+            for task in (cancel_task, exit_task):
+                task.cancel()
             if process.returncode is None:
                 with contextlib.suppress(ProcessLookupError):
                     process.terminate()
@@ -354,7 +386,6 @@ async def execute_run(
 ) -> None:
     """Background entrypoint: run a harness and persist the transcript."""
     from .events import bus
-    from .events import runs as run_registry
 
     task_id: str | None = None
 
@@ -368,12 +399,26 @@ async def execute_run(
         if task_id:
             await bus.publish(f"task:{task_id}", {"kind": "run", "run_id": run_id, **event})
 
+    async def record_session(session_id: str) -> None:
+        # Persist the session handle as soon as it exists, so an interrupted run
+        # can be resumed instead of starting over.
+        with Session(engine) as s:
+            row = s.get(AgentRun, run_id)
+            if row is not None:
+                row.session_id = session_id
+                s.add(row)
+                s.commit()
+        if task_id:
+            await bus.publish(f"task:{task_id}", {"kind": "task", "action": "session_started", "run_id": run_id})
+
     try:
         with Session(engine) as session:
             run = session.get(AgentRun, run_id)
             if run is None:
                 return
             task_id = run.task_id
+            # A retry of an interrupted run resumes the harness session it left behind.
+            resume_session_id = run.session_id
             run.status = RunStatus.running
             run.started_at = utcnow()
             session.add(run)
@@ -381,7 +426,14 @@ async def execute_run(
             harness = get_harness(session, harness_id)
 
         summary = await run_agent(
-            run_id=run_id, harness=harness, cwd=cwd, prompt=prompt, publish=publish, cancel_event=cancel_event
+            run_id=run_id,
+            harness=harness,
+            cwd=cwd,
+            prompt=prompt,
+            publish=publish,
+            cancel_event=cancel_event,
+            resume_session_id=resume_session_id,
+            on_session=record_session,
         )
         with Session(engine) as s:
             run = s.get(AgentRun, run_id)
@@ -405,7 +457,6 @@ async def execute_run(
         with contextlib.suppress(Exception):
             await publish({"seq": 10_000, "type": "error", "text": f"{type(exc).__name__}: {exc}", "data": {}})
     finally:
-        run_registry.unregister(run_id)
         await bus.publish(f"run:{run_id}", {"type": "run_finished", "text": "", "data": {"run_id": run_id}})
         if task_id:
             await bus.publish(f"task:{task_id}", {"kind": "task", "action": "run_finished", "run_id": run_id})
@@ -419,7 +470,6 @@ async def execute_context_refresh(
     cwd: str,
     prompt: str,
     cancel_event: asyncio.Event,
-    task_ctx: dict[str, Any] | None = None,
 ) -> None:
     """Run a context-refresh turn, then store the parsed summary and next steps."""
     from .crud import add_timeline
@@ -457,4 +507,64 @@ async def execute_context_refresh(
     await bus.publish(
         f"task:{task_id}",
         {"kind": "task", "action": "context_updated" if parsed else "context_refresh_failed", "run_id": run_id},
+    )
+
+
+async def execute_slack_summary(
+    *,
+    run_id: str,
+    task_id: str,
+    harness_id: str | None,
+    cwd: str,
+    prompt: str,
+    cancel_event: asyncio.Event,
+    generate_title: bool = True,
+) -> None:
+    """Delegate an imported Slack thread: store the agent's title and summary.
+
+    A backstop of ``generate_title=False`` keeps a user-supplied title and only
+    takes the summary.
+    """
+    from .crud import add_timeline
+    from .events import bus
+    from .models import Task
+    from .services import extract_summary_json
+
+    await execute_run(run_id=run_id, harness_id=harness_id, cwd=cwd, prompt=prompt, cancel_event=cancel_event)
+
+    parsed = False
+    with Session(engine) as session:
+        events = session.exec(select(AgentEvent).where(AgentEvent.run_id == run_id).order_by(col(AgentEvent.seq))).all()
+        # Prefer the agent's answer; only fall back to thoughts if it said nothing.
+        text = "".join(e.text for e in events if e.type == "message")
+        if not text.strip():
+            text = "".join(e.text for e in events if e.type == "thought")
+        data = extract_summary_json(text)
+        task = session.get(Task, task_id)
+        title = data["title"] if (data and generate_title) else ""
+        summary = data["summary"] if data else ""
+        if task is not None and (title or summary):
+            if title:
+                task.title = title
+            if summary:
+                task.summary = summary
+                task.context_updated_at = utcnow()
+            task.updated_at = utcnow()
+            session.add(task)
+            session.commit()
+            add_timeline(
+                session, task_id, "summary_updated", "Titled and summarized the Slack thread", {"run_id": run_id}
+            )
+            parsed = True
+        else:
+            add_timeline(
+                session,
+                task_id,
+                "summary_failed",
+                "Could not parse a title and summary from the agent reply",
+                {"run_id": run_id},
+            )
+    await bus.publish(
+        f"task:{task_id}",
+        {"kind": "task", "action": "summary_updated" if parsed else "summary_failed", "run_id": run_id},
     )

@@ -1,5 +1,10 @@
 # Memory
 
+## 2026-10-12: opencode ACP defaults to its own model, not the CLI's
+
+- `opencode acp` creates sessions with opencode's built-in default model (observed `opencode/big-pickle`), which is independent of the model `opencode run` resolves (observed `zai-coding-plan/glm-5.3`). With no valid `opencode` provider credential, that default fails with `Upstream request failed: Invalid credential`, and the ACP turn errors.
+- `opencode acp` has no `--model` flag (its options are only log/port/host/mdns/cors/cwd), so the agentic `Harness.model` column cannot select the ACP model; it is silently ignored. Set `"model"` in `~/.config/opencode/opencode.json` instead (this machine uses `zai-coding-plan/glm-5.3`); both the CLI and ACP honor it. A project-local `.opencode/opencode.json` in the run cwd works too, but agentic's cwd varies (worktree root or a repository).
+
 ## 2026-10-12: factory metrics are computed from explicit change records
 
 - A `change` is recorded explicitly (CLI `agentic change`, `POST /api/changes`); nothing auto-creates one from an agent run, commit, or PR yet, so autonomy and yield are only as complete as what is recorded.

@@ -23,17 +23,21 @@ const draft = ref({
   tags: [],
   repository_ids: [],
   group_id: '',
-  github_url: ''
+  github_url: '',
+  slack_url: ''
 })
 
-// "Import from GitHub" state.
+// "Import from GitHub or Slack" state. One field accepts either source.
 const importRepo = ref('')
 const issues = ref([])
 const loadingIssues = ref(false)
 const issueFilter = ref('')
 const pickedIssue = ref(null)
-const issueUrl = ref('')
+const importUrl = ref('')
+const importKind = ref('') // '' | 'github' | 'slack'
 const loadingIssue = ref(false)
+// What a GitHub preview auto-filled, so switching source can undo it.
+let importPrefill = { title: '', description: '' }
 
 watch(
   () => route.fullPath,
@@ -44,6 +48,7 @@ watch(
 )
 
 const GITHUB_ISSUE_RE = /github\.com\/[^/\s]+\/[^/\s]+\/(?:issues|pull)\/\d+/i
+const SLACK_URL_RE = /https?:\/\/[^./\s]+\.slack\.com\/archives\/[^/\s]+\/p\d+/i
 
 const githubRepos = computed(() => store.repositories.filter((r) => (r.remote_url || '').includes('github.com')))
 
@@ -337,13 +342,16 @@ function resetDraft() {
     tags: [],
     repository_ids: [],
     group_id: '',
-    github_url: ''
+    github_url: '',
+    slack_url: ''
   }
   importRepo.value = ''
   issues.value = []
   issueFilter.value = ''
   pickedIssue.value = null
-  issueUrl.value = ''
+  importUrl.value = ''
+  importKind.value = ''
+  importPrefill = { title: '', description: '' }
 }
 
 function addRepository(id) {
@@ -377,16 +385,26 @@ async function loadIssues() {
   }
 }
 
-// Paste an issue/PR URL to import directly.
+// Paste an issue/PR or Slack thread URL into one field; the source is detected.
 let urlTimer
-function onUrlInput() {
+function onImportInput() {
   clearTimeout(urlTimer)
-  if (!GITHUB_ISSUE_RE.test(issueUrl.value.trim())) return
-  urlTimer = setTimeout(previewFromUrl, 500)
+  const url = importUrl.value.trim()
+  if (!url) {
+    resetImport()
+    return
+  }
+  if (SLACK_URL_RE.test(url)) {
+    applySlackImport(url)
+    return
+  }
+  if (GITHUB_ISSUE_RE.test(url)) {
+    urlTimer = setTimeout(previewFromUrl, 500)
+  }
 }
 
 async function previewFromUrl() {
-  const url = issueUrl.value.trim()
+  const url = importUrl.value.trim()
   if (!GITHUB_ISSUE_RE.test(url)) return
   loadingIssue.value = true
   try {
@@ -399,11 +417,37 @@ async function previewFromUrl() {
 }
 
 function applyIssue(issue) {
+  importKind.value = 'github'
   pickedIssue.value = issue.number
-  issueUrl.value = issue.url || issueUrl.value
+  importUrl.value = issue.url || importUrl.value
+  draft.value.slack_url = ''
   draft.value.title = issue.title
   draft.value.description = issue.body
   draft.value.github_url = issue.url
+  importPrefill = { title: issue.title, description: issue.body }
+}
+
+function applySlackImport(url) {
+  if (importKind.value === 'github') undoGithubPrefill()
+  importKind.value = 'slack'
+  pickedIssue.value = null
+  draft.value.github_url = ''
+  draft.value.slack_url = url
+}
+
+// Undo the fields a GitHub preview filled, but only where the user has not edited them.
+function undoGithubPrefill() {
+  if (draft.value.title === importPrefill.title) draft.value.title = ''
+  if (draft.value.description === importPrefill.description) draft.value.description = ''
+  importPrefill = { title: '', description: '' }
+}
+
+function resetImport() {
+  if (importKind.value === 'github') undoGithubPrefill()
+  importKind.value = ''
+  pickedIssue.value = null
+  draft.value.github_url = ''
+  draft.value.slack_url = ''
 }
 
 function pickIssue(issue) {
@@ -411,20 +455,20 @@ function pickIssue(issue) {
 }
 
 function clearImport() {
-  pickedIssue.value = null
-  draft.value.github_url = ''
-  issueUrl.value = ''
+  resetImport()
+  importUrl.value = ''
 }
 
 async function createTask() {
-  if (!draft.value.title.trim() && !draft.value.github_url) return
+  if (!draft.value.title.trim() && !draft.value.github_url && !draft.value.slack_url.trim()) return
   try {
     const task = await api.tasks.create({
       ...draft.value,
       priority: Number(draft.value.priority),
       repository_ids: [...draft.value.repository_ids],
       group_id: draft.value.group_id || null,
-      github_url: draft.value.github_url || null
+      github_url: draft.value.github_url || null,
+      slack_url: draft.value.slack_url.trim() || null
     })
     showNew.value = false
     resetDraft()
@@ -708,17 +752,21 @@ onUnmounted(() => {
         <h1 style="margin-bottom: 14px">New task</h1>
 
         <div class="field">
-          <label>Import from GitHub (optional)</label>
+          <label>Import from GitHub or Slack (optional)</label>
           <input
-            v-model="issueUrl"
+            v-model="importUrl"
             class="input"
-            placeholder="Paste a GitHub issue or PR URL…"
-            @input="onUrlInput"
+            placeholder="Paste an issue, PR, or Slack thread URL…"
+            @input="onImportInput"
             @keyup.enter="previewFromUrl"
           />
           <p v-if="loadingIssue" class="faint" style="margin: 6px 0 0"><span class="spinner"></span> Loading issue…</p>
           <p v-else-if="pickedIssue" class="faint" style="margin: 6px 0 0">
             Importing <a :href="draft.github_url" target="_blank">#{{ pickedIssue }}</a>
+            <button class="btn sm ghost" @click="clearImport">clear</button>
+          </p>
+          <p v-else-if="draft.slack_url" class="faint" style="margin: 6px 0 0">
+            Importing the Slack thread; an agent names the task and summarizes the discussion.
             <button class="btn sm ghost" @click="clearImport">clear</button>
           </p>
 
@@ -802,7 +850,11 @@ onUnmounted(() => {
         </div>
         <div class="row" style="justify-content: flex-end">
           <button class="btn ghost" @click="showNew = false">Cancel</button>
-          <button class="btn primary" :disabled="!draft.title.trim() && !draft.github_url" @click="createTask">
+          <button
+            class="btn primary"
+            :disabled="!draft.title.trim() && !draft.github_url && !draft.slack_url.trim()"
+            @click="createTask"
+          >
             Create
           </button>
         </div>

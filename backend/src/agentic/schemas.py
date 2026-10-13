@@ -229,6 +229,9 @@ class TaskCreate(BaseModel):
     # Import: create the task from a GitHub issue/PR (prefills title/description
     # and associates the issue as an item).
     github_url: str | None = None
+    # Import: create the task from a Slack thread. Slackx gathers the
+    # conversation and an agent then names the task and summarizes it.
+    slack_url: str | None = None
 
 
 class TaskUpdate(BaseModel):

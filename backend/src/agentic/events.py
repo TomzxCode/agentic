@@ -32,28 +32,3 @@ class EventBus:
 
 
 bus = EventBus()
-
-
-class RunRegistry:
-    """Tracks live run cancellation handles, keyed by run id."""
-
-    def __init__(self) -> None:
-        self._cancellers: dict[str, asyncio.Event] = {}
-
-    def register(self, run_id: str) -> asyncio.Event:
-        event = asyncio.Event()
-        self._cancellers[run_id] = event
-        return event
-
-    def cancel(self, run_id: str) -> bool:
-        event = self._cancellers.get(run_id)
-        if event is None:
-            return False
-        event.set()
-        return True
-
-    def unregister(self, run_id: str) -> None:
-        self._cancellers.pop(run_id, None)
-
-
-runs = RunRegistry()

@@ -14,6 +14,7 @@ from sqlmodel import Session
 from .agents import seed_harnesses
 from .config import settings
 from .db import create_db_and_tables, engine
+from .jobs import close_queue, get_queue, reconcile_runs
 from .routers import agents, changes, fs, gantt, github, groups, items, metrics, people, repositories, tasks, worktrees
 from .routers import settings as settings_router
 from .routers import tags as tags_router
@@ -26,8 +27,12 @@ async def lifespan(app: FastAPI):
     create_db_and_tables()
     with Session(engine) as session:
         seed_harnesses(session)
+    # Connect the run queue and fail any run left behind by a previous process.
+    await get_queue()
+    await reconcile_runs()
     log.info("agentic ready", data_dir=str(settings.data_dir))
     yield
+    await close_queue()
 
 
 app = FastAPI(title="Agentic", version="0.1.0", lifespan=lifespan)

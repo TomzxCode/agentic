@@ -14,6 +14,20 @@ class Settings(BaseSettings):
     data_dir: Path = Path.home() / ".agentic"
     database_url: str | None = None
 
+    # Agent-run queue (SAQ). Defaults to a SQLite queue next to the app database,
+    # so a plain `uv sync` needs no external service. Override with a
+    # redis://, postgres://, or sqlite:// URL to point the queue elsewhere.
+    queue_url: str | None = None
+    # How many agent runs a worker processes concurrently.
+    worker_concurrency: int = 4
+    # How often (seconds) a worker sweeps for stuck jobs (a dead worker's run).
+    worker_sweep: int = 60
+    # A run's job timeout in seconds (0 disables it). The heartbeat is how long a
+    # job may go without a touch before a sweep considers it stuck and retries it.
+    job_timeout: int = 0
+    job_heartbeat: int = 120
+    job_retries: int = 1
+
     # Where git worktrees are created for tasks.
     worktree_root: Path = Path.home() / ".agentic" / "worktrees"
 
@@ -58,6 +72,18 @@ class Settings(BaseSettings):
             return self.database_url
         self.data_dir.mkdir(parents=True, exist_ok=True)
         return f"sqlite:///{self.db_path}"
+
+    @property
+    def queue_dsn(self) -> str:
+        """The SAQ queue URL. An absolute SQLite path needs the four-slash form."""
+        if self.queue_url:
+            return self.queue_url
+        self.data_dir.mkdir(parents=True, exist_ok=True)
+        return f"sqlite:////{(self.data_dir / 'queue.db').as_posix().lstrip('/')}"
+
+    @property
+    def queue_path(self) -> Path:
+        return self.data_dir / "queue.db"
 
 
 settings = Settings()

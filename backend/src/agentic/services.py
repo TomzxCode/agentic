@@ -440,6 +440,32 @@ Rules:
 """
 
 
+SLACK_PLACEHOLDER_TITLE = "Slack thread"
+
+
+SUMMARIZE_INSTRUCTIONS = """You are naming and summarizing a task captured from a Slack thread.
+
+Given the Slack conversation below, respond with ONLY a JSON object (no prose,
+no code fences) of this exact form:
+
+{
+  "title": "a short, specific task title (at most ~80 characters)",
+  "summary": "2-4 sentences on what the discussion is about and where it stands"
+}
+
+Rules:
+- title: imperative and specific; name the people, systems, or files involved.
+- summary: what is being discussed, what has been decided, and what matters now.
+- Do not invent facts that are not in the conversation.
+"""
+
+
+def build_summary_prompt(thread: str) -> str:
+    """The prompt that asks an agent to name and summarize an imported thread."""
+    body = (thread or "").strip()[:20_000]
+    return "\n".join([SUMMARIZE_INSTRUCTIONS, "", "# Slack conversation", "", body])
+
+
 def build_context_prompt(task: dict[str, Any], items: list[dict[str, Any]]) -> str:
     lines = [CONTEXT_INSTRUCTIONS, "", f"# Task: {task['title']}", ""]
     if task.get("description"):
@@ -535,7 +561,7 @@ def _repair_truncated_json(candidate: str) -> str | None:
     return repaired
 
 
-def _try_parse(candidate: str) -> dict[str, Any] | None:
+def _try_parse(candidate: str, required: str = "summary") -> dict[str, Any] | None:
     if not isinstance(candidate, str):
         return None
     for attempt in (candidate, _repair_truncated_json(candidate)):
@@ -545,37 +571,62 @@ def _try_parse(candidate: str) -> dict[str, Any] | None:
             data = json.loads(attempt)
         except json.JSONDecodeError:
             continue
-        if isinstance(data, dict) and "summary" in data:
+        if isinstance(data, dict) and required in data:
+            return data
+    return None
+
+
+def _json_candidates(text: str):
+    """Yield slices of an agent reply that may hold a JSON object, best first."""
+    for fenced in re.findall(r"```(?:json)?\s*(.*?)\s*```", text, re.DOTALL):
+        yield from _iter_json_objects(fenced)
+    yield from _iter_json_objects(text)
+    # Fallback for a payload truncated before its closing braces.
+    first_brace = text.find("{")
+    if first_brace != -1:
+        yield text[first_brace:]
+
+
+def _extract_json(text: str, required: str) -> dict[str, Any] | None:
+    if not text:
+        return None
+    for candidate in _json_candidates(text):
+        data = _try_parse(candidate, required)
+        if data is not None:
             return data
     return None
 
 
 def extract_context_json(text: str) -> dict[str, Any] | None:
     """Pull the first valid context JSON object out of an agent reply."""
-    if not text:
+    data = _extract_json(text, "summary")
+    if data is None:
         return None
-    candidates: list[str] = []
-    for fenced in re.findall(r"```(?:json)?\s*(.*?)\s*```", text, re.DOTALL):
-        candidates.extend(_iter_json_objects(fenced))
-    candidates.extend(_iter_json_objects(text))
-    # Fallback for a payload truncated before its closing braces.
-    first_brace = text.find("{")
-    if first_brace != -1:
-        candidates.append(text[first_brace:])
-    for candidate in candidates:
-        data = _try_parse(candidate)
-        if data is None:
-            continue
-        steps = data.get("next_steps") or []
-        data["next_steps"] = [
-            {
-                "text": str(s.get("text", s)) if isinstance(s, dict) else str(s),
-                "done": bool(s.get("done")) if isinstance(s, dict) else False,
-            }
-            for s in steps
-        ]
-        return data
-    return None
+    steps = data.get("next_steps") or []
+    data["next_steps"] = [
+        {
+            "text": str(s.get("text", s)) if isinstance(s, dict) else str(s),
+            "done": bool(s.get("done")) if isinstance(s, dict) else False,
+        }
+        for s in steps
+    ]
+    return data
+
+
+def extract_summary_json(text: str) -> dict[str, str] | None:
+    """Pull the ``{title, summary}`` an agent produced for an imported thread.
+
+    Either key is enough: a reply that only carries a summary still earns its
+    summary, even though the title falls back to the placeholder.
+    """
+    data = _extract_json(text, "summary") or _extract_json(text, "title")
+    if data is None:
+        return None
+    title = str(data.get("title") or "").strip()
+    summary = str(data.get("summary") or "").strip()
+    if not title and not summary:
+        return None
+    return {"title": title, "summary": summary}
 
 
 def worktree_path(task_id: str, branch: str) -> str:
