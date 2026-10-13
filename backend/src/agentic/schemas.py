@@ -416,12 +416,18 @@ class ChangeCreate(BaseModel):
     task_id: str
     title: str = ""
     change_class: str = "feature"
+    # The state the change opens in. Only the pre-landing and landed states are
+    # accepted at creation; a change cannot be born rejected or reverted.
+    status: str = "proposed"
     repository_id: str | None = None
     worktree_id: str | None = None
     external_ref: str | None = None
     notes: str = ""
     human_intervened: bool = False
     opened_at: datetime | None = None
+    # The moment a change opens already accepted (e.g. an imported merged PR);
+    # defaults to opened_at, then now.
+    accepted_at: datetime | None = None
 
 
 class ChangeUpdate(BaseModel):

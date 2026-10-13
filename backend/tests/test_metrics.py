@@ -151,6 +151,37 @@ def test_change_lifecycle_and_metrics_api():
         client.delete(f"/api/tasks/{task_id}")
 
 
+def test_change_can_be_created_already_accepted():
+    with TestClient(app) as client:
+        task_id = client.post("/api/tasks", json={"title": "Imported PR"}).json()["id"]
+        merged_at = (utcnow() - timedelta(days=2)).isoformat()
+
+        created = client.post(
+            "/api/changes",
+            json={
+                "task_id": task_id,
+                "title": "Fix the thing",
+                "external_ref": "https://github.com/o/r/pull/3",
+                "status": "accepted",
+                "opened_at": merged_at,
+                "accepted_at": merged_at,
+            },
+        )
+        assert created.status_code == 201
+        body = created.json()
+        assert body["status"] == "accepted"
+        assert body["accepted_at"] is not None
+
+        # An imported merged PR counts in the metrics right away.
+        report = client.get("/api/metrics", params={"task_id": task_id, "observation_days": 0}).json()
+        assert report["counts"]["accepted"] == 1
+
+        # A change cannot be born rejected or reverted.
+        assert client.post("/api/changes", json={"task_id": task_id, "status": "reverted"}).status_code == 400
+
+        client.delete(f"/api/tasks/{task_id}")
+
+
 def test_task_delete_removes_changes_and_interventions():
     with TestClient(app) as client:
         task_id = client.post("/api/tasks", json={"title": "Cascade"}).json()["id"]

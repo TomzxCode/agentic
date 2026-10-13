@@ -185,6 +185,8 @@ def test_fetch_github_populates_the_result(monkeypatch):
     assert result["metadata"]["state"] == "OPEN"
     # A payload that names no author stores None rather than failing.
     assert result["metadata"]["author"] is None
+    # An unmerged PR (no mergedAt) stores None rather than a bogus time.
+    assert result["metadata"]["merged_at"] is None
     assert result["people"] == [{"name": "a", "handle": "a"}]
 
 

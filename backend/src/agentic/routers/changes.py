@@ -104,10 +104,20 @@ def list_changes(
 @router.post("", response_model=ChangeRead, status_code=201)
 async def create_change(payload: ChangeCreate, session: Session = Depends(get_session)) -> Change:
     get_task_or_404(session, payload.task_id)
-    data = payload.model_dump(exclude={"change_class", "opened_at"})
+    data = payload.model_dump(exclude={"change_class", "opened_at", "status", "accepted_at"})
     data["change_class"] = _enum_or_400(ChangeClass, payload.change_class, "class")
+    status = _enum_or_400(ChangeStatus, payload.status, "status")
+    if status not in (ChangeStatus.proposed, ChangeStatus.verified, ChangeStatus.accepted):
+        raise HTTPException(status_code=400, detail=f"A change cannot be created as {status}")
+    data["status"] = status
     if payload.opened_at is not None:
         data["opened_at"] = payload.opened_at
+    if status == ChangeStatus.verified:
+        data["verified_at"] = utcnow()
+    elif status == ChangeStatus.accepted:
+        # A change that opens accepted (an imported merged PR) dates its end to
+        # the merge, not to the moment it was recorded.
+        data["accepted_at"] = payload.accepted_at or payload.opened_at or utcnow()
     if payload.repository_id and session.get(Repository, payload.repository_id) is None:
         raise HTTPException(status_code=404, detail="Repository not found")
     if payload.worktree_id and session.get(Worktree, payload.worktree_id) is None:

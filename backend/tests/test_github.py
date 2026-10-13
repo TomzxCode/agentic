@@ -81,8 +81,9 @@ def test_fetch_github_pull_request_carries_draft_and_state(monkeypatch):
             "number": 7,
             "title": "Draft PR",
             "url": "https://github.com/o/r/pull/7",
-            "state": "OPEN",
-            "isDraft": True,
+            "state": "MERGED",
+            "isDraft": False,
+            "mergedAt": "2026-10-11T05:23:53Z",
             "author": {"login": "a"},
             "labels": [],
             "body": "wip",
@@ -91,16 +92,18 @@ def test_fetch_github_pull_request_carries_draft_and_state(monkeypatch):
     monkeypatch.setattr(services, "_run_cli", lambda cmd, timeout=60: payload)
 
     issue = services.fetch_github_issue("o", "r", 7, kind="pull_request")
-    assert issue["state"] == "OPEN"
-    assert issue["is_draft"] is True
+    assert issue["state"] == "MERGED"
+    assert issue["is_draft"] is False
+    assert issue["merged_at"] == "2026-10-11T05:23:53Z"
 
-    # The fetched metadata carries the state, draft flag, and author through to
-    # the item.
+    # The fetched metadata carries the state, draft flag, merge time, and author
+    # through to the item.
     result = {"metadata": {}, "content": "", "title": "", "people": []}
     services._fetch_github("https://github.com/o/r/pull/7", result)
     assert result["metadata"]["kind"] == "pull_request"
-    assert result["metadata"]["state"] == "OPEN"
-    assert result["metadata"]["is_draft"] is True
+    assert result["metadata"]["state"] == "MERGED"
+    assert result["metadata"]["is_draft"] is False
+    assert result["metadata"]["merged_at"] == "2026-10-11T05:23:53Z"
     assert result["metadata"]["author"] == "a"
 
 
