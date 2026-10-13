@@ -222,4 +222,24 @@ describe('DeadlinePicker', () => {
     expect(new Date(emitted).toISOString()).toBe(emitted)
     expect(new Date(emitted).getMinutes()).toBe(30)
   })
+
+  it('defaults a new deadline to 17:00 so only the date needs choosing', async () => {
+    const wrapper = mount(DeadlinePicker, { props: { modelValue: null } })
+    await wrapper.find('.deadline-btn').trigger('click')
+    expect(wrapper.find('input[type="datetime-local"]').element.value).toMatch(/T17:00$/)
+  })
+
+  it('keeps an existing deadline time when reopening', async () => {
+    const iso = new Date(2030, 4, 1, 8, 15).toISOString()
+    const wrapper = mount(DeadlinePicker, { props: { modelValue: iso } })
+    await wrapper.find('.deadline-btn').trigger('click')
+    expect(wrapper.find('input[type="datetime-local"]').element.value).toBe('2030-05-01T08:15')
+  })
+
+  it('does not set a deadline when dismissed without a change', async () => {
+    const wrapper = mount(DeadlinePicker, { props: { modelValue: null } })
+    await wrapper.find('.deadline-btn').trigger('click')
+    await wrapper.find('input[type="datetime-local"]').trigger('blur')
+    expect(wrapper.emitted('update:modelValue')).toBeUndefined()
+  })
 })

@@ -68,7 +68,7 @@ A deadline with no timezone is read as UTC, so the column always holds an aware 
 
 | Component | Change | Requirements |
 |---|---|---|
-| `DeadlinePicker.vue` (new) | Inline datetime editor: shows the deadline with its due-state badge, opens a `datetime-local` input, and clears the deadline | FR-3, FR-4 |
+| `DeadlinePicker.vue` (new) | Inline datetime editor: shows the deadline with its due-state badge, opens a `datetime-local` input, and clears the deadline. A new deadline defaults to today at 17:00 so only the date needs picking; Enter confirms the shown value, and clicking away without a change cancels | FR-3, FR-4 |
 | `TaskView.vue` | Renders `DeadlinePicker` in the task header; saving calls `PATCH /api/tasks/{id}` with the new value; the command palette can jump to it | FR-3 |
 | `TasksView.vue` | An "Upcoming deadlines" section above the in-flight list (soonest first, overdue leading, window selector) plus a due-state badge on each in-flight row | FR-4 |
 | `App.vue` | The new-task form includes a `DeadlinePicker`; the palette gains a "Set deadline" entry for the current task | FR-3 |

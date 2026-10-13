@@ -12,35 +12,47 @@ const props = defineProps({
 })
 const emit = defineEmits(['update:modelValue'])
 
+// A new deadline defaults to this time so only the date needs choosing.
+const DEFAULT_TIME = '17:00'
+
 const editing = ref(false)
 const draft = ref('')
+const initialDraft = ref('')
 const input = ref(null)
 
 const info = computed(() => deadlineInfo(props.modelValue))
 const display = computed(() => (props.modelValue ? formatDeadline(props.modelValue) : props.placeholder))
 
-// ISO (UTC) to the local wall-clock string a datetime-local input expects.
+// ISO (UTC) to the local wall-clock string a datetime-local input expects. With
+// no deadline yet, prefill today at the default time.
 function toInputValue(iso) {
-  if (!iso) return ''
-  const date = new Date(iso)
-  if (Number.isNaN(date.getTime())) return ''
   const pad = (n) => String(n).padStart(2, '0')
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
+  const date = iso ? new Date(iso) : null
+  if (date && !Number.isNaN(date.getTime())) {
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
+  }
+  const now = new Date()
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${DEFAULT_TIME}`
 }
 
 function start() {
   draft.value = toInputValue(props.modelValue)
+  initialDraft.value = draft.value
   editing.value = true
   nextTick(() => input.value?.focus())
 }
 
-function commit() {
-  const current = props.modelValue
+// Enter confirms the shown value; clicking away without changing it cancels, so
+// opening the picker by mistake never sets a deadline.
+function commit(confirm = false) {
+  if (!editing.value) return
   editing.value = false
+  const current = props.modelValue
   if (!draft.value) {
     if (current) emit('update:modelValue', null)
     return
   }
+  if (!confirm && draft.value === initialDraft.value) return
   const iso = new Date(draft.value).toISOString()
   if (iso !== current) emit('update:modelValue', iso)
 }
@@ -57,7 +69,7 @@ function onKeydown(event) {
     editing.value = false
   } else if (event.key === 'Enter') {
     event.preventDefault()
-    commit()
+    commit(true)
   }
 }
 
@@ -74,7 +86,7 @@ defineExpose({ activate: start })
       type="datetime-local"
       class="inline-input deadline-input"
       @keydown="onKeydown"
-      @blur="commit"
+      @blur="() => commit()"
     />
     <template v-else>
       <button

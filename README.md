@@ -140,11 +140,12 @@ only expose this on a trusted network.
    task's Context panel to retry). You can also expand "or pick from a repository",
    choose a registered repo, and pick an issue (filterable, newest first).
    Optionally pick a **repository group** so the agent knows which checkouts to
-   consider, add **tags** to label the task, and set a **deadline** (a date and
-   time). Tags show as pills on the task and in the sidebar; pick one in the
-   sidebar or on the Tasks page to see only the tasks that carry it. A task with
-   a deadline shows a Due badge on its row, and the Tasks page lists the ones
-   coming up under **Upcoming deadlines** (overdue first, with a window selector).
+   consider, add **tags** to label the task, and set a **deadline** (a date; the
+   time defaults to 17:00, so you usually only pick the date). Tags show as pills
+   on the task and in the sidebar; pick one in the sidebar or on the Tasks page
+   to see only the tasks that carry it. A task with a deadline shows a Due badge
+   on its row, and the Tasks page lists the ones coming up under
+   **Upcoming deadlines** (overdue first, with a window selector).
 2. **Associate items**: paste a Slack thread permalink, a GitHub issue/PR URL, a
    Drive doc, or write a note. The source (Slack/GitHub/Drive/URL/note) is
    inferred from what you paste. GitHub and Slack/URL items are fetched on demand
