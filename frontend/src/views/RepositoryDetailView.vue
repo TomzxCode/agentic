@@ -1,5 +1,6 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
+import { api } from '../api'
 import { store, statusLabel, timeAgo } from '../store'
 import { itemState, itemsForRepository, sortItems } from '../repositories'
 import StatusIcon from '../components/StatusIcon.vue'
@@ -11,6 +12,7 @@ const STATE_LABELS = { open: 'Open', draft: 'Draft', merged: 'Merged', closed: '
 
 const loading = ref(true)
 const error = ref(false)
+const refreshing = ref(false)
 const query = ref('')
 // Kind filter: '' shows both sections, otherwise 'issue' or 'pr'.
 const kindFilter = ref('')
@@ -81,6 +83,37 @@ async function load() {
   }
 }
 
+// Re-fetch every issue and PR shown for this repository from GitHub, a few at
+// a time so a large repository does not spawn a burst of ghx processes. A failed
+// item keeps its stored data: the rows are reloaded from the API afterwards.
+async function refreshAll() {
+  if (refreshing.value || !items.value.length) return
+  refreshing.value = true
+  const ids = items.value.map((item) => item.id)
+  const queue = [...ids]
+  let failed = 0
+  const worker = async () => {
+    while (queue.length) {
+      const id = queue.shift()
+      try {
+        await api.items.refresh(id)
+      } catch {
+        failed += 1
+      }
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(4, queue.length) }, worker))
+  try {
+    await store.loadItems()
+  } catch (e) {
+    store.notify(e.message, true)
+  }
+  refreshing.value = false
+  const done = ids.length - failed
+  if (failed) store.notify(`Refreshed ${done} of ${ids.length} items; ${failed} failed`, true)
+  else store.notify(`Refreshed ${done} item${done === 1 ? '' : 's'}`)
+}
+
 onMounted(load)
 </script>
 
@@ -105,6 +138,16 @@ onMounted(load)
         <span class="row" style="gap: 6px">
           <span v-if="repository.default_branch" class="badge">{{ repository.default_branch }}</span>
           <span v-if="repository.remote_url" class="faint">{{ repository.remote_url }}</span>
+          <button
+            class="btn sm"
+            :disabled="refreshing || !items.length"
+            aria-label="Refresh issues and pull requests"
+            @click="refreshAll"
+          >
+            <span v-if="refreshing" class="spinner" aria-hidden="true"></span>
+            <span v-else>↻</span>
+            {{ refreshing ? 'Refreshing…' : 'Refresh' }}
+          </button>
         </span>
       </div>
 

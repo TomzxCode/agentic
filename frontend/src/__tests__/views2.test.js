@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => ({
   repositoriesCreate: vi.fn(),
   repositoriesCreateBulk: vi.fn(),
   repositoriesRemove: vi.fn(),
+  itemsRefresh: vi.fn(),
   tasksGet: vi.fn(),
   tasksUpdate: vi.fn(),
   tasksRemove: vi.fn(),
@@ -40,6 +41,7 @@ vi.mock('../api', () => ({
       createBulk: mocks.repositoriesCreateBulk,
       remove: mocks.repositoriesRemove
     },
+    items: { refresh: mocks.itemsRefresh },
     tasks: { get: mocks.tasksGet, update: mocks.tasksUpdate, remove: mocks.tasksRemove }
   },
   openTaskStream: mocks.openTaskStream
@@ -413,5 +415,42 @@ describe('RepositoryDetailView', () => {
     await flushPromises()
     expect(wrapper.find('[aria-label="Filter by kind"]').exists()).toBe(false)
     expect(wrapper.find('[aria-label="Filter by state"]').exists()).toBe(true)
+  })
+
+  it('refreshes every issue and PR from GitHub', async () => {
+    mocks.itemsRefresh.mockResolvedValue({})
+    const wrapper = mountView()
+    await flushPromises()
+
+    await wrapper.get('[aria-label="Refresh issues and pull requests"]').trigger('click')
+    await flushPromises()
+
+    expect(mocks.itemsRefresh.mock.calls.map((call) => call[0]).sort()).toEqual(['i1', 'i2', 'i3', 'i4', 'i5'])
+    // The view reloads the items after refreshing, on top of the initial load.
+    expect(store.loadItems).toHaveBeenCalledTimes(2)
+    expect(store.toast.message).toBe('Refreshed 5 items')
+    expect(store.toast.isError).toBe(false)
+  })
+
+  it('keeps going when one item refresh fails', async () => {
+    mocks.itemsRefresh.mockImplementation((id) =>
+      id === 'i2' ? Promise.reject(new Error('ghx down')) : Promise.resolve({})
+    )
+    const wrapper = mountView()
+    await flushPromises()
+
+    await wrapper.get('[aria-label="Refresh issues and pull requests"]').trigger('click')
+    await flushPromises()
+
+    expect(mocks.itemsRefresh).toHaveBeenCalledTimes(5)
+    expect(store.toast.message).toBe('Refreshed 4 of 5 items; 1 failed')
+    expect(store.toast.isError).toBe(true)
+  })
+
+  it('disables the refresh button when there is nothing to refresh', async () => {
+    store.items = []
+    const wrapper = mountView()
+    await flushPromises()
+    expect(wrapper.get('[aria-label="Refresh issues and pull requests"]').attributes('disabled')).toBeDefined()
   })
 })
