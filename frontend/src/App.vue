@@ -163,6 +163,7 @@ const paletteItems = computed(() => [
   { id: 'go-metrics', label: 'Go to metrics', group: 'Navigation', run: () => router.push('/metrics') },
   { id: 'go-items', label: 'Go to resources', group: 'Navigation', run: () => router.push('/items') },
   { id: 'go-people', label: 'Go to people', group: 'Navigation', run: () => router.push('/people') },
+  { id: 'go-repositories', label: 'Go to repositories', group: 'Navigation', run: () => router.push('/repositories') },
   { id: 'go-settings', label: 'Go to settings', group: 'Navigation', run: () => router.push('/settings') },
   ...tagItems.value,
   ...store.tasks.map((task) => ({
@@ -711,6 +712,29 @@ onUnmounted(() => {
             </svg>
           </router-link>
           <router-link
+            to="/repositories"
+            class="nav-link"
+            :class="{ active: route.name === 'repositories' || route.name === 'repository' }"
+            title="Repositories"
+            aria-label="Repositories"
+            @click="sidebarOpen = false"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              width="18"
+              height="18"
+              aria-hidden="true"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M12 3l9 5-9 5-9-5 9-5z" />
+              <path d="M3 13l9 5 9-5" />
+            </svg>
+          </router-link>
+          <router-link
             to="/settings"
             class="nav-link"
             :class="{ active: route.name === 'settings' }"
@@ -802,7 +826,7 @@ onUnmounted(() => {
               </button>
             </div>
             <p v-if="!githubRepos.length" class="faint" style="margin: 6px 0 0">
-              No GitHub repositories registered. Add one in <router-link to="/settings">Settings</router-link>.
+              No GitHub repositories registered. Add one in <router-link to="/repositories">Repositories</router-link>.
             </p>
           </details>
         </div>

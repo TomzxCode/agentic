@@ -199,6 +199,7 @@ watch(
             ref="repositoryRef"
             :model-value="task.repository_ids"
             :repositories="store.repositories"
+            link-to-detail
             @update:model-value="setRepositories"
           />
           <span class="meta-sep" aria-hidden="true"></span>

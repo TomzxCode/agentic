@@ -11,7 +11,9 @@ const repositories = [
 describe('RepositorySelect', () => {
   it('shows a chip per selected repository, sorted by name', () => {
     const wrapper = mount(RepositorySelect, { props: { modelValue: ['r2', 'r1'], repositories } })
-    expect(wrapper.findAll('.chip').map((c) => c.text())).toEqual(['alpha ×', 'beta ×'])
+    // The chip lays the name and the remove control out with `gap`, so the text
+    // content carries no literal space between them.
+    expect(wrapper.findAll('.chip').map((c) => c.text())).toEqual(['alpha×', 'beta×'])
   })
 
   it('emits the remaining ids when a chip is removed', async () => {

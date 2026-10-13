@@ -3,7 +3,6 @@ import { onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { api } from '../api'
 import { store } from '../store'
-import DirectoryPicker from '../components/DirectoryPicker.vue'
 import RepositoryGroupsPanel from '../components/RepositoryGroupsPanel.vue'
 
 const route = useRoute()
@@ -12,7 +11,6 @@ const router = useRouter()
 const SECTIONS = [
   { id: 'sessions', label: 'Session links' },
   { id: 'harnesses', label: 'Agent harnesses' },
-  { id: 'repositories', label: 'Repositories' },
   { id: 'groups', label: 'Repository groups' }
 ]
 const active = ref(SECTIONS.some((s) => s.id === route.query.section) ? route.query.section : SECTIONS[0].id)
@@ -29,11 +27,9 @@ watch(
   }
 )
 
-const repoDraft = reactive({ path: '' })
 const harnessDraft = reactive({ name: '', command: '', args: '', description: '', model: '' })
 const loading = ref(true)
 
-const showPicker = ref(false)
 const fullHarnesses = ref([])
 const harnessStatus = ref({})
 const resumeDrafts = reactive({})
@@ -83,40 +79,6 @@ async function load() {
     loadSettings().catch((e) => store.notify(e.message, true))
   ])
   loading.value = false
-}
-
-async function addRepo() {
-  if (!repoDraft.path.trim()) return
-  try {
-    await api.repositories.create({ path: repoDraft.path.trim() })
-    repoDraft.path = ''
-    await loadRepositories()
-  } catch (e) {
-    store.notify(e.message, true)
-  }
-}
-
-async function addRepos(paths) {
-  if (!paths.length) return
-  try {
-    const result = await api.repositories.createBulk(paths)
-    await loadRepositories()
-    showPicker.value = false
-    const added = result.added.length
-    if (result.errors.length) {
-      store.notify(`Added ${added}, ${result.errors.length} skipped (not a git repository)`, true)
-    } else {
-      store.notify(`Added ${added} repositor${added === 1 ? 'y' : 'ies'}`)
-    }
-  } catch (e) {
-    store.notify(e.message, true)
-  }
-}
-
-async function removeRepo(id) {
-  if (!confirm('Remove this repository from Agentic? (No files are deleted.)')) return
-  await api.repositories.remove(id)
-  await loadRepositories()
 }
 
 async function addHarness() {
@@ -317,41 +279,10 @@ onMounted(load)
           </div>
         </section>
 
-        <section v-show="active === 'repositories'" class="panel">
-          <div class="panel-head"><h2>Repositories</h2></div>
-          <p class="faint" style="margin-top: 0">Local git checkouts that tasks can create isolated worktrees from.</p>
-          <div v-for="r in store.repositories" :key="r.id" class="item">
-            <div class="item-top">
-              <span class="title">{{ r.name }}</span>
-              <span v-if="r.default_branch" class="badge">{{ r.default_branch }}</span>
-              <button class="btn sm danger" @click="removeRepo(r.id)">Remove</button>
-            </div>
-            <div class="faint mono">{{ r.path }}</div>
-            <div v-if="r.remote_url" class="faint">{{ r.remote_url }}</div>
-          </div>
-          <div class="row" style="margin-top: 10px">
-            <input
-              v-model="repoDraft.path"
-              class="input grow"
-              placeholder="/absolute/path/to/git/repo"
-              @keyup.enter="addRepo"
-            />
-            <button class="btn" @click="showPicker = true">Browse…</button>
-            <button class="btn primary" @click="addRepo">Add repository</button>
-          </div>
-        </section>
-
         <div v-show="active === 'groups'">
           <RepositoryGroupsPanel :repositories="store.repositories" />
         </div>
       </div>
     </div>
-
-    <DirectoryPicker
-      v-if="showPicker"
-      :existing="store.repositories.map((r) => r.path)"
-      @close="showPicker = false"
-      @add="addRepos"
-    />
   </div>
 </template>

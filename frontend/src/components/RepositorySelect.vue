@@ -1,12 +1,15 @@
 <script setup>
 import { computed, ref } from 'vue'
+import { RouterLink } from 'vue-router'
 import SearchSelect from './SearchSelect.vue'
 
 const props = defineProps({
   modelValue: { type: Array, default: () => [] },
   repositories: { type: Array, default: () => [] },
   placeholder: { type: String, default: '+ add repository' },
-  emptyLabel: { type: String, default: 'no repositories' }
+  emptyLabel: { type: String, default: 'no repositories' },
+  // When true, each selected repository's name links to its detail page.
+  linkToDetail: { type: Boolean, default: false }
 })
 const emit = defineEmits(['update:modelValue'])
 
@@ -45,7 +48,8 @@ defineExpose({ activate: () => select.value?.activate?.() })
 <template>
   <div class="repo-select">
     <span v-for="repo in selected" :key="repo.id" class="chip">
-      {{ repo.name }}
+      <RouterLink v-if="linkToDetail" :to="`/repositories/${repo.id}`">{{ repo.name }}</RouterLink>
+      <template v-else>{{ repo.name }}</template>
       <button type="button" class="chip-x" title="Remove" @click="remove(repo.id)">×</button>
     </span>
     <SearchSelect

@@ -45,7 +45,6 @@ vi.mock('../api', () => ({
   openTaskStream: mocks.openTaskStream
 }))
 
-import DirectoryPicker from '../components/DirectoryPicker.vue'
 import SettingsView from '../views/SettingsView.vue'
 import TaskView from '../views/TaskView.vue'
 import { store } from '../store'
@@ -103,34 +102,6 @@ describe('SettingsView', () => {
     await input.trigger('blur')
     await flushPromises()
     expect(mocks.settingsUpdate).toHaveBeenCalledWith({ openchamber_url: 'http://oc/' })
-  })
-
-  it('adds a repository by path', async () => {
-    mocks.repositoriesCreate.mockResolvedValue({})
-    const wrapper = mountView()
-    await flushPromises()
-    await wrapper.get('input[placeholder="/absolute/path/to/git/repo"]').setValue('/repo')
-    await wrapper
-      .findAll('button')
-      .find((b) => b.text() === 'Add repository')
-      .trigger('click')
-    await flushPromises()
-    expect(mocks.repositoriesCreate).toHaveBeenCalledWith({ path: '/repo' })
-  })
-
-  it('adds repositories through the picker and reports skips', async () => {
-    mocks.repositoriesCreateBulk.mockResolvedValue({ added: [{}], errors: [{ path: '/x', error: 'nope' }] })
-    const wrapper = mountView()
-    await flushPromises()
-    await wrapper
-      .findAll('button')
-      .find((b) => b.text() === 'Browse…')
-      .trigger('click')
-    await flushPromises()
-    wrapper.findComponent(DirectoryPicker).vm.$emit('add', ['/a'])
-    await flushPromises()
-    expect(mocks.repositoriesCreateBulk).toHaveBeenCalledWith(['/a'])
-    expect(store.toast.message).toContain('skipped')
   })
 
   it('adds a harness with parsed args', async () => {
@@ -191,11 +162,8 @@ describe('SettingsView', () => {
     })
   })
 
-  it('saves a resume command and removes a repository', async () => {
+  it('saves a resume command', async () => {
     mocks.harnessesUpdate.mockResolvedValue({})
-    mocks.repositoriesRemove.mockResolvedValue({})
-    vi.stubGlobal('confirm', () => true)
-    store.repositories = [{ id: 'r1', name: 'Repo', path: '/p', default_branch: 'main', remote_url: 'git@x' }]
 
     const wrapper = mountView()
     await flushPromises()
@@ -206,10 +174,6 @@ describe('SettingsView', () => {
     await flushPromises()
     expect(mocks.harnessesUpdate).toHaveBeenCalledWith('opencode', { resume_command: 'opencode --session {session}' })
     expect(store.toast.message).toBe('Resume command saved')
-
-    await wrapper.get('button.btn.danger').trigger('click')
-    await flushPromises()
-    expect(mocks.repositoriesRemove).toHaveBeenCalledWith('r1')
   })
 
   it('sets a default harness', async () => {

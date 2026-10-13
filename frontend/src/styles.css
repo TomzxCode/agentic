@@ -1967,3 +1967,13 @@ button.gantt-marker::after {
     animation-duration: 1.6s;
   }
 }
+
+/* Section heading inside a page (for example the Issues / Pull requests groups
+   on a repository's detail view). */
+.group-head {
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  margin: 16px 0 2px;
+}

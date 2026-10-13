@@ -7,6 +7,7 @@ export const store = reactive({
   people: [],
   harnesses: [],
   repositories: [],
+  items: [],
   groups: [],
   settings: {},
   loading: false,
@@ -39,6 +40,9 @@ export const store = reactive({
   },
   async loadRepositories() {
     this.repositories = await api.repositories.list()
+  },
+  async loadItems() {
+    this.items = await api.items.list()
   },
   async loadGroups() {
     this.groups = await api.groups.list()
