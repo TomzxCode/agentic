@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import { api } from '../api'
 import { aliasLabel, store } from '../store'
 import EditableText from '../components/EditableText.vue'
+import SearchSelect from '../components/SearchSelect.vue'
 
 const props = defineProps({ id: { type: String, required: true } })
 const router = useRouter()
@@ -17,6 +18,10 @@ const newAlias = ref('')
 const itemById = computed(() => Object.fromEntries(items.value.map((item) => [item.id, item])))
 const taskById = computed(() => Object.fromEntries(store.tasks.map((task) => [task.id, task])))
 const aliases = computed(() => person.value?.aliases || [])
+// Every other person, offered as a merge target.
+const mergeTargets = computed(() =>
+  store.people.filter((other) => other.id !== props.id).map((other) => ({ value: other.id, label: other.name }))
+)
 
 function taskTitle(id) {
   return taskById.value[id]?.title || id
@@ -70,6 +75,29 @@ async function removeAlias(value) {
     'aliases',
     aliases.value.filter((alias) => alias !== value)
   )
+}
+
+// Fold this person into another: their aliases and links move to the target,
+// then this person is deleted. Destructive, so it is confirmed first.
+async function mergeInto(targetId) {
+  if (!targetId) return
+  const into = store.people.find((other) => other.id === targetId)
+  const target = into?.name || targetId
+  const linked = (person.value?.task_ids?.length || 0) + (person.value?.item_ids?.length || 0)
+  if (
+    !confirm(
+      `Merge ${person.value.name} into ${target}? Their aliases and ${linked} link(s) move to ${target}, and ${person.value.name} is deleted.`
+    )
+  )
+    return
+  try {
+    await api.people.merge(targetId, props.id)
+    await store.loadPeople()
+    store.notify(`Merged ${person.value.name} into ${target}`)
+    router.push(`/person/${targetId}`)
+  } catch (e) {
+    store.notify(e.message, true)
+  }
 }
 
 async function remove() {
@@ -186,6 +214,22 @@ onMounted(async () => {
             </div>
           </div>
         </template>
+      </section>
+
+      <section v-if="mergeTargets.length" class="panel">
+        <div class="panel-head">
+          <h2>Merge</h2>
+        </div>
+        <div class="faint" style="margin-bottom: 12px">
+          Move this person's aliases, tasks, and items into another person, then delete this one.
+        </div>
+        <SearchSelect
+          placeholder="Merge into…"
+          title="Merge this person into another"
+          :model-value="''"
+          :options="mergeTargets"
+          @update:model-value="mergeInto"
+        />
       </section>
     </template>
   </div>

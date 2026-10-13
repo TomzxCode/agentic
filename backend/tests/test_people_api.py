@@ -180,6 +180,61 @@ def test_deleting_a_task_keeps_the_person():
         client.delete(f"/api/people/{person}")
 
 
+def test_merge_moves_aliases_and_links_and_deletes_the_source():
+    with TestClient(app) as client:
+        target = client.post("/api/people", json={"name": "Ada Lovelace", "aliases": ["ada"]}).json()["id"]
+        source = client.post("/api/people", json={"name": "ada", "aliases": ["ada-l", "U1"]}).json()["id"]
+        shared = _task(client, "Shared")
+        source_only = _task(client, "Source only")
+        item = _item(client)
+
+        # Both people are on one task; the source also holds a task and an item alone.
+        client.post(f"/api/tasks/{shared}/people", json={"person_id": target})
+        client.post(f"/api/tasks/{shared}/people", json={"person_id": source})
+        client.post(f"/api/tasks/{source_only}/people", json={"person_id": source})
+        client.post(f"/api/items/{item}/people", json={"person_id": source})
+
+        merged = client.post(f"/api/people/{target}/merge", json={"source_id": source})
+        assert merged.status_code == 200
+        body = merged.json()
+        assert body["id"] == target and body["name"] == "Ada Lovelace"
+        # The target keeps its own alias and gains the source's, without duplicating.
+        assert set(body["aliases"]) == {"ada", "ada-l", "U1"}
+        assert body["task_count"] == 2 and body["item_count"] == 1
+
+        assert client.get(f"/api/people/{source}").status_code == 404
+
+        # The shared task keeps exactly one link, to the survivor.
+        shared_detail = client.get(f"/api/tasks/{shared}").json()
+        assert [person["id"] for person in shared_detail["people"]] == [target]
+        # The source-only task now links the survivor and recorded the gain.
+        source_detail = client.get(f"/api/tasks/{source_only}").json()
+        assert [person["id"] for person in source_detail["people"]] == [target]
+        assert "person_added" in [event["type"] for event in source_detail["timeline"]]
+        # The item link moved too.
+        assert client.get(f"/api/items/{item}").json()["person_ids"] == [target]
+
+        for task_id in (shared, source_only):
+            client.delete(f"/api/tasks/{task_id}")
+        client.delete(f"/api/items/{item}")
+        client.delete(f"/api/people/{target}")
+
+
+def test_merge_into_self_is_rejected():
+    with TestClient(app) as client:
+        person = _person(client)
+        assert client.post(f"/api/people/{person}/merge", json={"source_id": person}).status_code == 400
+        client.delete(f"/api/people/{person}")
+
+
+def test_merge_unknown_ids_return_404():
+    with TestClient(app) as client:
+        person = _person(client)
+        assert client.post(f"/api/people/{person}/merge", json={"source_id": "missing"}).status_code == 404
+        assert client.post("/api/people/missing/merge", json={"source_id": person}).status_code == 404
+        client.delete(f"/api/people/{person}")
+
+
 def test_link_unknown_ids_return_404():
     with TestClient(app) as client:
         person = _person(client)

@@ -50,6 +50,8 @@ export const api = {
     create: (body) => request('/people', { method: 'POST', body }),
     update: (id, body) => request(`/people/${id}`, { method: 'PATCH', body }),
     remove: (id) => request(`/people/${id}`, { method: 'DELETE' }),
+    merge: (targetId, sourceId) =>
+      request(`/people/${targetId}/merge`, { method: 'POST', body: { source_id: sourceId } }),
     linkTask: (taskId, body) => request(`/tasks/${taskId}/people`, { method: 'POST', body }),
     unlinkTask: (taskId, personId) => request(`/tasks/${taskId}/people/${personId}`, { method: 'DELETE' }),
     linkItem: (itemId, body) => request(`/items/${itemId}/people`, { method: 'POST', body }),

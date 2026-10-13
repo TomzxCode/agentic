@@ -22,7 +22,8 @@ The backend lands first (it is the only writer of the tables), then the CLI and 
 **Deliverables:**
 - [ ] `Person`, `TaskPerson`, and `ItemPerson` tables in `models.py`, with unique constraints on the links.
 - [ ] `PersonRead`, `PersonDetail`, `PersonCreate`, `PersonUpdate`, and `PersonLink` schemas, plus `people` on `TaskDetail` and `person_ids` on `ItemRead`.
-- [ ] `routers/people.py`: list with counts, create, get, update, delete, and link/unlink for tasks and items, with idempotent linking.
+- [ ] `routers/people.py`: list with counts, create, get, update, delete, merge, and link/unlink for tasks and items, with idempotent linking.
+- [ ] `merge_people` moves a source's aliases and links to a target, drops what the target already holds, and deletes the source; `POST /api/people/{id}/merge` exposes it.
 - [ ] Router registered in `main.py`; task links write `person_added` / `person_removed` timeline events.
 - [ ] Task delete cascades its people links; item delete cascades its people links.
 
@@ -34,8 +35,8 @@ The backend lands first (it is the only writer of the tables), then the CLI and 
 
 **Deliverables:**
 - [ ] `person list`, `person get`, `person create`, `person update`, `person delete` in `cli.py`.
-- [ ] `person link` / `person unlink` with `--task` or `--item`.
-- [ ] `client.py` methods: `list_people`, `get_person`, `create_person`, `update_person`, `delete_person`, `link_person`, `unlink_person`.
+- [ ] `person link` / `person unlink` with `--task` or `--item`, and `person merge SOURCE --into TARGET`.
+- [ ] `client.py` methods: `list_people`, `get_person`, `create_person`, `update_person`, `delete_person`, `merge_person`, `link_person`, `unlink_person`.
 - [ ] Text renderers for a person (name, contact, counts).
 
 ### Phase 3: Web UI
@@ -49,6 +50,7 @@ The backend lands first (it is the only writer of the tables), then the CLI and 
 - [ ] `store.js`: `people`, `loadPeople`, and link helpers.
 - [ ] `PeoplePanel.vue` on the task page (chips, add existing, create new, remove).
 - [ ] `PeopleView.vue` at `/people` with per-person counts and links to tasks, plus rename and delete.
+- [ ] `PersonView.vue` at `/person/:id` with aliases, notes, relationships, delete, and a merge picker of the other people.
 - [ ] `ItemsView.vue`: people chips per item and a person linker.
 - [ ] Sidebar nav and command palette "People" entries; route in `main.js`.
 
@@ -71,7 +73,7 @@ The backend lands first (it is the only writer of the tables), then the CLI and 
 **Depends on:** Phases 1-4
 
 **Deliverables:**
-- [ ] `backend/tests/test_people_api.py` covering create, list counts, task and item links, idempotency, timeline events, and cascades.
+- [ ] `backend/tests/test_people_api.py` covering create, list counts, task and item links, idempotency, timeline events, cascades, and the merge (moving, deduping, source deletion, self-merge 400, unknown ids 404).
 - [ ] CLI tests for the person commands and client.
 - [ ] Frontend tests for the People view and the task People panel.
 - [ ] `architecture.md`, `schema.dbml`, `vocabulary.md`, and `project-overview.md` (scope) updated.
@@ -144,5 +146,5 @@ gantt
 
 - Auto-linking people from item metadata.
 - A primary or owner person on a task.
-- Merging duplicate people.
+- Adopting the source's fields onto the target on merge, a distinct merge event, batched merges, and duplicate detection.
 - Per-person metrics.

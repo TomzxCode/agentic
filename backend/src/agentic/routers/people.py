@@ -20,7 +20,7 @@ from ..crud import add_timeline, get_task_or_404
 from ..db import get_session
 from ..events import bus
 from ..models import ItemPerson, Person, PersonAlias, SourceItem, TaskPerson, utcnow
-from ..schemas import PersonCreate, PersonDetail, PersonLink, PersonRead, PersonUpdate
+from ..schemas import PersonCreate, PersonDetail, PersonLink, PersonMerge, PersonRead, PersonUpdate
 
 router = APIRouter(prefix="/api/people", tags=["people"])
 # The task- and item-side link endpoints, mounted at their natural paths.
@@ -66,7 +66,9 @@ def _set_aliases(session: Session, person_id: str, values: list[str]) -> None:
 
 def _add_aliases(session: Session, person_id: str, values: list[str]) -> bool:
     """Add aliases a person does not already have; return True when any were added."""
-    existing = {row.value.lower() for row in session.exec(select(PersonAlias).where(PersonAlias.person_id == person_id)).all()}
+    existing = {
+        row.value.lower() for row in session.exec(select(PersonAlias).where(PersonAlias.person_id == person_id)).all()
+    }
     added = False
     for value in values:
         if value.lower() in existing:
@@ -201,6 +203,62 @@ def upsert_person(
     return person
 
 
+def merge_people(session: Session, target: Person, source: Person) -> Person:
+    """Move every alias, task link, and item link from ``source`` onto ``target``, then delete ``source``.
+
+    A link the target already holds (both people on the same task or item) is
+    dropped rather than moved, since ``taskperson`` and ``itemperson`` are unique
+    per pair; an alias the target already carries is likewise dropped. A task
+    that gains the target records a ``person_added`` timeline event.
+    """
+    # Aliases: move the ones the target lacks, drop the rest as duplicates.
+    target_values = {
+        row.value.lower() for row in session.exec(select(PersonAlias).where(PersonAlias.person_id == target.id)).all()
+    }
+    for alias in session.exec(select(PersonAlias).where(PersonAlias.person_id == source.id)).all():
+        if alias.value.lower() in target_values:
+            session.delete(alias)
+        else:
+            alias.person_id = target.id
+            session.add(alias)
+            target_values.add(alias.value.lower())
+    session.commit()
+
+    # Tasks: move the links the target lacks, drop duplicates, record the gain.
+    for link in session.exec(select(TaskPerson).where(TaskPerson.person_id == source.id)).all():
+        task_id = link.task_id
+        existing = session.exec(
+            select(TaskPerson).where(TaskPerson.task_id == task_id, TaskPerson.person_id == target.id)
+        ).first()
+        if existing is not None:
+            session.delete(link)
+        else:
+            link.person_id = target.id
+            session.add(link)
+            add_timeline(session, task_id, "person_added", f"Person added: {target.name}", {"person_id": target.id})
+        session.commit()
+
+    # Items: the same, with no timeline (items have none).
+    for link in session.exec(select(ItemPerson).where(ItemPerson.person_id == source.id)).all():
+        existing = session.exec(
+            select(ItemPerson).where(ItemPerson.item_id == link.item_id, ItemPerson.person_id == target.id)
+        ).first()
+        if existing is not None:
+            session.delete(link)
+        else:
+            link.person_id = target.id
+            session.add(link)
+        session.commit()
+
+    target.updated_at = utcnow()
+    session.add(target)
+    session.exec(sa_delete(PersonAlias).where(col(PersonAlias.person_id) == source.id))
+    session.exec(sa_delete(Person).where(col(Person.id) == source.id))
+    session.commit()
+    session.refresh(target)
+    return target
+
+
 def link_people_to_item(session: Session, item_id: str, people: list[dict[str, Any]]) -> list[str]:
     """Upsert and link the people a source's metadata named to an item."""
     linked: list[str] = []
@@ -287,6 +345,20 @@ def delete_person(person_id: str, session: Session = Depends(get_session)) -> No
     session.commit()
 
 
+@router.post("/{person_id}/merge", response_model=PersonRead)
+async def merge_person(person_id: str, payload: PersonMerge, session: Session = Depends(get_session)) -> PersonRead:
+    """Merge the person in ``source_id`` into ``person_id``, which survives with their links."""
+    target = get_person_or_404(session, person_id)
+    source = get_person_or_404(session, payload.source_id)
+    if source.id == target.id:
+        raise HTTPException(status_code=400, detail="Cannot merge a person into themselves")
+    affected_tasks = task_person_ids(session, source.id)
+    merge_people(session, target, source)
+    for task_id in affected_tasks:
+        await bus.publish(f"task:{task_id}", {"kind": "task", "action": "people_changed"})
+    return _person_read(session, target)
+
+
 # --- task links ------------------------------------------------------------
 @link_router.post("/api/tasks/{task_id}/people", response_model=PersonRead, status_code=201)
 async def link_task_person(task_id: str, payload: PersonLink, session: Session = Depends(get_session)) -> PersonRead:
@@ -346,6 +418,7 @@ __all__ = [
     "item_person_ids",
     "link_item_people_to_task",
     "link_people_to_item",
+    "merge_people",
     "normalize_aliases",
     "person_aliases",
     "task_people",

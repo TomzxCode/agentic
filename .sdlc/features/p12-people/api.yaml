@@ -127,6 +127,44 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+  /api/people/{person_id}/merge:
+    post:
+      summary: Merge a source person into the person in the path
+      description: >
+        The person named by `person_id` survives; the person named by
+        `source_id` is absorbed (aliases and links move to the survivor) and
+        then deleted. A task that gains the survivor records a `person_added`
+        timeline event. Merging a person into themselves is rejected, and an
+        unknown source or target returns 404.
+      operationId: mergePerson
+      tags: [people]
+      parameters:
+        - $ref: "#/components/parameters/PersonId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PersonMerge"
+      responses:
+        "200":
+          description: The surviving person, with the source's aliases and links absorbed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Person"
+        "400":
+          description: The source is the same person as the target
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Source or target person not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
   /api/tasks/{task_id}/people:
     post:
       summary: Link a person to a task
@@ -259,12 +297,11 @@ components:
           type: string
         name:
           type: string
-        email:
-          type: string
-          nullable: true
-        handle:
-          type: string
-          nullable: true
+        aliases:
+          type: array
+          description: Identifiers (a handle or an email), used to de-duplicate people across sources.
+          items:
+            type: string
         notes:
           type: string
         task_count:
@@ -293,12 +330,10 @@ components:
         name:
           type: string
           description: Required; blank names are rejected.
-        email:
-          type: string
-          nullable: true
-        handle:
-          type: string
-          nullable: true
+        aliases:
+          type: array
+          items:
+            type: string
         notes:
           type: string
     PersonUpdate:
@@ -307,12 +342,10 @@ components:
       properties:
         name:
           type: string
-        email:
-          type: string
-          nullable: true
-        handle:
-          type: string
-          nullable: true
+        aliases:
+          type: array
+          items:
+            type: string
         notes:
           type: string
     PersonLink:
@@ -324,6 +357,14 @@ components:
           type: string
         name:
           type: string
+    PersonMerge:
+      type: object
+      required: [source_id]
+      additionalProperties: false
+      properties:
+        source_id:
+          type: string
+          description: The person to absorb into the person in the path.
     Error:
       type: object
       required: [detail]

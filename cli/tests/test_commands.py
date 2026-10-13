@@ -77,6 +77,9 @@ class FakeClient:
     def unlink_person(self, person_id, **kwargs):
         return None
 
+    def merge_person(self, source_id, target_id):
+        return {"id": target_id, "name": "Grace", "task_count": 1, "item_count": 0}
+
     def list_changes(self, task_id=None, status=None, change_class=None):
         return [{"id": "c1", "status": "proposed", "change_class": "feature", "title": "C", "human_intervened": False}]
 
@@ -457,6 +460,7 @@ def test_people_commands(text_format, fake_client, capsys):
     assert "linked p1 to task t1" in cli.person_link("p1", task="t1")
     assert "linked p1 to item i1" in cli.person_link("p1", item="i1")
     assert "unlinked p1 from task t1" in cli.person_unlink("p1", task="t1")
+    assert "merged p1 into p2  Grace" in cli.person_merge("p1", into="p2")
     assert cli.person_link("p1") == 1
     assert "provide --task or --item" in capsys.readouterr().err
 

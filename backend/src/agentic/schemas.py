@@ -397,6 +397,12 @@ class PersonLink(BaseModel):
     name: str = ""
 
 
+class PersonMerge(BaseModel):
+    """Merge ``source_id`` into the person in the path, which survives."""
+
+    source_id: str
+
+
 # --- Tags ------------------------------------------------------------------
 class TagRead(BaseModel):
     """A tag in use, with how many tasks carry it."""
@@ -595,6 +601,7 @@ __all__ = [
     "PersonCreate",
     "PersonDetail",
     "PersonLink",
+    "PersonMerge",
     "PersonRead",
     "PersonUpdate",
     "Task",

@@ -13,6 +13,7 @@ Today a task records what it is about (tags) and what feeds it (items), but noth
 This feature adds a first-class **person** and links people to tasks and to items, so a task shows who is involved and an item (a Slack thread, a GitHub issue) shows the people behind it.
 A person carries a name and optional email, handle, and notes; the links are many-to-many on both sides.
 The people list is the directory the task page, the items list, and the CLI draw on.
+Two people can describe the same human (one created by hand, one auto-populated from a source), so the feature also reconciles them: a merge folds one person into another, moving its aliases and links to the survivor, then deletes the source.
 
 ## Stakeholders
 
@@ -38,6 +39,11 @@ The people list is the directory the task page, the items list, and the CLI draw
 | FR-11 | Must | The system shall auto-populate people from a GitHub item's metadata when it is fetched: the issue or PR author, its assignees, and its comment authors, each keyed by login. |
 | FR-12 | Must | The system shall auto-populate people from a Slack item's metadata when it is fetched: the distinct participants of the cached thread, each keyed by Slack user id. |
 | FR-13 | Must | The system shall link the people auto-populated on an item to a task when that item is linked to the task. |
+| FR-14 | Must | The system shall merge a source person into a target person (the person in the path), keeping the target. |
+| FR-15 | Must | The merge shall move the source's aliases to the target, dropping any alias the target already carries. |
+| FR-16 | Must | The merge shall move the source's task and item links to the target; a task or item linked to both shall keep a single link, to the target. |
+| FR-17 | Must | The merge shall delete the source person and record a `person_added` timeline event on each task that gains the target. |
+| FR-18 | Must | The CLI and the web app shall expose the merge, and the web app shall show the surviving target afterwards. |
 
 ## Non-Functional Requirements
 
@@ -50,6 +56,8 @@ The people list is the directory the task page, the items list, and the CLI draw
 | NFR-5 | Should | Performance | Listing a few hundred people with their counts shall respond in under 200 ms on a local machine. |
 | NFR-6 | Should | Reliability | Auto-population shall be best effort: when `ghx` or `slackx` is missing, fails, or returns no people, the fetch still succeeds and no person is created. |
 | NFR-7 | Should | Data integrity | Auto-populated people shall be de-duplicated by handle (a GitHub login or a Slack user id), so the same person is one directory entry across items. |
+| NFR-8 | Must | Data integrity | A merge shall never leave a duplicate link or alias for the target: the `taskperson`, `itemperson`, and `personalias` unique constraints shall hold after it. |
+| NFR-9 | Should | Usability | The merge shall be a confirmed, destructive action (naming both people and the links moving) and shall stay usable at phone widths, per the project's mobile-first design. |
 
 ## Constraints
 
@@ -306,6 +314,100 @@ The people list is the directory the task page, the items list, and the CLI draw
       Then the names and the add control are visible without horizontal scrolling
     ```
 
+- [ ] **FR-14**
+
+    ```gherkin
+    @FR-14
+    Scenario: Merge one person into another
+      Given a person "Ada" and a person "ada"
+      When "ada" is merged into "Ada"
+      Then "Ada" still exists and "ada" does not
+    ```
+
+- [ ] **FR-15**
+
+    ```gherkin
+    @FR-15
+    Scenario: Aliases move, a shared alias is not duplicated
+      Given a person "Ada" with alias "ada@example.com" and a person "ada" with aliases "ada" and "ada@example.com"
+      When "ada" is merged into "Ada"
+      Then "Ada" carries "ada@example.com" and "ada", each exactly once
+    ```
+
+- [ ] **FR-16**
+
+    ```gherkin
+    @FR-16
+    Scenario: Task and item links move, shared ones keep a single link
+      Given a task and an item linked to both people, and a task linked only to the source
+      When the source is merged into the target
+      Then the target is the only person on the shared task, the shared item, and the source-only task
+    ```
+
+- [ ] **FR-17**
+
+    ```gherkin
+    @FR-17
+    Scenario: The source is deleted and gains are recorded
+      Given a task linked only to the source
+      When the source is merged into the target
+      Then getting the source returns 404
+      And the task records a "person_added" timeline event for the target
+    ```
+
+- [ ] **FR-18**
+
+    ```gherkin
+    @FR-18
+    Scenario: Merge from the CLI
+      Given a person "Ada" and a person "ada"
+      When the user runs `agentic person merge ada --into Ada`
+      Then the command reports the merge and `agentic person list` no longer shows "ada"
+
+    @FR-18
+    Scenario: Merge from the person page
+      Given the person page for "ada" and another person "Ada"
+      When the user picks "Ada" as the merge target and confirms
+      Then the page opens "Ada" with the source's aliases and links
+    ```
+
+- [ ] **NFR-8**
+
+    ```gherkin
+    @NFR-8
+    Scenario: No duplicate links or aliases survive
+      Given a task, an item, and an alias shared by both people
+      When one is merged into the other
+      Then the task has exactly one link, the item has exactly one link, and the alias appears once
+    ```
+
+- [ ] **NFR-9**
+
+    ```gherkin
+    @NFR-9
+    Scenario: The merge is a confirmed action and fits a phone
+      Given the person page for a person with duplicates
+      When the user picks a merge target
+      Then a confirmation names both people before anything is merged
+      And at 375 px the merge control is visible without horizontal scrolling
+    ```
+
+- [ ] **FR-14 (guards)**
+
+    ```gherkin
+    @FR-14
+    Scenario: A person cannot merge into themselves
+      Given a person
+      When the person is merged into itself
+      Then the request is rejected as invalid input
+
+    @FR-14
+    Scenario: Unknown ids are rejected
+      Given a person
+      When a merge names an unknown source or target
+      Then the request returns 404
+    ```
+
 ## Conflicts
 
 - FR-8 says the People page shows the tasks and items a person is attached to, which exposes per-person work groupings.
@@ -317,3 +419,6 @@ The people list is the directory the task page, the items list, and the CLI draw
 2. Should auto-population also resolve a GitHub login to a real name and email (a profile lookup), or is the login enough?
 3. Should a task expose a "primary" (owner) person distinct from the other people, or is a flat set enough?
 4. Should removing an item's link to a task also remove the people it auto-added to that task, or do they stay?
+5. On merge, should the target adopt the source's notes when it has none, or is the target's own text kept untouched?
+6. Should a merge write a distinct `person_merged` timeline event in addition to `person_added`, so the source's disappearance is visible on the task?
+7. Should several sources be mergeable into one target in a single call, or is one at a time (repeatable) enough?

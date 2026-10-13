@@ -16,9 +16,11 @@
 | Harness | A coding-agent command reachable over ACP, stored as a row (`command` plus `args`). |
 | Human intervention | A recorded human touch on a change (question, correction, manual fix, rerun, or approval) that makes the change non-touchless. |
 | Item | A `SourceItem`: something external (Slack thread, GitHub issue or PR, Drive doc, URL, note, commit, file) that can be associated to tasks. |
+| Merge | Folding one person into another: the source's aliases and its task and item links move to the target, then the source is deleted. |
 | Metric baseline | The stored value a metric's direction (improving, worsening, flat, or no-baseline) is measured against. |
 | Next steps | The agent-maintained list of concrete actions for a task, each with a `done` flag. |
-| Person | An individual a task or a source item involves: a name plus optional email, handle, and notes. |
+| Person | An individual a task or a source item involves: a name, a set of aliases, and optional notes. |
+| Person alias | An identifier for a person (a handle such as a GitHub login or Slack user id, or an email), used to de-duplicate people across sources. |
 | Repository | A local git checkout registered with the app, from which worktrees are created. |
 | Repository group | A named set of repositories that tells a task's agent which checkouts may be relevant. |
 | Session link | A way to reopen an agent session: an OpenChamber URL, a terminal URL, or a copyable resume command. |

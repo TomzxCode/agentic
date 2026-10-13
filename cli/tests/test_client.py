@@ -155,6 +155,10 @@ def test_people_methods():
     client.unlink_person("p1", item_id="i1")
     assert seen["path"] == "/api/items/i1/people/p1"
 
+    client.merge_person("p1", "p2")
+    assert seen["method"] == "POST" and seen["path"] == "/api/people/p2/merge"
+    assert seen["body"] == {"source_id": "p1"}
+
 
 def test_provenance_headers_default_to_cli_and_human(monkeypatch):
     monkeypatch.delenv("AGENTIC_ACTOR", raising=False)

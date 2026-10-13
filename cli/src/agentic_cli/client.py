@@ -259,6 +259,9 @@ class AgenticClient:
     def delete_person(self, person_id: str) -> None:
         self._request("DELETE", f"/api/people/{person_id}")
 
+    def merge_person(self, source_id: str, target_id: str) -> dict:
+        return self._request("POST", f"/api/people/{target_id}/merge", json={"source_id": source_id})
+
     def link_person(self, person_id: str, *, task_id: str | None = None, item_id: str | None = None) -> dict:
         if task_id:
             return self._request("POST", f"/api/tasks/{task_id}/people", json={"person_id": person_id})

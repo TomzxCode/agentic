@@ -388,6 +388,15 @@ def person_delete(person_id: str) -> str:
     return emit({"deleted": person_id}, f"deleted {person_id}")
 
 
+@person_app.command(name="merge")
+@safe
+def person_merge(source_id: str, *, into: str) -> str:
+    """Merge a person into another (--into), which absorbs their aliases and links."""
+    with _client() as client:
+        person = client.merge_person(source_id, into)
+    return emit(person, f"merged {source_id} into {person['id']}  {person['name']}")
+
+
 @person_app.command(name="link")
 @safe
 def person_link(person_id: str, *, task: str | None = None, item: str | None = None) -> str | int:

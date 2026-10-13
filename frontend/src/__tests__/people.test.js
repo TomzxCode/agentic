@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   peopleCreate: vi.fn(),
   peopleUpdate: vi.fn(),
   peopleRemove: vi.fn(),
+  peopleMerge: vi.fn(),
   linkTask: vi.fn(),
   unlinkTask: vi.fn(),
   linkItem: vi.fn(),
@@ -29,6 +30,7 @@ vi.mock('../api', () => ({
       create: mocks.peopleCreate,
       update: mocks.peopleUpdate,
       remove: mocks.peopleRemove,
+      merge: mocks.peopleMerge,
       linkTask: mocks.linkTask,
       unlinkTask: mocks.unlinkTask,
       linkItem: mocks.linkItem,
@@ -229,6 +231,34 @@ describe('PersonView', () => {
     await wrapper.get('.chip .chip-x').trigger('click')
     await flushPromises()
     expect(mocks.peopleUpdate).toHaveBeenCalledWith('p1', { aliases: ['ada@example.com'] })
+  })
+
+  it('merges this person into another when confirmed', async () => {
+    vi.stubGlobal('confirm', () => true)
+    store.people = [
+      { id: 'p1', name: 'Ada' },
+      { id: 'p2', name: 'Grace' }
+    ]
+    mocks.peopleMerge.mockResolvedValue({})
+    const wrapper = mount(PersonView, { props: { id: 'p1' }, ...stub })
+    await flushPromises()
+    wrapper.findComponent(SearchSelect).vm.$emit('update:modelValue', 'p2')
+    await flushPromises()
+    expect(mocks.peopleMerge).toHaveBeenCalledWith('p2', 'p1')
+    expect(mocks.push).toHaveBeenCalledWith('/person/p2')
+  })
+
+  it('does not merge when the confirmation is declined', async () => {
+    vi.stubGlobal('confirm', () => false)
+    store.people = [
+      { id: 'p1', name: 'Ada' },
+      { id: 'p2', name: 'Grace' }
+    ]
+    const wrapper = mount(PersonView, { props: { id: 'p1' }, ...stub })
+    await flushPromises()
+    wrapper.findComponent(SearchSelect).vm.$emit('update:modelValue', 'p2')
+    await flushPromises()
+    expect(mocks.peopleMerge).not.toHaveBeenCalled()
   })
 
   it('deletes a person when confirmed and returns to the list', async () => {

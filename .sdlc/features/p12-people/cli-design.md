@@ -22,6 +22,7 @@ agentic
 │   ├── create              Create a person
 │   ├── update              Update a person's fields
 │   ├── delete              Delete a person and their links
+│   ├── merge               Merge a person into another and delete the source
 │   ├── link                Link a person to a task or an item
 │   └── unlink              Unlink a person from a task or an item
 └── task
@@ -91,7 +92,7 @@ Serves FR-1 and FR-5.
 **Synopsis:**
 
 ```
-agentic person create --name TEXT [--email TEXT] [--handle TEXT] [--notes TEXT]
+agentic person create --name TEXT [--aliases TEXT ...] [--notes TEXT]
 ```
 
 **Options:**
@@ -99,14 +100,13 @@ agentic person create --name TEXT [--email TEXT] [--handle TEXT] [--notes TEXT]
 | Long | Value | Default | Description |
 |---|---|---|---|
 | `--name` | text | (required) | The display name |
-| `--email` | text | | Contact email |
-| `--handle` | text | | Chat or login handle |
+| `--aliases` | text (repeatable) | | A handle (GitHub login, Slack user id) or an email |
 | `--notes` | text | | Free-form notes |
 
 **Examples:**
 
 ```bash
-agentic person create --name "Ada Lovelace" --handle ada
+agentic person create --name "Ada Lovelace" --aliases ada
 ```
 
 **Errors:** a blank name prints `error: Name is required (HTTP 400)` and exits 1.
@@ -119,8 +119,10 @@ Serves FR-5.
 **Synopsis:**
 
 ```
-agentic person update PERSON_ID [--name TEXT] [--email TEXT] [--handle TEXT] [--notes TEXT]
+agentic person update PERSON_ID [--name TEXT] [--aliases TEXT ...] [--notes TEXT]
 ```
+
+`--aliases` replaces the whole alias list.
 
 ### `agentic person delete`
 
@@ -132,6 +134,38 @@ Serves FR-10.
 ```
 agentic person delete PERSON_ID
 ```
+
+### `agentic person merge`
+
+**Description:** Merges a person (the source) into another (the target): the source's aliases and its task and item links move to the target, a shared alias or link is dropped, and the source is deleted.
+The target survives with its own name and fields.
+Serves FR-14 to FR-18.
+
+**Synopsis:**
+
+```
+agentic person merge SOURCE_ID --into TARGET_ID
+```
+
+**Positional arguments:**
+
+| Argument | Required | Description |
+|---|---|---|
+| `SOURCE_ID` | Yes | The person to absorb and delete |
+
+**Options:**
+
+| Long | Value | Default | Description |
+|---|---|---|---|
+| `--into` | person id | (required) | The person that survives and absorbs the source |
+
+**Examples:**
+
+```bash
+agentic person merge 9f8e7d6c5b4a --into 1a2b3c4d5e6f
+```
+
+**Errors:** an unknown source or target prints `error: Person not found (HTTP 404)` and exits 1; merging a person into itself prints `error: Cannot merge a person into themselves (HTTP 400)` and exits 1.
 
 ### `agentic person link` / `agentic person unlink`
 
@@ -214,6 +248,7 @@ Commands
   create  Create a person.
   update  Update a person's fields.
   delete  Delete a person and their links.
+  merge   Merge a person into another and delete the source.
   link    Link a person to a task or an item.
   unlink  Unlink a person from a task or an item.
 ```
@@ -249,6 +284,15 @@ $ agentic task get 8dcb9b08ca12
   people: Ada Lovelace
 ```
 
+### Merge a person into another
+
+```console
+$ agentic person merge 9f8e7d6c5b4a --into 1a2b3c4d5e6f
+merged 9f8e7d6c5b4a into 1a2b3c4d5e6f  Ada Lovelace
+$ agentic person list
+1a2b3c4d5e6f  Ada Lovelace  tasks:2 items:1
+```
+
 ### Error path
 
 ```console
@@ -262,15 +306,18 @@ $ echo $?
 
 | Requirement | Command(s) / Option(s) | Notes |
 |---|---|---|
-| FR-1 | `person create` | Name required; email, handle, and notes optional |
+| FR-1 | `person create` | Name required; aliases and notes optional |
 | FR-2 | `person link --task`, `person unlink --task` | Task-side link |
 | FR-3 | `person link --item`, `person unlink --item` | Item-side link |
 | FR-4 | `person list` | Returns `{task_count, item_count}` |
 | FR-5 | all `person` commands, `task get` | The CLI surface for the directory and the links |
 | FR-10 | `person delete` | Removes the person and their links |
+| FR-14 | `person merge SOURCE --into TARGET` | The target survives; the source is absorbed |
+| FR-18 | `person merge` | The CLI surface for the merge |
+| NFR-9 | `person merge` | A self-merge returns the API's 400; unknown ids return the API's 404 |
 
 ## Out of Scope
 
-- Merging duplicate people.
+- A merge preview or a dry run, and merging several sources in one command.
 - Auto-linking people from item metadata.
 - A `--any`/`--all` style filter over people.
