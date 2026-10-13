@@ -9,6 +9,7 @@ const props = defineProps({ id: { type: String, required: true } })
 
 const STATE_ORDER = ['open', 'draft', 'merged', 'closed']
 const STATE_LABELS = { open: 'Open', draft: 'Draft', merged: 'Merged', closed: 'Closed' }
+const TASK_STATUS_ORDER = ['open', 'in_progress', 'blocked', 'done', 'archived']
 
 const loading = ref(true)
 const error = ref(false)
@@ -18,6 +19,9 @@ const query = ref('')
 const kindFilter = ref('')
 // State filter: '' shows every state, otherwise a value from STATE_ORDER.
 const stateFilter = ref('')
+// Task status filter: '' shows every item, otherwise a task status. An item
+// matches when any of the tasks it is linked to has that status.
+const statusFilter = ref('')
 
 const repository = computed(() => store.repositories.find((r) => r.id === props.id) || null)
 const tasksById = computed(() => Object.fromEntries(store.tasks.map((task) => [task.id, task])))
@@ -50,11 +54,32 @@ const stateOptions = computed(() => {
 // The kind toggle only earns its place when both kinds are present.
 const showKindFilter = computed(() => kindCounts.value.issue > 0 && kindCounts.value.pr > 0)
 
+// The task statuses present among the repository's items' tasks, in a stable
+// order. Each count is the number of items carrying at least one task in that
+// status, so an item with two tasks of the same status counts once.
+const statusOptions = computed(() => {
+  const counts = {}
+  for (const item of items.value) {
+    const seen = new Set()
+    for (const task of tasksFor(item)) {
+      if (seen.has(task.status)) continue
+      seen.add(task.status)
+      counts[task.status] = (counts[task.status] || 0) + 1
+    }
+  }
+  return TASK_STATUS_ORDER.filter((status) => counts[status]).map((status) => ({
+    value: status,
+    label: statusLabel(status),
+    count: counts[status]
+  }))
+})
+
 const filtered = computed(() => {
   const q = query.value.trim().toLowerCase()
   return sortItems(items.value).filter((item) => {
     if (kindFilter.value && item.kind !== kindFilter.value) return false
     if (stateFilter.value && itemState(item) !== stateFilter.value) return false
+    if (statusFilter.value && !tasksFor(item).some((task) => task.status === statusFilter.value)) return false
     if (!q) return true
     return (
       String(item.title || '')
@@ -219,6 +244,33 @@ onMounted(load)
               @click="stateFilter = state.value"
             >
               {{ state.label }} {{ state.count }}
+            </button>
+          </div>
+
+          <div
+            v-if="statusOptions.length"
+            class="row"
+            style="gap: 6px; margin-top: 10px"
+            role="group"
+            aria-label="Filter by task status"
+          >
+            <button
+              class="btn sm"
+              :class="{ primary: !statusFilter }"
+              :aria-pressed="!statusFilter"
+              @click="statusFilter = ''"
+            >
+              Any task status
+            </button>
+            <button
+              v-for="status in statusOptions"
+              :key="status.value"
+              class="btn sm"
+              :class="{ primary: statusFilter === status.value }"
+              :aria-pressed="statusFilter === status.value"
+              @click="statusFilter = status.value"
+            >
+              {{ status.label }} {{ status.count }}
             </button>
           </div>
         </div>

@@ -409,12 +409,38 @@ describe('RepositoryDetailView', () => {
     expect(wrapper.text()).not.toContain('Merged PR')
   })
 
+  it('filters by linked task status with counts', async () => {
+    store.tasks = [
+      { id: 't1', title: 'Task One', status: 'open' },
+      { id: 't2', title: 'Task Two', status: 'done' }
+    ]
+    store.items = [
+      { ...ghItem('i1', 'issue', 1, 'Open issue', { state: 'OPEN' }), task_ids: ['t1'] },
+      { ...ghItem('i2', 'issue', 2, 'Closed issue', { state: 'CLOSED' }), task_ids: ['t2'] },
+      { ...ghItem('i3', 'pr', 3, 'Open PR', { state: 'OPEN' }), task_ids: ['t1', 't2'] }
+    ]
+    const wrapper = mountView()
+    await flushPromises()
+
+    const statusRow = wrapper.get('[aria-label="Filter by task status"]')
+    expect(statusRow.findAll('.btn').map((b) => b.text())).toEqual(['Any task status', 'Open 2', 'Done 2'])
+
+    await statusRow
+      .findAll('.btn')
+      .find((b) => b.text().startsWith('Done'))
+      .trigger('click')
+    expect(wrapper.text()).toContain('Closed issue')
+    expect(wrapper.text()).toContain('Open PR')
+    expect(wrapper.text()).not.toContain('Open issue')
+  })
+
   it('hides the kind filter when the repository has one kind', async () => {
     store.items = [ghItem('i1', 'issue', 1, 'Only issue', { state: 'OPEN' })]
     const wrapper = mountView()
     await flushPromises()
     expect(wrapper.find('[aria-label="Filter by kind"]').exists()).toBe(false)
     expect(wrapper.find('[aria-label="Filter by state"]').exists()).toBe(true)
+    expect(wrapper.find('[aria-label="Filter by task status"]').exists()).toBe(true)
   })
 
   it('refreshes every issue and PR from GitHub', async () => {
