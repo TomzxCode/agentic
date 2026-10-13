@@ -5,6 +5,7 @@ import { api } from '../api'
 import TagInput from '../components/TagInput.vue'
 import SearchSelect from '../components/SearchSelect.vue'
 import StatusIcon from '../components/StatusIcon.vue'
+import PriorityIcon from '../components/PriorityIcon.vue'
 
 // A task matches when it carries the active tag filter and is linked to the
 // active person filter, if either is set.
@@ -71,6 +72,10 @@ const upcomingDeadlines = computed(() => {
 })
 
 const STATUS_VALUES = ['open', 'in_progress', 'blocked', 'done', 'archived']
+
+// 0 = low, 1 = medium, 2 = high, 3 = urgent. Used as the priority icon's label.
+const PRIORITY_NAMES = { 0: 'low', 1: 'medium', 2: 'high', 3: 'urgent' }
+const priorityLabel = (priority) => `Priority: ${PRIORITY_NAMES[Number(priority)] || 'medium'}`
 
 // The status picker shown on each row, the same icon-only control the sidebar uses.
 const statusOptions = STATUS_VALUES.map((value) => ({
@@ -280,6 +285,7 @@ onMounted(() => {
               title="Change status"
               @update:model-value="(value) => changeStatus(p, value)"
             />
+            <PriorityIcon :priority="p.priority" :label="priorityLabel(p.priority)" />
             <div class="title-group">
               <router-link :to="`/task/${p.id}`" class="title">{{ p.title }}</router-link>
               <button

@@ -302,6 +302,22 @@ describe('TasksView', () => {
     expect(store.toast).toEqual({ message: 'offline', isError: true })
   })
 
+  it('shows each task priority as an icon in its row', async () => {
+    store.tasks = [
+      { id: 't1', status: 'open', priority: 3, title: 'Urgent one', next_steps: [], updated_at: null },
+      { id: 't2', status: 'open', priority: 0, title: 'Low one', next_steps: [], updated_at: null }
+    ]
+
+    const wrapper = mount(TasksView, stub)
+    await flushPromises()
+
+    const icons = wrapper.findAll('.select-item .task-priority')
+    expect(icons).toHaveLength(2)
+    expect(icons[0].classes()).toContain('prio-urgent')
+    expect(icons[1].classes()).toContain('prio-low')
+    expect(icons[0].attributes('title')).toBe('Priority: urgent')
+  })
+
   it('shows an upcoming deadlines section for near, in-flight deadlines only', async () => {
     const soon = new Date(Date.now() + 3_600_000).toISOString()
     const far = new Date(Date.now() + 20 * 86_400_000).toISOString()

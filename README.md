@@ -145,7 +145,8 @@ only expose this on a trusted network.
    on the task and in the sidebar; pick one in the sidebar or on the Tasks page
    to see only the tasks that carry it. A task with a deadline shows a Due badge
    on its row, and the Tasks page lists the ones coming up under
-   **Upcoming deadlines** (overdue first, with a window selector).
+   **Upcoming deadlines** (overdue first, with a window selector). Each row on
+   the Tasks page also shows its priority as a colored dot (low/medium/high/urgent).
 2. **Associate items**: paste a Slack thread permalink, a GitHub issue/PR URL, a
    Drive doc, or write a note. The source (Slack/GitHub/Drive/URL/note) is
    inferred from what you paste. GitHub and Slack/URL items are fetched on demand
