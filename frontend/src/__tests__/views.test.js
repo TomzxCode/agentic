@@ -76,6 +76,36 @@ describe('TasksView', () => {
     expect(rows.some((text) => text.includes('Three'))).toBe(false)
   })
 
+  it('shows how long ago each task was created alongside its last update', async () => {
+    const ago = (ms) => new Date(Date.now() - ms).toISOString()
+    store.tasks = [
+      {
+        id: 't1',
+        status: 'open',
+        title: 'Old but active',
+        next_steps: [],
+        created_at: ago(3 * 86400_000),
+        updated_at: ago(5 * 60_000)
+      },
+      {
+        id: 't2',
+        status: 'open',
+        title: 'Fresh',
+        next_steps: [],
+        created_at: ago(5 * 60_000),
+        updated_at: ago(5 * 60_000)
+      }
+    ]
+    const wrapper = mount(TasksView, stub)
+    await flushPromises()
+
+    const rows = wrapper.findAll('.select-item').map((item) => item.text())
+    expect(rows[0]).toContain('created 3d ago · updated 5m ago')
+    // Not touched since it was created: the two collapse into one.
+    expect(rows[1]).toContain('created 5m ago')
+    expect(rows[1]).not.toContain('updated')
+  })
+
   it('shows the getting-started panel when nothing is in flight', async () => {
     store.tasks = []
     const wrapper = mount(TasksView, stub)

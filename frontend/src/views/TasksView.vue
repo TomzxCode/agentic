@@ -7,6 +7,17 @@ import StatusIcon from '../components/StatusIcon.vue'
 
 const matchesFilter = (p) => !store.tagFilter || taskHasTag(p, store.tagFilter)
 
+// Row timestamps: how long the task has existed and how long since it last
+// changed. The two collapse to one when they describe the same moment (a task
+// that has not been touched since it was created).
+function taskAge(p) {
+  const created = timeAgo(p.created_at)
+  const updated = timeAgo(p.updated_at)
+  if (created && updated && created !== updated) return `created ${created} · updated ${updated}`
+  if (created) return `created ${created}`
+  return updated ? `updated ${updated}` : ''
+}
+
 const counts = computed(() => {
   const c = { open: 0, in_progress: 0, blocked: 0, done: 0, archived: 0 }
   for (const p of store.tasks.filter(matchesFilter)) c[p.status] = (c[p.status] || 0) + 1
@@ -149,7 +160,7 @@ onMounted(() => store.loadTasks())
           <div class="item-top">
             <StatusIcon :status="p.status" :label="statusLabel(p.status)" />
             <router-link :to="`/task/${p.id}`" class="title">{{ p.title }}</router-link>
-            <span class="faint">{{ timeAgo(p.updated_at) }}</span>
+            <span class="faint">{{ taskAge(p) }}</span>
           </div>
           <div v-if="p.next_steps?.filter((s) => !s.done).length" class="faint" style="margin-top: 6px">
             Next: {{ p.next_steps.find((s) => !s.done).text }}
