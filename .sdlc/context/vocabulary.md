@@ -12,6 +12,7 @@
 | Change | A unit of factory output, recorded against a task with a lifecycle, a start and end time, and a human-intervened flag; the input the metrics are computed from. |
 | Change class | The kind of a change: feature, bugfix, refactor, chore, docs, test, or trivial. |
 | Context refresh | A special agent run that reads a task and its items and rewrites the task's summary and next steps. |
+| Deadline | The date and time by which a task should be done; a task without one has no due date. |
 | Harness | A coding-agent command reachable over ACP, stored as a row (`command` plus `args`). |
 | Human intervention | A recorded human touch on a change (question, correction, manual fix, rerun, or approval) that makes the change non-touchless. |
 | Item | A `SourceItem`: something external (Slack thread, GitHub issue or PR, Drive doc, URL, note, commit, file) that can be associated to tasks. |

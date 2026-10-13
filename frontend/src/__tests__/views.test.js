@@ -223,6 +223,30 @@ describe('TasksView', () => {
     expect(store.tasks[0].status).toBe('open')
     expect(store.toast).toEqual({ message: 'offline', isError: true })
   })
+
+  it('shows an upcoming deadlines section for near, in-flight deadlines only', async () => {
+    const soon = new Date(Date.now() + 3_600_000).toISOString()
+    const far = new Date(Date.now() + 20 * 86_400_000).toISOString()
+    store.tasks = [
+      { id: 't1', status: 'open', priority: 2, title: 'DueSoon', deadline: soon, next_steps: [], updated_at: null },
+      { id: 't2', status: 'open', priority: 2, title: 'DueLater', deadline: far, next_steps: [], updated_at: null },
+      { id: 't3', status: 'done', priority: 2, title: 'Closed', deadline: soon, next_steps: [], updated_at: null }
+    ]
+
+    const wrapper = mount(TasksView, stub)
+    await flushPromises()
+
+    const section = wrapper.get('.deadline-panel')
+    expect(section.text()).toContain('Upcoming deadlines')
+    expect(section.text()).toContain('DueSoon')
+    expect(section.text()).not.toContain('DueLater')
+    expect(section.text()).not.toContain('Closed')
+
+    // The window control narrows and widens the section.
+    await section.get('select').setValue(30)
+    await flushPromises()
+    expect(wrapper.get('.deadline-panel').text()).toContain('DueLater')
+  })
 })
 
 describe('ItemsView', () => {

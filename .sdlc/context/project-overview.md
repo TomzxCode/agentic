@@ -24,7 +24,8 @@ It solves the problem of scattered context: the threads, issues, and checkouts r
 ## Scope
 
 **In scope:**
-- Task tracking (status, priority, tags, inline editing, search, timeline).
+- Task tracking (status, priority, tags, deadlines, inline editing, search, timeline).
+- An upcoming-deadlines view on the tasks page, in-flight tasks soonest first with overdue tasks leading.
 - A Gantt timeline view of tasks in flight, one marker per timeline event.
 - Factory metrics: an instrumented change lifecycle with autonomy rate and yield read against stored baselines.
 - Source items and many-to-many associations, with source inference and on-demand fetch.

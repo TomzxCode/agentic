@@ -591,6 +591,42 @@ h3 {
   color: var(--accent);
 }
 
+/* Deadlines: an inline picker plus a state badge. */
+.deadline {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.deadline-btn {
+  background: transparent;
+  border: none;
+  padding: 2px 6px;
+  margin: -2px -6px;
+  border-radius: 8px;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+.deadline-btn:hover {
+  background: var(--bg-2);
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+.deadline-btn.is-empty {
+  color: var(--faint);
+}
+.deadline-input {
+  width: auto;
+}
+.deadline-window {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+.deadline-window-select {
+  width: auto;
+}
+
 /* Tags: removable chips plus an inline entry field, and read-only pills. */
 .tag-input {
   display: flex;

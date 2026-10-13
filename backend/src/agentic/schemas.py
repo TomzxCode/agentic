@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from datetime import datetime
-from typing import Any
+from datetime import UTC, datetime
+from typing import Annotated, Any
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import AfterValidator, BaseModel, ConfigDict
 
 from .models import (
     AgentRun,
@@ -21,6 +21,17 @@ from .models import (
 
 class ORMModel(BaseModel):
     model_config = ConfigDict(from_attributes=True)
+
+
+def _assume_utc(value: datetime | None) -> datetime | None:
+    """Treat a naive datetime from a client as UTC (the column requires a tz)."""
+    if value is not None and value.tzinfo is None:
+        return value.replace(tzinfo=UTC)
+    return value
+
+
+# An input datetime that is normalized to UTC when the client omits a timezone.
+UtcDateTime = Annotated[datetime, AfterValidator(_assume_utc)]
 
 
 class SessionLink(BaseModel):
@@ -225,6 +236,7 @@ class TaskCreate(BaseModel):
     status: TaskStatus = TaskStatus.open
     priority: int = 2
     tags: list[str] = []
+    deadline: UtcDateTime | None = None
     repository_ids: list[str] = []
     group_id: str | None = None
     harness_id: str | None = None
@@ -242,6 +254,7 @@ class TaskUpdate(BaseModel):
     status: TaskStatus | None = None
     priority: int | None = None
     tags: list[str] | None = None
+    deadline: UtcDateTime | None = None
     repository_ids: list[str] | None = None
     group_id: str | None = None
     harness_id: str | None = None
@@ -265,6 +278,7 @@ class TaskRead(ORMModel):
     status: TaskStatus
     priority: int
     tags: list[str]
+    deadline: datetime | None = None
     repository_ids: list[str] = []
     group_id: str | None = None
     harness_id: str | None = None

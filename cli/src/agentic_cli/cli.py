@@ -87,6 +87,8 @@ def _task_line(task: dict) -> str:
     tags = task.get("tags") or []
     if tags:
         line += "  " + " ".join(f"#{tag}" for tag in tags)
+    if task.get("deadline"):
+        line += f"  due {task['deadline'][:16]}"
     return line
 
 
@@ -181,6 +183,15 @@ def task_list(status: TaskStatus | None = None, q: str | None = None, tag: list[
     return emit(tasks, _join(tasks, _task_line))
 
 
+@task_app.command(name="deadlines")
+@safe
+def task_deadlines(within_days: int = 7) -> str:
+    """List in-flight tasks with a deadline coming up (overdue included)."""
+    with _client() as client:
+        tasks = client.list_deadlines(within_days=within_days)
+    return emit(tasks, _join(tasks, _task_line))
+
+
 @task_app.command(name="get")
 @safe
 def task_get(task_id: str) -> str:
@@ -198,6 +209,7 @@ def task_create(
     priority: int = 2,
     status: TaskStatus = "open",
     tags: list[str] | None = None,
+    deadline: str | None = None,
     repository_ids: list[str] | None = None,
     group_id: str | None = None,
     harness_id: str | None = None,
@@ -208,6 +220,7 @@ def task_create(
 
     Import one from a GitHub issue with --github-url, or from a Slack thread
     with --slack-url (an agent then names it and summarizes the discussion).
+    Set a deadline with --deadline (an ISO 8601 date or date-time).
     """
     with _client() as client:
         task = client.create_task(
@@ -216,6 +229,7 @@ def task_create(
             priority=priority,
             status=status,
             tags=tags,
+            deadline=deadline,
             repository_ids=repository_ids,
             group_id=group_id,
             harness_id=harness_id,
@@ -234,11 +248,17 @@ def task_update(
     status: TaskStatus | None = None,
     priority: int | None = None,
     tags: list[str] | None = None,
+    deadline: str | None = None,
+    clear_deadline: bool = False,
     repository_ids: list[str] | None = None,
     harness_id: str | None = None,
     summary: str | None = None,
 ) -> str:
-    """Update a task's fields."""
+    """Update a task's fields.
+
+    Set a deadline with --deadline (an ISO 8601 date or date-time), or remove it
+    with --clear-deadline.
+    """
     with _client() as client:
         task = client.update_task(
             task_id,
@@ -247,10 +267,13 @@ def task_update(
             status=status,
             priority=priority,
             tags=tags,
+            deadline=deadline,
             repository_ids=repository_ids,
             harness_id=harness_id,
             summary=summary,
         )
+        if clear_deadline:
+            task = client.set_task_deadline(task_id, None)
     return emit(task, f"updated {task['id']}  {_task_line(task)}")
 
 

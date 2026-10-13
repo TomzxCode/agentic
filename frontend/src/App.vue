@@ -6,6 +6,7 @@ import { store, timeAgo, taskHasTag } from './store'
 import SearchSelect from './components/SearchSelect.vue'
 import RepositorySelect from './components/RepositorySelect.vue'
 import TagInput from './components/TagInput.vue'
+import DeadlinePicker from './components/DeadlinePicker.vue'
 import StatusIcon from './components/StatusIcon.vue'
 import PriorityIcon from './components/PriorityIcon.vue'
 import CommandPalette from './components/CommandPalette.vue'
@@ -21,6 +22,7 @@ const draft = ref({
   status: 'open',
   priority: 2,
   tags: [],
+  deadline: null,
   repository_ids: [],
   group_id: '',
   github_url: '',
@@ -115,6 +117,7 @@ const taskFieldItems = computed(() =>
         },
         { id: 'field-status', label: 'Set status', group: 'This task', run: () => store.focusField?.('status') },
         { id: 'field-priority', label: 'Set priority', group: 'This task', run: () => store.focusField?.('priority') },
+        { id: 'field-deadline', label: 'Set deadline', group: 'This task', run: () => store.focusField?.('deadline') },
         {
           id: 'field-repository',
           label: 'Add repository',
@@ -340,6 +343,7 @@ function resetDraft() {
     status: 'open',
     priority: 2,
     tags: [],
+    deadline: null,
     repository_ids: [],
     group_id: '',
     github_url: '',
@@ -818,6 +822,10 @@ onUnmounted(() => {
         <div class="field">
           <label>Priority</label>
           <SearchSelect v-model="draft.priority" :options="priorityOptions" :sort="false" placeholder="Priority" />
+        </div>
+        <div class="field">
+          <label>Deadline (optional)</label>
+          <DeadlinePicker v-model="draft.deadline" />
         </div>
         <div class="field">
           <label>Tags (optional)</label>

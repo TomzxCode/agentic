@@ -68,6 +68,7 @@ erDiagram
         json tags
         string group_id FK
         string harness_id FK
+        datetime deadline
         string summary
         json next_steps
         datetime context_updated_at

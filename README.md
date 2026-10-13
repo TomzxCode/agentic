@@ -140,9 +140,11 @@ only expose this on a trusted network.
    task's Context panel to retry). You can also expand "or pick from a repository",
    choose a registered repo, and pick an issue (filterable, newest first).
    Optionally pick a **repository group** so the agent knows which checkouts to
-   consider, and add **tags** to label the task. Tags show as pills on the task
-   and in the sidebar; pick one in the sidebar or on the Tasks page to see only
-   the tasks that carry it.
+   consider, add **tags** to label the task, and set a **deadline** (a date and
+   time). Tags show as pills on the task and in the sidebar; pick one in the
+   sidebar or on the Tasks page to see only the tasks that carry it. A task with
+   a deadline shows a Due badge on its row, and the Tasks page lists the ones
+   coming up under **Upcoming deadlines** (overdue first, with a window selector).
 2. **Associate items**: paste a Slack thread permalink, a GitHub issue/PR URL, a
    Drive doc, or write a note. The source (Slack/GitHub/Drive/URL/note) is
    inferred from what you paste. GitHub and Slack/URL items are fetched on demand
@@ -158,8 +160,8 @@ only expose this on a trusted network.
 
 Press **Ctrl/Cmd+K** (or the ⌘K button) for a command palette to jump to any
 task or action from the keyboard. On a task page it also lists that task's
-fields (**This task**: edit title/description, set status/priority/repository
-group, add repository, set tags), so you can jump straight into editing any of
+fields (**This task**: edit title/description, set status/priority/deadline,
+repository group, add repository, set tags), so you can jump straight into editing any of
 them without tabbing across the page. It also lists every tag in use under
 **Tags**, so you can filter the task list by a tag (and clear the filter) from
 the keyboard.
@@ -266,9 +268,13 @@ the workspace (`uv run agentic-server`).
 ```bash
 agentic --help                       # everything, grouped by resource
 agentic task create --title "Fix the flaky ingest test" --tags bug --tags ci
+agentic task create --title "Ship the beta" --deadline 2026-11-01T17:00
 agentic task create --slack-url https://acme.slack.com/archives/C123/p1700000000000000
 agentic task list --status open
 agentic task list --tag bug          # every given tag must match
+agentic task update <task> --clear-deadline
+agentic task deadlines               # deadlines in the next 7 days (overdue first)
+agentic task deadlines --within-days 30
 agentic tag list                     # tags in use, with task counts
 agentic link add <task> --url https://github.com/o/r/issues/482
 agentic link add <task> --item-id <item>

@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
+import DeadlinePicker from '../components/DeadlinePicker.vue'
 import StatusIcon from '../components/StatusIcon.vue'
 import PriorityIcon from '../components/PriorityIcon.vue'
 import SessionLinks from '../components/SessionLinks.vue'
@@ -189,5 +190,36 @@ describe('TimelinePanel', () => {
   it('ignores malformed change data', () => {
     const wrapper = mount(TimelinePanel, { props: { events: [event({ data_json: { changes: 'nope' } })] } })
     expect(wrapper.find('.changes').exists()).toBe(false)
+  })
+})
+
+describe('DeadlinePicker', () => {
+  it('shows the placeholder when no deadline is set', () => {
+    const wrapper = mount(DeadlinePicker, { props: { modelValue: null } })
+    expect(wrapper.find('.deadline-btn').text()).toContain('Set deadline')
+    expect(wrapper.find('.badge').exists()).toBe(false)
+  })
+
+  it('shows an overdue state and clears on the clear button', async () => {
+    const wrapper = mount(DeadlinePicker, {
+      props: { modelValue: new Date(Date.now() - 3_600_000).toISOString() }
+    })
+    expect(wrapper.find('.badge').text()).toContain('Overdue')
+
+    await wrapper.find('.chip-x').trigger('click')
+    expect(wrapper.emitted('update:modelValue')[0]).toEqual([null])
+  })
+
+  it('opens an input and emits the picked value as ISO', async () => {
+    const wrapper = mount(DeadlinePicker, { props: { modelValue: null } })
+    await wrapper.find('.deadline-btn').trigger('click')
+    const input = wrapper.find('input[type="datetime-local"]')
+    expect(input.exists()).toBe(true)
+
+    await input.setValue('2030-01-02T09:30')
+    await input.trigger('keydown', { key: 'Enter' })
+    const [emitted] = wrapper.emitted('update:modelValue')[0]
+    expect(new Date(emitted).toISOString()).toBe(emitted)
+    expect(new Date(emitted).getMinutes()).toBe(30)
   })
 })

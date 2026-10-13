@@ -1,6 +1,6 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
-import { store, statusLabel, timeAgo, taskHasTag } from '../store'
+import { deadlineInfo, formatDeadline, store, statusLabel, timeAgo, taskHasTag } from '../store'
 import { api } from '../api'
 import TagInput from '../components/TagInput.vue'
 import SearchSelect from '../components/SearchSelect.vue'
@@ -30,6 +30,19 @@ const counts = computed(() => {
 const inFlight = computed(() =>
   store.tasks.filter((p) => p.status !== 'done' && p.status !== 'archived').filter(matchesFilter)
 )
+
+// Deadlines coming up: in-flight tasks whose deadline falls within the selected
+// window, soonest first. Overdue deadlines always qualify (they are <= the
+// window) and sort to the top, which is where they belong.
+const deadlineWindow = ref(7)
+const upcomingDeadlines = computed(() => {
+  const cutoff = Date.now() + deadlineWindow.value * 86400000
+  return store.tasks
+    .filter((p) => p.deadline && p.status !== 'done' && p.status !== 'archived')
+    .filter((p) => new Date(p.deadline).getTime() <= cutoff)
+    .filter(matchesFilter)
+    .sort((a, b) => new Date(a.deadline) - new Date(b.deadline))
+})
 
 const STATUS_VALUES = ['open', 'in_progress', 'blocked', 'done', 'archived']
 
@@ -144,6 +157,31 @@ onMounted(() => store.loadTasks())
       <span class="badge ok">Done {{ counts.done }}</span>
     </div>
 
+    <section v-if="upcomingDeadlines.length" class="panel deadline-panel" aria-label="Upcoming deadlines">
+      <div class="panel-head">
+        <h2>Upcoming deadlines</h2>
+        <label class="faint deadline-window">
+          Within
+          <select v-model.number="deadlineWindow" class="select deadline-window-select" aria-label="Deadline window">
+            <option :value="1">1 day</option>
+            <option :value="3">3 days</option>
+            <option :value="7">7 days</option>
+            <option :value="14">14 days</option>
+            <option :value="30">30 days</option>
+          </select>
+        </label>
+      </div>
+      <div v-for="p in upcomingDeadlines" :key="p.id" class="item deadline-row">
+        <div class="item-body">
+          <div class="item-top">
+            <span class="badge" :class="deadlineInfo(p.deadline).tone">{{ deadlineInfo(p.deadline).label }}</span>
+            <router-link :to="`/task/${p.id}`" class="title">{{ p.title }}</router-link>
+            <span class="faint">{{ formatDeadline(p.deadline) }}</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <div v-if="inFlight.length && selected.length" class="panel bulk-bar" aria-label="Bulk edit">
       <div class="row" style="gap: 10px">
         <label class="bulk-count">
@@ -191,6 +229,13 @@ onMounted(() => store.loadTasks())
               @update:model-value="(value) => changeStatus(p, value)"
             />
             <router-link :to="`/task/${p.id}`" class="title">{{ p.title }}</router-link>
+            <span
+              v-if="p.deadline"
+              class="badge"
+              :class="deadlineInfo(p.deadline).tone"
+              :title="`Deadline: ${formatDeadline(p.deadline)}`"
+              >{{ deadlineInfo(p.deadline).label }}</span
+            >
             <span class="faint">{{ taskAge(p) }}</span>
           </div>
           <div v-if="p.next_steps?.filter((s) => !s.done).length" class="faint" style="margin-top: 6px">

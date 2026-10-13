@@ -11,6 +11,7 @@ import AgentPanel from '../components/AgentPanel.vue'
 import TimelinePanel from '../components/TimelinePanel.vue'
 import SessionLinks from '../components/SessionLinks.vue'
 import EditableText from '../components/EditableText.vue'
+import DeadlinePicker from '../components/DeadlinePicker.vue'
 import SearchSelect from '../components/SearchSelect.vue'
 import RepositorySelect from '../components/RepositorySelect.vue'
 import TagInput from '../components/TagInput.vue'
@@ -30,6 +31,7 @@ const titleRef = ref(null)
 const descriptionRef = ref(null)
 const statusRef = ref(null)
 const priorityRef = ref(null)
+const deadlineRef = ref(null)
 const repositoryRef = ref(null)
 const tagRef = ref(null)
 
@@ -122,6 +124,7 @@ onMounted(async () => {
       description: descriptionRef,
       status: statusRef,
       priority: priorityRef,
+      deadline: deadlineRef,
       repository: repositoryRef,
       tags: tagRef
     }[field]
@@ -184,6 +187,12 @@ watch(
             :sort="false"
             title="Priority"
             @update:model-value="(value) => update('priority', Number(value))"
+          />
+          <span class="meta-sep" aria-hidden="true"></span>
+          <DeadlinePicker
+            ref="deadlineRef"
+            :model-value="task.deadline"
+            @update:model-value="(value) => update('deadline', value)"
           />
           <span class="meta-sep" aria-hidden="true"></span>
           <RepositorySelect

@@ -11,6 +11,7 @@ Table task {
   tags json [not null]
   group_id varchar [ref: > repositorygroup.id]
   harness_id varchar [ref: > harness.id]
+  deadline datetime // when the task should be done by; null = no deadline
   summary text [not null, default: '']
   next_steps json [not null]
   context_updated_at datetime

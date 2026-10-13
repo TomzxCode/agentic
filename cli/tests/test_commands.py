@@ -32,6 +32,18 @@ class FakeClient:
     def list_tasks(self, status=None, q=None, tags=None):
         return [{"id": "t1", "status": "open", "priority": 1, "title": "T", "tags": ["bug"]}]
 
+    def list_deadlines(self, within_days=7):
+        return [
+            {
+                "id": "t1",
+                "status": "open",
+                "priority": 1,
+                "title": "T",
+                "tags": [],
+                "deadline": "2026-01-02T00:00:00",
+            }
+        ]
+
     def list_tags(self):
         return [{"name": "bug", "count": 1}]
 
@@ -149,6 +161,9 @@ class FakeClient:
 
     def update_task(self, task_id, **fields):
         return {"id": task_id, "status": "open", "priority": 1, "title": "T"}
+
+    def set_task_deadline(self, task_id, deadline):
+        return {"id": task_id, "status": "open", "priority": 1, "title": "T", "deadline": deadline}
 
     def delete_task(self, task_id):
         return None
@@ -364,6 +379,42 @@ def test_commands_emit_text(text_format, fake_client):
     assert "deleted h1" in cli.harness_delete("h1")
     assert "openchamber_url" in cli.settings_get()
     assert "openchamber_url" in cli.settings_set(openchamber_url="x")
+
+
+def test_task_deadlines_lists_soonest_with_due(text_format, fake_client):
+    out = cli.task_deadlines(within_days=3)
+    assert "t1" in out
+    assert "due 2026-01-02T00" in out
+
+
+def test_task_create_forwards_deadline(text_format, monkeypatch):
+    seen: dict = {}
+
+    class Recorder(FakeClient):
+        def create_task(self, **fields):
+            seen.update(fields)
+            return {"id": "t9", "title": "T"}
+
+    monkeypatch.setattr(cli, "_client", Recorder)
+    cli.task_create(title="T", deadline="2026-02-01T09:00:00")
+    assert seen["deadline"] == "2026-02-01T09:00:00"
+
+
+def test_task_update_can_clear_deadline(text_format, monkeypatch):
+    calls: dict = {}
+
+    class Recorder(FakeClient):
+        def update_task(self, task_id, **fields):
+            calls["update"] = fields
+            return {"id": task_id, "status": "open", "priority": 1, "title": "T"}
+
+        def set_task_deadline(self, task_id, deadline):
+            calls["clear"] = (task_id, deadline)
+            return {"id": task_id, "status": "open", "priority": 1, "title": "T"}
+
+    monkeypatch.setattr(cli, "_client", Recorder)
+    cli.task_update("t1", clear_deadline=True)
+    assert calls["clear"] == ("t1", None)
 
 
 def test_task_create_forwards_slack_url(text_format, monkeypatch):

@@ -91,6 +91,14 @@ class AgenticClient:
     def update_task(self, task_id: str, **fields: Any) -> dict:
         return self._request("PATCH", f"/api/tasks/{task_id}", json=_compact(fields))
 
+    def set_task_deadline(self, task_id: str, deadline: str | None) -> dict:
+        """Set or clear a task's deadline; pass ``None`` to clear it."""
+        return self._request("PATCH", f"/api/tasks/{task_id}", json={"deadline": deadline})
+
+    def list_deadlines(self, within_days: int = 7) -> list[dict]:
+        """In-flight tasks with a deadline in the next ``within_days`` (overdue included)."""
+        return self._request("GET", "/api/tasks/deadlines", params={"within_days": within_days})
+
     def delete_task(self, task_id: str) -> None:
         self._request("DELETE", f"/api/tasks/{task_id}")
 

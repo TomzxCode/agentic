@@ -1,5 +1,15 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { formatDuration, prStatus, statusClass, statusDurations, statusLabel, store, timeAgo } from '../store'
+import {
+  deadlineInfo,
+  formatDeadline,
+  formatDuration,
+  prStatus,
+  statusClass,
+  statusDurations,
+  statusLabel,
+  store,
+  timeAgo
+} from '../store'
 
 describe('statusLabel', () => {
   it('maps every known status to a human label', () => {
@@ -143,6 +153,53 @@ describe('statusDurations', () => {
       { status: 'open', ms: 2 * 3_600_000 },
       { status: 'blocked', ms: 3_600_000 }
     ])
+  })
+})
+
+describe('deadlineInfo', () => {
+  const now = new Date('2026-06-15T12:00:00Z').getTime()
+  const day = 86_400_000
+
+  it('is null without a (parseable) deadline', () => {
+    expect(deadlineInfo(null, now)).toBeNull()
+    expect(deadlineInfo('not-a-date', now)).toBeNull()
+  })
+
+  it('flags an overdue deadline in the danger tone', () => {
+    const info = deadlineInfo(new Date(now - 2 * day).toISOString(), now)
+    expect(info.overdue).toBe(true)
+    expect(info.tone).toBe('danger')
+    expect(info.label).toContain('Overdue')
+  })
+
+  it('marks a deadline later today and tomorrow as due soon', () => {
+    const endOfToday = new Date(now)
+    endOfToday.setHours(23, 59, 0, 0)
+    expect(deadlineInfo(endOfToday.toISOString(), now)).toEqual({
+      overdue: false,
+      tone: 'warn',
+      label: 'Due today'
+    })
+
+    const tomorrow = new Date(now)
+    tomorrow.setDate(tomorrow.getDate() + 1)
+    expect(deadlineInfo(tomorrow.toISOString(), now).label).toBe('Due tomorrow')
+  })
+
+  it('counts whole days for a later deadline', () => {
+    const later = new Date(now + 3 * day)
+    later.setHours(12, 0, 0, 0)
+    expect(deadlineInfo(later.toISOString(), now)).toEqual({ overdue: false, tone: '', label: 'Due in 3d' })
+  })
+})
+
+describe('formatDeadline', () => {
+  it('is empty without a deadline', () => {
+    expect(formatDeadline(null)).toBe('')
+  })
+
+  it('renders a parseable deadline in local time', () => {
+    expect(formatDeadline('2026-06-15T12:00:00Z')).not.toBe('')
   })
 })
 

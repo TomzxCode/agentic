@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
+from datetime import datetime
 from enum import Enum
 from typing import Any
 
@@ -14,8 +15,12 @@ from .models import OperationActor, OperationClient, Task, TimelineEvent
 
 
 def jsonable(value: Any) -> Any:
-    """Make a value safe for the JSON timeline column (enums -> their value)."""
-    return value.value if isinstance(value, Enum) else value
+    """Make a value safe for the JSON timeline column (enums and datetimes -> strings)."""
+    if isinstance(value, Enum):
+        return value.value
+    if isinstance(value, datetime):
+        return value.isoformat()
+    return value
 
 
 def normalize_tags(tags: Iterable[str]) -> list[str]:

@@ -110,6 +110,38 @@ export function timeAgo(iso) {
   return new Date(iso).toLocaleDateString()
 }
 
+// The state of a deadline relative to now: overdue, due soon, or later. Returns
+// null when there is no (parseable) deadline. The comparison is by calendar day
+// so "due today" means today, whatever the time.
+export function deadlineInfo(iso, now = Date.now()) {
+  if (!iso) return null
+  const at = new Date(iso).getTime()
+  if (Number.isNaN(at)) return null
+  const day = 86400000
+  if (at < now) {
+    const over = now - at
+    const label = over < day ? 'Overdue' : `Overdue ${Math.ceil(over / day)}d`
+    return { overdue: true, tone: 'danger', label }
+  }
+  const startOfDay = (t) => {
+    const d = new Date(t)
+    d.setHours(0, 0, 0, 0)
+    return d.getTime()
+  }
+  const days = Math.round((startOfDay(at) - startOfDay(now)) / day)
+  if (days === 0) return { overdue: false, tone: 'warn', label: 'Due today' }
+  if (days === 1) return { overdue: false, tone: 'warn', label: 'Due tomorrow' }
+  return { overdue: false, tone: '', label: `Due in ${days}d` }
+}
+
+// A deadline rendered in the reader's local time zone (e.g. "Oct 20, 5:00 PM").
+export function formatDeadline(iso) {
+  if (!iso) return ''
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) return ''
+  return date.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+}
+
 export function formatDuration(ms) {
   const secs = Math.max(0, Math.floor((ms || 0) / 1000))
   if (secs < 60) return '<1m'

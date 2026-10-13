@@ -96,6 +96,9 @@ def _ensure_columns() -> None:
         if "group_id" not in task_columns:
             with engine.begin() as connection:
                 connection.execute(text("ALTER TABLE task ADD COLUMN group_id VARCHAR"))
+        if "deadline" not in task_columns:
+            with engine.begin() as connection:
+                connection.execute(text("ALTER TABLE task ADD COLUMN deadline DATETIME"))
     if "timelineevent" in inspector.get_table_names():
         timeline_columns = {column["name"] for column in inspector.get_columns("timelineevent")}
         with engine.begin() as connection:

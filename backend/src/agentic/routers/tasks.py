@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import contextlib
+from datetime import timedelta
 from typing import Any
 
 import anyio
@@ -28,6 +29,7 @@ from ..models import (
     Task,
     TaskPerson,
     TaskRepository,
+    TaskStatus,
     TimelineEvent,
     Worktree,
     WorktreeStatus,
@@ -211,6 +213,25 @@ def list_tasks(
             or needle in (p.summary or "").lower()
         ]
     return [_task_read(session, task) for task in tasks]
+
+
+# Declared before /{task_id} so "deadlines" is not read as a task id.
+@router.get("/deadlines", response_model=list[TaskRead])
+def list_deadlines(within_days: int = 7, session: Session = Depends(get_session)) -> list[TaskRead]:
+    """In-flight tasks with a deadline, soonest first (overdue included).
+
+    A task is included when its deadline is at or before now plus ``within_days``;
+    overdue deadlines always match, since those need attention most.
+    """
+    cutoff = utcnow() + timedelta(days=max(0, within_days))
+    tasks = session.exec(
+        select(Task)
+        .where(col(Task.deadline).is_not(None))
+        .where(col(Task.deadline) <= cutoff)
+        .order_by(col(Task.deadline))
+    ).all()
+    closed = (TaskStatus.done, TaskStatus.archived)
+    return [_task_read(session, task) for task in tasks if task.status not in closed]
 
 
 @router.post("", response_model=TaskRead, status_code=201)

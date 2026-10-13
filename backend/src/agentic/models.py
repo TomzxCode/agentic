@@ -142,6 +142,8 @@ class Task(SQLModel, table=True):
     tags: list[str] = Field(default_factory=list, sa_column=Column(JSON))
     group_id: str | None = Field(default=None, foreign_key="repositorygroup.id")
     harness_id: str | None = Field(default=None, foreign_key="harness.id")
+    # When the task should be done by; None means no deadline is set.
+    deadline: datetime | None = None
 
     # Agent-maintained context. This is what makes coming back to a task fast.
     summary: str = ""
