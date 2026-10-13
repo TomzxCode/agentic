@@ -40,7 +40,7 @@ vi.mock('../api', () => ({
   }
 }))
 
-import PeoplePanel from '../components/PeoplePanel.vue'
+import PeopleSelect from '../components/PeopleSelect.vue'
 import PeopleView from '../views/PeopleView.vue'
 import PersonView from '../views/PersonView.vue'
 import SearchSelect from '../components/SearchSelect.vue'
@@ -69,19 +69,19 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
-describe('PeoplePanel', () => {
+describe('PeopleSelect', () => {
   const task = (over = {}) => ({
     id: 't1',
     people: [{ id: 'p1', name: 'Ada' }],
     ...over
   })
 
-  it('renders the people and the empty state', () => {
-    const wrapper = mount(PeoplePanel, { props: { task: task() } })
+  it('renders the linked people and the empty state', () => {
+    const wrapper = mount(PeopleSelect, { props: { task: task() } })
     expect(wrapper.text()).toContain('Ada')
 
-    const empty = mount(PeoplePanel, { props: { task: task({ people: [] }) } })
-    expect(empty.text()).toContain('Nobody associated yet')
+    const empty = mount(PeopleSelect, { props: { task: task({ people: [] }) } })
+    expect(empty.text()).toContain('no people')
   })
 
   it('links an existing person', async () => {
@@ -90,7 +90,7 @@ describe('PeoplePanel', () => {
       { id: 'p2', name: 'Grace' }
     ]
     mocks.linkTask.mockResolvedValue({})
-    const wrapper = mount(PeoplePanel, { props: { task: task() } })
+    const wrapper = mount(PeopleSelect, { props: { task: task() } })
     expect(wrapper.findComponent(SearchSelect).props('keepOpen')).toBe(true)
     wrapper.findComponent(SearchSelect).vm.$emit('update:modelValue', 'p2')
     await flushPromises()
@@ -98,19 +98,9 @@ describe('PeoplePanel', () => {
     expect(wrapper.emitted('changed')).toHaveLength(1)
   })
 
-  it('creates and links a new person', async () => {
-    mocks.linkTask.mockResolvedValue({})
-    const wrapper = mount(PeoplePanel, { props: { task: task() } })
-    await wrapper.get('input.input').setValue('Alan')
-    await wrapper.get('.btn').trigger('click')
-    await flushPromises()
-    expect(mocks.linkTask).toHaveBeenCalledWith('t1', { name: 'Alan' })
-    expect(wrapper.get('input.input').element.value).toBe('')
-  })
-
   it('removes a person', async () => {
     mocks.unlinkTask.mockResolvedValue(null)
-    const wrapper = mount(PeoplePanel, { props: { task: task() } })
+    const wrapper = mount(PeopleSelect, { props: { task: task() } })
     await wrapper.get('.chip-x').trigger('click')
     await flushPromises()
     expect(mocks.unlinkTask).toHaveBeenCalledWith('t1', 'p1')
@@ -118,29 +108,28 @@ describe('PeoplePanel', () => {
 
   it('notifies on failure', async () => {
     mocks.linkTask.mockRejectedValueOnce(new Error('bad'))
-    const wrapper = mount(PeoplePanel, { props: { task: task({ people: [] }) } })
-    await wrapper.get('input.input').setValue('Alan')
-    await wrapper.get('.btn').trigger('click')
+    store.people = [{ id: 'p2', name: 'Grace' }]
+    const wrapper = mount(PeopleSelect, { props: { task: task({ people: [] }) } })
+    wrapper.findComponent(SearchSelect).vm.$emit('update:modelValue', 'p2')
     await flushPromises()
     expect(store.toast).toEqual({ message: 'bad', isError: true })
   })
 
   it('suggests people named by linked items and links them on click', async () => {
     mocks.linkTask.mockResolvedValue({})
-    const wrapper = mount(PeoplePanel, {
+    const wrapper = mount(PeopleSelect, {
       props: {
         task: task({ people: [], suggested_people: [{ id: 'p2', name: 'Grace' }] })
       }
     })
-    expect(wrapper.text()).toContain('Suggested from linked items')
-    await wrapper.get('.suggested-people .chip-add').trigger('click')
+    await wrapper.get('.chip-add').trigger('click')
     await flushPromises()
     expect(mocks.linkTask).toHaveBeenCalledWith('t1', { person_id: 'p2' })
     expect(wrapper.emitted('changed')).toHaveLength(1)
   })
 
   it('hides a suggestion that is already linked', () => {
-    const wrapper = mount(PeoplePanel, {
+    const wrapper = mount(PeopleSelect, {
       props: {
         task: task({
           people: [{ id: 'p2', name: 'Grace' }],
@@ -148,7 +137,7 @@ describe('PeoplePanel', () => {
         })
       }
     })
-    expect(wrapper.find('.suggested-people').exists()).toBe(false)
+    expect(wrapper.find('.chip-add').exists()).toBe(false)
   })
 })
 

@@ -224,6 +224,7 @@ describe('TaskView', () => {
     EditableText: EditableStub,
     SearchSelect: passthrough,
     RepositorySelect: passthrough,
+    PeopleSelect: passthrough,
     StatusIcon: passthrough,
     PriorityIcon: passthrough,
     ContextPanel: passthrough,

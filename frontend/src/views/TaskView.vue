@@ -4,7 +4,6 @@ import { api, openTaskStream } from '../api'
 import { store } from '../store'
 import ContextPanel from '../components/ContextPanel.vue'
 import ItemsPanel from '../components/ItemsPanel.vue'
-import PeoplePanel from '../components/PeoplePanel.vue'
 import ChangesPanel from '../components/ChangesPanel.vue'
 import WorktreesPanel from '../components/WorktreesPanel.vue'
 import AgentPanel from '../components/AgentPanel.vue'
@@ -14,6 +13,7 @@ import EditableText from '../components/EditableText.vue'
 import DeadlinePicker from '../components/DeadlinePicker.vue'
 import SearchSelect from '../components/SearchSelect.vue'
 import RepositorySelect from '../components/RepositorySelect.vue'
+import PeopleSelect from '../components/PeopleSelect.vue'
 import TagInput from '../components/TagInput.vue'
 import StatusIcon from '../components/StatusIcon.vue'
 import PriorityIcon from '../components/PriorityIcon.vue'
@@ -33,6 +33,7 @@ const statusRef = ref(null)
 const priorityRef = ref(null)
 const deadlineRef = ref(null)
 const repositoryRef = ref(null)
+const peopleRef = ref(null)
 const tagRef = ref(null)
 
 // Links from the most recent run that produced a session.
@@ -126,6 +127,7 @@ onMounted(async () => {
       priority: priorityRef,
       deadline: deadlineRef,
       repository: repositoryRef,
+      people: peopleRef,
       tags: tagRef
     }[field]
     target?.value?.activate?.()
@@ -203,6 +205,8 @@ watch(
             @update:model-value="setRepositories"
           />
           <span class="meta-sep" aria-hidden="true"></span>
+          <PeopleSelect ref="peopleRef" :task="task" link-to-detail @changed="onChanged" />
+          <span class="meta-sep" aria-hidden="true"></span>
           <TagInput
             ref="tagRef"
             class="task-meta-tags"
@@ -238,7 +242,6 @@ watch(
       <div>
         <WorktreesPanel :task="task" :repositories="store.repositories" @changed="onChanged" />
         <ItemsPanel :task="task" @changed="onChanged" />
-        <PeoplePanel :task="task" @changed="onChanged" />
         <ChangesPanel :task="task" @changed="onChanged" />
       </div>
     </div>

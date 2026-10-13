@@ -124,6 +124,7 @@ const taskFieldItems = computed(() =>
           group: 'This task',
           run: () => store.focusField?.('repository')
         },
+        { id: 'field-people', label: 'Link a person', group: 'This task', run: () => store.focusField?.('people') },
         { id: 'field-tags', label: 'Set tags', group: 'This task', run: () => store.focusField?.('tags') }
       ]
     : []

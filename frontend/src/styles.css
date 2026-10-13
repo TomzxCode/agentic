@@ -742,8 +742,9 @@ button.tag-chip.active {
   margin-left: 2px;
 }
 
-/* Repository selector: selected chips plus an inline "add" search select. */
-.repo-select {
+/* Repository and people selectors: selected chips plus an inline "add" search select. */
+.repo-select,
+.people-select {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
