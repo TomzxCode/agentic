@@ -22,6 +22,7 @@ vi.mock('../api', () => ({
 }))
 
 import ChangesPanel from '../components/ChangesPanel.vue'
+import { changeCreateBody, changeReferencesItem, changesForItem, changeStatusBadge } from '../changes'
 import { store } from '../store'
 
 const SearchSelectStub = {
@@ -154,5 +155,68 @@ describe('ChangesPanel', () => {
       .trigger('click')
     await flushPromises()
     expect(mocks.remove).toHaveBeenCalledWith('c1')
+  })
+})
+
+describe('change helpers', () => {
+  it('maps a status to its badge class, defaulting to the neutral badge', () => {
+    expect(changeStatusBadge('accepted')).toBe('badge ok')
+    expect(changeStatusBadge('proposed')).toBe('badge')
+    expect(changeStatusBadge('nonsense')).toBe('badge')
+  })
+
+  it('matches a change to an item by url or external id', () => {
+    const item = { url: 'https://gh/pull/3', external_id: 'o/r#3' }
+    expect(changeReferencesItem({ external_ref: 'https://gh/pull/3' }, item)).toBe(true)
+    expect(changeReferencesItem({ external_ref: 'o/r#3' }, item)).toBe(true)
+    expect(changeReferencesItem({ external_ref: ' https://gh/pull/3 ' }, item)).toBe(true)
+    expect(changeReferencesItem({ external_ref: 'https://gh/pull/4' }, item)).toBe(false)
+    expect(changeReferencesItem({ external_ref: null }, item)).toBe(false)
+    expect(changeReferencesItem({ external_ref: 'https://gh/pull/3' }, null)).toBe(false)
+  })
+
+  it('keeps only the changes that reference an item', () => {
+    const item = { url: 'https://gh/pull/3' }
+    const changes = [
+      { id: 'a', external_ref: 'https://gh/pull/3' },
+      { id: 'b', external_ref: null }
+    ]
+    expect(changesForItem(changes, item).map((c) => c.id)).toEqual(['a'])
+    expect(changesForItem(null, item)).toEqual([])
+  })
+
+  it('builds the body that records a change for an item', () => {
+    expect(changeCreateBody('t1', { title: 'Fix', url: 'https://gh/pull/3' })).toEqual({
+      task_id: 't1',
+      title: 'Fix',
+      external_ref: 'https://gh/pull/3'
+    })
+
+    // A merged PR opens accepted and dated to the merge.
+    expect(
+      changeCreateBody('t1', {
+        title: 'Fix',
+        url: 'https://gh/pull/3',
+        metadata_json: { merged_at: '2026-10-11T05:23:53Z' }
+      })
+    ).toEqual({
+      task_id: 't1',
+      title: 'Fix',
+      external_ref: 'https://gh/pull/3',
+      status: 'accepted',
+      opened_at: '2026-10-11T05:23:53Z',
+      accepted_at: '2026-10-11T05:23:53Z'
+    })
+
+    // A merge time resolved elsewhere (a fresh GitHub fetch) overrides the
+    // item's stored metadata.
+    expect(changeCreateBody('t1', { title: 'Fix', url: 'https://gh/pull/3' }, '2026-10-12T00:00:00Z')).toEqual({
+      task_id: 't1',
+      title: 'Fix',
+      external_ref: 'https://gh/pull/3',
+      status: 'accepted',
+      opened_at: '2026-10-12T00:00:00Z',
+      accepted_at: '2026-10-12T00:00:00Z'
+    })
   })
 })

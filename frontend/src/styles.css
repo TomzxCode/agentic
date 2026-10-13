@@ -1820,6 +1820,21 @@ button.gantt-marker::after {
   border-bottom: none;
 }
 
+/* The change records shown under a pull request in the repository detail view. */
+.change-lines {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.change-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  font-size: 13px;
+}
+
 /* Mobile */
 @media (max-width: 760px) {
   .app {

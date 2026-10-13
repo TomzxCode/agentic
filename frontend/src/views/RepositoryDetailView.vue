@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { api } from '../api'
+import { changeCreateBody, changeStatusBadge, changesForItem } from '../changes'
 import { store, statusLabel, timeAgo } from '../store'
 import {
   itemAuthor,
@@ -22,6 +23,10 @@ const loading = ref(true)
 const error = ref(false)
 const refreshing = ref(false)
 const query = ref('')
+// Every change record, so a PR row can show the changes that reference it.
+const changes = ref([])
+// The PR whose change is being recorded, so its button shows a spinner.
+const recordingId = ref('')
 // Kind filter: '' shows both sections, otherwise 'issue' or 'pr'.
 const kindFilter = ref('')
 // State filter: '' shows every state, otherwise a value from STATE_ORDER.
@@ -91,6 +96,52 @@ function tasksFor(item) {
   return (item.task_ids || []).map((id) => tasksById.value[id]).filter(Boolean)
 }
 
+// The change records that reference a PR, shown under its row. Changes belong
+// to a task and name the PR they landed in via their external ref.
+function changesFor(item) {
+  return changesForItem(changes.value, item)
+}
+
+// Offer to record a change for a merged PR only when exactly one task uses it
+// (so the change has an unambiguous owner) and no change references it yet.
+function canRecordChange(item) {
+  return itemState(item) === 'merged' && tasksFor(item).length === 1 && !changesFor(item).length
+}
+
+// Swap a refreshed item back into the store so its row reflects the new
+// metadata (a merge time picked up from GitHub).
+function replaceItem(updated) {
+  const index = store.items.findIndex((entry) => entry.id === updated.id)
+  if (index !== -1) store.items[index] = updated
+}
+
+async function recordChange(item) {
+  const task = tasksFor(item)[0]
+  if (!task || recordingId.value) return
+  recordingId.value = item.id
+  try {
+    // The change dates to the merge. An item fetched before merge times were
+    // stored carries none, so refresh it from GitHub once to pick the time up.
+    let mergedAt = item.metadata_json?.merged_at
+    if (!mergedAt) {
+      const refreshed = await api.items.refresh(item.id)
+      if (refreshed) {
+        mergedAt = refreshed.metadata_json?.merged_at
+        replaceItem(refreshed)
+      }
+    }
+    // The button only shows on a merged PR, so the change opens accepted; with
+    // no merge time to use, it is accepted as of now.
+    const change = await api.changes.create(changeCreateBody(task.id, item, mergedAt || new Date().toISOString()))
+    if (change) changes.value = [change, ...changes.value]
+    store.notify('Change recorded')
+  } catch (e) {
+    store.notify(e.message, true)
+  } finally {
+    recordingId.value = ''
+  }
+}
+
 // The directory person behind an item's GitHub author, when one carries the
 // login as an alias; null leaves the author unlinked.
 function authorPerson(item) {
@@ -101,13 +152,17 @@ async function load() {
   loading.value = true
   error.value = false
   try {
-    // People are supplementary: a failed load leaves an author unlinked rather
-    // than blanking the view.
+    // People and changes are supplementary: a failed load leaves an author
+    // unlinked and a PR without its change rows rather than blanking the view.
     await Promise.all([
       store.loadRepositories(),
       store.loadItems(),
       store.loadTasks(),
-      store.loadPeople().catch(() => {})
+      store.loadPeople().catch(() => {}),
+      api.changes
+        .list()
+        .then((rows) => (changes.value = rows || []))
+        .catch(() => {})
     ])
   } catch (e) {
     error.value = true
@@ -355,9 +410,27 @@ onMounted(load)
                   </router-link>
                   <span v-else>@{{ itemAuthor(item) }}</span>
                 </span>
+                <button
+                  v-if="canRecordChange(item)"
+                  class="btn sm"
+                  :disabled="recordingId === item.id"
+                  title="Record a change for this PR"
+                  @click="recordChange(item)"
+                >
+                  <span v-if="recordingId === item.id" class="spinner" aria-hidden="true"></span>
+                  Record change
+                </button>
               </template>
               <div v-if="tasksFor(item).length" class="row" style="margin-top: 8px; gap: 6px">
                 <TaskLink v-for="task in tasksFor(item)" :key="task.id" :task="task" />
+              </div>
+              <div v-if="changesFor(item).length" class="change-lines">
+                <div v-for="change in changesFor(item)" :key="change.id" class="change-line">
+                  <span :class="changeStatusBadge(change.status)">{{ change.status }}</span>
+                  <router-link :to="`/task/${change.task_id}`">{{ change.title || change.id }}</router-link>
+                  <span class="faint">{{ change.change_class }}</span>
+                  <span class="faint">· {{ timeAgo(change.opened_at) }}</span>
+                </div>
               </div>
               <template #meta>
                 <div v-if="item.fetched_at" class="faint" style="margin-top: 6px">

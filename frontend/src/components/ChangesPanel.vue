@@ -1,6 +1,7 @@
 <script setup>
 import { computed, reactive, ref, watch } from 'vue'
 import { api } from '../api'
+import { changeStatusBadge } from '../changes'
 import { store, timeAgo } from '../store'
 import SearchSelect from './SearchSelect.vue'
 
@@ -23,14 +24,6 @@ const interveningId = ref('')
 const interventionKind = ref('')
 
 const changes = computed(() => props.task.changes || [])
-
-const STATUS_BADGE = {
-  proposed: 'badge',
-  verified: 'badge run',
-  accepted: 'badge ok',
-  rejected: 'badge danger',
-  reverted: 'badge warn'
-}
 
 watch(
   () => props.task.id,
@@ -112,7 +105,7 @@ async function remove(change) {
 
     <div v-for="change in changes" :key="change.id" class="change-row">
       <span class="grow">
-        <span :class="STATUS_BADGE[change.status] || 'badge'">{{ change.status }}</span>
+        <span :class="changeStatusBadge(change.status)">{{ change.status }}</span>
         <span class="faint">{{ change.change_class }}</span>
         {{ change.title || change.id }}
         <span v-if="change.human_intervened" class="badge warn" title="A human touched this change"

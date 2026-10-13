@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { api } from '../api'
+import { changeStatusBadge } from '../changes'
 import { store } from '../store'
 
 const report = ref(null)
@@ -17,14 +18,6 @@ const DIRECTIONS = {
   flat: { label: 'Flat', badge: 'badge' },
   'no-baseline': { label: 'No baseline', badge: 'badge warn' },
   'no-data': { label: 'No data', badge: 'badge warn' }
-}
-
-const STATUS_BADGE = {
-  proposed: 'badge',
-  verified: 'badge run',
-  accepted: 'badge ok',
-  rejected: 'badge danger',
-  reverted: 'badge warn'
 }
 
 function directionMeta(direction) {
@@ -153,7 +146,7 @@ function taskTitle(id) {
       <div v-if="!changes.length" class="empty">No changes recorded yet.</div>
       <div v-for="change in changes" :key="change.id" class="change-row">
         <span class="grow">
-          <span :class="STATUS_BADGE[change.status] || 'badge'">{{ change.status }}</span>
+          <span :class="changeStatusBadge(change.status)">{{ change.status }}</span>
           <span class="faint">{{ change.change_class }}</span>
           {{ change.title || change.id }}
           <span class="faint">· {{ taskTitle(change.task_id) }}</span>

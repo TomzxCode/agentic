@@ -16,6 +16,8 @@ const mocks = vi.hoisted(() => ({
   repositoriesCreateBulk: vi.fn(),
   repositoriesRemove: vi.fn(),
   itemsRefresh: vi.fn(),
+  changesList: vi.fn(),
+  changesCreate: vi.fn(),
   tasksGet: vi.fn(),
   tasksUpdate: vi.fn(),
   tasksRemove: vi.fn(),
@@ -42,6 +44,7 @@ vi.mock('../api', () => ({
       remove: mocks.repositoriesRemove
     },
     items: { refresh: mocks.itemsRefresh },
+    changes: { list: mocks.changesList, create: mocks.changesCreate },
     tasks: { get: mocks.tasksGet, update: mocks.tasksUpdate, remove: mocks.tasksRemove }
   },
   openTaskStream: mocks.openTaskStream
@@ -61,6 +64,7 @@ beforeEach(() => {
   store.harnesses = []
   store.repositories = []
   store.people = []
+  mocks.changesList.mockResolvedValue([])
   mocks.routeQuery = {}
 })
 
@@ -444,6 +448,161 @@ describe('RepositoryDetailView', () => {
     await flushPromises()
     expect(wrapper.text()).toContain('No author')
     expect(wrapper.text()).not.toContain('@')
+  })
+
+  it('shows the changes that reference a pull request', async () => {
+    mocks.changesList.mockResolvedValue([
+      {
+        id: 'c1',
+        task_id: 't1',
+        status: 'accepted',
+        change_class: 'feature',
+        title: 'Landed change',
+        external_ref: 'https://github.com/acme/api/pull/5'
+      },
+      {
+        id: 'c2',
+        task_id: 't1',
+        status: 'proposed',
+        change_class: 'bugfix',
+        title: 'Issue change',
+        external_ref: 'https://github.com/acme/api/issues/1'
+      },
+      { id: 'c3', task_id: 't1', status: 'proposed', change_class: 'chore', title: 'Loose change' }
+    ])
+    const wrapper = mountView()
+    await flushPromises()
+
+    // Only the change naming a PR appears; a change for an issue or with no ref
+    // stays off the repository view.
+    expect(wrapper.text()).toContain('Landed change')
+    expect(wrapper.text()).not.toContain('Issue change')
+    expect(wrapper.text()).not.toContain('Loose change')
+  })
+
+  it('renders a change with its status badge and a link to its task', async () => {
+    mocks.changesList.mockResolvedValue([
+      {
+        id: 'c1',
+        task_id: 't1',
+        status: 'accepted',
+        change_class: 'feature',
+        title: 'Landed change',
+        external_ref: 'https://github.com/acme/api/pull/5'
+      }
+    ])
+    const wrapper = mountLinked()
+    await flushPromises()
+
+    const row = wrapper.get('.change-line')
+    expect(row.get('.badge').text()).toBe('accepted')
+    expect(row.get('.badge').classes()).toContain('ok')
+    expect(row.get('a[href="/task/t1"]').text()).toBe('Landed change')
+  })
+
+  it('shows no change rows when nothing references a pull request', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+    expect(wrapper.find('.change-line').exists()).toBe(false)
+  })
+
+  it('offers to record a change for a merged PR with a single task', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+    // Only the merged PR (i5) gets a button; open and draft PRs and issues do not.
+    expect(wrapper.findAll('button[title="Record a change for this PR"]')).toHaveLength(1)
+  })
+
+  it('hides the record button for an open PR', async () => {
+    store.items = [ghItem('i3', 'pr', 3, 'Open PR', { state: 'OPEN' })]
+    const wrapper = mountView()
+    await flushPromises()
+    expect(wrapper.find('button[title="Record a change for this PR"]').exists()).toBe(false)
+  })
+
+  it('hides the record button when a PR has more than one task', async () => {
+    store.tasks = [
+      { id: 't1', title: 'Task One', status: 'open' },
+      { id: 't2', title: 'Task Two', status: 'open' }
+    ]
+    store.items = [{ ...ghItem('i5', 'pr', 5, 'Shared PR', { state: 'MERGED' }), task_ids: ['t1', 't2'] }]
+    const wrapper = mountView()
+    await flushPromises()
+    expect(wrapper.find('button[title="Record a change for this PR"]').exists()).toBe(false)
+  })
+
+  it('hides the record button when a change already references the PR', async () => {
+    mocks.changesList.mockResolvedValue([
+      {
+        id: 'c1',
+        task_id: 't1',
+        status: 'accepted',
+        change_class: 'feature',
+        title: 'Landed change',
+        external_ref: 'https://github.com/acme/api/pull/5'
+      }
+    ])
+    store.items = [ghItem('i5', 'pr', 5, 'Merged PR', { state: 'MERGED' })]
+    const wrapper = mountView()
+    await flushPromises()
+    expect(wrapper.find('button[title="Record a change for this PR"]').exists()).toBe(false)
+  })
+
+  it("records a change on the PR's single task and shows it", async () => {
+    store.items = [ghItem('i5', 'pr', 5, 'Merged PR', { state: 'MERGED', merged_at: '2026-10-11T05:23:53Z' })]
+    mocks.changesCreate.mockResolvedValue({
+      id: 'c9',
+      task_id: 't1',
+      status: 'accepted',
+      change_class: 'feature',
+      title: 'Merged PR',
+      external_ref: 'https://github.com/acme/api/pull/5',
+      opened_at: '2026-10-11T05:23:53Z'
+    })
+    const wrapper = mountView()
+    await flushPromises()
+
+    await wrapper.get('button[title="Record a change for this PR"]').trigger('click')
+    await flushPromises()
+
+    expect(mocks.changesCreate).toHaveBeenCalledWith({
+      task_id: 't1',
+      title: 'Merged PR',
+      external_ref: 'https://github.com/acme/api/pull/5',
+      status: 'accepted',
+      opened_at: '2026-10-11T05:23:53Z',
+      accepted_at: '2026-10-11T05:23:53Z'
+    })
+    // The new change shows under the PR and the button is gone.
+    const row = wrapper.get('.change-line')
+    expect(row.text()).toContain('accepted')
+    expect(row.get('a').text()).toBe('Merged PR')
+    expect(wrapper.find('button[title="Record a change for this PR"]').exists()).toBe(false)
+    expect(store.toast.message).toBe('Change recorded')
+  })
+
+  it('refreshes the item to pick up the merge time when it is missing', async () => {
+    // A merged PR fetched before merge times were stored carries none.
+    store.items = [ghItem('i5', 'pr', 5, 'Merged PR', { state: 'MERGED' })]
+    mocks.itemsRefresh.mockResolvedValue(
+      ghItem('i5', 'pr', 5, 'Merged PR', { state: 'MERGED', merged_at: '2026-10-11T05:23:53Z' })
+    )
+    mocks.changesCreate.mockResolvedValue({ id: 'c9', task_id: 't1', status: 'accepted', change_class: 'feature' })
+    const wrapper = mountView()
+    await flushPromises()
+
+    await wrapper.get('button[title="Record a change for this PR"]').trigger('click')
+    await flushPromises()
+
+    expect(mocks.itemsRefresh).toHaveBeenCalledWith('i5')
+    expect(mocks.changesCreate).toHaveBeenCalledWith({
+      task_id: 't1',
+      title: 'Merged PR',
+      external_ref: 'https://github.com/acme/api/pull/5',
+      status: 'accepted',
+      opened_at: '2026-10-11T05:23:53Z',
+      accepted_at: '2026-10-11T05:23:53Z'
+    })
   })
 
   const LinkStub = { props: ['to'], template: '<a :href="to"><slot /></a>' }

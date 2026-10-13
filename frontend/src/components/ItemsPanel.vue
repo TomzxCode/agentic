@@ -1,6 +1,7 @@
 <script setup>
 import { computed, reactive, ref } from 'vue'
 import { api } from '../api'
+import { changeCreateBody, changeReferencesItem } from '../changes'
 import { sourceLabel, store, timeAgo } from '../store'
 import ItemCard from './ItemCard.vue'
 
@@ -27,30 +28,15 @@ function isPullRequest(item) {
   return item?.kind === 'pull_request' || item?.metadata_json?.kind === 'pull_request'
 }
 
-// A change references a PR when its external ref names that PR; we record the
-// PR's URL there when the change is created from the item.
-function changeReferencesPr(change, item) {
-  const ref = (change.external_ref || '').trim()
-  if (!ref) return false
-  return [item.url, item.external_id].some((value) => value && value.trim() === ref)
-}
-
 // Offer to record a change for a linked PR that no change references yet.
 function needsChange(item) {
-  return isPullRequest(item) && !changes.value.some((change) => changeReferencesPr(change, item))
+  return isPullRequest(item) && !changes.value.some((change) => changeReferencesItem(change, item))
 }
 
 async function recordChange(item) {
   try {
-    // A merged PR already landed: open the change as accepted, dated to the
-    // merge rather than to the click. An open PR opens as proposed.
-    const mergedAt = item.metadata_json?.merged_at
-    await api.changes.create({
-      task_id: props.task.id,
-      title: item.title || item.url || '',
-      external_ref: item.url || item.external_id || null,
-      ...(mergedAt ? { status: 'accepted', opened_at: mergedAt, accepted_at: mergedAt } : {})
-    })
+    // A merged PR already landed: the change opens accepted, dated to the merge.
+    await api.changes.create(changeCreateBody(props.task.id, item))
     emit('changed')
   } catch (e) {
     store.notify(e.message, true)
