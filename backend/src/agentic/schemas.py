@@ -340,6 +340,9 @@ class TimelineRead(ORMModel):
 class TaskDetail(TaskRead):
     associations: list[AssociationDetail] = []
     people: list[PersonRead] = []
+    # People named by the task's items (an issue/PR author, a commenter) that
+    # are not yet linked to the task, offered as one-click links in the UI.
+    suggested_people: list[PersonRead] = []
     worktrees: list[WorktreeRead] = []
     runs: list[RunRead] = []
     changes: list[ChangeRead] = []

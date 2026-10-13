@@ -11,6 +11,12 @@ const newName = ref('')
 
 const linkedIds = computed(() => new Set((props.task.people || []).map((person) => person.id)))
 
+// People named by the task's items (an issue/PR author, a commenter) who are
+// not linked yet; one click links them.
+const suggested = computed(() =>
+  (props.task.suggested_people || []).filter((person) => !linkedIds.value.has(person.id))
+)
+
 // People in the directory who are not already on the task.
 const linkable = computed(() =>
   store.people
@@ -71,6 +77,22 @@ async function remove(person) {
         {{ person.name }}
         <button class="chip-x" title="Remove" @click="remove(person)">✕</button>
       </span>
+    </div>
+
+    <div v-if="suggested.length" class="suggested-people" style="margin-bottom: 12px">
+      <div class="faint" style="margin-bottom: 6px">Suggested from linked items</div>
+      <div class="row" style="gap: 6px; flex-wrap: wrap">
+        <button
+          v-for="person in suggested"
+          :key="person.id"
+          class="chip chip-add"
+          :disabled="busy"
+          title="Link this person to the task"
+          @click="linkExisting(person.id)"
+        >
+          ＋ {{ person.name }}
+        </button>
+      </div>
     </div>
 
     <div style="border-top: 1px solid var(--border); padding-top: 12px">

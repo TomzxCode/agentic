@@ -122,6 +122,32 @@ describe('PeoplePanel', () => {
     await flushPromises()
     expect(store.toast).toEqual({ message: 'bad', isError: true })
   })
+
+  it('suggests people named by linked items and links them on click', async () => {
+    mocks.linkTask.mockResolvedValue({})
+    const wrapper = mount(PeoplePanel, {
+      props: {
+        task: task({ people: [], suggested_people: [{ id: 'p2', name: 'Grace' }] })
+      }
+    })
+    expect(wrapper.text()).toContain('Suggested from linked items')
+    await wrapper.get('.suggested-people .chip-add').trigger('click')
+    await flushPromises()
+    expect(mocks.linkTask).toHaveBeenCalledWith('t1', { person_id: 'p2' })
+    expect(wrapper.emitted('changed')).toHaveLength(1)
+  })
+
+  it('hides a suggestion that is already linked', () => {
+    const wrapper = mount(PeoplePanel, {
+      props: {
+        task: task({
+          people: [{ id: 'p2', name: 'Grace' }],
+          suggested_people: [{ id: 'p2', name: 'Grace' }]
+        })
+      }
+    })
+    expect(wrapper.find('.suggested-people').exists()).toBe(false)
+  })
 })
 
 describe('PeopleView', () => {

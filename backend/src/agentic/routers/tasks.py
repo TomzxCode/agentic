@@ -23,6 +23,7 @@ from ..models import (
     Change,
     ChangeIntervention,
     Harness,
+    Person,
     Repository,
     RepositoryGroup,
     SourceItem,
@@ -50,10 +51,17 @@ from ..schemas import (
     TimelineRead,
     WorktreeRead,
 )
-from ..services import SLACK_PLACEHOLDER_TITLE, github_owner_repo, remove_worktree
+from ..services import SLACK_PLACEHOLDER_TITLE, fetch_source, github_owner_repo, remove_worktree
 from .agents import start_slack_summary
 from .items import _upsert_item
-from .people import _person_read, link_item_people_to_task, task_people, task_person_ids
+from .people import (
+    _person_read,
+    item_person_ids,
+    link_item_people_to_task,
+    link_people_to_item,
+    task_people,
+    task_person_ids,
+)
 
 router = APIRouter(prefix="/api/tasks", tags=["tasks"])
 
@@ -126,7 +134,10 @@ def _detail(session: Session, task: Task) -> TaskDetail:
     associations = session.exec(
         select(Association).where(Association.task_id == task.id).order_by(col(Association.created_at).desc())
     ).all()
+    linked_person_ids = set(task_person_ids(session, task.id))
     details: list[AssociationDetail] = []
+    suggested: list[Person] = []
+    seen_suggested: set[str] = set()
     for assoc in associations:
         item = session.get(SourceItem, assoc.item_id)
         if item is None:
@@ -139,6 +150,15 @@ def _detail(session: Session, task: Task) -> TaskDetail:
                 item=ItemRead.model_validate(item),
             )
         )
+        # People the item names (an issue/PR author, a commenter, a Slack
+        # participant) that the task does not link yet become suggestions.
+        for person_id in item_person_ids(session, item.id):
+            if person_id in linked_person_ids or person_id in seen_suggested:
+                continue
+            person = session.get(Person, person_id)
+            if person is not None:
+                seen_suggested.add(person_id)
+                suggested.append(person)
     worktrees = session.exec(
         select(Worktree)
         .where(Worktree.task_id == task.id)
@@ -163,6 +183,7 @@ def _detail(session: Session, task: Task) -> TaskDetail:
         **_task_read(session, task).model_dump(),
         associations=details,
         people=[_person_read(session, person) for person in task_people(session, task.id)],
+        suggested_people=[_person_read(session, person) for person in suggested],
         worktrees=[WorktreeRead.model_validate(w) for w in worktrees],
         runs=[run_read(session, r) for r in runs],
         changes=[ChangeRead.model_validate(c) for c in changes],
@@ -186,6 +207,21 @@ def _link_item(session: Session, task_id: str, item: SourceItem, note: str = "")
     # A linked GitHub issue or PR also brings its repository, when it is known.
     _link_repository_for_item(session, task_id, item)
     return assoc
+
+
+def _populate_item_people(session: Session, item: SourceItem) -> None:
+    """Fetch an item's people when it has a URL but none linked yet.
+
+    An item created without a fetch (or whose fetch failed) carries no people,
+    so linking it to a task would leave the task without the author and the
+    commenters. Fetching here closes that gap for GitHub issues and PRs.
+    """
+    if not item.url or item_person_ids(session, item.id):
+        return
+    if item.source not in ("github", "slack"):
+        return
+    fetched = fetch_source(item.source, item.url, item.external_id, item.title)
+    link_people_to_item(session, item.id, fetched.get("people") or [])
 
 
 @router.get("", response_model=list[TaskRead])
@@ -472,6 +508,10 @@ async def associate_item(
             raise HTTPException(status_code=404, detail="Item not found")
     else:
         raise HTTPException(status_code=400, detail="Provide item_id or item")
+
+    # An item that never fetched (or failed to) still names its author via
+    # GitHub; fetch it off the event loop so the task gets the person.
+    await anyio.to_thread.run_sync(_populate_item_people, session, item)
 
     assoc = _link_item(session, task_id, item, payload.note)
     add_timeline(
