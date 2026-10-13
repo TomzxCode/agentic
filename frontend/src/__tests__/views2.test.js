@@ -149,7 +149,45 @@ describe('SettingsView', () => {
       name: 'Custom',
       command: 'custom-acp',
       args: ['--flag', 'acp'],
-      description: ''
+      description: '',
+      model: null
+    })
+  })
+
+  it('saves a harness model', async () => {
+    mocks.harnessesUpdate.mockResolvedValue({})
+    const wrapper = mountView()
+    await flushPromises()
+    await wrapper
+      .get('input[placeholder="model, e.g. zai-coding-plan/glm-5.3 (empty uses the harness default)"]')
+      .setValue('zai-coding-plan/glm-5.3')
+    await wrapper
+      .findAll('button')
+      .filter((b) => b.text() === 'Save')[1]
+      .trigger('click')
+    await flushPromises()
+    expect(mocks.harnessesUpdate).toHaveBeenCalledWith('opencode', { model: 'zai-coding-plan/glm-5.3' })
+    expect(store.toast.message).toBe('Model saved')
+  })
+
+  it('adds a harness with a model', async () => {
+    mocks.harnessesCreate.mockResolvedValue({})
+    const wrapper = mountView()
+    await flushPromises()
+    await wrapper.get('input[placeholder="Name"]').setValue('Custom')
+    await wrapper.get('input[placeholder="command (e.g. opencode)"]').setValue('custom-acp')
+    await wrapper.get('input[placeholder="model (optional)"]').setValue('openai/gpt-5')
+    await wrapper
+      .findAll('button')
+      .find((b) => b.text() === 'Add harness')
+      .trigger('click')
+    await flushPromises()
+    expect(mocks.harnessesCreate).toHaveBeenCalledWith({
+      name: 'Custom',
+      command: 'custom-acp',
+      args: [],
+      description: '',
+      model: 'openai/gpt-5'
     })
   })
 

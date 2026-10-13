@@ -30,13 +30,14 @@ watch(
 )
 
 const repoDraft = reactive({ path: '' })
-const harnessDraft = reactive({ name: '', command: '', args: '', description: '' })
+const harnessDraft = reactive({ name: '', command: '', args: '', description: '', model: '' })
 const loading = ref(true)
 
 const showPicker = ref(false)
 const fullHarnesses = ref([])
 const harnessStatus = ref({})
 const resumeDrafts = reactive({})
+const modelDrafts = reactive({})
 
 const linkForm = reactive({
   openchamber_url: '',
@@ -57,7 +58,10 @@ async function loadHarnesses() {
   const [full, status] = await Promise.all([api.harnesses.full(), api.harnesses.list()])
   fullHarnesses.value = full
   harnessStatus.value = Object.fromEntries(status.map((h) => [h.id, h]))
-  for (const h of full) resumeDrafts[h.id] = h.resume_command || ''
+  for (const h of full) {
+    resumeDrafts[h.id] = h.resume_command || ''
+    modelDrafts[h.id] = h.model || ''
+  }
 }
 
 async function loadSettings() {
@@ -122,9 +126,10 @@ async function addHarness() {
       name: harnessDraft.name.trim(),
       command: harnessDraft.command.trim(),
       args: harnessDraft.args.split(/\s+/).filter(Boolean),
-      description: harnessDraft.description
+      description: harnessDraft.description,
+      model: harnessDraft.model.trim() || null
     })
-    Object.assign(harnessDraft, { name: '', command: '', args: '', description: '' })
+    Object.assign(harnessDraft, { name: '', command: '', args: '', description: '', model: '' })
     await loadHarnesses()
   } catch (e) {
     store.notify(e.message, true)
@@ -135,6 +140,16 @@ async function saveResume(id) {
   try {
     await api.harnesses.update(id, { resume_command: resumeDrafts[id] })
     store.notify('Resume command saved')
+    await loadHarnesses()
+  } catch (e) {
+    store.notify(e.message, true)
+  }
+}
+
+async function saveModel(id) {
+  try {
+    await api.harnesses.update(id, { model: modelDrafts[id].trim() || null })
+    store.notify('Model saved')
     await loadHarnesses()
   } catch (e) {
     store.notify(e.message, true)
@@ -282,6 +297,14 @@ onMounted(load)
               <button class="btn sm" @click="saveResume(h.id)">Save</button>
               <button v-if="!h.is_default" class="btn sm" @click="setDefault(h.id)">Set default</button>
             </div>
+            <div class="row" style="margin-top: 8px">
+              <input
+                v-model="modelDrafts[h.id]"
+                class="input grow mono"
+                placeholder="model, e.g. zai-coding-plan/glm-5.3 (empty uses the harness default)"
+              />
+              <button class="btn sm" @click="saveModel(h.id)">Save</button>
+            </div>
           </div>
           <div class="row" style="margin-top: 10px">
             <input v-model="harnessDraft.name" class="input grow" placeholder="Name" />
@@ -289,6 +312,7 @@ onMounted(load)
           </div>
           <div class="row" style="margin-top: 8px">
             <input v-model="harnessDraft.args" class="input grow" placeholder="args (space separated, e.g. acp)" />
+            <input v-model="harnessDraft.model" class="input grow mono" placeholder="model (optional)" />
             <button class="btn primary" @click="addHarness">Add harness</button>
           </div>
         </section>

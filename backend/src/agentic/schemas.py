@@ -159,6 +159,7 @@ class HarnessStatus(BaseModel):
     available: bool
     detail: str = ""
     is_default: bool = False
+    model: str | None = None
 
 
 # --- SourceItem ------------------------------------------------------------

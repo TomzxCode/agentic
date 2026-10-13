@@ -39,7 +39,7 @@ flowchart LR
 | command | string | not null | Executable |
 | args | JSON | default [] | Arguments |
 | env | JSON | default {} | Extra environment |
-| model | string | nullable | Optional model flag |
+| model | string | nullable | Model selected per session over ACP; blank uses the harness default |
 | resume_command | string | nullable | Resume template |
 | is_default | bool | default false | The default harness (at most one); runs use it when a task picks none |
 
@@ -105,7 +105,7 @@ sequenceDiagram
     C->>R: POST /tasks/{id}/runs
     R->>R: INSERT run (queued), register cancel event, dispatch
     R-->>C: 201 RunRead
-    X->>H: spawn, initialize, new_session, prompt
+    X->>H: spawn, initialize, new_session, set_config_option(model), prompt
     H-->>X: session_update stream
     X->>X: persist AgentEvent, publish on run:{id} and task:{id}
     X->>H: terminate process
@@ -121,6 +121,7 @@ sequenceDiagram
 | Event normalization | One `session_update` branch per kind | A stable event vocabulary for UI and persistence |
 | Cancellation | `asyncio.Event` per run, raced against the prompt task | Cancel without killing the process abruptly |
 | Context parsing | Balanced-brace scan plus truncated-JSON repair | Models hit output limits and wrap JSON in prose |
+| Model selection | ACP `session/set_config_option` (`model`), not a CLI flag | `opencode acp` rejects `--model` and would fail to start; the option is chosen per session after it is created |
 | Message source | Prefer `message` events; fall back to `thought` only if empty | Thinking and message chunks interleave on one stream |
 | Settings precedence | Stored override wins over environment default | Lets the UI change links without a restart |
 

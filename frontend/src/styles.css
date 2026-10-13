@@ -956,6 +956,9 @@ button.tag-chip.active {
 .ev.permission {
   color: var(--warn);
 }
+.ev.warning {
+  color: var(--warn);
+}
 .ev.plan {
   color: #c084fc;
 }

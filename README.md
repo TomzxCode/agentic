@@ -79,7 +79,10 @@ Default harnesses (seeded automatically):
 | `pi` | `pi-acp` | `pi` via the pi-acp adapter. |
 
 The default harness runs when a task does not pick one; change it under
-Settings → Agent harnesses (the default is marked with a badge).
+Settings → Agent harnesses (the default is marked with a badge). Each harness can
+also carry a **model**: set it under Settings → Agent harnesses, and the runner
+selects it over ACP (`session/set_config_option`) after the session is created. A
+blank model uses the harness's own default.
 
 ## Quickstart
 

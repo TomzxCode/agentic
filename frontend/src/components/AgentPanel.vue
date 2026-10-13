@@ -28,11 +28,15 @@ const liveCwd = computed(() => {
 const defaultHarnessLabel = computed(() => {
   const harness = props.harnesses.find((h) => h.is_default)
   if (!harness) return 'Default harness'
-  return `Default harness (${harness.name}${harness.available === false ? ', unavailable' : ''})`
+  const model = harness.model ? ` · ${harness.model}` : ''
+  return `Default harness (${harness.name}${model}${harness.available === false ? ', unavailable' : ''})`
 })
 const harnessOptions = computed(() => [
   { value: '', label: defaultHarnessLabel.value },
-  ...props.harnesses.map((h) => ({ value: h.id, label: h.available ? h.name : `${h.name} (unavailable)` }))
+  ...props.harnesses.map((h) => ({
+    value: h.id,
+    label: `${h.name}${h.model ? ` · ${h.model}` : ''}${h.available ? '' : ' (unavailable)'}`
+  }))
 ])
 const worktreeOptions = computed(() => [
   { value: '', label: 'Auto working directory' },
@@ -86,6 +90,8 @@ const blocks = computed(() => {
       out.push({ id: `b${out.length}`, kind: 'permission', label: 'permission', text: ev.text })
     } else if (kind === 'error') {
       out.push({ id: `b${out.length}`, kind: 'error', label: 'error', text: ev.text })
+    } else if (kind === 'warning') {
+      out.push({ id: `b${out.length}`, kind: 'warning', label: 'warning', text: ev.text })
     }
     // 'info' and 'usage' are noise; skip them.
   }

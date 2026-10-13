@@ -218,34 +218,34 @@ class AgenticClient(Client):
         self._auto_approve = auto_approve
         self.seq = 0
 
-    async def _emit(self, type_: str, text: str, data: dict[str, Any] | None = None) -> None:
+    async def emit(self, type_: str, text: str, data: dict[str, Any] | None = None) -> None:
         self.seq += 1
         await self._publish({"seq": self.seq, "type": type_, "text": text, "data": data or {}})
 
     async def session_update(self, session_id: str, update: Any, **kwargs: Any) -> None:
         kind = getattr(update, "session_update", None)
         if kind == "agent_message_chunk":
-            await self._emit("message", _content_text(update.content))
+            await self.emit("message", _content_text(update.content))
         elif kind == "agent_thought_chunk":
-            await self._emit("thought", _content_text(update.content))
+            await self.emit("thought", _content_text(update.content))
         elif kind == "user_message_chunk":
-            await self._emit("user", _content_text(update.content))
+            await self.emit("user", _content_text(update.content))
         elif kind == "tool_call":
-            await self._emit("tool_call", getattr(update, "title", ""), _dump(update))
+            await self.emit("tool_call", getattr(update, "title", ""), _dump(update))
         elif kind == "tool_call_update":
-            await self._emit("tool_update", getattr(update, "title", "") or "", _dump(update))
+            await self.emit("tool_update", getattr(update, "title", "") or "", _dump(update))
         elif kind == "plan":
             entries = [_dump(e) for e in getattr(update, "entries", [])]
-            await self._emit("plan", "", {"entries": entries})
+            await self.emit("plan", "", {"entries": entries})
         elif kind == "usage_update":
-            await self._emit("usage", "", _dump(update))
+            await self.emit("usage", "", _dump(update))
         else:
-            await self._emit("info", kind or "update", _dump(update))
+            await self.emit("info", kind or "update", _dump(update))
 
     async def request_permission(
         self, session_id: str, tool_call: Any, options: list[PermissionOption], **kwargs: Any
     ) -> RequestPermissionResponse:
-        await self._emit(
+        await self.emit(
             "permission",
             f"Permission requested for {getattr(tool_call, 'title', 'a tool')}",
             {"options": [_dump(o) for o in options]},
@@ -347,6 +347,25 @@ async def _acquire_session(conn: Any, cwd: str, resume_session_id: str | None) -
     return session.session_id
 
 
+async def _apply_model(conn: Any, session_id: str, model: str | None) -> str | None:
+    """Select the session model over ACP, returning an error message on failure.
+
+    The model is chosen with the ACP ``session/set_config_option`` request (the
+    ``model`` config option), not a command-line flag: ``opencode acp`` rejects
+    ``--model`` as an unknown flag and would fail to start. A harness that does
+    not expose a model option, or rejects the requested value, keeps its own
+    default; the caller surfaces the returned message instead of failing the run.
+    """
+    if not model:
+        return None
+    try:
+        await conn.set_config_option(config_id="model", session_id=session_id, value=model)
+    except Exception as exc:  # noqa: BLE001 - an unsupported option must not fail the run
+        log.warning("could not select harness model", model=model, error=str(exc))
+        return str(exc)
+    return None
+
+
 def harness_env(harness: Harness) -> dict[str, str]:
     """The environment for a harness process, marking it as an agent.
 
@@ -377,9 +396,6 @@ async def run_agent(
     """
     env = harness_env(harness)
     args = list(harness.args or [])
-    if harness.model:
-        # Both opencode and pi accept --model; harmless if ignored.
-        args += ["--model", harness.model]
 
     client = AgenticClient(cwd=cwd, publish=publish, auto_approve=settings.auto_approve_permissions)
     result: dict[str, Any] = {}
@@ -399,6 +415,9 @@ async def run_agent(
         if on_session is not None:
             # Persist the handle before the turn runs, so a crash leaves a resumable run.
             await on_session(session_id)
+        model_error = await _apply_model(conn, session_id, harness.model)
+        if model_error is not None:
+            await client.emit("warning", f"Could not select model {harness.model}: {model_error}")
 
         cancel_task = asyncio.create_task(cancel_event.wait())
         prompt_task = asyncio.create_task(conn.prompt(session_id, [TextContentBlock(type="text", text=prompt)]))

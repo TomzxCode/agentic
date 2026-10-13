@@ -31,6 +31,7 @@ Out of scope: spawning a real harness process (integration with opencode/pi), wh
 | TC-9 | Harnesses are seeded | fresh database | opencode2, opencode, and pi present, exactly one marked default |
 | TC-10 | Context prompt includes a group | task with a group | prompt lists the group's repositories |
 | TC-11 | Backend CLI reports harness availability | fresh database | info prints harnesses |
+| TC-13 | Model applied over ACP | harness with a model | `session/set_config_option("model")` is called and no `--model` flag is passed; a rejecting harness emits a warning event and the run continues |
 
 ## Edge Cases and Failure Scenarios
 
@@ -48,7 +49,7 @@ Out of scope: spawning a real harness process (integration with opencode/pi), wh
 | Requirement | Test Cases |
 |---|---|
 | FR-1 | TC-9, TC-11 |
-| FR-2 | TC-9 |
+| FR-2 | TC-9, TC-13 |
 | FR-4 | TC-1, TC-2, TC-3, TC-4, TC-5, TC-6 |
 | FR-6 | TC-1, TC-10, TC-12 |
 | FR-7 | TC-7, TC-8 |

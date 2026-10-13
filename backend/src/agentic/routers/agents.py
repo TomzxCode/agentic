@@ -66,6 +66,7 @@ def list_harnesses(session: Session = Depends(get_session)) -> list[HarnessStatu
                 available=available,
                 detail=detail,
                 is_default=harness.is_default,
+                model=harness.model,
             )
         )
     return statuses

@@ -5,10 +5,16 @@
 - `Harness.is_default` (at most one row) is the harness a run uses when a task picks none; `AGENTIC_DEFAULT_HARNESS` is now only a name fallback for when no row is flagged. `seed_harnesses` picks it once (installed `opencode2`, else `opencode`) and records the non-overridable key `harness_default_seeded` in the `setting` table, so a later choice made in Settings is never overwritten.
 - `GET /api/harnesses` reports `is_default` per harness and `PATCH /api/harnesses/{id}` demotes the others, which is what the Settings page uses. The marker row is not in `OVERRIDABLE_KEYS`, so it is invisible to the settings API (do not expect to see it under `/api/settings`).
 
+## 2026-10-13: harness model is selected over ACP, never via a CLI flag
+
+- A harness's `model` is applied with ACP `session/set_config_option(config_id="model", ...)` right after the session is created or resumed (`_apply_model` in `agents.py`). `opencode acp`/`opencode2 acp` reject `--model` as an unknown flag and the process fails to start, so the old "append `--model` to args" wiring was broken. `new_session` returns the model list and current value under `configOptions` (id `model`), and `set_config_option` changes it.
+- A harness that lacks a model config option (pi) or rejects the value logs a warning and emits a `warning` transcript event, then runs with its own default; the setting never fails a run.
+- `Harness.model` is editable per harness in Settings → Agent harnesses and shown in the run harness picker; blank means the harness default. The CLI `harness create/update --model` was already wired.
+
 ## 2026-10-12: opencode ACP defaults to its own model, not the CLI's
 
 - `opencode acp` creates sessions with opencode's built-in default model (observed `opencode/big-pickle`), which is independent of the model `opencode run` resolves (observed `zai-coding-plan/glm-5.3`). With no valid `opencode` provider credential, that default fails with `Upstream request failed: Invalid credential`, and the ACP turn errors.
-- `opencode acp` has no `--model` flag (its options are only log/port/host/mdns/cors/cwd), so the agentic `Harness.model` column cannot select the ACP model; it is silently ignored. Set `"model"` in `~/.config/opencode/opencode.json` instead (this machine uses `zai-coding-plan/glm-5.3`); both the CLI and ACP honor it. A project-local `.opencode/opencode.json` in the run cwd works too, but agentic's cwd varies (worktree root or a repository).
+- The ACP model is selectable (see the 2026-10-13 entry); setting `"model"` in `~/.config/opencode/opencode.json` (this machine uses `zai-coding-plan/glm-5.3`) changes the default that `new_session` reports. A project-local `.opencode/opencode.json` in the run cwd works too, but agentic's cwd varies (worktree root or a repository).
 
 ## 2026-10-12: factory metrics are computed from explicit change records
 

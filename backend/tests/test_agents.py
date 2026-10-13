@@ -109,6 +109,97 @@ def test_dump_handles_none_and_models():
     assert _dump(TextContentBlock(type="text", text="hi")) == {"type": "text", "text": "hi"}
 
 
+@pytest.mark.asyncio
+async def test_apply_model_selects_the_configured_model():
+    calls: list[tuple] = []
+
+    class FakeConn:
+        async def set_config_option(self, config_id, session_id, value):
+            calls.append((config_id, session_id, value))
+
+    assert await agents_mod._apply_model(FakeConn(), "s1", None) is None
+    assert calls == []
+    assert await agents_mod._apply_model(FakeConn(), "s1", "zai-coding-plan/glm-5.3") is None
+    assert calls == [("model", "s1", "zai-coding-plan/glm-5.3")]
+
+
+@pytest.mark.asyncio
+async def test_apply_model_reports_a_harness_that_rejects_it():
+    class FakeConn:
+        async def set_config_option(self, config_id, session_id, value):
+            raise RequestError.method_not_found("session/set_config_option")
+
+    message = await agents_mod._apply_model(FakeConn(), "s1", "nope")
+    assert message  # the harness's error is surfaced rather than swallowed
+
+
+class _FakeSpawn:
+    def __init__(self, conn, process):
+        self.conn = conn
+        self.process = process
+
+    async def __aenter__(self):
+        return self.conn, self.process
+
+    async def __aexit__(self, *exc):
+        return False
+
+
+@pytest.mark.asyncio
+async def test_run_agent_selects_the_model_over_acp_not_a_cli_flag(monkeypatch):
+    captured: dict = {}
+
+    class FakeConn:
+        async def initialize(self, **kwargs):
+            return SimpleNamespace(agent_info=None)
+
+        async def new_session(self, cwd):
+            return SimpleNamespace(session_id="sess-1")
+
+        async def set_config_option(self, config_id, session_id, value):
+            captured["model"] = (config_id, session_id, value)
+            return SimpleNamespace()
+
+        async def prompt(self, session_id, prompt):
+            return SimpleNamespace(stop_reason="end_turn", usage=None)
+
+    class FakeProcess:
+        returncode = 0
+
+        async def wait(self):
+            return 0
+
+        def terminate(self):
+            return None
+
+    def fake_spawn(client, command, *args, **kwargs):
+        captured["command"] = command
+        captured["args"] = args
+        return _FakeSpawn(FakeConn(), FakeProcess())
+
+    monkeypatch.setattr(agents_mod, "spawn_agent_process", fake_spawn)
+
+    async def collect(_event: dict) -> None:
+        return None
+
+    harness = Harness(name="h", command="opencode", args=["acp"], model="zai-coding-plan/glm-5.3")
+    result = await agents_mod.run_agent(
+        run_id="r1",
+        harness=harness,
+        cwd=".",
+        prompt="hi",
+        publish=collect,
+        cancel_event=asyncio.Event(),
+    )
+
+    # The model is a session config option, never a command-line flag: `opencode acp`
+    # rejects `--model` and would fail to start.
+    assert captured["command"] == "opencode"
+    assert captured["args"] == ("acp",)
+    assert captured["model"] == ("model", "sess-1", "zai-coding-plan/glm-5.3")
+    assert result["session_id"] == "sess-1"
+
+
 def test_harness_available_reports_missing_and_present_commands():
     missing = Harness(id="m", name="m", command="definitely-not-a-real-command-xyz")
     available, detail = harness_available(missing)
