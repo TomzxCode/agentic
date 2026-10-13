@@ -1,5 +1,6 @@
 import { reactive } from 'vue'
 import { api } from './api'
+import { itemStatus } from './repositories'
 
 export const store = reactive({
   tasks: [],
@@ -112,12 +113,7 @@ export function statusClass(status) {
 export function prStatus(item) {
   const meta = item?.metadata_json || {}
   if (item?.kind !== 'pull_request' && meta.kind !== 'pull_request') return null
-  const state = String(meta.state || '').toUpperCase()
-  if (state === 'MERGED') return { label: 'Merged', className: 'pr-merged' }
-  if (state === 'CLOSED') return { label: 'Closed', className: 'pr-closed' }
-  if (state === 'OPEN')
-    return meta.is_draft ? { label: 'Draft', className: 'pr-draft' } : { label: 'Open', className: 'pr-open' }
-  return state ? { label: state, className: 'pr-open' } : null
+  return itemStatus(item)
 }
 
 export function timeAgo(iso) {

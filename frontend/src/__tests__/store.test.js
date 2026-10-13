@@ -49,22 +49,32 @@ describe('prStatus', () => {
   })
 
   it('maps each PR state to a label and badge class', () => {
-    expect(prStatus(pr())).toEqual({ label: 'Open', className: 'pr-open' })
-    expect(prStatus(pr({ metadata_json: { state: 'MERGED' } }))).toEqual({ label: 'Merged', className: 'pr-merged' })
-    expect(prStatus(pr({ metadata_json: { state: 'CLOSED' } }))).toEqual({ label: 'Closed', className: 'pr-closed' })
+    expect(prStatus(pr())).toEqual({ state: 'open', label: 'Open', className: 'st-open' })
+    expect(prStatus(pr({ metadata_json: { state: 'MERGED' } }))).toEqual({
+      state: 'merged',
+      label: 'Merged',
+      className: 'st-merged'
+    })
+    expect(prStatus(pr({ metadata_json: { state: 'CLOSED' } }))).toEqual({
+      state: 'closed',
+      label: 'Closed',
+      className: 'st-closed'
+    })
   })
 
   it('shows an open PR flagged as a draft as Draft', () => {
     expect(prStatus(pr({ metadata_json: { state: 'OPEN', is_draft: true } }))).toEqual({
+      state: 'draft',
       label: 'Draft',
-      className: 'pr-draft'
+      className: 'st-draft'
     })
   })
 
   it('accepts the kind recorded in the fetched metadata', () => {
     expect(prStatus({ kind: '', metadata_json: { kind: 'pull_request', state: 'MERGED' } })).toEqual({
+      state: 'merged',
       label: 'Merged',
-      className: 'pr-merged'
+      className: 'st-merged'
     })
   })
 })

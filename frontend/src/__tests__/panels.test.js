@@ -212,7 +212,7 @@ describe('ItemsPanel', () => {
     })
     const wrapper = mount(ItemsPanel, { props: { task: withPr } })
     expect(wrapper.text()).toContain('pull request')
-    expect(wrapper.get('.badge.pr-draft').text()).toBe('Draft')
+    expect(wrapper.get('.badge.st-draft').text()).toBe('Draft')
   })
 })
 

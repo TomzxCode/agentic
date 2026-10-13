@@ -50,10 +50,15 @@ export function itemNumber(item) {
   return match ? match[1] : null
 }
 
-// An item's GitHub state, normalized for filtering: "open", "draft", "merged",
-// or "closed", or null when nothing was stored. ghx reports OPEN / CLOSED /
-// MERGED and flags a draft PR separately, so an open draft reads as "draft".
-// State is stored on the item's metadata; no GitHub call is involved.
+// The states an item can be in, in display order, and their labels.
+export const STATE_ORDER = ['open', 'draft', 'merged', 'closed']
+export const STATE_LABELS = { open: 'Open', draft: 'Draft', merged: 'Merged', closed: 'Closed' }
+
+// An item's GitHub state, normalized for filtering and display: "open",
+// "draft", "merged", or "closed", or null when nothing was stored. ghx reports
+// OPEN / CLOSED / MERGED and flags a draft PR separately, so an open draft
+// reads as "draft". State is stored on the item's metadata; no GitHub call is
+// involved.
 export function itemState(item) {
   const meta = item?.metadata_json || {}
   const state = String(meta.state || '').toUpperCase()
@@ -61,6 +66,58 @@ export function itemState(item) {
   if (state === 'CLOSED') return 'closed'
   if (state === 'OPEN') return meta.is_draft ? 'draft' : 'open'
   return null
+}
+
+// An item's state ready for display: its state, label, and badge class, or
+// null when no state is stored. Covers issues (open or closed) and PRs (all
+// four states).
+export function itemStatus(item) {
+  const state = itemState(item)
+  if (!state) return null
+  return { state, label: STATE_LABELS[state], className: `st-${state}` }
+}
+
+// An item's GitHub author login from its stored metadata, or null when the
+// item was never fetched or its source named no author.
+export function itemAuthor(item) {
+  const login = item?.metadata_json?.author
+  return login ? String(login) : null
+}
+
+// The person who carries a handle (a GitHub login) as one of their aliases,
+// matched case-insensitively, or null when nobody does. Aliases are the
+// identities used to de-duplicate people across sources.
+export function personForHandle(people, handle) {
+  const needle = String(handle || '')
+    .trim()
+    .toLowerCase()
+  if (!needle) return null
+  return (
+    (people || []).find((person) =>
+      (person?.aliases || []).some(
+        (alias) =>
+          String(alias || '')
+            .trim()
+            .toLowerCase() === needle
+      )
+    ) || null
+  )
+}
+
+// The state breakdown of a set of items: one entry per state present, in
+// display order, with its value, label, and count. Items with no stored state
+// are not counted.
+export function stateBreakdown(items) {
+  const counts = {}
+  for (const item of items || []) {
+    const state = itemState(item)
+    if (state) counts[state] = (counts[state] || 0) + 1
+  }
+  return STATE_ORDER.filter((state) => counts[state]).map((state) => ({
+    value: state,
+    label: STATE_LABELS[state],
+    count: counts[state]
+  }))
 }
 
 // The GitHub issue/PR items a repository owns: source "github", associated to
@@ -120,6 +177,7 @@ export function groupItemsByRepository(repositories, items) {
     }
   }
 
+  for (const summary of summaries) summary.states = stateBreakdown(summary.items)
   return summaries
 }
 

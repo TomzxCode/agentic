@@ -50,6 +50,7 @@ vi.mock('../api', () => ({
 import SettingsView from '../views/SettingsView.vue'
 import TaskView from '../views/TaskView.vue'
 import RepositoryDetailView from '../views/RepositoryDetailView.vue'
+import RepositoriesView from '../views/RepositoriesView.vue'
 import { store } from '../store'
 
 const RouterLinkStub = { props: ['to'], template: '<a><slot /></a>' }
@@ -59,6 +60,7 @@ beforeEach(() => {
   store.toast = null
   store.harnesses = []
   store.repositories = []
+  store.people = []
   mocks.routeQuery = {}
 })
 
@@ -342,7 +344,9 @@ describe('RepositoryDetailView', () => {
     vi.spyOn(store, 'loadRepositories').mockResolvedValue()
     vi.spyOn(store, 'loadItems').mockResolvedValue()
     vi.spyOn(store, 'loadTasks').mockResolvedValue()
+    vi.spyOn(store, 'loadPeople').mockResolvedValue()
     store.repositories = [repository]
+    store.people = []
     store.tasks = [{ id: 't1', title: 'Task One', status: 'open' }]
     store.items = [
       ghItem('i1', 'issue', 1, 'Open issue', { state: 'OPEN' }),
@@ -397,6 +401,72 @@ describe('RepositoryDetailView', () => {
     expect(wrapper.text()).toContain('Merged PR')
     expect(wrapper.text()).not.toContain('Open issue')
     expect(wrapper.text()).not.toContain('Open PR')
+  })
+
+  it('shows each item state as a badge', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+
+    const badges = wrapper.findAll('.badge.st-open, .badge.st-draft, .badge.st-merged, .badge.st-closed')
+    expect(badges.map((b) => b.text())).toEqual(['Closed', 'Open', 'Merged', 'Draft', 'Open'])
+    expect(badges.map((b) => b.classes().find((c) => c.startsWith('st-')))).toEqual([
+      'st-closed',
+      'st-open',
+      'st-merged',
+      'st-draft',
+      'st-open'
+    ])
+  })
+
+  it('omits the state badge when no state is stored', async () => {
+    store.items = [ghItem('i1', 'issue', 1, 'Stateless issue', {})]
+    const wrapper = mountView()
+    await flushPromises()
+    expect(wrapper.text()).toContain('Stateless issue')
+    expect(wrapper.find('.badge.st-open').exists()).toBe(false)
+  })
+
+  it('shows the author of each item', async () => {
+    store.items = [
+      ghItem('i1', 'issue', 1, 'Open issue', { state: 'OPEN', author: 'alice' }),
+      ghItem('i2', 'pr', 2, 'Merged PR', { state: 'MERGED', author: 'bob' })
+    ]
+    const wrapper = mountView()
+    await flushPromises()
+    expect(wrapper.text()).toContain('@alice')
+    expect(wrapper.text()).toContain('@bob')
+  })
+
+  it('omits the author when none is stored', async () => {
+    store.items = [ghItem('i1', 'issue', 1, 'No author', { state: 'OPEN' })]
+    const wrapper = mountView()
+    await flushPromises()
+    expect(wrapper.text()).toContain('No author')
+    expect(wrapper.text()).not.toContain('@')
+  })
+
+  const LinkStub = { props: ['to'], template: '<a :href="to"><slot /></a>' }
+  const mountLinked = () =>
+    mount(RepositoryDetailView, {
+      props: { id: 'r1' },
+      global: { stubs: { RouterLink: LinkStub, StatusIcon: true } }
+    })
+
+  it('links the author to the person carrying the login as an alias', async () => {
+    store.people = [{ id: 'p1', name: 'Alice', aliases: ['alice', 'alice@example.com'] }]
+    store.items = [ghItem('i1', 'issue', 1, 'Open issue', { state: 'OPEN', author: 'alice' })]
+    const wrapper = mountLinked()
+    await flushPromises()
+    expect(wrapper.get('a[href="/person/p1"]').text()).toBe('@alice')
+  })
+
+  it('leaves the author unlinked when no person carries the login', async () => {
+    store.people = [{ id: 'p1', name: 'Alice', aliases: ['alice'] }]
+    store.items = [ghItem('i1', 'issue', 1, 'Open issue', { state: 'OPEN', author: 'ghost' })]
+    const wrapper = mountLinked()
+    await flushPromises()
+    expect(wrapper.text()).toContain('@ghost')
+    expect(wrapper.find('a[href^="/person/"]').exists()).toBe(false)
   })
 
   it('keeps the title and number search', async () => {
@@ -478,5 +548,50 @@ describe('RepositoryDetailView', () => {
     const wrapper = mountView()
     await flushPromises()
     expect(wrapper.get('[aria-label="Refresh issues and pull requests"]').attributes('disabled')).toBeDefined()
+  })
+})
+
+describe('RepositoriesView', () => {
+  const repository = {
+    id: 'r1',
+    name: 'api',
+    remote_url: 'https://github.com/acme/api.git',
+    path: '/src/api',
+    default_branch: 'main'
+  }
+
+  const ghItem = (id, kind, number, metadata_json) => ({
+    id,
+    source: 'github',
+    url: `https://github.com/acme/api/${kind === 'pr' ? 'pull' : 'issues'}/${number}`,
+    metadata_json,
+    task_ids: ['t1']
+  })
+
+  beforeEach(() => {
+    vi.spyOn(store, 'loadRepositories').mockResolvedValue()
+    vi.spyOn(store, 'loadItems').mockResolvedValue()
+    store.repositories = [repository]
+    store.items = [
+      ghItem('i1', 'issue', 1, { state: 'OPEN' }),
+      ghItem('i2', 'pr', 2, { state: 'MERGED' }),
+      ghItem('i3', 'pr', 3, { state: 'OPEN', is_draft: true })
+    ]
+  })
+
+  const mountView = () => mount(RepositoriesView, { global: { stubs: { RouterLink: RouterLinkStub } } })
+
+  it("breaks each repository's associated items down by state", async () => {
+    const wrapper = mountView()
+    await flushPromises()
+    expect(wrapper.text()).toContain('1 open · 1 draft · 1 merged')
+  })
+
+  it('omits the state line when no item carries a state', async () => {
+    store.items = [ghItem('i1', 'issue', 1, {})]
+    const wrapper = mountView()
+    await flushPromises()
+    expect(wrapper.text()).toContain('api')
+    expect(wrapper.text()).not.toContain('open')
   })
 })

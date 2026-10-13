@@ -2,13 +2,19 @@
 import { computed, onMounted, ref } from 'vue'
 import { api } from '../api'
 import { store, statusLabel, timeAgo } from '../store'
-import { itemState, itemsForRepository, sortItems } from '../repositories'
+import {
+  itemAuthor,
+  itemState,
+  itemStatus,
+  itemsForRepository,
+  personForHandle,
+  sortItems,
+  stateBreakdown
+} from '../repositories'
 import StatusIcon from '../components/StatusIcon.vue'
 
 const props = defineProps({ id: { type: String, required: true } })
 
-const STATE_ORDER = ['open', 'draft', 'merged', 'closed']
-const STATE_LABELS = { open: 'Open', draft: 'Draft', merged: 'Merged', closed: 'Closed' }
 const TASK_STATUS_ORDER = ['open', 'in_progress', 'blocked', 'done', 'archived']
 
 const loading = ref(true)
@@ -38,18 +44,7 @@ const kindCounts = computed(() => {
 })
 
 // The states present among the repository's items, in a stable order.
-const stateOptions = computed(() => {
-  const counts = {}
-  for (const item of items.value) {
-    const state = itemState(item)
-    if (state) counts[state] = (counts[state] || 0) + 1
-  }
-  return STATE_ORDER.filter((state) => counts[state]).map((state) => ({
-    value: state,
-    label: STATE_LABELS[state],
-    count: counts[state]
-  }))
-})
+const stateOptions = computed(() => stateBreakdown(items.value))
 
 // The kind toggle only earns its place when both kinds are present.
 const showKindFilter = computed(() => kindCounts.value.issue > 0 && kindCounts.value.pr > 0)
@@ -95,11 +90,24 @@ function tasksFor(item) {
   return (item.task_ids || []).map((id) => tasksById.value[id]).filter(Boolean)
 }
 
+// The directory person behind an item's GitHub author, when one carries the
+// login as an alias; null leaves the author unlinked.
+function authorPerson(item) {
+  return personForHandle(store.people, itemAuthor(item))
+}
+
 async function load() {
   loading.value = true
   error.value = false
   try {
-    await Promise.all([store.loadRepositories(), store.loadItems(), store.loadTasks()])
+    // People are supplementary: a failed load leaves an author unlinked rather
+    // than blanking the view.
+    await Promise.all([
+      store.loadRepositories(),
+      store.loadItems(),
+      store.loadTasks(),
+      store.loadPeople().catch(() => {})
+    ])
   } catch (e) {
     error.value = true
     store.notify(e.message, true)
@@ -287,9 +295,18 @@ onMounted(load)
             <div v-for="item in issues" :key="item.id" class="item">
               <div class="row">
                 <span class="badge">issue</span>
+                <span v-if="itemStatus(item)" class="badge" :class="itemStatus(item).className">
+                  {{ itemStatus(item).label }}
+                </span>
                 <span v-if="item.number" class="faint">#{{ item.number }}</span>
                 <a v-if="item.url" :href="item.url" target="_blank">{{ item.title || item.url }}</a>
                 <span v-else>{{ item.title }}</span>
+                <span v-if="itemAuthor(item)" class="faint">
+                  <router-link v-if="authorPerson(item)" :to="`/person/${authorPerson(item).id}`">
+                    @{{ itemAuthor(item) }}
+                  </router-link>
+                  <span v-else>@{{ itemAuthor(item) }}</span>
+                </span>
               </div>
               <div v-if="tasksFor(item).length" class="row" style="margin-top: 8px; gap: 6px">
                 <router-link
@@ -315,9 +332,18 @@ onMounted(load)
             <div v-for="item in pulls" :key="item.id" class="item">
               <div class="row">
                 <span class="badge">PR</span>
+                <span v-if="itemStatus(item)" class="badge" :class="itemStatus(item).className">
+                  {{ itemStatus(item).label }}
+                </span>
                 <span v-if="item.number" class="faint">#{{ item.number }}</span>
                 <a v-if="item.url" :href="item.url" target="_blank">{{ item.title || item.url }}</a>
                 <span v-else>{{ item.title }}</span>
+                <span v-if="itemAuthor(item)" class="faint">
+                  <router-link v-if="authorPerson(item)" :to="`/person/${authorPerson(item).id}`">
+                    @{{ itemAuthor(item) }}
+                  </router-link>
+                  <span v-else>@{{ itemAuthor(item) }}</span>
+                </span>
               </div>
               <div v-if="tasksFor(item).length" class="row" style="margin-top: 8px; gap: 6px">
                 <router-link

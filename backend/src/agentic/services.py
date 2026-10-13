@@ -338,6 +338,7 @@ def _fetch_github(url: str, result: dict[str, Any]) -> None:
         "state": issue["state"],
         "number": issue["number"],
         "is_draft": issue.get("is_draft", False),
+        "author": issue.get("author"),
     }
     result["content"] = issue["body"]
     result["people"] = issue.get("people") or []

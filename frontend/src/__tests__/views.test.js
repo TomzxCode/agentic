@@ -506,7 +506,7 @@ describe('ItemsView', () => {
     const wrapper = mount(ItemsView, stub)
     await flushPromises()
     expect(wrapper.text()).toContain('pull request')
-    expect(wrapper.get('.badge.pr-merged').text()).toBe('Merged')
+    expect(wrapper.get('.badge.st-merged').text()).toBe('Merged')
   })
 
   it('links an unlinked item to a task', async () => {

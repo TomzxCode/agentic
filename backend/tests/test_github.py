@@ -94,12 +94,14 @@ def test_fetch_github_pull_request_carries_draft_and_state(monkeypatch):
     assert issue["state"] == "OPEN"
     assert issue["is_draft"] is True
 
-    # The fetched metadata carries the state and draft flag through to the item.
+    # The fetched metadata carries the state, draft flag, and author through to
+    # the item.
     result = {"metadata": {}, "content": "", "title": "", "people": []}
     services._fetch_github("https://github.com/o/r/pull/7", result)
     assert result["metadata"]["kind"] == "pull_request"
     assert result["metadata"]["state"] == "OPEN"
     assert result["metadata"]["is_draft"] is True
+    assert result["metadata"]["author"] == "a"
 
 
 def test_issue_endpoint(monkeypatch):

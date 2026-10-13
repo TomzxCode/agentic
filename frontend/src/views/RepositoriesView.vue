@@ -14,6 +14,12 @@ const showPicker = ref(false)
 // are associated to tasks and match the repository's remote.
 const summaries = computed(() => groupItemsByRepository(store.repositories, store.items))
 
+// A repository's associated items by state, e.g. "3 open · 1 merged", or ''
+// when no item carries a stored state.
+function stateLine(repo) {
+  return (repo.states || []).map((state) => `${state.count} ${state.value}`).join(' · ')
+}
+
 const totals = computed(() => ({
   repositories: summaries.value.length,
   issues: summaries.value.reduce((n, repo) => n + repo.issue_count, 0),
@@ -131,6 +137,9 @@ onMounted(load)
         </div>
         <div class="faint mono" style="margin-top: 6px">{{ repo.path }}</div>
         <div v-if="repo.remote_url" class="faint">{{ repo.remote_url }}</div>
+        <div v-if="repo.states.length" class="faint" style="margin-top: 6px">
+          {{ stateLine(repo) }}
+        </div>
       </div>
     </div>
 

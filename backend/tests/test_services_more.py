@@ -183,6 +183,8 @@ def test_fetch_github_populates_the_result(monkeypatch):
     assert result["title"] == "T"
     assert result["content"] == "B"
     assert result["metadata"]["state"] == "OPEN"
+    # A payload that names no author stores None rather than failing.
+    assert result["metadata"]["author"] is None
     assert result["people"] == [{"name": "a", "handle": "a"}]
 
 
