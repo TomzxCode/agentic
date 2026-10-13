@@ -89,6 +89,7 @@ describe('PeoplePanel', () => {
     ]
     mocks.linkTask.mockResolvedValue({})
     const wrapper = mount(PeoplePanel, { props: { task: task() } })
+    expect(wrapper.findComponent(SearchSelect).props('keepOpen')).toBe(true)
     wrapper.findComponent(SearchSelect).vm.$emit('update:modelValue', 'p2')
     await flushPromises()
     expect(mocks.linkTask).toHaveBeenCalledWith('t1', { person_id: 'p2' })

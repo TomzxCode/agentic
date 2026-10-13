@@ -1,5 +1,5 @@
 <script setup>
-import { computed, reactive, ref } from 'vue'
+import { computed, ref } from 'vue'
 import { api } from '../api'
 import { store } from '../store'
 import SearchSelect from './SearchSelect.vue'
@@ -18,10 +18,7 @@ const linkable = computed(() =>
     .map((person) => ({ value: person.id, label: person.name }))
 )
 
-const draft = reactive({ choice: '' })
-
 async function linkExisting(personId) {
-  draft.choice = ''
   if (!personId) return
   await link({ person_id: personId })
 }
@@ -82,9 +79,10 @@ async function remove(person) {
           v-if="linkable.length"
           variant="inline"
           class="grow"
+          keep-open
           placeholder="＋ Link a person…"
           title="Link a person to this task"
-          :model-value="draft.choice"
+          :model-value="''"
           :options="linkable"
           @update:model-value="linkExisting"
         />
