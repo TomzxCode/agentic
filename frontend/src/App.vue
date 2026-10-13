@@ -689,7 +689,7 @@ onUnmounted(() => {
           <router-link
             to="/people"
             class="nav-link"
-            :class="{ active: route.name === 'people' }"
+            :class="{ active: route.name === 'people' || route.name === 'person' }"
             title="People"
             aria-label="People"
             @click="sidebarOpen = false"

@@ -40,9 +40,17 @@ vi.mock('../api', () => ({
 
 import PeoplePanel from '../components/PeoplePanel.vue'
 import PeopleView from '../views/PeopleView.vue'
+import PersonView from '../views/PersonView.vue'
 import SearchSelect from '../components/SearchSelect.vue'
 import EditableText from '../components/EditableText.vue'
 import { store } from '../store'
+
+const RouterLinkStub = {
+  props: ['to'],
+  template: '<a :href="typeof to === \'string\' ? to : to.path"><slot /></a>'
+}
+
+const stub = { global: { stubs: { RouterLink: RouterLinkStub } } }
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -117,9 +125,33 @@ describe('PeoplePanel', () => {
 
 describe('PeopleView', () => {
   beforeEach(() => {
+    store.people = [{ id: 'p1', name: 'Ada', handle: 'ada', email: 'ada@example.com', task_count: 1, item_count: 1 }]
+  })
+
+  it('lists people, each linking to their detail page', async () => {
+    const wrapper = mount(PeopleView, stub)
+    await flushPromises()
+    expect(wrapper.text()).toContain('Ada')
+    expect(wrapper.text()).toContain('@ada')
+    expect(wrapper.text()).toContain('tasks:1 items:1')
+    expect(wrapper.get('a.title').attributes('href')).toBe('/person/p1')
+  })
+
+  it('creates a person', async () => {
+    mocks.peopleCreate.mockResolvedValue({ id: 'p2', name: 'Grace', task_count: 0, item_count: 0 })
+    const wrapper = mount(PeopleView, stub)
+    await flushPromises()
+    await wrapper.findAll('input.input')[1].setValue('Grace')
+    await wrapper.get('.btn.primary').trigger('click')
+    await flushPromises()
+    expect(mocks.peopleCreate).toHaveBeenCalledWith({ name: 'Grace' })
+  })
+})
+
+describe('PersonView', () => {
+  beforeEach(() => {
     store.tasks = [{ id: 't1', title: 'Fix flaky test' }]
     mocks.itemsList.mockResolvedValue([{ id: 'i1', title: 'Issue 1' }])
-    mocks.peopleList.mockResolvedValue([{ id: 'p1', name: 'Ada' }])
     mocks.peopleGet.mockResolvedValue({
       id: 'p1',
       name: 'Ada',
@@ -131,47 +163,49 @@ describe('PeopleView', () => {
     })
   })
 
-  it('lists each person with their links', async () => {
-    const wrapper = mount(PeopleView)
+  it('shows the aliases and relationships of a person', async () => {
+    const wrapper = mount(PersonView, { props: { id: 'p1' }, ...stub })
     await flushPromises()
     expect(mocks.peopleGet).toHaveBeenCalledWith('p1')
     expect(wrapper.text()).toContain('Ada')
+    expect(wrapper.text()).toContain('ada')
+    expect(wrapper.text()).toContain('ada@example.com')
     expect(wrapper.text()).toContain('Fix flaky test')
     expect(wrapper.text()).toContain('Issue 1')
   })
 
-  it('creates a person', async () => {
-    mocks.peopleCreate.mockResolvedValue({ id: 'p2', name: 'Grace', task_count: 0, item_count: 0 })
-    const wrapper = mount(PeopleView)
-    await flushPromises()
-    await wrapper.findAll('input.input')[1].setValue('Grace')
-    await wrapper.get('.btn.primary').trigger('click')
-    await flushPromises()
-    expect(mocks.peopleCreate).toHaveBeenCalledWith({ name: 'Grace' })
-  })
-
   it('renames a person', async () => {
     mocks.peopleUpdate.mockResolvedValue({})
-    const wrapper = mount(PeopleView)
+    const wrapper = mount(PersonView, { props: { id: 'p1' }, ...stub })
     await flushPromises()
-    wrapper.findComponent(EditableText).vm.$emit('save', 'Ada L')
+    wrapper.findAllComponents(EditableText)[0].vm.$emit('save', 'Ada L')
     await flushPromises()
     expect(mocks.peopleUpdate).toHaveBeenCalledWith('p1', { name: 'Ada L' })
   })
 
-  it('deletes a person when confirmed', async () => {
+  it('updates an alias', async () => {
+    mocks.peopleUpdate.mockResolvedValue({})
+    const wrapper = mount(PersonView, { props: { id: 'p1' }, ...stub })
+    await flushPromises()
+    wrapper.findAllComponents(EditableText)[1].vm.$emit('save', 'ada-l')
+    await flushPromises()
+    expect(mocks.peopleUpdate).toHaveBeenCalledWith('p1', { handle: 'ada-l' })
+  })
+
+  it('deletes a person when confirmed and returns to the list', async () => {
     vi.stubGlobal('confirm', () => true)
     mocks.peopleRemove.mockResolvedValue(null)
-    const wrapper = mount(PeopleView)
+    const wrapper = mount(PersonView, { props: { id: 'p1' }, ...stub })
     await flushPromises()
     await wrapper.get('button.btn.danger').trigger('click')
     await flushPromises()
     expect(mocks.peopleRemove).toHaveBeenCalledWith('p1')
+    expect(mocks.push).toHaveBeenCalledWith('/people')
   })
 
   it('does not delete when the confirmation is declined', async () => {
     vi.stubGlobal('confirm', () => false)
-    const wrapper = mount(PeopleView)
+    const wrapper = mount(PersonView, { props: { id: 'p1' }, ...stub })
     await flushPromises()
     await wrapper.get('button.btn.danger').trigger('click')
     expect(mocks.peopleRemove).not.toHaveBeenCalled()
