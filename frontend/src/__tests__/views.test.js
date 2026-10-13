@@ -190,6 +190,30 @@ describe('TasksView', () => {
     expect(store.personFilter).toBe('')
   })
 
+  it('shows each linked person after the task title and filters on click', async () => {
+    mocks.peopleList.mockResolvedValue([
+      { id: 'p1', name: 'Ada' },
+      { id: 'p2', name: 'Grace' }
+    ])
+    store.tasks = [
+      { id: 't1', status: 'open', title: 'Shared task', next_steps: [], updated_at: null, person_ids: ['p1', 'p2'] }
+    ]
+    const wrapper = mount(TasksView, stub)
+    await flushPromises()
+
+    const row = wrapper.get('.select-item')
+    const title = row.get('.title')
+    // Each linked person renders as a chip, in link order, after the title.
+    expect(row.findAll('.person-chip').map((c) => c.text())).toEqual(['Ada', 'Grace'])
+    expect(title.element.compareDocumentPosition(row.get('.person-chip').element)).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING
+    )
+
+    await row.get('.person-chip').trigger('click')
+    expect(store.personFilter).toBe('p1')
+    expect(row.get('.person-chip').classes()).toContain('active')
+  })
+
   it('shows a person-specific empty state when no task matches the filter', async () => {
     mocks.peopleList.mockResolvedValue([{ id: 'p1', name: 'Ada' }])
     store.personFilter = 'p1'

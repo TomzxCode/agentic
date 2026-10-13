@@ -670,6 +670,26 @@ button.tag-chip.active {
   border-color: var(--accent);
   color: var(--accent);
 }
+/* A person linked to a task, shown after its title on the tasks dashboard. */
+.person-chip {
+  display: inline-flex;
+  align-items: center;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 1px 7px;
+  font-size: 10px;
+  color: var(--muted);
+  white-space: nowrap;
+  font-family: inherit;
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+.person-chip:hover,
+.person-chip.active {
+  border-color: var(--accent);
+  color: var(--accent);
+}
 /* A row of clickable tag filters (sidebar and the tasks dashboard). */
 .side-filters,
 .tag-filters {
@@ -770,6 +790,19 @@ button.tag-chip.active {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+/* A task title together with the people linked to it, so the chips sit right
+   after the title instead of being pushed to the row's trailing metadata. */
+.item-top .title-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1 1 140px;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+.item-top .title-group .title {
+  flex: 0 1 auto;
 }
 .item .content {
   color: var(--muted);

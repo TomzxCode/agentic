@@ -49,6 +49,14 @@ const peopleFilters = computed(() => {
 
 const personFilterName = computed(() => store.people.find((person) => person.id === store.personFilter)?.name || '')
 
+const peopleById = computed(() => Object.fromEntries(store.people.map((person) => [person.id, person])))
+
+// People linked to a task, in link order, skipping any id that no longer
+// resolves to a person in the directory.
+function taskPeople(task) {
+  return (task.person_ids || []).map((id) => peopleById.value[id]).filter(Boolean)
+}
+
 // Deadlines coming up: in-flight tasks whose deadline falls within the selected
 // window, soonest first. Overdue deadlines always qualify (they are <= the
 // window) and sort to the top, which is where they belong.
@@ -272,7 +280,20 @@ onMounted(() => {
               title="Change status"
               @update:model-value="(value) => changeStatus(p, value)"
             />
-            <router-link :to="`/task/${p.id}`" class="title">{{ p.title }}</router-link>
+            <div class="title-group">
+              <router-link :to="`/task/${p.id}`" class="title">{{ p.title }}</router-link>
+              <button
+                v-for="person in taskPeople(p)"
+                :key="person.id"
+                type="button"
+                class="person-chip"
+                :class="{ active: store.personFilter === person.id }"
+                :title="`Filter by ${person.name}`"
+                @click="store.togglePersonFilter(person.id)"
+              >
+                {{ person.name }}
+              </button>
+            </div>
             <span
               v-if="p.deadline"
               class="badge"
