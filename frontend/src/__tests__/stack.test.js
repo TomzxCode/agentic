@@ -108,6 +108,26 @@ describe('StackView', () => {
     expect(wrapper.findAll('.task-status-select').length).toBe(2)
   })
 
+  it('shows a deadline badge only when the task has one', async () => {
+    const soon = new Date(Date.now() + 2 * 86400000).toISOString()
+    mocks.list.mockResolvedValue([
+      entry(),
+      entry({
+        id: 's2',
+        task_id: 't2',
+        task: { title: 'Second', description: '', status: 'open', deadline: soon },
+        position: 1,
+        is_current: false
+      })
+    ])
+    const wrapper = mount(StackView, stub)
+    await flushPromises()
+
+    const badges = wrapper.findAll('.stack-deadline-cell .badge')
+    expect(badges.length).toBe(1)
+    expect(badges[0].text()).toContain('Due in 2d')
+  })
+
   it('changes a task status from the stack', async () => {
     const wrapper = mount(StackView, stub)
     await flushPromises()

@@ -5,7 +5,7 @@ import EditableText from '../components/EditableText.vue'
 import SearchSelect from '../components/SearchSelect.vue'
 import StatusIcon from '../components/StatusIcon.vue'
 import { formatTimestamp, moveItem, targetIndexAt } from '../stack'
-import { store, statusLabel } from '../store'
+import { store, deadlineInfo, formatDeadline, statusLabel } from '../store'
 
 // Ask the shell to reload tasks/tags so the sidebar stays in sync (a push adds
 // a task, a pop marks one done).
@@ -36,6 +36,11 @@ function displayDuration(entry) {
   return (entry.duration || 0) + (now.value - loadedAt) / 1000
 }
 
+// The deadline state (overdue / due soon / later) for a row, or null.
+function deadlineFor(entry) {
+  return deadlineInfo(entry.task?.deadline, now.value)
+}
+
 // The status picker reuses the same icon-only SearchSelect as the task rows, so
 // a stack row's status is editable in place.
 const STATUS_VALUES = ['open', 'in_progress', 'blocked', 'done', 'archived']
@@ -47,9 +52,9 @@ const statusOptions = STATUS_VALUES.map((value) => ({
 }))
 
 // The stack table's columns: handle, index, indicator, status, open, title,
-// exec count, started, last current, duration, actions. Used by the description
-// row's colspan.
-const COLUMN_COUNT = 11
+// deadline, exec count, started, last current, duration, actions. Used by the
+// description row's colspan.
+const COLUMN_COUNT = 12
 
 // The field at the top adds a task (Enter) and filters the list as you type.
 const draft = ref('')
@@ -483,6 +488,16 @@ onUnmounted(() => {
                   placeholder="Untitled task"
                   @save="(title) => saveTitle(entry, title)"
                 />
+              </td>
+              <td class="stack-deadline-cell">
+                <span
+                  v-if="deadlineFor(entry)"
+                  class="badge"
+                  :class="deadlineFor(entry).tone"
+                  :title="`Deadline: ${formatDeadline(entry.task?.deadline)}`"
+                >
+                  {{ deadlineFor(entry).label }}
+                </span>
               </td>
               <td class="stack-col mono faint" title="Times it became current">×{{ entry.execution_count }}</td>
               <td class="stack-col mono faint" title="Started">

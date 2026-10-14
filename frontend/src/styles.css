@@ -2055,6 +2055,7 @@ button.gantt-marker::after {
 .stack-open-cell,
 .stack-indicator,
 .stack-status-cell,
+.stack-deadline-cell,
 .stack-col,
 .stack-actions-cell {
   width: 1%;
