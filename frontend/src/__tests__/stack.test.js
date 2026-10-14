@@ -219,6 +219,22 @@ describe('StackView', () => {
     expect(wrapper.findAll('.stack-row')[1].find('.stack-actions a').attributes('href')).toBe('/task/t2')
   })
 
+  it('edits the title inline', async () => {
+    const wrapper = mount(StackView, stub)
+    await flushPromises()
+
+    await wrapper.findAll('.stack-title')[0].trigger('click')
+    await flushPromises()
+    const input = wrapper.find('.inline-input')
+    expect(input.exists()).toBe(true)
+
+    await input.setValue('Renamed task')
+    await input.trigger('keydown', { key: 'Enter' })
+    await flushPromises()
+
+    expect(mocks.update).toHaveBeenCalledWith('s1', { title: 'Renamed task' })
+  })
+
   it('reorders the clicked row with the arrow keys', async () => {
     const wrapper = mount(StackView, stub)
     await flushPromises()

@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onMounted, onUnmounted, ref, nextTick } from 'vue'
 import { api } from '../api'
+import EditableText from '../components/EditableText.vue'
 import SearchSelect from '../components/SearchSelect.vue'
 import StatusIcon from '../components/StatusIcon.vue'
 import { moveItem, targetIndexAt } from '../stack'
@@ -45,19 +46,21 @@ const statusOptions = STATUS_VALUES.map((value) => ({
   iconProps: { status: value, label: statusLabel(value) }
 }))
 
-// The input doubles as the add field and the filter/edit field, like the
-// desktop stack window: with nothing selected it filters and adds; with a row
-// selected it edits that row's title.
+// The field at the top adds a task (Enter) and filters the list as you type.
 const draft = ref('')
-const mode = ref('add') // add | edit
-const editingId = ref(null)
 const filter = ref('')
 
 const selectedId = ref(null)
 const descriptionDraft = ref('')
 const showHelp = ref(false)
-const titleInput = ref(null)
 const pageEl = ref(null)
+
+// One EditableText per row, so Enter can start editing the selected title.
+const editors = new Map()
+function setEditorRef(id, el) {
+  if (el) editors.set(id, el)
+  else editors.delete(id)
+}
 
 // Move focus to the page so the row shortcuts (arrows, Home, Delete) work; the
 // title field only takes focus when you edit a row.
@@ -134,8 +137,11 @@ function select(entry) {
 
 // A row click selects it (and keeps the keyboard shortcuts working); the task
 // page is reached through the row's open button or the description panel.
-function onRowClick(entry) {
+function onRowClick(entry, event) {
   select(entry)
+  // Clicking the title starts an inline edit, which takes focus; don't steal it
+  // back to the page.
+  if (event?.target?.closest?.('.stack-title-cell')) return
   focusPage()
 }
 
@@ -143,14 +149,8 @@ function syncDescription() {
   descriptionDraft.value = selected.value?.task?.description || ''
 }
 
-function focusTitle() {
-  nextTick(() => titleInput.value?.focus())
-}
-
 function clearSelection() {
   selectedId.value = null
-  editingId.value = null
-  mode.value = 'add'
   draft.value = ''
   filter.value = ''
   syncDescription()
@@ -158,13 +158,6 @@ function clearSelection() {
 
 async function submit() {
   const text = draft.value.trim()
-  if (mode.value === 'edit' && editingId.value) {
-    if (text) await saveTitle(editingId.value, text)
-    editingId.value = null
-    mode.value = 'add'
-    draft.value = ''
-    return
-  }
   if (!text) return
   await push(text, 'top')
 }
@@ -175,7 +168,6 @@ async function push(title, position) {
     draft.value = ''
     filter.value = ''
     selectedId.value = null
-    mode.value = 'add'
     emit('changed')
     store.notify(positionMessage(position))
   } catch (e) {
@@ -238,9 +230,11 @@ async function reorder(entry, target) {
   }
 }
 
-async function saveTitle(entryId, title) {
+async function saveTitle(entry, title) {
+  const next = title.trim()
+  if (!next || next === entry.task?.title) return
   try {
-    setEntries(await api.stack.update(entryId, { title }))
+    setEntries(await api.stack.update(entry.id, { title: next }))
     emit('changed')
   } catch (e) {
     store.notify(e.message, true)
@@ -260,21 +254,14 @@ async function saveDescription() {
   }
 }
 
-function beginEdit(entry) {
-  mode.value = 'edit'
-  editingId.value = entry.id
-  draft.value = entry.task?.title || ''
-  focusTitle()
-}
-
 function onTitleKeydown(event) {
-  if (event.key === 'Enter' && !event.shiftKey) {
-    event.preventDefault()
-    submit()
-  } else if (event.key === 'Enter' && event.shiftKey && mode.value === 'add') {
+  if (event.key === 'Enter' && event.shiftKey) {
     event.preventDefault()
     const text = draft.value.trim()
     if (text) push(text, 'next')
+  } else if (event.key === 'Enter') {
+    event.preventDefault()
+    submit()
   } else if (event.key === 'Escape') {
     event.preventDefault()
     clearSelection()
@@ -285,7 +272,7 @@ function onTitleKeydown(event) {
 }
 
 function onTitleInput() {
-  if (mode.value === 'add') filter.value = draft.value
+  filter.value = draft.value
 }
 
 function move(delta) {
@@ -314,7 +301,7 @@ function onKeydown(event) {
   if (!selected.value) return
   if (event.key === 'Enter') {
     event.preventDefault()
-    beginEdit(selected.value)
+    editors.get(selectedId.value)?.activate?.()
   } else if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
     event.preventDefault()
     reorder(selected.value, event.key === 'ArrowLeft' ? -1 : 1)
@@ -440,16 +427,14 @@ onUnmounted(() => {
     <section class="panel stack-panel">
       <div class="stack-add row">
         <input
-          ref="titleInput"
           v-model="draft"
           class="input grow"
-          :placeholder="mode === 'edit' ? 'Edit title…' : 'Add a task (Enter: top · Shift+Enter: next)'"
+          placeholder="Add a task (Enter: top · Shift+Enter: next)"
           aria-label="Add or filter tasks"
           @keydown="onTitleKeydown"
           @input="onTitleInput"
         />
-        <button v-if="mode === 'edit'" class="btn" @click="submit">Save</button>
-        <button v-else class="btn primary" @click="submit">Add</button>
+        <button class="btn primary" @click="submit">Add</button>
       </div>
       <p v-if="filter" class="faint stack-filter-note">
         Filtering by “{{ filter }}” · <button class="link-btn" @click="((filter = ''), (draft = ''))">clear</button>
@@ -471,8 +456,7 @@ onUnmounted(() => {
             :key="entry.id"
             class="stack-row"
             :class="{ current: entry.is_current, selected: entry.id === selectedId, dragging: entry.id === dragId }"
-            @click="onRowClick(entry)"
-            @dblclick="beginEdit(entry)"
+            @click="onRowClick(entry, $event)"
             @pointerdown="onRowPointerDown($event, entry)"
           >
             <td class="stack-handle-cell">
@@ -494,12 +478,13 @@ onUnmounted(() => {
               />
             </td>
             <td class="stack-title-cell" :title="entry.task?.title">
-              <span class="stack-title"
-                ><span class="stack-note" :title="entry.task?.description ? 'Has a description' : ''">{{
-                  entry.task?.description ? '📝' : ''
-                }}</span
-                ><span class="stack-title-text">{{ entry.task?.title || entry.task_id }}</span></span
-              >
+              <EditableText
+                :ref="(el) => setEditorRef(entry.id, el)"
+                class="stack-title"
+                :value="entry.task?.title || ''"
+                placeholder="Untitled task"
+                @save="(title) => saveTitle(entry, title)"
+              />
             </td>
             <td class="stack-col mono faint" title="Times it became current">×{{ entry.execution_count }}</td>
             <td class="stack-col mono faint" title="Started">{{ formatTime(entry.started_at) }}</td>
@@ -573,10 +558,10 @@ onUnmounted(() => {
       <dl class="stack-help-grid">
         <dt>Click</dt>
         <dd>Select a task (the shortcuts below act on it)</dd>
-        <dt>Double-click</dt>
-        <dd>Edit the selected task's title</dd>
+        <dt>Click a title</dt>
+        <dd>Edit it in place (Enter saves, Esc cancels)</dd>
         <dt>Enter</dt>
-        <dd>Add to top (becomes current) / save an edit</dd>
+        <dd>Edit the selected task, or add a new one from the field above</dd>
         <dt>Shift+Enter</dt>
         <dd>Insert after the current task</dd>
         <dt>↑ / ↓</dt>
