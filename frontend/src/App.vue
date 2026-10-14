@@ -160,6 +160,7 @@ const paletteItems = computed(() => [
     : []),
   ...taskFieldItems.value,
   { id: 'go-tasks', label: 'Go to tasks', group: 'Navigation', run: () => router.push('/') },
+  { id: 'go-stack', label: 'Go to stack', group: 'Navigation', run: () => router.push('/stack') },
   { id: 'go-gantt', label: 'Go to gantt', group: 'Navigation', run: () => router.push('/gantt') },
   { id: 'go-metrics', label: 'Go to metrics', group: 'Navigation', run: () => router.push('/metrics') },
   { id: 'go-items', label: 'Go to resources', group: 'Navigation', run: () => router.push('/items') },
@@ -621,6 +622,30 @@ onUnmounted(() => {
             >
               <path d="M9 6h11M9 12h11M9 18h11" />
               <path d="M4 6l1 1 2-2M4 12l1 1 2-2M4 18l1 1 2-2" />
+            </svg>
+          </router-link>
+          <router-link
+            to="/stack"
+            class="nav-link"
+            :class="{ active: route.name === 'stack' }"
+            title="Stack"
+            aria-label="Stack"
+            @click="sidebarOpen = false"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              width="18"
+              height="18"
+              aria-hidden="true"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <rect x="4" y="3.5" width="16" height="5" rx="1.5" />
+              <rect x="4" y="9.5" width="16" height="5" rx="1.5" />
+              <rect x="4" y="15.5" width="16" height="5" rx="1.5" />
             </svg>
           </router-link>
           <router-link

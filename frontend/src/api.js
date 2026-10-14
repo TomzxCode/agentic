@@ -44,6 +44,19 @@ export const api = {
     list: () => request('/tags')
   },
 
+  stack: {
+    list: () => request('/stack'),
+    history: () => request('/stack/history'),
+    current: () => request('/stack/current'),
+    push: (body) => request('/stack', { method: 'POST', body }),
+    pop: () => request('/stack/pop', { method: 'POST' }),
+    promote: (entryId) => request(`/stack/${entryId}/promote`, { method: 'POST' }),
+    reorder: (entryId, position) =>
+      request('/stack/reorder', { method: 'POST', body: { entry_id: entryId, position } }),
+    update: (entryId, body) => request(`/stack/${entryId}`, { method: 'PATCH', body }),
+    remove: (entryId) => request(`/stack/${entryId}`, { method: 'DELETE' })
+  },
+
   people: {
     list: () => request('/people'),
     get: (id) => request(`/people/${id}`),

@@ -25,6 +25,11 @@
 | Repository group | A named set of repositories that tells a task's agent which checkouts may be relevant. |
 | Session link | A way to reopen an agent session: an OpenChamber URL, a terminal URL, or a copyable resume command. |
 | Source | The origin kind of an item: `slack`, `github`, `gdrive`, `url`, `note`, `commit`, or `file`. |
+| Stack | The focus queue of tasks: an ordered list where the top task is current and the rest are queued. It is materialized from the in-flight tasks, so an open, in-progress, or blocked task joins automatically. |
+| Stack entry | A task's presence on the stack, carrying its position, whether it is current, and a soft-delete timestamp. |
+| Current task | The task at the top of the stack (position 0); the one being worked on now. |
+| Task session | A stretch of time a stack entry spent as the current task, with a start and an end; execution count and duration are derived from these. |
+| Launcher | The optional native menu-bar/tray companion (`agentic-stack`) that adds a global hotkey and a Mark Done action a browser cannot provide. |
 | Summary | The agent-maintained short current-state paragraph for a task. |
 | Tag | A short label a task carries; stored as a list on the task, normalized on write, and usable to filter the task list. |
 | Task | The unit of work everything hangs off. |

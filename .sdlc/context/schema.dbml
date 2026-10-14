@@ -266,3 +266,28 @@ Table metricbaseline {
   note text [not null, default: '']
   captured_at datetime [not null]
 }
+
+Table stackentry {
+  id varchar [pk]
+  task_id varchar [not null, ref: > task.id]
+  position integer [not null, default: 0] // 0 is the current task
+  is_current boolean [not null, default: false]
+  created_at datetime [not null]
+  deleted_at datetime // soft delete: popped or removed entries stay in history
+
+  Indexes {
+    task_id
+    position
+  }
+}
+
+Table tasksession {
+  id varchar [pk]
+  stack_entry_id varchar [not null, ref: > stackentry.id]
+  started_at datetime [not null]
+  ended_at datetime // null while the entry is current
+
+  Indexes {
+    stack_entry_id
+  }
+}

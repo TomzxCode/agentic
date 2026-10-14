@@ -24,10 +24,11 @@ two Python packages and the SPA:
 | --- | --- | --- | --- |
 | `backend/` | `agentic` | `agentic-server` | FastAPI API, ACP agent runner, DB |
 | `cli/` | `agentic-cli` | `agentic` | HTTP client that drives the API |
+| `launcher/` | `agentic-launcher` | `agentic-stack` | Menu-bar/tray companion: global hotkey + Mark Done (pop) |
 | `frontend/` | — | — | Vue 3 + Vite PWA served by the API |
 
-`uv sync` at the root installs both packages and their console scripts into one
-virtualenv.
+`uv sync` at the root installs all three packages and their console scripts into
+one virtualenv.
 
 ## Concepts
 
@@ -42,6 +43,8 @@ virtualenv.
 | **Agent run** | One prompt sent to a harness in a working directory, delivered to the worker through the run queue. Events stream live to the UI. |
 | **Context refresh** | A special agent run that reads the task + its items and writes the `summary` and `next_steps`. |
 | **Change** | A unit of factory output recorded against a task: a class, a lifecycle, a start/end time, and a human-intervened flag. Autonomy rate and yield are computed from changes. |
+| **Stack entry** | A task's place on the focus stack: its position (0 is current), whether it is current, and a soft-delete timestamp. |
+| **Task session** | A stretch of time a stack entry spent as the current task; execution count and duration are derived from these. |
 | **Operation** | An audit record of a mutating request: its method, path, and status, plus which client sent it (web UI, CLI, or raw API) and whether a human or a coding agent was behind it. |
 
 Every meaningful change writes a **Timeline event**, so a task's evolution is
@@ -200,6 +203,30 @@ exits). On a task page that covers the header, the Agent/Items/Changes/Worktrees
 panels,
 and their buttons.
 
+## The stack
+
+The **Stack** page (`/stack`) is a focus queue: the task at the top is current
+and the rest are queued. Every task that is open, in progress, or blocked is on
+the stack automatically (a task that leaves those statuses leaves the stack), so
+you never add work by hand. Each row shows its status, how many times it has
+become current, when it started, when it was last current, and the total time it
+has been current.
+
+- **Enter** adds a new task to the top (making it current); **Shift+Enter**
+  inserts it right after the current task.
+- **↑ / ↓** move the selection; **← / →** move the selected task up or down one.
+- **Home** (or `/`) promotes the selected task to current; **Delete** removes it
+  from the stack (the task is kept; push it again to bring it back).
+- **0–9** select a task by position; **Esc** clears the selection and filter.
+- **Mark done (pop)** completes the current task (sets it to `done`, so it leaves
+  the stack) and promotes the next one. Removed and popped tasks stay under
+  **History**.
+
+The optional **launcher** (`agentic-stack`) adds the two things a browser cannot:
+a tray icon showing the current task, and a global hotkey (default
+`Ctrl+Shift+T`) that opens the stack page from anywhere. See
+[`launcher/README.md`](launcher/README.md).
+
 ## Open a session in a terminal or OpenChamber
 
 When a run has a session id, the app shows links to reopen that session:
@@ -285,6 +312,14 @@ agentic task update <task> --clear-deadline
 agentic task deadlines               # deadlines in the next 7 days (overdue first)
 agentic task deadlines --within-days 30
 agentic tag list                     # tags in use, with task counts
+agentic stack push --title "Fix the flaky ingest test"   # add to the top (becomes current)
+agentic stack push --title "Then write the notes" --position next
+agentic stack list                   # current task first
+agentic stack current                # just the current task
+agentic stack pop                    # complete the current task, promote the next
+agentic stack promote <entry>        # make an entry current
+agentic stack reorder <entry> 3      # move an entry to position 3
+agentic stack history                # popped and removed entries
 agentic link add <task> --url https://github.com/o/r/issues/482
 agentic link add <task> --item-id <item>
 agentic worktree create <task>
@@ -310,7 +345,7 @@ human-readable text otherwise (`--format text`). Point it elsewhere with
 AGENTIC_API_URL=http://box:8600 agentic task list | jq '.[].id'
 ```
 
-Resources: `task`, `tag`, `item`, `link`, `person`, `repository`, `worktree`, `run`,
+Resources: `task`, `tag`, `stack`, `item`, `link`, `person`, `repository`, `worktree`, `run`,
 `context`, `harness`, `settings`, `change`, `metrics`, `operation`, plus `health`.
 
 ### Backend
@@ -340,6 +375,13 @@ GET                 /api/github/issues                   (issue picker for impor
 GET                 /api/github/issue                    (single issue by URL)
 GET/POST/PATCH/DELETE /api/groups                        (repository groups)
 GET                 /api/operations                      (provenance audit log)
+GET/POST            /api/stack                           (focus queue: list, push)
+POST                /api/stack/pop                       (complete current, promote next)
+POST                /api/stack/reorder                   (move an entry)
+POST                /api/stack/{id}/promote              (make an entry current)
+PATCH/DELETE        /api/stack/{id}                      (edit the task / remove the entry)
+GET                 /api/stack/history                   (soft-deleted entries)
+GET                 /api/stack/current                   (the current task)
 GET/POST/PATCH      /api/harnesses   /api/repositories   /api/items
 GET/POST            /api/changes
 GET/PATCH/DELETE    /api/changes/{id}
@@ -361,12 +403,14 @@ make lint              # ruff format + check
 make typecheck         # ty static type checking
 make build             # build the SPA into backend/static
 make dev-worker        # run the agent-run worker on its own
-make run               # start the API (:8600), worker, and frontend dev server (:5173)
+make dev-tray          # run the tray/global-hotkey companion on its own
+make run               # start the API (:8600), worker, frontend dev server (:5173), and tray
 make run-dev           # same as run, with the API reloading on changes
 ```
 
-`make run` starts the API (`agentic-server serve`), the worker (`agentic-server worker`), and the Vite dev server; `make run-dev` starts the same set with the API reloading on file changes. `agentic` is the separate client.
+`make run` starts the API (`agentic-server serve`), the worker (`agentic-server worker`), the Vite dev server, and the tray (`agentic-stack`, pointed at the dev server's stack page); `make run-dev` starts the same set with the API reloading on file changes. `agentic` is the separate client.
 The worker does not need to reload: restart it to pick up backend changes.
+To run the tray on its own, use `make dev-tray` (or `uv run agentic-stack`). On macOS it prompts for Accessibility and Input Monitoring the first time.
 
 ## Limitations (v1)
 

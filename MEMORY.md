@@ -1,5 +1,17 @@
 # Memory
 
+## 2026-10-13: the owner's live dev server is on :8600 (~/.agentic); ad-hoc CLI runs can miss AGENTIC_API_URL
+
+- `make run` starts the API on `:8600` backed by `~/.agentic` (the real database). A scratch/test server must set `AGENTIC_DATA_DIR=/tmp/...`; the env var does work for `agentic-server`.
+- A mid-script `export AGENTIC_API_URL=...` before `uv run agentic ...` is not reliably picked up, so an ad-hoc CLI call can silently hit `:8600` and write to the real database. Pass `--api-url` explicitly (or prefix the command with the var) and confirm the target before mutating.
+
+## 2026-10-13: the focus stack is a separate StackEntry + TaskSession, not Task fields
+
+- The stack is its own model: `StackEntry` (task_id, position, is_current, deleted_at) plus `TaskSession` (started_at/ended_at), so a task can exist without being queued and its stack history survives independently. Position 0 is current; every mutation re-derives `is_current` and opens/closes sessions in `stack.py`, and `execution_count`/`duration` are computed from sessions and never stored.
+- The stack is materialized from the in-flight tasks: `sync_stack` (called at the top of every `/api/stack` endpoint) appends an entry at the bottom for any open/in-progress/blocked task that has never had one, and soft-deletes the entry when a task leaves those statuses. A task that was popped or removed keeps its soft-deleted entry, so it is not re-added until pushed again. Because of this, stack tests must clear tasks, not just entries (the `test_stack.py` fixture deletes every task).
+- `pop` (the tray's "Mark Done") sets the task status to `done`; `remove` (Backspace) soft-deletes the entry only. Both keep the entry in `/api/stack/history`. `TaskSession` and `StackEntry` rows must be deleted before the task (FK order) in `delete_task`.
+- The tray/global-hotkey piece is a separate `launcher/` workspace member (`agentic-stack`, pystray + pynput) that only opens the PWA stack page and pops over HTTP; the stack UI itself is the SPA route `/stack`. On macOS the pynput listener runs in a subprocess to avoid the AppKit runloop clash (the same reason task-stack isolated it).
+
 ## 2026-10-13: list rows render through shared card components
 
 - Every `.item` list row is built from `EntityCard.vue` (header row with lead/title/title-extra/actions slots, body, meta), so repositories, people, harnesses, worktrees, runs, and groups share one layout instead of each view styling its own. Items use `ItemCard.vue` and tasks use `TaskCard.vue`, both wrapping `EntityCard`. A reference to a task or item from another entity (a person, a repository item) uses `TaskLink.vue` / `ItemLink.vue`, not a hand-written button. Add a new list row by composing these rather than writing `.item` markup by hand.

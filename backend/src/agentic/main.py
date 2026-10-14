@@ -28,6 +28,7 @@ from .routers import (
     operations,
     people,
     repositories,
+    stack,
     tasks,
     worktrees,
 )
@@ -79,6 +80,7 @@ for module in (
     gantt,
     tags_router,
     people,
+    stack,
 ):
     app.include_router(module.router)
 

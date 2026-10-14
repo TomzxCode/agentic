@@ -1,10 +1,11 @@
-.PHONY: help install dev-backend dev-worker dev-frontend test test-frontend test-backend coverage-backend coverage-frontend lint lint-frontend typecheck build run run-dev
+.PHONY: help install dev-backend dev-worker dev-frontend dev-tray test test-frontend test-backend coverage-backend coverage-frontend lint lint-frontend typecheck build run run-dev
 
 help:
 	@echo "install             install backend + CLI (workspace) and frontend deps"
 	@echo "dev-backend         run the API with reload on 0.0.0.0:8600"
 	@echo "dev-worker          run the agent-run worker"
 	@echo "dev-frontend        run the Vite dev server on 0.0.0.0:5173"
+	@echo "dev-tray            run the menu-bar/tray companion (global hotkey + Mark Done)"
 	@echo "test                run backend + CLI tests with coverage"
 	@echo "test-backend        run backend + CLI tests with coverage"
 	@echo "test-frontend       run frontend (Vitest) tests with coverage"
@@ -14,7 +15,7 @@ help:
 	@echo "lint-frontend       eslint + prettier check (frontend)"
 	@echo "typecheck           ty check (static type checking)"
 	@echo "build               build the SPA into backend/static"
-	@echo "run                 serve API + worker + frontend dev server (0.0.0.0:8600 and :5173)"
+	@echo "run                 serve API + worker + frontend dev server + tray (0.0.0.0:8600 and :5173)"
 	@echo "run-dev             like run, with the API reloading on file changes"
 
 install:
@@ -29,6 +30,9 @@ dev-worker:
 
 dev-frontend:
 	cd frontend && npm run dev
+
+dev-tray:
+	AGENTIC_STACK_URL=http://localhost:5173/stack uv run agentic-stack
 
 test: test-backend test-frontend
 
@@ -57,14 +61,16 @@ build:
 	cd frontend && npm run build
 
 run:
-	@echo "API on http://0.0.0.0:8600, worker, frontend dev server on http://0.0.0.0:5173 (Ctrl+C stops all)"
+	@echo "API on http://0.0.0.0:8600, worker, frontend dev server on http://0.0.0.0:5173, tray (Ctrl+C stops all)"
 	@uv run agentic-server serve --host 0.0.0.0 --port 8600 $(RELOAD) & \
 	api_pid=$$!; \
 	uv run agentic-server worker & \
 	worker_pid=$$!; \
 	( cd frontend && npm run dev ) & \
 	frontend_pid=$$!; \
-	trap 'kill $$api_pid $$worker_pid $$frontend_pid 2>/dev/null' INT TERM EXIT; \
+	AGENTIC_STACK_URL=http://localhost:5173/stack uv run agentic-stack & \
+	tray_pid=$$!; \
+	trap 'kill $$api_pid $$worker_pid $$frontend_pid $$tray_pid 2>/dev/null' INT TERM EXIT; \
 	wait
 
 # Like run, with the API reloading when backend files change.

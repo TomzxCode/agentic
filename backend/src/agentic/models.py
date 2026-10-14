@@ -154,6 +154,36 @@ class Task(SQLModel, table=True):
     updated_at: datetime = Field(default_factory=utcnow)
 
 
+class StackEntry(SQLModel, table=True):
+    """One task's place on the focus stack.
+
+    The stack is an ordered list of tasks where position 0 is the current task
+    and the rest are queued. Popping or removing an entry soft-deletes it
+    (``deleted_at``) so the stack keeps a history of what was worked on.
+    """
+
+    id: str = Field(default_factory=new_id, primary_key=True)
+    task_id: str = Field(foreign_key="task.id", index=True)
+    position: int = Field(default=0, index=True)
+    is_current: bool = False
+    created_at: datetime = Field(default_factory=utcnow)
+    deleted_at: datetime | None = None
+
+
+class TaskSession(SQLModel, table=True):
+    """A stretch of time a stack entry spent as the current task.
+
+    A session opens when an entry becomes current and closes when it stops
+    being current. An entry's ``execution_count`` and ``duration`` are derived
+    from these rows.
+    """
+
+    id: str = Field(default_factory=new_id, primary_key=True)
+    stack_entry_id: str = Field(foreign_key="stackentry.id", index=True)
+    started_at: datetime = Field(default_factory=utcnow)
+    ended_at: datetime | None = None
+
+
 class SourceItem(SQLModel, table=True):
     """Something external that can be associated to tasks."""
 

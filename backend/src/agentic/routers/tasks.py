@@ -27,9 +27,11 @@ from ..models import (
     Repository,
     RepositoryGroup,
     SourceItem,
+    StackEntry,
     Task,
     TaskPerson,
     TaskRepository,
+    TaskSession,
     TaskStatus,
     TimelineEvent,
     Worktree,
@@ -489,6 +491,11 @@ async def delete_task(task_id: str, session: Session = Depends(get_session)) -> 
     session.exec(sa_delete(TimelineEvent).where(col(TimelineEvent.task_id) == task.id))
     session.exec(sa_delete(TaskRepository).where(col(TaskRepository.task_id) == task.id))
     session.exec(sa_delete(TaskPerson).where(col(TaskPerson.task_id) == task.id))
+    # Stack entries (and their sessions) reference the task and must go first.
+    entry_ids = [entry.id for entry in session.exec(select(StackEntry).where(StackEntry.task_id == task.id)).all()]
+    if entry_ids:
+        session.exec(sa_delete(TaskSession).where(col(TaskSession.stack_entry_id).in_(entry_ids)))
+    session.exec(sa_delete(StackEntry).where(col(StackEntry.task_id) == task.id))
     session.exec(sa_delete(Task).where(col(Task.id) == task.id))
     session.commit()
     await bus.publish("tasks", {"kind": "task", "action": "deleted", "id": task_id})

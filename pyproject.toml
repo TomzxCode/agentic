@@ -5,18 +5,19 @@ description = "Agentic monorepo: the backend API server and the command-line cli
 requires-python = ">=3.12"
 # Depend on the workspace members so a single `uv sync` installs both and their
 # console scripts (agentic, agentic-server) land in the shared virtualenv.
-dependencies = ["agentic", "agentic-cli"]
+dependencies = ["agentic", "agentic-cli", "agentic-launcher"]
 
 [tool.uv]
 # The root is a virtual workspace project, not an installable package.
 package = false
 
 [tool.uv.workspace]
-members = ["backend", "cli"]
+members = ["backend", "cli", "launcher"]
 
 [tool.uv.sources]
 agentic = { workspace = true }
 agentic-cli = { workspace = true }
+agentic-launcher = { workspace = true }
 
 [dependency-groups]
 dev = [

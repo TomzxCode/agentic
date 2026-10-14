@@ -335,6 +335,34 @@ class AgenticClient:
     def delete_baseline(self, metric: str) -> None:
         self._request("DELETE", f"/api/metrics/baselines/{metric}")
 
+    # --- stack (focus queue) ----------------------------------------------
+    def list_stack(self) -> list[dict]:
+        return self._request("GET", "/api/stack")
+
+    def stack_history(self) -> list[dict]:
+        return self._request("GET", "/api/stack/history")
+
+    def stack_current(self) -> dict | None:
+        return self._request("GET", "/api/stack/current")
+
+    def push_stack(self, **fields: Any) -> list[dict]:
+        return self._request("POST", "/api/stack", json=_compact(fields))
+
+    def pop_stack(self) -> list[dict]:
+        return self._request("POST", "/api/stack/pop")
+
+    def reorder_stack(self, entry_id: str, position: int) -> list[dict]:
+        return self._request("POST", "/api/stack/reorder", json={"entry_id": entry_id, "position": position})
+
+    def promote_stack(self, entry_id: str) -> list[dict]:
+        return self._request("POST", f"/api/stack/{entry_id}/promote")
+
+    def update_stack_entry(self, entry_id: str, **fields: Any) -> list[dict]:
+        return self._request("PATCH", f"/api/stack/{entry_id}", json=_compact(fields))
+
+    def remove_stack_entry(self, entry_id: str) -> None:
+        self._request("DELETE", f"/api/stack/{entry_id}")
+
     # --- operations (provenance audit log) --------------------------------
     def list_operations(
         self,

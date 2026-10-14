@@ -196,3 +196,45 @@ def test_list_operations_passes_filters():
     _client(handler).list_operations(client="cli", actor="agent", limit=5)
     assert seen["path"] == "/api/operations"
     assert seen["params"] == [("client", "cli"), ("actor", "agent"), ("limit", "5")]
+
+
+def test_stack_methods():
+    seen: dict = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["method"] = request.method
+        seen["path"] = request.url.path
+        seen["body"] = json.loads(request.content) if request.content else None
+        if request.method == "DELETE":
+            return httpx.Response(204)
+        return httpx.Response(200, json=[])
+
+    client = _client(handler)
+    client.list_stack()
+    assert seen["path"] == "/api/stack"
+
+    client.stack_history()
+    assert seen["path"] == "/api/stack/history"
+
+    client.stack_current()
+    assert seen["path"] == "/api/stack/current"
+
+    # task_id=None is dropped so the API creates a new task from the title.
+    client.push_stack(title="T", description="", position="next", task_id=None)
+    assert seen["method"] == "POST" and seen["path"] == "/api/stack"
+    assert seen["body"] == {"title": "T", "description": "", "position": "next"}
+
+    client.pop_stack()
+    assert seen["path"] == "/api/stack/pop"
+
+    client.reorder_stack("s1", 2)
+    assert seen["path"] == "/api/stack/reorder" and seen["body"] == {"entry_id": "s1", "position": 2}
+
+    client.promote_stack("s1")
+    assert seen["path"] == "/api/stack/s1/promote"
+
+    client.update_stack_entry("s1", title="T2", description=None)
+    assert seen["method"] == "PATCH" and seen["path"] == "/api/stack/s1" and seen["body"] == {"title": "T2"}
+
+    assert client.remove_stack_entry("s1") is None
+    assert seen["method"] == "DELETE" and seen["path"] == "/api/stack/s1"

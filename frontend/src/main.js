@@ -10,6 +10,7 @@ import RepositoriesView from './views/RepositoriesView.vue'
 import RepositoryDetailView from './views/RepositoryDetailView.vue'
 import GanttView from './views/GanttView.vue'
 import MetricsView from './views/MetricsView.vue'
+import StackView from './views/StackView.vue'
 import SettingsView from './views/SettingsView.vue'
 import './styles.css'
 
@@ -17,6 +18,7 @@ const router = createRouter({
   history: createWebHistory(),
   routes: [
     { path: '/', name: 'tasks', component: TasksView },
+    { path: '/stack', name: 'stack', component: StackView },
     { path: '/task/:id', name: 'task', component: TaskView, props: true },
     { path: '/gantt', name: 'gantt', component: GanttView },
     { path: '/metrics', name: 'metrics', component: MetricsView },

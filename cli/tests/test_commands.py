@@ -278,6 +278,95 @@ class FakeClient:
             }
         ]
 
+    def list_stack(self):
+        return [
+            {
+                "id": "s1",
+                "task_id": "t1",
+                "task": {"title": "T"},
+                "position": 0,
+                "is_current": True,
+                "execution_count": 2,
+                "duration": 90,
+                "created_at": "2026-01-01T00:00:00",
+                "deleted_at": None,
+            }
+        ]
+
+    def stack_history(self):
+        return [
+            {
+                "id": "s0",
+                "task_id": "t0",
+                "task": {"title": "Old"},
+                "position": 0,
+                "is_current": False,
+                "execution_count": 1,
+                "duration": 10,
+                "created_at": "2026-01-01T00:00:00",
+                "deleted_at": "2026-01-02T00:00:00",
+            }
+        ]
+
+    def stack_current(self):
+        return {
+            "id": "s1",
+            "task_id": "t1",
+            "task": {"title": "T"},
+            "position": 0,
+            "is_current": True,
+            "execution_count": 2,
+            "duration": 90,
+        }
+
+    def push_stack(self, **fields):
+        return [
+            {
+                "id": "s2",
+                "task_id": "t2",
+                "task": {"title": fields.get("title") or "existing"},
+                "position": 0,
+                "is_current": True,
+                "execution_count": 1,
+                "duration": 0,
+            }
+        ]
+
+    def pop_stack(self):
+        return []
+
+    def reorder_stack(self, entry_id, position):
+        return [
+            {
+                "id": entry_id,
+                "task_id": "t1",
+                "task": {"title": "T"},
+                "position": position,
+                "is_current": position == 0,
+                "execution_count": 1,
+                "duration": 0,
+            }
+        ]
+
+    def promote_stack(self, entry_id):
+        return self.reorder_stack(entry_id, 0)
+
+    def update_stack_entry(self, entry_id, **fields):
+        return [
+            {
+                "id": entry_id,
+                "task_id": "t1",
+                "task": {"title": fields.get("title") or "T"},
+                "position": 0,
+                "is_current": True,
+                "execution_count": 1,
+                "duration": 0,
+            }
+        ]
+
+    def remove_stack_entry(self, entry_id):
+        return None
+
 
 @pytest.fixture
 def fake_client(monkeypatch):
@@ -515,3 +604,27 @@ def test_run_stream_prints_until_finished(monkeypatch, capsys, text_format):
 def test_operation_list_command(text_format, fake_client):
     text = cli.operation_list()
     assert "POST" in text and "/api/tasks" in text and "cli" in text and "agent" in text
+
+
+def test_stack_renderers():
+    entry = {"position": 0, "is_current": True, "task": {"title": "T"}, "execution_count": 2, "duration": 90}
+    assert cli._stack_line(entry) == "* 0  T  x2  1m 30s"
+    assert cli._format_duration(0) == "0m 00s"
+    assert cli._format_duration(3661) == "1h 01m"
+    assert cli._format_duration(90000) == "1d 01h"
+    assert cli._format_duration(-5) == "0m 00s"
+
+
+def test_stack_commands(text_format, fake_client, capsys):
+    assert "* 0  T  x2  1m 30s" in cli.stack_list()
+    assert "* 0  T  x2  1m 30s" in cli.stack_current()
+    assert "Old" in cli.stack_history()
+    assert "T" in cli.stack_push(title="T")
+    assert "existing" in cli.stack_push(task_id="t1")
+    assert cli.stack_push() == 1
+    assert "provide --title or --task-id" in capsys.readouterr().err
+    assert cli.stack_pop() == "(none)"
+    assert "* 0" in cli.stack_promote("s1")
+    assert "* 0" in cli.stack_reorder("s1", 0)
+    assert "T" in cli.stack_edit("s1", title="T")
+    assert "removed s1" in cli.stack_remove("s1")

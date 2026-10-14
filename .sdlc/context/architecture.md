@@ -5,12 +5,14 @@
 
 Agentic is a three-part app: a FastAPI backend that owns the database and agent execution, a Vue 3 single-page app that the backend serves, and an HTTP client CLI.
 The backend drives coding agents over ACP (Agent Client Protocol) as child processes and streams normalized events to the SPA over SSE.
+An optional native launcher (`launcher/`) adds the tray icon and global hotkey a browser cannot provide, and talks to the same HTTP API.
 
 ```mermaid
 flowchart LR
     subgraph Client
         SPA["Vue 3 SPA (PWA)"]
         CLI["agentic CLI"]
+        Launcher["agentic-stack (tray + hotkey)"]
     end
     subgraph Backend["FastAPI (agentic-server)"]
         API["HTTP + SSE API"]
@@ -23,6 +25,7 @@ flowchart LR
 
     SPA -- "REST + SSE" --> API
     CLI -- "REST" --> API
+    Launcher -- "REST" --> API
     API --> DB
     API --> BUS
     ACP -- "JSON-RPC stdio" --> Harness
@@ -58,6 +61,8 @@ erDiagram
     CHANGE ||--o{ CHANGEINTERVENTION : "records"
     REPOSITORY ||--o{ CHANGE : "touched by"
     WORKTREE ||--o{ CHANGE : "produced in"
+    TASK ||--o{ STACKENTRY : "queued as"
+    STACKENTRY ||--o{ TASKSESSION : "spends time as current"
 
     TASK {
         string id PK
@@ -207,6 +212,19 @@ erDiagram
         string note
         datetime captured_at
     }
+    STACKENTRY {
+        string id PK
+        string task_id FK
+        int position
+        bool is_current
+        datetime deleted_at
+    }
+    TASKSESSION {
+        string id PK
+        string stack_entry_id FK
+        datetime started_at
+        datetime ended_at
+    }
 ```
 
 The full schema with types, constraints, and indexes lives in [`schema.dbml`](schema.dbml).
@@ -225,6 +243,8 @@ The full schema with types, constraints, and indexes lives in [`schema.dbml`](sc
 | People directory | People linked to tasks and items, auto-populated from GitHub and Slack metadata, shown on the task page, the items list, and a People page | `routers/people.py`, `services.py`, Vue PeopleView/PeoplePanel |
 | Change lifecycle | Record changes and the human interventions on them, from a task page | `routers/changes.py`, Vue ChangesPanel |
 | Metrics engine | Compute autonomy rate and yield from changes, read against a baseline | `metrics.py`, `routers/metrics.py`, Vue MetricsView |
+| Stack | An ordered focus queue of tasks, materialized from the in-flight ones (open, in progress, blocked): position 0 is current, sessions track time and execution count, entries are soft-deleted | `stack.py`, `routers/stack.py`, Vue StackView |
+| Launcher | Menu-bar/tray companion with a global hotkey and a Mark Done action | `launcher/`, pystray, pynput |
 | Session links | Build OpenChamber/terminal/resume-command links from settings | templating over stored settings |
 | SPA | Mobile-friendly task list, task detail, settings, live transcript, PWA install | Vue 3, Vite, vue-router, vite-plugin-pwa |
 | User CLI | Scriptable client over the HTTP API | cyclopts, httpx, rich |
@@ -250,3 +270,5 @@ Detailed stack, tooling, environments, deployment, and rollback live in [`infras
 - ACP over stdio as the single agent abstraction, so a harness is a database row (command plus args) and never special-cased in code.
 - An in-process asyncio event bus rather than an external broker, because the app is single-process and local.
 - The SPA is built into `backend/static` and served by the API, so one process serves both the API and the UI.
+- The focus stack is a separate `StackEntry` (plus `TaskSession`) rather than fields on `Task`, so a task can exist without being queued and its stack history stays independent of its own lifecycle.
+- A small native launcher rather than a desktop shell: the tray icon and global hotkey are the only things a PWA cannot do, so the launcher adds just those and opens the web stack page.

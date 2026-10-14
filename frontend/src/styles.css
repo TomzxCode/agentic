@@ -2010,3 +2010,127 @@ button.gantt-marker::after {
   color: var(--muted);
   margin: 16px 0 2px;
 }
+
+/* Stack: a compact, keyboard-driven focus queue. */
+.stack-panel {
+  padding: 12px;
+}
+.stack-add {
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.stack-filter-note {
+  margin: 0 0 8px;
+}
+.link-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--accent);
+  cursor: pointer;
+}
+.link-btn:hover {
+  text-decoration: underline;
+}
+.stack-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.stack-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  cursor: default;
+}
+.stack-row + .stack-row {
+  border-top: 1px solid var(--border);
+}
+.stack-row:hover {
+  background: var(--bg-2);
+}
+.stack-row.selected {
+  background: var(--bg-3);
+}
+.stack-row.current {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+.stack-row.current .stack-title {
+  font-weight: 600;
+  color: var(--text);
+}
+.stack-index {
+  width: 1.4em;
+  text-align: right;
+  color: var(--faint);
+}
+.stack-indicator {
+  width: 1.4em;
+  text-align: center;
+}
+.stack-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text);
+}
+.stack-title:hover {
+  text-decoration: none;
+  color: var(--accent);
+}
+.stack-note {
+  margin-right: 4px;
+}
+.stack-col {
+  min-width: 4.5em;
+  text-align: right;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.stack-actions {
+  display: flex;
+  gap: 4px;
+}
+.stack-actions .btn {
+  padding: 2px 8px;
+}
+.stack-footer {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+  gap: 10px;
+}
+.stack-desc {
+  margin-top: 16px;
+}
+.stack-row.history {
+  opacity: 0.75;
+  cursor: default;
+}
+.stack-status {
+  flex: none;
+  font-size: 11px;
+  padding: 1px 7px;
+}
+.stack-help-grid {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 6px 16px;
+  margin: 8px 0 0;
+}
+.stack-help-grid dt {
+  font-family: var(--mono);
+  color: var(--muted);
+}
+.stack-help-grid dd {
+  margin: 0;
+}
+
+@media (max-width: 760px) {
+  /* The stat columns are noise on a phone; keep the index, status, title, and actions. */
+  .stack-col {
+    display: none;
+  }
+}

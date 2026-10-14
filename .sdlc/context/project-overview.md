@@ -25,6 +25,8 @@ It solves the problem of scattered context: the threads, issues, and checkouts r
 
 **In scope:**
 - Task tracking (status, priority, tags, deadlines, inline editing, search, timeline).
+- A focus stack: an ordered queue of tasks with the current one on top, per-entry session timing (execution count, duration), and soft-deleted history.
+- An optional native launcher (tray icon plus global hotkey) for the stack.
 - An upcoming-deadlines view on the tasks page, in-flight tasks soonest first with overdue tasks leading.
 - A Gantt timeline view of tasks in flight, one marker per timeline event.
 - Factory metrics: an instrumented change lifecycle with autonomy rate and yield read against stored baselines.
