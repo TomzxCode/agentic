@@ -2032,45 +2032,59 @@ button.gantt-marker::after {
 .link-btn:hover {
   text-decoration: underline;
 }
-.stack-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
+.stack-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.stack-table td {
+  padding: 6px 8px;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+/* Every cell but the title shrinks to its content, so the columns line up
+   across rows and the title absorbs the remaining width. */
+.stack-handle-cell,
+.stack-index,
+.stack-indicator,
+.stack-status-cell,
+.stack-col,
+.stack-actions-cell {
+  width: 1%;
 }
 .stack-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 8px;
-  border-radius: 8px;
   cursor: default;
 }
-.stack-row + .stack-row {
+.stack-row + .stack-row td {
   border-top: 1px solid var(--border);
 }
-.stack-row:hover {
+.stack-row:hover td {
   background: var(--bg-2);
 }
-.stack-row.selected {
+.stack-row.selected td {
   background: var(--bg-3);
 }
-.stack-row.current {
+.stack-row.current td {
   background: color-mix(in srgb, var(--accent) 12%, transparent);
 }
 .stack-row.current .stack-title {
   font-weight: 600;
-  color: var(--text);
 }
 .stack-index {
-  width: 1.4em;
   text-align: right;
   color: var(--faint);
 }
 .stack-indicator {
-  width: 1.4em;
   text-align: center;
 }
+/* max-width: 0 is what lets a table cell shrink below its content; the title
+   takes the slack and truncates. */
+.stack-title-cell {
+  width: 100%;
+  max-width: 0;
+  overflow: hidden;
+}
 .stack-title {
+  display: block;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -2081,17 +2095,19 @@ button.gantt-marker::after {
   color: var(--accent);
 }
 .stack-note {
-  margin-right: 4px;
+  display: inline-block;
+  width: 1.3em;
 }
 .stack-col {
-  min-width: 4.5em;
   text-align: right;
   font-size: 12px;
-  white-space: nowrap;
 }
 .stack-actions {
-  display: flex;
+  display: inline-flex;
   gap: 4px;
+}
+.stack-actions-cell {
+  text-align: right;
 }
 .stack-actions .btn {
   padding: 2px 8px;
@@ -2105,25 +2121,22 @@ button.gantt-marker::after {
 .stack-desc {
   margin-top: 16px;
 }
-.stack-row.history {
+.history-table .stack-row td {
   opacity: 0.75;
-  cursor: default;
 }
 .stack-status {
-  flex: none;
   font-size: 11px;
   padding: 1px 7px;
 }
 .stack-handle {
-  flex: none;
   cursor: grab;
   color: var(--faint);
   padding: 0 2px;
   touch-action: none;
   user-select: none;
 }
-.stack-row.dragging {
-  opacity: 0.6;
+.stack-row.dragging td {
+  opacity: 0.55;
 }
 body.row-dragging {
   user-select: none;

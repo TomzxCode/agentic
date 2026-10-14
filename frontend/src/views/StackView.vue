@@ -411,51 +411,67 @@ onUnmounted(() => {
       </div>
       <div v-else-if="!visible.length" class="empty">No tasks match “{{ filter }}”.</div>
 
-      <ol v-else ref="listEl" class="stack-list" aria-label="Task stack">
-        <li
-          v-for="entry in visible"
-          :key="entry.id"
-          class="stack-row"
-          :class="{ current: entry.is_current, selected: entry.id === selectedId, dragging: entry.id === dragId }"
-          @click="select(entry)"
-          @dblclick="beginEdit(entry)"
-          @pointerdown="onRowPointerDown($event, entry)"
-        >
-          <span class="stack-handle" title="Drag to reorder" aria-hidden="true">⠿</span>
-          <span class="stack-index mono">{{ entry.position }}</span>
-          <span class="stack-indicator" :title="entry.is_current ? 'Current task' : 'Queued'">
-            {{ entry.is_current ? '🔥' : '💤' }}
-          </span>
-          <span
-            :class="statusClass(entry.task?.status)"
-            class="stack-status"
-            :title="`Status: ${statusLabel(entry.task?.status)}`"
+      <table v-else ref="listEl" class="stack-table" aria-label="Task stack">
+        <tbody>
+          <tr
+            v-for="entry in visible"
+            :key="entry.id"
+            class="stack-row"
+            :class="{ current: entry.is_current, selected: entry.id === selectedId, dragging: entry.id === dragId }"
+            @click="select(entry)"
+            @dblclick="beginEdit(entry)"
+            @pointerdown="onRowPointerDown($event, entry)"
           >
-            {{ statusLabel(entry.task?.status) }}
-          </span>
-          <router-link :to="`/task/${entry.task_id}`" class="stack-title grow" :title="entry.task?.title">
-            <span v-if="entry.task?.description" class="stack-note" title="Has a description">📝</span>
-            {{ entry.task?.title || entry.task_id }}
-          </router-link>
-          <span class="stack-col mono faint" title="Times it became current">×{{ entry.execution_count }}</span>
-          <span class="stack-col mono faint" title="Started">{{ formatTime(entry.started_at) }}</span>
-          <span class="stack-col mono faint" title="Last current">{{ formatTime(entry.last_current) }}</span>
-          <span class="stack-col mono" title="Time as current">{{ formatDuration(entry.duration) }}</span>
-          <span class="stack-actions">
-            <button
-              v-if="!entry.is_current"
-              class="btn sm ghost"
-              title="Promote to current (Home)"
-              @click.stop="promote(entry)"
-            >
-              ↑
-            </button>
-            <button class="btn sm ghost danger" title="Remove from the stack (Delete)" @click.stop="removeEntry(entry)">
-              ✕
-            </button>
-          </span>
-        </li>
-      </ol>
+            <td class="stack-handle-cell">
+              <span class="stack-handle" title="Drag to reorder" aria-hidden="true">⠿</span>
+            </td>
+            <td class="stack-index mono">{{ entry.position }}</td>
+            <td class="stack-indicator" :title="entry.is_current ? 'Current task' : 'Queued'">
+              {{ entry.is_current ? '🔥' : '💤' }}
+            </td>
+            <td class="stack-status-cell">
+              <span
+                :class="statusClass(entry.task?.status)"
+                class="stack-status"
+                :title="`Status: ${statusLabel(entry.task?.status)}`"
+              >
+                {{ statusLabel(entry.task?.status) }}
+              </span>
+            </td>
+            <td class="stack-title-cell">
+              <router-link :to="`/task/${entry.task_id}`" class="stack-title" :title="entry.task?.title">
+                <span class="stack-note" :title="entry.task?.description ? 'Has a description' : ''">{{
+                  entry.task?.description ? '📝' : ''
+                }}</span
+                ><span class="stack-title-text">{{ entry.task?.title || entry.task_id }}</span>
+              </router-link>
+            </td>
+            <td class="stack-col mono faint" title="Times it became current">×{{ entry.execution_count }}</td>
+            <td class="stack-col mono faint" title="Started">{{ formatTime(entry.started_at) }}</td>
+            <td class="stack-col mono faint" title="Last current">{{ formatTime(entry.last_current) }}</td>
+            <td class="stack-col mono" title="Time as current">{{ formatDuration(entry.duration) }}</td>
+            <td class="stack-actions-cell">
+              <span class="stack-actions">
+                <button
+                  v-if="!entry.is_current"
+                  class="btn sm ghost"
+                  title="Promote to current (Home)"
+                  @click.stop="promote(entry)"
+                >
+                  ↑
+                </button>
+                <button
+                  class="btn sm ghost danger"
+                  title="Remove from the stack (Delete)"
+                  @click.stop="removeEntry(entry)"
+                >
+                  ✕
+                </button>
+              </span>
+            </td>
+          </tr>
+        </tbody>
+      </table>
 
       <div v-if="current" class="stack-footer row">
         <span class="faint grow">Current: {{ current.task?.title }}</span>
@@ -483,12 +499,18 @@ onUnmounted(() => {
         <span class="faint">Removed and completed tasks</span>
       </div>
       <div v-if="!history.length" class="empty">Nothing removed yet.</div>
-      <div v-for="entry in history" :key="entry.id" class="stack-row history">
-        <span class="stack-indicator">✅</span>
-        <router-link :to="`/task/${entry.task_id}`" class="stack-title grow">{{ entry.task?.title }}</router-link>
-        <span class="stack-col mono faint">{{ formatDuration(entry.duration) }}</span>
-        <span class="stack-col mono faint">{{ formatTime(entry.deleted_at) }}</span>
-      </div>
+      <table v-else class="stack-table history-table">
+        <tbody>
+          <tr v-for="entry in history" :key="entry.id" class="stack-row history">
+            <td class="stack-indicator">✅</td>
+            <td class="stack-title-cell">
+              <router-link :to="`/task/${entry.task_id}`" class="stack-title">{{ entry.task?.title }}</router-link>
+            </td>
+            <td class="stack-col mono faint">{{ formatDuration(entry.duration) }}</td>
+            <td class="stack-col mono faint">{{ formatTime(entry.deleted_at) }}</td>
+          </tr>
+        </tbody>
+      </table>
     </section>
 
     <section v-if="showHelp" class="panel stack-help" style="margin-top: 16px">
