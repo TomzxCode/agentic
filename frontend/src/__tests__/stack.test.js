@@ -19,10 +19,19 @@ vi.mock('../api', () => ({ api: { stack: mocks } }))
 vi.mock('vue-router', () => ({ useRouter: () => ({ push: vi.fn() }) }))
 
 import StackView from '../views/StackView.vue'
+import { moveItem, targetIndexAt } from '../stack'
 import { store } from '../store'
 
 const RouterLinkStub = { props: ['to'], template: '<a :href="to"><slot /></a>' }
 const stub = { global: { stubs: { RouterLink: RouterLinkStub } } }
+
+// jsdom has no PointerEvent, so dispatch a plain Event and attach the fields
+// the handler reads.
+function fire(el, type, props = {}) {
+  const event = new Event(type, { bubbles: true, cancelable: true })
+  Object.assign(event, props)
+  el.dispatchEvent(event)
+}
 
 function entry(overrides = {}) {
   return {
@@ -163,5 +172,76 @@ describe('StackView', () => {
     await flushPromises()
     expect(mocks.history).toHaveBeenCalled()
     expect(wrapper.text()).toContain('Done task')
+  })
+
+  function midpoints(wrapper) {
+    const rows = wrapper.findAll('.stack-row')
+    rows[0].element.getBoundingClientRect = () => ({ top: 0, height: 20 })
+    rows[1].element.getBoundingClientRect = () => ({ top: 20, height: 20 })
+    return rows
+  }
+
+  it('reorders rows by dragging with the mouse', async () => {
+    const wrapper = mount(StackView, stub)
+    await flushPromises()
+    const rows = midpoints(wrapper)
+
+    fire(rows[0].element, 'pointerdown', { clientY: 5, pointerType: 'mouse' })
+    fire(window, 'pointermove', { clientY: 40 }) // below the second row's midpoint
+    fire(window, 'pointerup', {})
+    await flushPromises()
+
+    expect(mocks.reorder).toHaveBeenCalledWith('s1', 1)
+  })
+
+  it('drags from the handle on touch but not from the row body', async () => {
+    const wrapper = mount(StackView, stub)
+    await flushPromises()
+    const rows = midpoints(wrapper)
+
+    // A touch on the row body must not start a drag (the list has to scroll).
+    fire(rows[0].element, 'pointerdown', { clientY: 5, pointerType: 'touch' })
+    fire(window, 'pointermove', { clientY: 40 })
+    fire(window, 'pointerup', {})
+    await flushPromises()
+    expect(mocks.reorder).not.toHaveBeenCalled()
+
+    // The handle does start one.
+    fire(rows[0].find('.stack-handle').element, 'pointerdown', { clientY: 5, pointerType: 'touch' })
+    fire(window, 'pointermove', { clientY: 40 })
+    fire(window, 'pointerup', {})
+    await flushPromises()
+    expect(mocks.reorder).toHaveBeenCalledWith('s1', 1)
+  })
+
+  it('ignores a drag while filtering', async () => {
+    const wrapper = mount(StackView, stub)
+    await flushPromises()
+    const rows = midpoints(wrapper)
+
+    await wrapper.find('input.input').setValue('first')
+    fire(rows[0].element, 'pointerdown', { clientY: 5, pointerType: 'mouse' })
+    fire(window, 'pointermove', { clientY: 40 })
+    fire(window, 'pointerup', {})
+    await flushPromises()
+
+    expect(mocks.reorder).not.toHaveBeenCalled()
+  })
+})
+
+describe('stack drag helpers', () => {
+  it('targetIndexAt picks the row the pointer is above', () => {
+    expect(targetIndexAt([10, 30, 50], 5)).toBe(0)
+    expect(targetIndexAt([10, 30, 50], 20)).toBe(1)
+    expect(targetIndexAt([10, 30, 50], 45)).toBe(2)
+    expect(targetIndexAt([10, 30, 50], 100)).toBe(2) // past the end lands on the last row
+    expect(targetIndexAt([], 5)).toBe(0)
+  })
+
+  it('moveItem moves an item without mutating the input', () => {
+    const items = ['a', 'b', 'c']
+    expect(moveItem(items, 0, 2)).toEqual(['b', 'c', 'a'])
+    expect(moveItem(items, 2, 0)).toEqual(['c', 'a', 'b'])
+    expect(items).toEqual(['a', 'b', 'c'])
   })
 })

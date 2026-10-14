@@ -215,6 +215,8 @@ has been current.
 - **Enter** adds a new task to the top (making it current); **Shift+Enter**
   inserts it right after the current task.
 - **↑ / ↓** move the selection; **← / →** move the selected task up or down one.
+- **Drag** a row (or its handle) to reorder; the list reorders live and the move
+  saves on release.
 - **Home** (or `/`) promotes the selected task to current; **Delete** removes it
   from the stack (the task is kept; push it again to bring it back).
 - **0–9** select a task by position; **Esc** clears the selection and filter.

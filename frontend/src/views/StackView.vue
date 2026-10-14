@@ -1,6 +1,7 @@
 <script setup>
-import { computed, onMounted, ref, nextTick } from 'vue'
+import { computed, onMounted, onUnmounted, ref, nextTick } from 'vue'
 import { api } from '../api'
+import { moveItem, targetIndexAt } from '../stack'
 import { store, statusClass, statusLabel } from '../store'
 
 // Ask the shell to reload tasks/tags so the sidebar stays in sync (a push adds
@@ -282,7 +283,90 @@ function onKeydown(event) {
   }
 }
 
+// --- Drag and drop ---------------------------------------------------------
+// Rows can be dragged to reorder (mouse anywhere on a row, touch from the
+// handle). The list reorders live under the pointer; the move is persisted on
+// release. Dragging is disabled while filtering, since reordering a filtered
+// subset is ambiguous.
+const listEl = ref(null)
+let dragCandidate = null // { id, startY }
+let dragId = null
+let dragging = false
+
+function onRowPointerDown(event, entry) {
+  if (filter.value) return
+  const target = event.target
+  const fromHandle = !!(target.closest && target.closest('.stack-handle'))
+  if (!fromHandle) {
+    // Touch/pen only drags from the handle (so the list can still scroll);
+    // the mouse can drag anywhere on the row except its controls.
+    if (event.pointerType !== 'mouse') return
+    if (target.closest && target.closest('button, input, textarea, select')) return
+  }
+  dragCandidate = { id: entry.id, startY: event.clientY }
+  window.addEventListener('pointermove', onDragMove)
+  window.addEventListener('pointerup', onDragEnd)
+  window.addEventListener('pointercancel', onDragEnd)
+}
+
+function onDragMove(event) {
+  if (!dragCandidate) return
+  if (!dragging) {
+    if (Math.abs(event.clientY - dragCandidate.startY) < 6) return
+    dragging = true
+    dragId = dragCandidate.id
+    document.body.classList.add('row-dragging')
+  }
+  const rows = listEl.value ? Array.from(listEl.value.querySelectorAll('.stack-row')) : []
+  const midpoints = rows.map((row) => {
+    const rect = row.getBoundingClientRect()
+    return rect.top + rect.height / 2
+  })
+  const index = targetIndexAt(midpoints, event.clientY)
+  const current = entries.value.findIndex((item) => item.id === dragId)
+  if (current === -1 || index === current) return
+  entries.value = moveItem(entries.value, current, index)
+}
+
+async function onDragEnd() {
+  window.removeEventListener('pointermove', onDragMove)
+  window.removeEventListener('pointerup', onDragEnd)
+  window.removeEventListener('pointercancel', onDragEnd)
+  const wasDragging = dragging
+  const id = dragId
+  dragCandidate = null
+  dragging = false
+  dragId = null
+  document.body.classList.remove('row-dragging')
+  if (!wasDragging || !id) return
+
+  // Swallow the click that follows the drag so it does not just select the row.
+  const swallow = (event) => {
+    event.stopPropagation()
+    event.preventDefault()
+  }
+  window.addEventListener('click', swallow, { capture: true, once: true })
+  setTimeout(() => window.removeEventListener('click', swallow, { capture: true }), 300)
+
+  const index = entries.value.findIndex((item) => item.id === id)
+  if (index === -1) return
+  try {
+    entries.value = await api.stack.reorder(id, index)
+  } catch (e) {
+    store.notify(e.message, true)
+    await refresh()
+  }
+}
+
 onMounted(refresh)
+
+// Drop any in-progress drag listeners if the view unmounts mid-drag.
+onUnmounted(() => {
+  window.removeEventListener('pointermove', onDragMove)
+  window.removeEventListener('pointerup', onDragEnd)
+  window.removeEventListener('pointercancel', onDragEnd)
+  document.body.classList.remove('row-dragging')
+})
 </script>
 
 <template>
@@ -327,15 +411,17 @@ onMounted(refresh)
       </div>
       <div v-else-if="!visible.length" class="empty">No tasks match “{{ filter }}”.</div>
 
-      <ol v-else class="stack-list" aria-label="Task stack">
+      <ol v-else ref="listEl" class="stack-list" aria-label="Task stack">
         <li
           v-for="entry in visible"
           :key="entry.id"
           class="stack-row"
-          :class="{ current: entry.is_current, selected: entry.id === selectedId }"
+          :class="{ current: entry.is_current, selected: entry.id === selectedId, dragging: entry.id === dragId }"
           @click="select(entry)"
           @dblclick="beginEdit(entry)"
+          @pointerdown="onRowPointerDown($event, entry)"
         >
+          <span class="stack-handle" title="Drag to reorder" aria-hidden="true">⠿</span>
           <span class="stack-index mono">{{ entry.position }}</span>
           <span class="stack-indicator" :title="entry.is_current ? 'Current task' : 'Queued'">
             {{ entry.is_current ? '🔥' : '💤' }}
@@ -416,6 +502,8 @@ onMounted(refresh)
         <dd>Move the selection</dd>
         <dt>← / →</dt>
         <dd>Move the selected task up or down one</dd>
+        <dt>Drag</dt>
+        <dd>Drag a row (or its handle) to reorder</dd>
         <dt>Home or /</dt>
         <dd>Promote the selected task to current</dd>
         <dt>Delete / Backspace</dt>

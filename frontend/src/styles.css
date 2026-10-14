@@ -2114,6 +2114,24 @@ button.gantt-marker::after {
   font-size: 11px;
   padding: 1px 7px;
 }
+.stack-handle {
+  flex: none;
+  cursor: grab;
+  color: var(--faint);
+  padding: 0 2px;
+  touch-action: none;
+  user-select: none;
+}
+.stack-row.dragging {
+  opacity: 0.6;
+}
+body.row-dragging {
+  user-select: none;
+  cursor: grabbing;
+}
+body.row-dragging .stack-handle {
+  cursor: grabbing;
+}
 .stack-help-grid {
   display: grid;
   grid-template-columns: max-content 1fr;
