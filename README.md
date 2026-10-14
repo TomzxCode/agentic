@@ -220,9 +220,9 @@ has been current.
 - **Home** (or `/`) promotes the selected task to current; **Delete** removes it
   from the stack (the task is kept; push it again to bring it back).
 - **0–9** select a task by position; **Esc** clears the selection and filter.
-- **Mark done (pop)** completes the current task (sets it to `done`, so it leaves
-  the stack) and promotes the next one. Removed and popped tasks stay under
-  **History**.
+- **Click** a row to select it; the status icon opens a picker, so set a task to
+  **Done** to complete it (it then leaves the stack). Removed and completed tasks
+  stay under **History**.
 
 The optional **launcher** (`agentic-stack`) adds the two things a browser cannot:
 a tray icon showing the current task, and a global hotkey (default

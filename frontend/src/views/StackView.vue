@@ -99,7 +99,6 @@ const visible = computed(() => {
   return entries.value.filter((entry) => (entry.task?.title || '').toLowerCase().includes(needle))
 })
 
-const current = computed(() => entries.value[0] || null)
 const selected = computed(() => entries.value.find((entry) => entry.id === selectedId.value) || null)
 
 async function refresh() {
@@ -188,18 +187,6 @@ function positionMessage(position) {
   if (position === 'next') return 'Added after the current task'
   if (position === 'last') return 'Added to the bottom'
   return 'Added to the top'
-}
-
-async function pop() {
-  try {
-    setEntries(await api.stack.pop())
-    selectedId.value = null
-    syncDescription()
-    emit('changed')
-    store.notify('Popped the current task')
-  } catch (e) {
-    store.notify(e.message, true)
-  }
 }
 
 async function promote(entry) {
@@ -545,11 +532,6 @@ onUnmounted(() => {
           </tr>
         </tbody>
       </table>
-
-      <div v-if="current" class="stack-footer row">
-        <span class="faint grow">Current: {{ current.task?.title }}</span>
-        <button class="btn sm" @click="pop">Mark done (pop)</button>
-      </div>
     </section>
 
     <section v-if="selected" class="panel stack-desc">

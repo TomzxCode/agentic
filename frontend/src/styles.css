@@ -2118,12 +2118,6 @@ button.gantt-marker::after {
 .stack-actions .btn {
   padding: 2px 8px;
 }
-.stack-footer {
-  margin-top: 12px;
-  padding-top: 10px;
-  border-top: 1px solid var(--border);
-  gap: 10px;
-}
 .stack-desc {
   margin-top: 16px;
 }

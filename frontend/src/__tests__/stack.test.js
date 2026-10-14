@@ -147,7 +147,7 @@ describe('StackView', () => {
     expect(wrapper.text()).toContain('Second')
   })
 
-  it('pops the current task and removes the selected one', async () => {
+  it('promotes and removes a row from its actions', async () => {
     const wrapper = mount(StackView, stub)
     await flushPromises()
 
@@ -156,10 +156,6 @@ describe('StackView', () => {
     expect(mocks.promote).toHaveBeenCalledWith('s2')
     await row.find('[title="Remove from the stack (Delete)"]').trigger('click')
     expect(mocks.remove).toHaveBeenCalledWith('s2')
-    await flushPromises()
-
-    await wrapper.find('.stack-footer .btn').trigger('click')
-    expect(mocks.pop).toHaveBeenCalled()
   })
 
   it('selects with the arrow keys and removes with Delete', async () => {
