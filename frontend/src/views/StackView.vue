@@ -14,6 +14,25 @@ const showHistory = ref(false)
 const loading = ref(false)
 const error = ref('')
 
+// The current task's duration grows in real time. The server returns a
+// snapshot; `loadedAt` is when it arrived and `now` ticks every second, so the
+// live value is the snapshot plus the time since it was loaded.
+const now = ref(Date.now())
+let loadedAt = Date.now()
+let tickId = null
+
+function setEntries(list) {
+  entries.value = list
+  loadedAt = Date.now()
+  now.value = loadedAt
+}
+
+// A non-current task's duration is fixed; the current task's keeps counting.
+function displayDuration(entry) {
+  if (!entry.is_current) return entry.duration
+  return (entry.duration || 0) + (now.value - loadedAt) / 1000
+}
+
 // The input doubles as the add field and the filter/edit field, like the
 // desktop stack window: with nothing selected it filters and adds; with a row
 // selected it edits that row's title.
@@ -68,7 +87,7 @@ async function refresh() {
   loading.value = true
   error.value = ''
   try {
-    entries.value = await api.stack.list()
+    setEntries(await api.stack.list())
     if (selectedId.value && !entries.value.some((entry) => entry.id === selectedId.value)) {
       selectedId.value = null
     }
@@ -128,7 +147,7 @@ async function submit() {
 
 async function push(title, position) {
   try {
-    entries.value = await api.stack.push({ title, position })
+    setEntries(await api.stack.push({ title, position }))
     draft.value = ''
     filter.value = ''
     selectedId.value = null
@@ -148,7 +167,7 @@ function positionMessage(position) {
 
 async function pop() {
   try {
-    entries.value = await api.stack.pop()
+    setEntries(await api.stack.pop())
     selectedId.value = null
     syncDescription()
     emit('changed')
@@ -160,7 +179,7 @@ async function pop() {
 
 async function promote(entry) {
   try {
-    entries.value = await api.stack.promote(entry.id)
+    setEntries(await api.stack.promote(entry.id))
     selectedId.value = entry.id
     syncDescription()
   } catch (e) {
@@ -184,7 +203,7 @@ async function reorder(entry, target) {
   const to = from + target
   if (from < 0 || to < 0 || to >= entries.value.length) return
   try {
-    entries.value = await api.stack.reorder(entry.id, to)
+    setEntries(await api.stack.reorder(entry.id, to))
     selectedId.value = entry.id
   } catch (e) {
     store.notify(e.message, true)
@@ -193,7 +212,7 @@ async function reorder(entry, target) {
 
 async function saveTitle(entryId, title) {
   try {
-    entries.value = await api.stack.update(entryId, { title })
+    setEntries(await api.stack.update(entryId, { title }))
     emit('changed')
   } catch (e) {
     store.notify(e.message, true)
@@ -206,7 +225,7 @@ async function saveDescription() {
   const next = descriptionDraft.value
   if (next === (entry.task?.description || '')) return
   try {
-    entries.value = await api.stack.update(entry.id, { description: next })
+    setEntries(await api.stack.update(entry.id, { description: next }))
     syncDescription()
   } catch (e) {
     store.notify(e.message, true)
@@ -351,17 +370,22 @@ async function onDragEnd() {
   const index = entries.value.findIndex((item) => item.id === id)
   if (index === -1) return
   try {
-    entries.value = await api.stack.reorder(id, index)
+    setEntries(await api.stack.reorder(id, index))
   } catch (e) {
     store.notify(e.message, true)
     await refresh()
   }
 }
 
-onMounted(refresh)
+onMounted(() => {
+  refresh()
+  // Tick so the current task's duration counts up every second.
+  tickId = setInterval(() => (now.value = Date.now()), 1000)
+})
 
 // Drop any in-progress drag listeners if the view unmounts mid-drag.
 onUnmounted(() => {
+  if (tickId !== null) clearInterval(tickId)
   window.removeEventListener('pointermove', onDragMove)
   window.removeEventListener('pointerup', onDragEnd)
   window.removeEventListener('pointercancel', onDragEnd)
@@ -449,7 +473,9 @@ onUnmounted(() => {
             <td class="stack-col mono faint" title="Times it became current">×{{ entry.execution_count }}</td>
             <td class="stack-col mono faint" title="Started">{{ formatTime(entry.started_at) }}</td>
             <td class="stack-col mono faint" title="Last current">{{ formatTime(entry.last_current) }}</td>
-            <td class="stack-col mono" title="Time as current">{{ formatDuration(entry.duration) }}</td>
+            <td class="stack-col stack-duration mono" title="Time as current">
+              {{ formatDuration(displayDuration(entry)) }}
+            </td>
             <td class="stack-actions-cell">
               <span class="stack-actions">
                 <button

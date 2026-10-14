@@ -181,6 +181,25 @@ describe('StackView', () => {
     return rows
   }
 
+  it('counts the current task duration up every second', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-01-01T00:00:00Z'))
+    try {
+      const wrapper = mount(StackView, stub)
+      await flushPromises()
+      expect(wrapper.find('.stack-row .stack-duration').text()).toBe('1m 30s')
+
+      vi.advanceTimersByTime(5000)
+      await flushPromises()
+      expect(wrapper.find('.stack-row .stack-duration').text()).toBe('1m 35s')
+
+      // A non-current row's duration is fixed.
+      expect(wrapper.findAll('.stack-duration')[1].text()).toBe('0m 00s')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('reorders rows by dragging with the mouse', async () => {
     const wrapper = mount(StackView, stub)
     await flushPromises()
