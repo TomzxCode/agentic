@@ -146,7 +146,7 @@ const tagItems = computed(() =>
 )
 
 const paletteItems = computed(() => [
-  { id: 'new-task', label: 'New task', group: 'Actions', run: () => (showNew.value = true) },
+  { id: 'new-task', label: 'New task', hint: '⌘N', group: 'Actions', run: () => (showNew.value = true) },
   { id: 'focus-hints', label: 'Show focus hints', hint: 'f', group: 'Actions', run: () => (store.hintMode = true) },
   ...(store.tagFilter
     ? [
@@ -255,6 +255,13 @@ function onGlobalKeydown(event) {
   if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
     event.preventDefault()
     paletteOpen.value = !paletteOpen.value
+    return
+  }
+
+  // Cmd/Ctrl+N opens the new-task modal (and must beat the browser's own).
+  if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'n') {
+    event.preventDefault()
+    showNew.value = true
     return
   }
 
@@ -593,7 +600,7 @@ onUnmounted(() => {
             <span class="palette-label">Search</span>
             <kbd class="palette-kbd">⌘K</kbd>
           </button>
-          <button class="btn primary new-task" title="New task" @click="showNew = true">
+          <button class="btn primary new-task" title="New task (Ctrl/Cmd+N)" @click="showNew = true">
             <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
               <path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none" />
             </svg>

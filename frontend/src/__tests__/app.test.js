@@ -340,6 +340,18 @@ describe('App', () => {
     expect(wrapper.find('.palette-stub').exists()).toBe(false)
   })
 
+  it('opens the new task modal with Cmd/Ctrl+N', async () => {
+    const wrapper = mountApp()
+    await flushPromises()
+
+    const titleField = 'input[placeholder="What needs to be solved?"]'
+    expect(wrapper.find(titleField).exists()).toBe(false)
+
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'n', ctrlKey: true }))
+    await nextTick()
+    expect(wrapper.find(titleField).exists()).toBe(true)
+  })
+
   it('offers tag filters in the command palette', async () => {
     store.tags = [{ name: 'bug', count: 2 }]
     store.tasks = [{ id: 't1', title: 'Task A', status: 'open', updated_at: null, next_steps: [], tags: ['bug'] }]
