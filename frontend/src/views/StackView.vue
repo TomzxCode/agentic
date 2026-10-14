@@ -46,6 +46,11 @@ const statusOptions = STATUS_VALUES.map((value) => ({
   iconProps: { status: value, label: statusLabel(value) }
 }))
 
+// The stack table's columns: handle, index, indicator, status, title, exec
+// count, started, last current, duration, actions. Used by the description
+// row's colspan.
+const COLUMN_COUNT = 10
+
 // The field at the top adds a task (Enter) and filters the list as you type.
 const draft = ref('')
 const filter = ref('')
@@ -440,90 +445,93 @@ onUnmounted(() => {
 
       <table v-else ref="listEl" class="stack-table" aria-label="Task stack">
         <tbody>
-          <tr
-            v-for="entry in visible"
-            :key="entry.id"
-            class="stack-row"
-            :class="{ current: entry.is_current, selected: entry.id === selectedId, dragging: entry.id === dragId }"
-            @click="onRowClick(entry)"
-            @pointerdown="onRowPointerDown($event, entry)"
-          >
-            <td class="stack-handle-cell">
-              <span class="stack-handle" title="Drag to reorder" aria-hidden="true">⠿</span>
-            </td>
-            <td class="stack-index mono">{{ entry.position }}</td>
-            <td class="stack-indicator" :title="entry.is_current ? 'Current task' : 'Queued'">
-              {{ entry.is_current ? '🔥' : '💤' }}
-            </td>
-            <td class="stack-status-cell" @click.stop @keydown.stop>
-              <SearchSelect
-                class="task-status-select"
-                variant="icon"
-                :model-value="entry.task?.status"
-                :options="statusOptions"
-                :sort="false"
-                title="Change status"
-                @update:model-value="(value) => changeStatus(entry, value)"
-              />
-            </td>
-            <td class="stack-title-cell" :title="entry.task?.title">
-              <EditableText
-                :ref="(el) => setEditorRef(entry.id, el)"
-                class="stack-title"
-                :value="entry.task?.title || ''"
-                placeholder="Untitled task"
-                @save="(title) => saveTitle(entry, title)"
-              />
-            </td>
-            <td class="stack-col mono faint" title="Times it became current">×{{ entry.execution_count }}</td>
-            <td class="stack-col mono faint" title="Started">
-              {{ formatTimestamp(entry.started_at, nowDate) }}
-            </td>
-            <td class="stack-col mono faint" title="Last current">
-              {{ formatTimestamp(entry.last_current, nowDate) }}
-            </td>
-            <td class="stack-col stack-duration mono" title="Time as current">
-              {{ formatDuration(displayDuration(entry)) }}
-            </td>
-            <td class="stack-actions-cell">
-              <span class="stack-actions">
-                <button
-                  v-if="!entry.is_current"
-                  class="btn sm ghost"
-                  title="Promote to current (Home)"
-                  @click.stop="promote(entry)"
-                >
-                  ↑
-                </button>
-                <router-link class="btn sm ghost" :to="`/task/${entry.task_id}`" title="Open the task" @click.stop>
-                  ↗
-                </router-link>
-                <button
-                  class="btn sm ghost danger"
-                  title="Remove from the stack (Delete)"
-                  @click.stop="removeEntry(entry)"
-                >
-                  ✕
-                </button>
-              </span>
-            </td>
-          </tr>
+          <template v-for="entry in visible" :key="entry.id">
+            <tr
+              class="stack-row"
+              :class="{ current: entry.is_current, selected: entry.id === selectedId, dragging: entry.id === dragId }"
+              @click="onRowClick(entry)"
+              @pointerdown="onRowPointerDown($event, entry)"
+            >
+              <td class="stack-handle-cell">
+                <span class="stack-handle" title="Drag to reorder" aria-hidden="true">⠿</span>
+              </td>
+              <td class="stack-index mono">{{ entry.position }}</td>
+              <td class="stack-indicator" :title="entry.is_current ? 'Current task' : 'Queued'">
+                {{ entry.is_current ? '🔥' : '💤' }}
+              </td>
+              <td class="stack-status-cell" @click.stop @keydown.stop>
+                <SearchSelect
+                  class="task-status-select"
+                  variant="icon"
+                  :model-value="entry.task?.status"
+                  :options="statusOptions"
+                  :sort="false"
+                  title="Change status"
+                  @update:model-value="(value) => changeStatus(entry, value)"
+                />
+              </td>
+              <td class="stack-title-cell" :title="entry.task?.title">
+                <EditableText
+                  :ref="(el) => setEditorRef(entry.id, el)"
+                  class="stack-title"
+                  :value="entry.task?.title || ''"
+                  placeholder="Untitled task"
+                  @save="(title) => saveTitle(entry, title)"
+                />
+              </td>
+              <td class="stack-col mono faint" title="Times it became current">×{{ entry.execution_count }}</td>
+              <td class="stack-col mono faint" title="Started">
+                {{ formatTimestamp(entry.started_at, nowDate) }}
+              </td>
+              <td class="stack-col mono faint" title="Last current">
+                {{ formatTimestamp(entry.last_current, nowDate) }}
+              </td>
+              <td class="stack-col stack-duration mono" title="Time as current">
+                {{ formatDuration(displayDuration(entry)) }}
+              </td>
+              <td class="stack-actions-cell">
+                <span class="stack-actions">
+                  <button
+                    v-if="!entry.is_current"
+                    class="btn sm ghost"
+                    title="Promote to current (Home)"
+                    @click.stop="promote(entry)"
+                  >
+                    ↑
+                  </button>
+                  <router-link class="btn sm ghost" :to="`/task/${entry.task_id}`" title="Open the task" @click.stop>
+                    ↗
+                  </router-link>
+                  <button
+                    class="btn sm ghost danger"
+                    title="Remove from the stack (Delete)"
+                    @click.stop="removeEntry(entry)"
+                  >
+                    ✕
+                  </button>
+                </span>
+              </td>
+            </tr>
+            <tr v-if="entry.id === selectedId" class="stack-desc-row">
+              <td :colspan="COLUMN_COUNT">
+                <div class="stack-desc">
+                  <div class="stack-desc-head">
+                    <span class="faint">Description</span>
+                    <router-link class="faint" :to="`/task/${entry.task_id}`">Open task →</router-link>
+                  </div>
+                  <textarea
+                    v-model="descriptionDraft"
+                    class="textarea"
+                    placeholder="Add a description…"
+                    @blur="saveDescription"
+                    @keydown.escape="saveDescription"
+                  ></textarea>
+                </div>
+              </td>
+            </tr>
+          </template>
         </tbody>
       </table>
-    </section>
-
-    <section v-if="selected" class="panel stack-desc">
-      <div class="panel-head">
-        <h2>{{ selected.task?.title }}</h2>
-        <router-link class="faint" :to="`/task/${selected.task_id}`">Open task →</router-link>
-      </div>
-      <textarea
-        v-model="descriptionDraft"
-        class="textarea"
-        placeholder="Add a description…"
-        @blur="saveDescription"
-        @keydown.escape="saveDescription"
-      ></textarea>
     </section>
 
     <section v-if="showHistory" class="panel" style="margin-top: 16px">

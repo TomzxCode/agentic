@@ -2117,8 +2117,19 @@ button.gantt-marker::after {
 .stack-actions .btn {
   padding: 2px 8px;
 }
+.stack-desc-row td {
+  padding: 4px 8px 12px;
+  background: var(--bg-2);
+}
+.stack-desc-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 6px;
+}
 .stack-desc {
-  margin-top: 16px;
+  margin: 0;
 }
 .history-table .stack-row td {
   opacity: 0.75;

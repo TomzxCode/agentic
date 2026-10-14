@@ -249,6 +249,22 @@ describe('StackView', () => {
     expect(mocks.reorder).toHaveBeenCalledWith('s2', 0)
   })
 
+  it('opens the description directly under the selected row', async () => {
+    const wrapper = mount(StackView, stub)
+    await flushPromises()
+
+    // Nothing shows until a row is selected.
+    expect(wrapper.find('.stack-desc-row').exists()).toBe(false)
+
+    await wrapper.findAll('.stack-row')[1].trigger('click')
+    await flushPromises()
+
+    const children = Array.from(wrapper.find('tbody').element.children)
+    expect(children[1].classList.contains('stack-row')).toBe(true)
+    expect(children[2].classList.contains('stack-desc-row')).toBe(true)
+    expect(children[2].querySelector('textarea')).not.toBeNull()
+  })
+
   it('counts the current task duration up every second', async () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-01-01T00:00:00Z'))
