@@ -243,6 +243,33 @@ class AgenticClient:
                 if payload:
                     yield json.loads(payload)
 
+    # --- sessions ---------------------------------------------------------
+    def list_sessions(self, task_id: str) -> list[dict]:
+        return self._request("GET", f"/api/tasks/{task_id}/sessions")
+
+    def get_session(self, task_id: str, session_id: str) -> dict:
+        return self._request("GET", f"/api/tasks/{task_id}/sessions/{session_id}")
+
+    def create_session(
+        self,
+        task_id: str,
+        session_id: str,
+        harness_id: str | None = None,
+        cwd: str | None = None,
+        label: str = "",
+    ) -> dict:
+        return self._request(
+            "POST",
+            f"/api/tasks/{task_id}/sessions",
+            json=_compact({"session_id": session_id, "harness_id": harness_id, "cwd": cwd, "label": label}),
+        )
+
+    def update_session(self, task_id: str, session_id: str, **fields: Any) -> dict:
+        return self._request("PATCH", f"/api/tasks/{task_id}/sessions/{session_id}", json=_compact(fields))
+
+    def delete_session(self, task_id: str, session_id: str) -> None:
+        self._request("DELETE", f"/api/tasks/{task_id}/sessions/{session_id}")
+
     # --- context ----------------------------------------------------------
     def get_context(self, task_id: str) -> dict:
         return self._request("GET", f"/api/tasks/{task_id}/context")

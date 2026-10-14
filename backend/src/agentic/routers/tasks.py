@@ -16,10 +16,11 @@ from ..crud import add_timeline, field_label, get_task_or_404, jsonable, normali
 from ..db import get_session
 from ..dependencies import dependencies, edge_exists, would_cycle
 from ..events import bus
-from ..links import run_read
+from ..links import run_read, session_read
 from ..models import (
     AgentEvent,
     AgentRun,
+    AgentSession,
     Association,
     Change,
     ChangeIntervention,
@@ -177,6 +178,9 @@ def _detail(session: Session, task: Task) -> TaskDetail:
     runs = session.exec(
         select(AgentRun).where(AgentRun.task_id == task.id).order_by(col(AgentRun.created_at).desc()).limit(20)
     ).all()
+    sessions = session.exec(
+        select(AgentSession).where(AgentSession.task_id == task.id).order_by(col(AgentSession.created_at).desc())
+    ).all()
     changes = session.exec(
         select(Change).where(Change.task_id == task.id).order_by(col(Change.opened_at).desc()).limit(100)
     ).all()
@@ -193,6 +197,7 @@ def _detail(session: Session, task: Task) -> TaskDetail:
         suggested_people=[_person_read(session, person) for person in suggested],
         worktrees=[WorktreeRead.model_validate(w) for w in worktrees],
         runs=[run_read(session, r) for r in runs],
+        sessions=[session_read(session, s) for s in sessions],
         changes=[ChangeRead.model_validate(c) for c in changes],
         timeline=[TimelineRead.model_validate(t) for t in timeline],
     )
@@ -483,6 +488,7 @@ async def delete_task(task_id: str, session: Session = Depends(get_session)) -> 
     if run_ids:
         session.exec(sa_delete(AgentEvent).where(col(AgentEvent.run_id).in_(run_ids)))
     session.exec(sa_delete(AgentRun).where(col(AgentRun.task_id) == task.id))
+    session.exec(sa_delete(AgentSession).where(col(AgentSession.task_id) == task.id))
     session.exec(sa_delete(Association).where(col(Association.task_id) == task.id))
     # Changes and their interventions belong to the task; drop them before the
     # worktrees they may reference.

@@ -17,8 +17,8 @@ from __future__ import annotations
 
 from sqlmodel import Session
 
-from .models import AgentRun, Harness
-from .schemas import RunRead, SessionLink
+from .models import AgentRun, AgentSession, Harness
+from .schemas import RunRead, SessionLink, SessionRead
 from .settings_store import get_settings
 
 
@@ -81,4 +81,14 @@ def run_read(session: Session, run: AgentRun) -> RunRead:
     """Serialize a run with its session links attached."""
     data = RunRead.model_validate(run)
     data.links = run_links(session, run)
+    return data
+
+
+def session_read(session: Session, agent_session: AgentSession) -> SessionRead:
+    """Serialize a recorded session with its session links attached."""
+    data = SessionRead.model_validate(agent_session)
+    harness = session.get(Harness, agent_session.harness_id) if agent_session.harness_id else None
+    data.links = build_session_links(
+        session, harness=harness, session_id=agent_session.session_id, cwd=agent_session.cwd
+    )
     return data

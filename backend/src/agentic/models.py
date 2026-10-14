@@ -341,6 +341,23 @@ class AgentRun(SQLModel, table=True):
     ended_at: datetime | None = None
 
 
+class AgentSession(SQLModel, table=True):
+    """An agent session recorded against a task.
+
+    A run stores the session it produced on its own row; this entity records a
+    session attached by hand, for example one started in OpenChamber, so a task
+    carries every session it was worked in plus the ways to reopen them.
+    """
+
+    id: str = Field(default_factory=new_id, primary_key=True)
+    task_id: str = Field(foreign_key="task.id", index=True)
+    harness_id: str | None = Field(default=None, foreign_key="harness.id")
+    session_id: str  # the ACP (or agent) session id
+    label: str = ""
+    cwd: str | None = None
+    created_at: datetime = Field(default_factory=utcnow)
+
+
 class AgentEvent(SQLModel, table=True):
     """A single normalized event in an agent run's transcript."""
 

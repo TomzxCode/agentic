@@ -327,6 +327,36 @@ class RunRead(ORMModel):
     links: list[SessionLink] = []
 
 
+class SessionCreate(BaseModel):
+    """Attach an existing agent session to a task.
+
+    ``harness_id`` defaults to the task's harness; ``cwd`` feeds the resume
+    command and the terminal link.
+    """
+
+    session_id: str
+    harness_id: str | None = None
+    cwd: str | None = None
+    label: str = ""
+
+
+class SessionUpdate(BaseModel):
+    harness_id: str | None = None
+    cwd: str | None = None
+    label: str | None = None
+
+
+class SessionRead(ORMModel):
+    id: str
+    task_id: str
+    harness_id: str | None = None
+    session_id: str
+    label: str
+    cwd: str | None = None
+    created_at: datetime
+    links: list[SessionLink] = []
+
+
 class TimelineRead(ORMModel):
     id: str
     task_id: str
@@ -346,6 +376,7 @@ class TaskDetail(TaskRead):
     suggested_people: list[PersonRead] = []
     worktrees: list[WorktreeRead] = []
     runs: list[RunRead] = []
+    sessions: list[SessionRead] = []
     changes: list[ChangeRead] = []
     timeline: list[TimelineRead] = []
 
@@ -703,7 +734,10 @@ __all__ = [
     "RepositoryRead",
     "RunCreate",
     "RunRead",
+    "SessionCreate",
     "SessionLink",
+    "SessionRead",
+    "SessionUpdate",
     "SettingsRead",
     "SettingsUpdate",
     "StackEntryRead",

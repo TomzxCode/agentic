@@ -41,6 +41,7 @@ one virtualenv.
 | **Worktree** | An isolated `git worktree` created for a task from a registered repository. |
 | **Repository group** | A named set of repositories. Picking one on a task tells the agent those checkouts may hold information relevant to it. |
 | **Agent run** | One prompt sent to a harness in a working directory, delivered to the worker through the run queue. Events stream live to the UI. |
+| **Agent session** | An agent session recorded against a task: its session id, harness, working directory, and a label. A run records the session it produced; this records one you attach by hand (for example one opened in OpenChamber), and both build the links that reopen it. |
 | **Context refresh** | A special agent run that reads the task + its items and writes the `summary` and `next_steps`. |
 | **Change** | A unit of factory output recorded against a task: a class, a lifecycle, a start/end time, and a human-intervened flag. Autonomy rate and yield are computed from changes. |
 | **Stack entry** | A task's place on the focus stack: its position (0 is current), whether it is current, and a soft-delete timestamp. |
@@ -248,6 +249,19 @@ When a run has a session id, the app shows links to reopen that session:
 - **Copy resume command** copies something like
   `cd <worktree> && opencode --session <id>` for pasting into a shell.
 
+A run builds these links from the session it produced. For a session agentic did
+not start, such as one you opened in OpenChamber, attach it to the task by hand
+and it gets the same links:
+
+```bash
+agentic session add <task> ses_abc123 --cwd /path/to/checkout --label "repro"
+agentic session list <task>
+```
+
+The harness defaults to the task's harness; pass `--harness-id` to override it.
+The task's detail (in the API and in `agentic task get`) then lists every
+recorded session alongside the runs.
+
 Configure the base URLs on the **Settings** page (persisted locally) or with
 environment variables. Each harness has an editable resume command template.
 Placeholders: `{session}`, `{cwd}`, `{harness}`.
@@ -341,6 +355,10 @@ agentic context refresh <task>    # agent rewrites summary + next steps
 agentic run create <task> --prompt "Investigate the failure"
 agentic run wait <run-id>            # block until it finishes
 agentic run stream <run-id>          # live transcript
+agentic session add <task> <session-id> --cwd /path/to/checkout --label "repro"
+agentic session list <task>          # recorded sessions, with reopen links
+agentic session get <task> <session> # one session and how to reopen it
+agentic session remove <task> <session>
 agentic change create <task> --title "Fix the flaky ingest test" --change-class bugfix
 agentic change accept <change>       # also: verify, reject, revert, intervene
 agentic metrics show                 # autonomy rate and yield, with direction
@@ -360,7 +378,7 @@ AGENTIC_API_URL=http://box:8600 agentic task list | jq '.[].id'
 ```
 
 Resources: `task`, `tag`, `stack`, `item`, `link`, `person`, `repository`, `worktree`, `run`,
-`context`, `harness`, `settings`, `change`, `metrics`, `operation`, `graph`, plus `health`.
+`session`, `context`, `harness`, `settings`, `change`, `metrics`, `operation`, `graph`, plus `health`.
 
 ### Backend
 
@@ -382,6 +400,8 @@ DELETE              /api/tasks/{id}/dependencies/{related}
 GET                 /api/graph                        (the before/after DAG)
 POST                /api/tasks/{id}/worktrees
 POST                /api/tasks/{id}/runs
+GET/POST            /api/tasks/{id}/sessions           (recorded agent sessions)
+GET/PATCH/DELETE    /api/tasks/{id}/sessions/{session}
 POST                /api/tasks/{id}/context/refresh
 GET                 /api/tasks/{id}/stream           (SSE: task changes)
 GET                 /api/runs/{id}/stream               (SSE: agent transcript)

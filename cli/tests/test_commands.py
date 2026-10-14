@@ -270,6 +270,29 @@ class FakeClient:
     def cancel_run(self, run_id):
         return {"id": run_id, "status": "cancelled"}
 
+    def list_sessions(self, task_id):
+        return [{"id": "s1", "task_id": task_id, "session_id": "ses_1", "label": "first"}]
+
+    def get_session(self, task_id, session_id):
+        return {
+            "id": session_id,
+            "task_id": task_id,
+            "session_id": "ses_1",
+            "label": "first",
+            "harness_id": "opencode",
+            "cwd": "/w",
+            "links": [{"label": "L", "command": "c"}],
+        }
+
+    def create_session(self, task_id, session_id, harness_id=None, cwd=None, label=""):
+        return {"id": "s2", "task_id": task_id, "session_id": session_id, "label": label}
+
+    def update_session(self, task_id, session_id, **fields):
+        return {"id": session_id, "task_id": task_id, "session_id": "ses_1", "label": fields.get("label") or "first"}
+
+    def delete_session(self, task_id, session_id):
+        return None
+
     def get_context(self, task_id):
         return {"summary": "s", "next_steps": [{"text": "a", "done": True}]}
 
@@ -422,6 +445,19 @@ def test_renderers():
     assert "queued" in cli._run_line(run)
     run_text = cli._run_text(run)
     assert "session: s" in run_text and "cwd: /w" in run_text and "L: c" in run_text
+
+    session = {
+        "id": "s1",
+        "task_id": "t1",
+        "session_id": "ses_1",
+        "label": "first",
+        "harness_id": "opencode",
+        "cwd": "/w",
+        "links": [{"label": "L", "url": "u"}],
+    }
+    assert cli._session_line(session) == "s1  ses_1  first"
+    session_text = cli._session_text(session)
+    assert "harness: opencode" in session_text and "cwd: /w" in session_text and "L: u" in session_text
 
 
 def test_emit_auto_uses_json_off_a_tty(monkeypatch):
@@ -624,6 +660,30 @@ def test_run_stream_prints_until_finished(monkeypatch, capsys, text_format):
 def test_operation_list_command(text_format, fake_client):
     text = cli.operation_list()
     assert "POST" in text and "/api/tasks" in text and "cli" in text and "agent" in text
+
+
+def test_session_commands(text_format, fake_client):
+    assert "ses_1" in cli.session_list("t1")
+    text = cli.session_get("t1", "s1")
+    assert "harness: opencode" in text and "cwd: /w" in text
+    assert "attached session s2" in cli.session_add("t1", "ses_2", label="second")
+    assert "updated session s1" in cli.session_update("t1", "s1", label="renamed")
+    assert "removed session s1" in cli.session_remove("t1", "s1")
+
+
+def test_task_get_shows_recorded_sessions(text_format, monkeypatch):
+    class WithSessions(FakeClient):
+        def get_task(self, task_id):
+            return {
+                "id": task_id,
+                "status": "open",
+                "priority": 1,
+                "title": "T",
+                "sessions": [{"id": "s1", "session_id": "ses_1"}],
+            }
+
+    monkeypatch.setattr(cli, "_client", WithSessions)
+    assert "session: ses_1 (s1)" in cli.task_get("t1")
 
 
 def test_dependency_and_graph_commands(text_format, fake_client):

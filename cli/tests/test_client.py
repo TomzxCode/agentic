@@ -227,6 +227,36 @@ def test_dependency_methods():
     assert seen["params"] == [("include_done", "true")]
 
 
+def test_session_methods():
+    seen: dict = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["method"] = request.method
+        seen["path"] = request.url.path
+        seen["body"] = json.loads(request.content) if request.content else None
+        if request.method == "DELETE":
+            return httpx.Response(204)
+        return httpx.Response(200, json={"id": "s1", "session_id": "ses_1"})
+
+    client = _client(handler)
+    client.list_sessions("t1")
+    assert seen["path"] == "/api/tasks/t1/sessions"
+
+    client.get_session("t1", "s1")
+    assert seen["path"] == "/api/tasks/t1/sessions/s1"
+
+    client.create_session("t1", "ses_1", cwd=None, label="first")
+    assert seen["method"] == "POST" and seen["path"] == "/api/tasks/t1/sessions"
+    assert seen["body"] == {"session_id": "ses_1", "label": "first"}
+
+    client.update_session("t1", "s1", label="renamed", cwd=None)
+    assert seen["method"] == "PATCH" and seen["path"] == "/api/tasks/t1/sessions/s1"
+    assert seen["body"] == {"label": "renamed"}
+
+    assert client.delete_session("t1", "s1") is None
+    assert seen["method"] == "DELETE" and seen["path"] == "/api/tasks/t1/sessions/s1"
+
+
 def test_stack_methods():
     seen: dict = {}
 

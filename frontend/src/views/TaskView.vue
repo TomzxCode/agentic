@@ -8,6 +8,7 @@ import ChangesPanel from '../components/ChangesPanel.vue'
 import WorktreesPanel from '../components/WorktreesPanel.vue'
 import DependenciesSelect from '../components/DependenciesSelect.vue'
 import AgentPanel from '../components/AgentPanel.vue'
+import SessionsPanel from '../components/SessionsPanel.vue'
 import TimelinePanel from '../components/TimelinePanel.vue'
 import SessionLinks from '../components/SessionLinks.vue'
 import EditableText from '../components/EditableText.vue'
@@ -38,8 +39,14 @@ const peopleRef = ref(null)
 const dependenciesRef = ref(null)
 const tagRef = ref(null)
 
-// Links from the most recent run that produced a session.
-const latestLinks = computed(() => task.value?.runs?.find((run) => run.links?.length)?.links || [])
+// The most recent link set on the task, from a run or a recorded session, so the
+// header offers the newest way to reopen where the work happened.
+const latestLinks = computed(() => {
+  const sources = [...(task.value?.runs || []), ...(task.value?.sessions || [])]
+    .filter((item) => item.links?.length)
+    .sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')))
+  return sources[0]?.links || []
+})
 
 const STATUS_OPTIONS = [
   { value: 'open', label: 'open', icon: StatusIcon, iconProps: { status: 'open', label: 'open' } },
@@ -265,6 +272,7 @@ watch(
       <div>
         <ContextPanel :task="task" @changed="onChanged" />
         <AgentPanel :task="task" :harnesses="store.harnesses" @changed="onChanged" />
+        <SessionsPanel :task="task" @changed="onChanged" />
         <TimelinePanel :events="task.timeline" :task="task" />
       </div>
       <div>

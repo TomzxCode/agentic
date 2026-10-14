@@ -96,6 +96,8 @@ def _task_text(task: dict) -> str:
     lines = [_task_line(task)]
     if task.get("people"):
         lines.append("  people: " + ", ".join(person["name"] for person in task["people"]))
+    for session in task.get("sessions") or []:
+        lines.append(f"  session: {session['session_id']} ({session['id']})")
     if task.get("summary"):
         lines.append(f"  summary: {task['summary']}")
     for step in task.get("next_steps") or []:
@@ -118,6 +120,22 @@ def _run_text(run: dict) -> str:
     if run.get("cwd"):
         lines.append(f"  cwd: {run['cwd']}")
     for link in run.get("links") or []:
+        lines.append(f"  {link['label']}: {link.get('url') or link.get('command')}")
+    return "\n".join(lines)
+
+
+def _session_line(session: dict) -> str:
+    label = session.get("label") or ""
+    return f"{session['id']}  {session['session_id']}  {label}".rstrip()
+
+
+def _session_text(session: dict) -> str:
+    lines = [_session_line(session)]
+    if session.get("harness_id"):
+        lines.append(f"  harness: {session['harness_id']}")
+    if session.get("cwd"):
+        lines.append(f"  cwd: {session['cwd']}")
+    for link in session.get("links") or []:
         lines.append(f"  {link['label']}: {link.get('url') or link.get('command')}")
     return "\n".join(lines)
 
@@ -957,6 +975,73 @@ def run_stream(run_id: str) -> None:
                 print(f"[{event.get('type')}] {event.get('text', '')}")
             if event.get("type") == "run_finished":
                 break
+
+
+# --- sessions -------------------------------------------------------------
+session_app = App(name="session", help="Record agent sessions against tasks and reopen them.")
+app.command(session_app)
+
+
+@session_app.command(name="list")
+@safe
+def session_list(task_id: str) -> str:
+    """List a task's recorded agent sessions."""
+    with _client() as client:
+        sessions = client.list_sessions(task_id)
+    return emit(sessions, _join(sessions, _session_line))
+
+
+@session_app.command(name="get")
+@safe
+def session_get(task_id: str, session_id: str) -> str:
+    """Show a recorded session and how to reopen it."""
+    with _client() as client:
+        session = client.get_session(task_id, session_id)
+    return emit(session, _session_text(session))
+
+
+@session_app.command(name="add")
+@safe
+def session_add(
+    task_id: str,
+    session_id: str,
+    harness_id: str | None = None,
+    cwd: str | None = None,
+    label: str = "",
+) -> str:
+    """Attach an existing agent session to a task.
+
+    Use this for a session agentic did not start, such as one opened in
+    OpenChamber. --harness-id and --cwd feed the resume command and the
+    OpenChamber link; the harness defaults to the task's harness.
+    """
+    with _client() as client:
+        session = client.create_session(task_id, session_id, harness_id=harness_id, cwd=cwd, label=label)
+    return emit(session, f"attached session {session['id']}  {session['session_id']}")
+
+
+@session_app.command(name="update")
+@safe
+def session_update(
+    task_id: str,
+    session_id: str,
+    harness_id: str | None = None,
+    cwd: str | None = None,
+    label: str | None = None,
+) -> str:
+    """Update a recorded session's label, working directory, or harness."""
+    with _client() as client:
+        session = client.update_session(task_id, session_id, harness_id=harness_id, cwd=cwd, label=label)
+    return emit(session, f"updated session {session['id']}  {_session_line(session)}")
+
+
+@session_app.command(name="remove")
+@safe
+def session_remove(task_id: str, session_id: str) -> str:
+    """Remove a recorded session from a task (the session itself is untouched)."""
+    with _client() as client:
+        client.delete_session(task_id, session_id)
+    return emit({"removed": session_id}, f"removed session {session_id}")
 
 
 # --- context --------------------------------------------------------------

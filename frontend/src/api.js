@@ -201,6 +201,14 @@ export const api = {
     get: (runId) => request(`/runs/${runId}`),
     events: (runId) => request(`/runs/${runId}/events`),
     cancel: (runId) => request(`/runs/${runId}/cancel`, { method: 'POST' })
+  },
+
+  sessions: {
+    list: (taskId) => request(`/tasks/${taskId}/sessions`),
+    get: (taskId, sessionId) => request(`/tasks/${taskId}/sessions/${sessionId}`),
+    create: (taskId, body) => request(`/tasks/${taskId}/sessions`, { method: 'POST', body }),
+    update: (taskId, sessionId, body) => request(`/tasks/${taskId}/sessions/${sessionId}`, { method: 'PATCH', body }),
+    remove: (taskId, sessionId) => request(`/tasks/${taskId}/sessions/${sessionId}`, { method: 'DELETE' })
   }
 }
 

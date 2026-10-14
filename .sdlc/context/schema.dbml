@@ -207,6 +207,20 @@ Table agentevent {
   }
 }
 
+Table agentsession {
+  id varchar [pk]
+  task_id varchar [not null, ref: > task.id]
+  harness_id varchar [ref: > harness.id]
+  session_id varchar [not null] // the ACP (or agent) session id
+  label varchar [not null, default: '']
+  cwd varchar
+  created_at datetime [not null]
+
+  Indexes {
+    task_id
+  }
+}
+
 Table timelineevent {
   id varchar [pk]
   task_id varchar [not null, ref: > task.id]

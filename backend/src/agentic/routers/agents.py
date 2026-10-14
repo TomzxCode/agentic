@@ -24,6 +24,7 @@ from ..links import run_read
 from ..models import (
     AgentEvent,
     AgentRun,
+    AgentSession,
     Association,
     Harness,
     Repository,
@@ -113,6 +114,7 @@ def delete_harness(harness_id: str, session: Session = Depends(get_session)) -> 
         raise HTTPException(status_code=404, detail="Harness not found")
     session.exec(sa_update(Task).where(col(Task.harness_id) == harness.id).values(harness_id=None))
     session.exec(sa_update(AgentRun).where(col(AgentRun.harness_id) == harness.id).values(harness_id=None))
+    session.exec(sa_update(AgentSession).where(col(AgentSession.harness_id) == harness.id).values(harness_id=None))
     session.exec(sa_delete(Harness).where(col(Harness.id) == harness.id))
     session.commit()
 

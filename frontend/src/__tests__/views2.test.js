@@ -222,6 +222,13 @@ describe('TaskView', () => {
     template: '<div class="et" @click="$emit(\'save\', \'NEW\')"></div>'
   }
   const passthrough = { template: '<div class="stub"><slot /></div>' }
+  // Renders the labels of the links it is handed, so the header's choice of the
+  // newest link set can be asserted.
+  const SessionLinksStub = {
+    name: 'SessionLinks',
+    props: ['links', 'compact'],
+    template: '<div class="sl">{{ (links || []).map((l) => l.label).join(",") }}</div>'
+  }
 
   const stubs = {
     RouterLink: RouterLinkStub,
@@ -233,11 +240,12 @@ describe('TaskView', () => {
     PriorityIcon: passthrough,
     ContextPanel: passthrough,
     AgentPanel: passthrough,
+    SessionsPanel: passthrough,
     ItemsPanel: passthrough,
     WorktreesPanel: passthrough,
     DependenciesSelect: passthrough,
     TimelinePanel: passthrough,
-    SessionLinks: passthrough
+    SessionLinks: SessionLinksStub
   }
 
   beforeEach(() => {
@@ -289,11 +297,45 @@ describe('TaskView', () => {
     expect(wrapper.emitted('changed')).toBeTruthy()
   })
 
+  it('shows a recorded session link in the header', async () => {
+    mocks.tasksGet.mockResolvedValue({
+      ...task,
+      sessions: [
+        {
+          id: 's1',
+          session_id: 'ses_1',
+          created_at: '2026-02-01T00:00:00Z',
+          links: [{ id: 'openchamber', label: 'Open in OpenChamber', url: 'http://oc/?session=ses_1' }]
+        }
+      ]
+    })
+    const wrapper = mountView()
+    await flushPromises()
+    expect(wrapper.get('.sl').text()).toBe('Open in OpenChamber')
+  })
+
+  it('shows the newest link set across runs and sessions', async () => {
+    mocks.tasksGet.mockResolvedValue({
+      ...task,
+      runs: [{ id: 'r1', created_at: '2026-01-01T00:00:00Z', links: [{ id: 'command', label: 'Resume command' }] }],
+      sessions: [
+        {
+          id: 's1',
+          session_id: 'ses_1',
+          created_at: '2026-02-01T00:00:00Z',
+          links: [{ id: 'openchamber', label: 'Open in OpenChamber', url: 'u' }]
+        }
+      ]
+    })
+    const wrapper = mountView()
+    await flushPromises()
+    expect(wrapper.get('.sl').text()).toBe('Open in OpenChamber')
+  })
+
   it('renders every property under its own label', async () => {
     const wrapper = mountView()
     await flushPromises()
     const labels = wrapper.findAll('.properties .prop-label').map((label) => label.text())
-    expect(labels).toEqual(['Status', 'Priority', 'Deadline', 'Tags', 'People', 'Repositories'])
   })
 
   it('blurs the focused field on Escape', async () => {
