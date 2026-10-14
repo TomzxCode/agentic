@@ -1,8 +1,10 @@
 <script setup>
 import { computed, onMounted, onUnmounted, ref, nextTick } from 'vue'
 import { api } from '../api'
+import SearchSelect from '../components/SearchSelect.vue'
+import StatusIcon from '../components/StatusIcon.vue'
 import { moveItem, targetIndexAt } from '../stack'
-import { store, statusClass, statusLabel } from '../store'
+import { store, statusLabel } from '../store'
 
 // Ask the shell to reload tasks/tags so the sidebar stays in sync (a push adds
 // a task, a pop marks one done).
@@ -33,6 +35,16 @@ function displayDuration(entry) {
   return (entry.duration || 0) + (now.value - loadedAt) / 1000
 }
 
+// The status picker reuses the same icon-only SearchSelect as the task rows, so
+// a stack row's status is editable in place.
+const STATUS_VALUES = ['open', 'in_progress', 'blocked', 'done', 'archived']
+const statusOptions = STATUS_VALUES.map((value) => ({
+  value,
+  label: statusLabel(value),
+  icon: StatusIcon,
+  iconProps: { status: value, label: statusLabel(value) }
+}))
+
 // The input doubles as the add field and the filter/edit field, like the
 // desktop stack window: with nothing selected it filters and adds; with a row
 // selected it edits that row's title.
@@ -45,6 +57,13 @@ const selectedId = ref(null)
 const descriptionDraft = ref('')
 const showHelp = ref(false)
 const titleInput = ref(null)
+const pageEl = ref(null)
+
+// Move focus to the page so the row shortcuts (arrows, Home, Delete) work; the
+// title field only takes focus when you edit a row.
+function focusPage() {
+  nextTick(() => pageEl.value?.focus())
+}
 
 // Two units of precision, matching the desktop app: 0m 45s, 2h 05m, 3d 04h.
 function formatDuration(seconds) {
@@ -112,7 +131,13 @@ function select(entry) {
   if (selectedId.value === entry.id) return
   selectedId.value = entry.id
   syncDescription()
-  focusTitle()
+}
+
+// A row click selects it (and keeps the keyboard shortcuts working); the task
+// page is reached through the row's open button or the description panel.
+function onRowClick(entry) {
+  select(entry)
+  focusPage()
 }
 
 function syncDescription() {
@@ -194,6 +219,22 @@ async function removeEntry(entry) {
     await refresh()
     if (showHistory.value) await loadHistory()
   } catch (e) {
+    store.notify(e.message, true)
+  }
+}
+
+// Change a task's status from its stack row. A status outside the in-flight set
+// takes the task off the stack, so reload afterwards.
+async function changeStatus(entry, status) {
+  if (!entry.task || status === entry.task.status) return
+  const previous = entry.task.status
+  entry.task.status = status
+  try {
+    await api.tasks.update(entry.task_id, { status })
+    emit('changed')
+    await refresh()
+  } catch (e) {
+    entry.task.status = previous
     store.notify(e.message, true)
   }
 }
@@ -379,6 +420,7 @@ async function onDragEnd() {
 
 onMounted(() => {
   refresh()
+  focusPage()
   // Tick so the current task's duration counts up every second.
   tickId = setInterval(() => (now.value = Date.now()), 1000)
 })
@@ -394,7 +436,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="stack-page" @keydown="onKeydown">
+  <div ref="pageEl" class="stack-page" tabindex="-1" @keydown="onKeydown">
     <div class="row page-head" style="margin-bottom: 14px">
       <h1 class="grow">Stack</h1>
       <button
@@ -442,7 +484,7 @@ onUnmounted(() => {
             :key="entry.id"
             class="stack-row"
             :class="{ current: entry.is_current, selected: entry.id === selectedId, dragging: entry.id === dragId }"
-            @click="select(entry)"
+            @click="onRowClick(entry)"
             @dblclick="beginEdit(entry)"
             @pointerdown="onRowPointerDown($event, entry)"
           >
@@ -453,22 +495,24 @@ onUnmounted(() => {
             <td class="stack-indicator" :title="entry.is_current ? 'Current task' : 'Queued'">
               {{ entry.is_current ? '🔥' : '💤' }}
             </td>
-            <td class="stack-status-cell">
-              <span
-                :class="statusClass(entry.task?.status)"
-                class="stack-status"
-                :title="`Status: ${statusLabel(entry.task?.status)}`"
-              >
-                {{ statusLabel(entry.task?.status) }}
-              </span>
+            <td class="stack-status-cell" @click.stop @keydown.stop>
+              <SearchSelect
+                class="task-status-select"
+                variant="icon"
+                :model-value="entry.task?.status"
+                :options="statusOptions"
+                :sort="false"
+                title="Change status"
+                @update:model-value="(value) => changeStatus(entry, value)"
+              />
             </td>
-            <td class="stack-title-cell">
-              <router-link :to="`/task/${entry.task_id}`" class="stack-title" :title="entry.task?.title">
-                <span class="stack-note" :title="entry.task?.description ? 'Has a description' : ''">{{
+            <td class="stack-title-cell" :title="entry.task?.title">
+              <span class="stack-title"
+                ><span class="stack-note" :title="entry.task?.description ? 'Has a description' : ''">{{
                   entry.task?.description ? '📝' : ''
                 }}</span
-                ><span class="stack-title-text">{{ entry.task?.title || entry.task_id }}</span>
-              </router-link>
+                ><span class="stack-title-text">{{ entry.task?.title || entry.task_id }}</span></span
+              >
             </td>
             <td class="stack-col mono faint" title="Times it became current">×{{ entry.execution_count }}</td>
             <td class="stack-col mono faint" title="Started">{{ formatTime(entry.started_at) }}</td>
@@ -486,6 +530,9 @@ onUnmounted(() => {
                 >
                   ↑
                 </button>
+                <router-link class="btn sm ghost" :to="`/task/${entry.task_id}`" title="Open the task" @click.stop>
+                  ↗
+                </router-link>
                 <button
                   class="btn sm ghost danger"
                   title="Remove from the stack (Delete)"
@@ -542,6 +589,10 @@ onUnmounted(() => {
     <section v-if="showHelp" class="panel stack-help" style="margin-top: 16px">
       <div class="panel-head"><h2>Keyboard shortcuts</h2></div>
       <dl class="stack-help-grid">
+        <dt>Click</dt>
+        <dd>Select a task (the shortcuts below act on it)</dd>
+        <dt>Double-click</dt>
+        <dd>Edit the selected task's title</dd>
         <dt>Enter</dt>
         <dd>Add to top (becomes current) / save an edit</dd>
         <dt>Shift+Enter</dt>

@@ -2015,6 +2015,12 @@ button.gantt-marker::after {
 .stack-panel {
   padding: 12px;
 }
+/* The page is focusable only so the row shortcuts work after a click; it is
+   not a control, so it carries no focus ring. */
+.stack-page:focus,
+.stack-page:focus-visible {
+  outline: none;
+}
 .stack-add {
   gap: 8px;
   margin-bottom: 8px;
@@ -2090,10 +2096,6 @@ button.gantt-marker::after {
   white-space: nowrap;
   color: var(--text);
 }
-.stack-title:hover {
-  text-decoration: none;
-  color: var(--accent);
-}
 .stack-note {
   display: inline-block;
   width: 1.3em;
@@ -2109,6 +2111,10 @@ button.gantt-marker::after {
 .stack-actions-cell {
   text-align: right;
 }
+/* The open link is an anchor; keep it looking like the sibling buttons. */
+.stack-actions a.btn {
+  color: inherit;
+}
 .stack-actions .btn {
   padding: 2px 8px;
 }
@@ -2123,10 +2129,6 @@ button.gantt-marker::after {
 }
 .history-table .stack-row td {
   opacity: 0.75;
-}
-.stack-status {
-  font-size: 11px;
-  padding: 1px 7px;
 }
 .stack-handle {
   cursor: grab;

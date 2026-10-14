@@ -12,10 +12,26 @@ const mocks = vi.hoisted(() => ({
   promote: vi.fn(),
   reorder: vi.fn(),
   update: vi.fn(),
-  remove: vi.fn()
+  remove: vi.fn(),
+  updateTask: vi.fn()
 }))
 
-vi.mock('../api', () => ({ api: { stack: mocks } }))
+vi.mock('../api', () => ({
+  api: {
+    stack: {
+      list: mocks.list,
+      history: mocks.history,
+      current: mocks.current,
+      push: mocks.push,
+      pop: mocks.pop,
+      promote: mocks.promote,
+      reorder: mocks.reorder,
+      update: mocks.update,
+      remove: mocks.remove
+    },
+    tasks: { update: mocks.updateTask }
+  }
+}))
 vi.mock('vue-router', () => ({ useRouter: () => ({ push: vi.fn() }) }))
 
 import StackView from '../views/StackView.vue'
@@ -72,6 +88,7 @@ beforeEach(() => {
   mocks.reorder.mockResolvedValue([])
   mocks.update.mockResolvedValue([])
   mocks.remove.mockResolvedValue(null)
+  mocks.updateTask.mockResolvedValue({})
 })
 
 describe('StackView', () => {
@@ -87,8 +104,21 @@ describe('StackView', () => {
     expect(wrapper.text()).toContain('Second')
     expect(wrapper.text()).toContain('×2')
     expect(wrapper.text()).toContain('1m 30s')
-    // Each row shows its task status (open, in progress, blocked).
-    expect(wrapper.findAll('.stack-status').map((b) => b.text())).toEqual(['Open', 'In progress'])
+    // Each row reuses the icon status picker (editable in place).
+    expect(wrapper.findAll('.task-status-select').length).toBe(2)
+  })
+
+  it('changes a task status from the stack', async () => {
+    const wrapper = mount(StackView, stub)
+    await flushPromises()
+
+    await wrapper.findAll('.task-status-select .ss-trigger')[0].trigger('click')
+    await flushPromises()
+    const blocked = wrapper.findAll('.ss-option').find((option) => option.text().includes('Blocked'))
+    await blocked.trigger('click')
+    await flushPromises()
+
+    expect(mocks.updateTask).toHaveBeenCalledWith('t1', { status: 'blocked' })
   })
 
   it('adds to the top on Enter and after the current on Shift+Enter', async () => {
@@ -121,10 +151,10 @@ describe('StackView', () => {
     const wrapper = mount(StackView, stub)
     await flushPromises()
 
-    const secondRowButtons = wrapper.findAll('.stack-row')[1].findAll('.stack-actions .btn')
-    await secondRowButtons[0].trigger('click')
+    const row = wrapper.findAll('.stack-row')[1]
+    await row.find('[title="Promote to current (Home)"]').trigger('click')
     expect(mocks.promote).toHaveBeenCalledWith('s2')
-    await secondRowButtons[1].trigger('click')
+    await row.find('[title="Remove from the stack (Delete)"]').trigger('click')
     expect(mocks.remove).toHaveBeenCalledWith('s2')
     await flushPromises()
 
@@ -180,6 +210,30 @@ describe('StackView', () => {
     rows[1].element.getBoundingClientRect = () => ({ top: 20, height: 20 })
     return rows
   }
+
+  it('selects a row on click without navigating, and opens it via the link', async () => {
+    const wrapper = mount(StackView, stub)
+    await flushPromises()
+
+    await wrapper.findAll('.stack-row')[1].trigger('click')
+    await flushPromises()
+    expect(wrapper.findAll('.stack-row')[1].classes()).toContain('selected')
+
+    // The task page is reached through the row's open link, not the row itself.
+    expect(wrapper.findAll('.stack-row')[1].find('.stack-actions a').attributes('href')).toBe('/task/t2')
+  })
+
+  it('reorders the clicked row with the arrow keys', async () => {
+    const wrapper = mount(StackView, stub)
+    await flushPromises()
+
+    await wrapper.findAll('.stack-row')[1].trigger('click')
+    await flushPromises()
+    await wrapper.find('.stack-page').trigger('keydown', { key: 'ArrowLeft' })
+    await flushPromises()
+
+    expect(mocks.reorder).toHaveBeenCalledWith('s2', 0)
+  })
 
   it('counts the current task duration up every second', async () => {
     vi.useFakeTimers()
