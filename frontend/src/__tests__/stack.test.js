@@ -216,7 +216,7 @@ describe('StackView', () => {
     expect(wrapper.findAll('.stack-row')[1].classes()).toContain('selected')
 
     // The task page is reached through the row's open link, not the row itself.
-    expect(wrapper.findAll('.stack-row')[1].find('.stack-actions a').attributes('href')).toBe('/task/t2')
+    expect(wrapper.findAll('.stack-row')[1].find('.stack-open-cell a').attributes('href')).toBe('/task/t2')
   })
 
   it('edits the title inline', async () => {

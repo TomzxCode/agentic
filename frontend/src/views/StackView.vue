@@ -46,10 +46,10 @@ const statusOptions = STATUS_VALUES.map((value) => ({
   iconProps: { status: value, label: statusLabel(value) }
 }))
 
-// The stack table's columns: handle, index, indicator, status, title, exec
-// count, started, last current, duration, actions. Used by the description
+// The stack table's columns: handle, index, indicator, status, open, title,
+// exec count, started, last current, duration, actions. Used by the description
 // row's colspan.
-const COLUMN_COUNT = 10
+const COLUMN_COUNT = 11
 
 // The field at the top adds a task (Enter) and filters the list as you type.
 const draft = ref('')
@@ -470,6 +470,11 @@ onUnmounted(() => {
                   @update:model-value="(value) => changeStatus(entry, value)"
                 />
               </td>
+              <td class="stack-open-cell">
+                <router-link class="btn sm ghost" :to="`/task/${entry.task_id}`" title="Open the task" @click.stop>
+                  ↗
+                </router-link>
+              </td>
               <td class="stack-title-cell" :title="entry.task?.title">
                 <EditableText
                   :ref="(el) => setEditorRef(entry.id, el)"
@@ -499,9 +504,6 @@ onUnmounted(() => {
                   >
                     ↑
                   </button>
-                  <router-link class="btn sm ghost" :to="`/task/${entry.task_id}`" title="Open the task" @click.stop>
-                    ↗
-                  </router-link>
                   <button
                     class="btn sm ghost danger"
                     title="Remove from the stack (Delete)"

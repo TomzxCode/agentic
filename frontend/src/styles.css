@@ -2051,6 +2051,7 @@ button.gantt-marker::after {
    across rows and the title absorbs the remaining width. */
 .stack-handle-cell,
 .stack-index,
+.stack-open-cell,
 .stack-indicator,
 .stack-status-cell,
 .stack-col,
@@ -2110,12 +2111,13 @@ button.gantt-marker::after {
 .stack-actions-cell {
   text-align: right;
 }
-/* The open link is an anchor; keep it looking like the sibling buttons. */
-.stack-actions a.btn {
-  color: inherit;
-}
 .stack-actions .btn {
   padding: 2px 8px;
+}
+/* The open link is an anchor; keep it looking like the action buttons. */
+.stack-open-cell .btn {
+  padding: 2px 8px;
+  color: inherit;
 }
 .stack-desc-row td {
   padding: 4px 8px 12px;
