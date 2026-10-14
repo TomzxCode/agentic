@@ -83,6 +83,28 @@ onMounted(() => {
       </h2>
     </div>
 
+    <div style="border-bottom: 1px solid var(--border); padding-bottom: 12px; margin-bottom: 12px">
+      <div v-if="hasRepositoryOptions" class="field">
+        <label>Repository</label>
+        <SearchSelect v-model="draft.repository_id" :options="repositoryOptions" placeholder="Select a repository…" />
+      </div>
+
+      <div class="row">
+        <input v-model="draft.branch" class="input grow" placeholder="branch (optional, auto-named)" />
+        <input v-model="draft.base" class="input grow" placeholder="base (optional)" />
+        <button
+          class="btn primary"
+          :disabled="busy || (!task.repository_ids?.length && !draft.repository_id)"
+          @click="create"
+        >
+          <span v-if="busy" class="spinner"></span> New worktree
+        </button>
+      </div>
+      <p v-if="!task.repository_ids?.length && !repositories.length" class="faint" style="margin-top: 8px">
+        Add a <router-link to="/settings">repository</router-link> first.
+      </p>
+    </div>
+
     <div v-if="!task.worktrees?.length" class="faint" style="margin-bottom: 12px">
       No worktrees. Create one to give an agent an isolated checkout for this task.
     </div>
@@ -114,25 +136,5 @@ onMounted(() => {
         <div class="faint">created {{ timeAgo(w.created_at) }}</div>
       </template>
     </EntityCard>
-
-    <div v-if="hasRepositoryOptions" class="field" style="margin-top: 8px">
-      <label>Repository</label>
-      <SearchSelect v-model="draft.repository_id" :options="repositoryOptions" placeholder="Select a repository…" />
-    </div>
-
-    <div class="row" style="margin-top: 10px">
-      <input v-model="draft.branch" class="input grow" placeholder="branch (optional, auto-named)" />
-      <input v-model="draft.base" class="input grow" placeholder="base (optional)" />
-      <button
-        class="btn primary"
-        :disabled="busy || (!task.repository_ids?.length && !draft.repository_id)"
-        @click="create"
-      >
-        <span v-if="busy" class="spinner"></span> New worktree
-      </button>
-    </div>
-    <p v-if="!task.repository_ids?.length && !repositories.length" class="faint" style="margin-top: 8px">
-      Add a <router-link to="/settings">repository</router-link> first.
-    </p>
   </section>
 </template>

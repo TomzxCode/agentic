@@ -99,6 +99,17 @@ async function remove(change) {
       </h2>
     </div>
 
+    <div style="border-bottom: 1px solid var(--border); padding-bottom: 12px; margin-bottom: 12px">
+      <div class="row metric-form">
+        <input v-model="draft.title" class="input grow" placeholder="What changed?" @keyup.enter="create" />
+        <input v-model="draft.external_ref" class="input" placeholder="PR / ref (optional)" />
+        <SearchSelect v-model="draft.change_class" :options="classOptions" :sort="false" placeholder="Class" />
+        <button class="btn primary" :disabled="busy || !draft.title.trim()" @click="create">
+          <span v-if="busy" class="spinner"></span> Record change
+        </button>
+      </div>
+    </div>
+
     <div v-if="!changes.length" class="faint" style="margin-bottom: 12px">
       No changes yet. Record one for each unit of work the metrics should count.
     </div>
@@ -144,15 +155,6 @@ async function remove(change) {
         <button class="btn sm ghost" @click="startIntervene(change)">Intervene</button>
         <button class="btn sm ghost" title="Delete" @click="remove(change)">Delete</button>
       </div>
-    </div>
-
-    <div class="row metric-form" style="margin-top: 12px">
-      <input v-model="draft.title" class="input grow" placeholder="What changed?" @keyup.enter="create" />
-      <input v-model="draft.external_ref" class="input" placeholder="PR / ref (optional)" />
-      <SearchSelect v-model="draft.change_class" :options="classOptions" :sort="false" placeholder="Class" />
-      <button class="btn primary" :disabled="busy || !draft.title.trim()" @click="create">
-        <span v-if="busy" class="spinner"></span> Record change
-      </button>
     </div>
   </section>
 </template>

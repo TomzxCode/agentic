@@ -93,6 +93,31 @@ async function refreshItem(itemId) {
       </h2>
     </div>
 
+    <div style="border-bottom: 1px solid var(--border); padding-bottom: 12px; margin-bottom: 12px">
+      <div class="row">
+        <input
+          v-model="draft.url"
+          class="input grow"
+          placeholder="Paste a Slack/GitHub/Drive link, any URL, or just text (type is inferred)"
+        />
+      </div>
+      <div class="row" style="margin-top: 8px">
+        <input v-model="draft.title" class="input grow" placeholder="Title (optional)" />
+        <input v-model="draft.note" class="input grow" placeholder="Note (optional)" />
+        <button class="btn" @click="draft.showContent = !draft.showContent">+ text</button>
+        <button class="btn primary" :disabled="busy" @click="addItem">
+          <span v-if="busy" class="spinner"></span> Associate
+        </button>
+      </div>
+      <textarea
+        v-if="draft.showContent"
+        v-model="draft.content"
+        class="textarea"
+        style="margin-top: 8px"
+        placeholder="Paste content to keep with this item (skips fetching)."
+      ></textarea>
+    </div>
+
     <div v-if="!task.associations?.length" class="faint" style="margin-bottom: 12px">
       Nothing associated yet. Paste a Slack thread, GitHub issue/PR, Drive link, or a note.
     </div>
@@ -131,31 +156,6 @@ async function refreshItem(itemId) {
           </div>
         </template>
       </ItemCard>
-    </div>
-
-    <div style="border-top: 1px solid var(--border); padding-top: 12px; margin-top: 4px">
-      <div class="row">
-        <input
-          v-model="draft.url"
-          class="input grow"
-          placeholder="Paste a Slack/GitHub/Drive link, any URL, or just text (type is inferred)"
-        />
-      </div>
-      <div class="row" style="margin-top: 8px">
-        <input v-model="draft.title" class="input grow" placeholder="Title (optional)" />
-        <input v-model="draft.note" class="input grow" placeholder="Note (optional)" />
-        <button class="btn" @click="draft.showContent = !draft.showContent">+ text</button>
-        <button class="btn primary" :disabled="busy" @click="addItem">
-          <span v-if="busy" class="spinner"></span> Associate
-        </button>
-      </div>
-      <textarea
-        v-if="draft.showContent"
-        v-model="draft.content"
-        class="textarea"
-        style="margin-top: 8px"
-        placeholder="Paste content to keep with this item (skips fetching)."
-      ></textarea>
     </div>
   </section>
 </template>
