@@ -220,13 +220,15 @@ describe('StackView', () => {
   })
 
   it('edits the title inline', async () => {
-    const wrapper = mount(StackView, stub)
+    const wrapper = mount(StackView, { ...stub, attachTo: document.body })
     await flushPromises()
 
     await wrapper.findAll('.stack-title')[0].trigger('click')
     await flushPromises()
     const input = wrapper.find('.inline-input')
     expect(input.exists()).toBe(true)
+    // The editor takes focus immediately (the page must not steal it back).
+    expect(document.activeElement).toBe(input.element)
 
     await input.setValue('Renamed task')
     await input.trigger('keydown', { key: 'Enter' })

@@ -126,11 +126,11 @@ function select(entry) {
 
 // A row click selects it (and keeps the keyboard shortcuts working); the task
 // page is reached through the row's open button or the description panel.
-function onRowClick(entry, event) {
+function onRowClick(entry) {
   select(entry)
-  // Clicking the title starts an inline edit, which takes focus; don't steal it
+  // A click on the title starts an inline edit that takes focus; don't steal it
   // back to the page.
-  if (event?.target?.closest?.('.stack-title-cell')) return
+  if (editors.get(entry.id)?.isEditing?.()) return
   focusPage()
 }
 
@@ -445,7 +445,7 @@ onUnmounted(() => {
             :key="entry.id"
             class="stack-row"
             :class="{ current: entry.is_current, selected: entry.id === selectedId, dragging: entry.id === dragId }"
-            @click="onRowClick(entry, $event)"
+            @click="onRowClick(entry)"
             @pointerdown="onRowPointerDown($event, entry)"
           >
             <td class="stack-handle-cell">

@@ -59,8 +59,9 @@ function onDisplayKeydown(event) {
   }
 }
 
-// Let a parent (e.g. the command palette) jump straight into editing.
-defineExpose({ activate: start })
+// Let a parent (e.g. the command palette) jump straight into editing, and ask
+// whether this editor is currently open.
+defineExpose({ activate: start, isEditing: () => editing.value })
 </script>
 
 <template>
