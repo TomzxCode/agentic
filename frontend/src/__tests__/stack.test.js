@@ -35,7 +35,7 @@ vi.mock('../api', () => ({
 vi.mock('vue-router', () => ({ useRouter: () => ({ push: vi.fn() }) }))
 
 import StackView from '../views/StackView.vue'
-import { moveItem, targetIndexAt } from '../stack'
+import { formatTimestamp, moveItem, targetIndexAt } from '../stack'
 import { store } from '../store'
 
 const RouterLinkStub = { props: ['to'], template: '<a :href="to"><slot /></a>' }
@@ -328,5 +328,34 @@ describe('stack drag helpers', () => {
     expect(moveItem(items, 0, 2)).toEqual(['b', 'c', 'a'])
     expect(moveItem(items, 2, 0)).toEqual(['c', 'a', 'b'])
     expect(items).toEqual(['a', 'b', 'c'])
+  })
+})
+
+describe('formatTimestamp', () => {
+  const now = new Date('2026-06-15T14:30:00')
+
+  it('shows only the minutes within the same hour', () => {
+    expect(formatTimestamp('2026-06-15T14:05:00', now)).toBe('05')
+  })
+
+  it('shows HH:MM in the same day but another hour', () => {
+    expect(formatTimestamp('2026-06-15T09:07:00', now)).toBe('09:07')
+  })
+
+  it('shows DD HH:MM in the same month but another day', () => {
+    expect(formatTimestamp('2026-06-02T09:07:00', now)).toBe('02 09:07')
+  })
+
+  it('shows MM-DD HH:MM in the same year but another month', () => {
+    expect(formatTimestamp('2026-03-02T09:07:00', now)).toBe('03-02 09:07')
+  })
+
+  it('shows YYYY-MM-DD HH:MM in another year', () => {
+    expect(formatTimestamp('2025-12-31T23:07:00', now)).toBe('2025-12-31 23:07')
+  })
+
+  it('shows an em dash for a missing or unparseable value', () => {
+    expect(formatTimestamp(null, now)).toBe('—')
+    expect(formatTimestamp('nope', now)).toBe('—')
   })
 })

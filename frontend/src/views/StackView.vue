@@ -4,7 +4,7 @@ import { api } from '../api'
 import EditableText from '../components/EditableText.vue'
 import SearchSelect from '../components/SearchSelect.vue'
 import StatusIcon from '../components/StatusIcon.vue'
-import { moveItem, targetIndexAt } from '../stack'
+import { formatTimestamp, moveItem, targetIndexAt } from '../stack'
 import { store, statusLabel } from '../store'
 
 // Ask the shell to reload tasks/tags so the sidebar stays in sync (a push adds
@@ -82,19 +82,8 @@ function formatDuration(seconds) {
   return `${minutes}m ${String(secs).padStart(2, '0')}s`
 }
 
-function formatTime(iso) {
-  if (!iso) return '—'
-  const date = new Date(iso)
-  if (Number.isNaN(date.getTime())) return '—'
-  const now = new Date()
-  const sameDay = date.toDateString() === now.toDateString()
-  return date.toLocaleString(undefined, {
-    month: sameDay ? undefined : 'short',
-    day: sameDay ? undefined : 'numeric',
-    hour: 'numeric',
-    minute: '2-digit'
-  })
-}
+// The reference "now" for the timestamps, refreshed by the tick.
+const nowDate = computed(() => new Date(now.value))
 
 const visible = computed(() => {
   const needle = filter.value.trim().toLowerCase()
@@ -487,8 +476,12 @@ onUnmounted(() => {
               />
             </td>
             <td class="stack-col mono faint" title="Times it became current">×{{ entry.execution_count }}</td>
-            <td class="stack-col mono faint" title="Started">{{ formatTime(entry.started_at) }}</td>
-            <td class="stack-col mono faint" title="Last current">{{ formatTime(entry.last_current) }}</td>
+            <td class="stack-col mono faint" title="Started">
+              {{ formatTimestamp(entry.started_at, nowDate) }}
+            </td>
+            <td class="stack-col mono faint" title="Last current">
+              {{ formatTimestamp(entry.last_current, nowDate) }}
+            </td>
             <td class="stack-col stack-duration mono" title="Time as current">
               {{ formatDuration(displayDuration(entry)) }}
             </td>
@@ -547,7 +540,7 @@ onUnmounted(() => {
               <router-link :to="`/task/${entry.task_id}`" class="stack-title">{{ entry.task?.title }}</router-link>
             </td>
             <td class="stack-col mono faint">{{ formatDuration(entry.duration) }}</td>
-            <td class="stack-col mono faint">{{ formatTime(entry.deleted_at) }}</td>
+            <td class="stack-col mono faint">{{ formatTimestamp(entry.deleted_at, nowDate) }}</td>
           </tr>
         </tbody>
       </table>
