@@ -34,6 +34,13 @@ class TaskStatus(StrEnum):
     archived = "archived"
 
 
+class DependencyRelation(StrEnum):
+    """Which side of a before/after link the related task sits on."""
+
+    before = "before"
+    after = "after"
+
+
 class RunStatus(StrEnum):
     queued = "queued"
     running = "running"
@@ -152,6 +159,22 @@ class Task(SQLModel, table=True):
 
     created_at: datetime = Field(default_factory=utcnow)
     updated_at: datetime = Field(default_factory=utcnow)
+
+
+class TaskDependency(SQLModel, table=True):
+    """A directed before/after link between two tasks.
+
+    ``before_id`` must be done before ``after_id``, so an edge points from the
+    earlier task to the later one. The pair is unique, and the graph the edges
+    form is kept acyclic: adding an edge that would close a cycle is refused.
+    """
+
+    __table_args__ = (UniqueConstraint("before_id", "after_id", name="uq_dependency_edge"),)
+
+    id: str = Field(default_factory=new_id, primary_key=True)
+    before_id: str = Field(foreign_key="task.id", index=True)
+    after_id: str = Field(foreign_key="task.id", index=True)
+    created_at: datetime = Field(default_factory=utcnow)
 
 
 class StackEntry(SQLModel, table=True):

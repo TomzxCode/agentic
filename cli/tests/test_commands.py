@@ -173,6 +173,26 @@ class FakeClient:
     def task_timeline(self, task_id):
         return [{"created_at": "2026-01-01T00:00:00", "type": "created", "message": "m"}]
 
+    def task_dependencies(self, task_id):
+        return {
+            "task_id": task_id,
+            "before": [{"id": "t0", "status": "done", "priority": 1, "title": "First"}],
+            "after": [],
+        }
+
+    def add_dependency(self, task_id, related_id, relation="after"):
+        return {
+            "task_id": task_id,
+            "before": [],
+            "after": [{"id": related_id, "status": "open", "priority": 1, "title": "Next"}],
+        }
+
+    def remove_dependency(self, task_id, related_id):
+        return None
+
+    def get_graph(self, include_done=False):
+        return {"nodes": [{"id": "t1"}, {"id": "t2"}], "edges": [{"before_id": "t1", "after_id": "t2"}]}
+
     def associate(self, task_id, **kwargs):
         return {"item": {"id": "i1"}}
 
@@ -604,6 +624,15 @@ def test_run_stream_prints_until_finished(monkeypatch, capsys, text_format):
 def test_operation_list_command(text_format, fake_client):
     text = cli.operation_list()
     assert "POST" in text and "/api/tasks" in text and "cli" in text and "agent" in text
+
+
+def test_dependency_and_graph_commands(text_format, fake_client):
+    deps = cli.task_deps("t1")
+    assert "before:" in deps and "First" in deps
+    assert "Next" in cli.task_link("t1", "t2")
+    assert "unlinked t2 from t1" in cli.task_unlink("t1", "t2")
+    graph = cli.graph()
+    assert "nodes: 2  edges: 1" in graph and "t1 -> t2" in graph
 
 
 def test_stack_renderers():

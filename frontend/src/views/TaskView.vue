@@ -6,6 +6,7 @@ import ContextPanel from '../components/ContextPanel.vue'
 import ItemsPanel from '../components/ItemsPanel.vue'
 import ChangesPanel from '../components/ChangesPanel.vue'
 import WorktreesPanel from '../components/WorktreesPanel.vue'
+import DependenciesSelect from '../components/DependenciesSelect.vue'
 import AgentPanel from '../components/AgentPanel.vue'
 import TimelinePanel from '../components/TimelinePanel.vue'
 import SessionLinks from '../components/SessionLinks.vue'
@@ -34,6 +35,7 @@ const priorityRef = ref(null)
 const deadlineRef = ref(null)
 const repositoryRef = ref(null)
 const peopleRef = ref(null)
+const dependenciesRef = ref(null)
 const tagRef = ref(null)
 
 // Links from the most recent run that produced a session.
@@ -128,6 +130,7 @@ onMounted(async () => {
       deadline: deadlineRef,
       repository: repositoryRef,
       people: peopleRef,
+      dependencies: dependenciesRef,
       tags: tagRef
     }[field]
     target?.value?.activate?.()
@@ -206,6 +209,8 @@ watch(
           />
           <span class="meta-sep" aria-hidden="true"></span>
           <PeopleSelect ref="peopleRef" :task="task" link-to-detail @changed="onChanged" />
+          <span class="meta-sep" aria-hidden="true"></span>
+          <DependenciesSelect ref="dependenciesRef" :task="task" link-to-detail @changed="onChanged" />
           <span class="meta-sep" aria-hidden="true"></span>
           <TagInput
             ref="tagRef"

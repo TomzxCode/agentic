@@ -197,6 +197,13 @@ that had no human intervention) and **yield** (the share of accepted changes
 that survived the observation window without a revert). Each metric is shown
 against a stored baseline with a direction (improving, worsening, or flat).
 
+The task header also links **dependencies**, next to the repository and people
+selectors: add the tasks that must come first (**before**) and the tasks that
+follow (**after**). The links form a DAG (the API refuses a link that would close
+a cycle), and the **Graph** page (`/graph`) draws it, one column per dependency
+step, with an arrow from each task to the ones that follow it; click a node to
+open the task.
+
 For hands-on-keyboard navigation, press **f** on any page: every field and
 button gets a letter badge; press the letter to focus that control (**Esc**
 exits). On a task page that covers the header, the Agent/Items/Changes/Worktrees
@@ -313,6 +320,11 @@ agentic task list --tag bug          # every given tag must match
 agentic task update <task> --clear-deadline
 agentic task deadlines               # deadlines in the next 7 days (overdue first)
 agentic task deadlines --within-days 30
+agentic task link <task> <other> --relation before   # other must be done first
+agentic task link <task> <other>                     # other follows (after)
+agentic task deps <task>             # the tasks linked before and after
+agentic task unlink <task> <other>
+agentic graph                        # the whole before/after DAG (nodes + edges)
 agentic tag list                     # tags in use, with task counts
 agentic stack push --title "Fix the flaky ingest test"   # add to the top (becomes current)
 agentic stack push --title "Then write the notes" --position next
@@ -348,7 +360,7 @@ AGENTIC_API_URL=http://box:8600 agentic task list | jq '.[].id'
 ```
 
 Resources: `task`, `tag`, `stack`, `item`, `link`, `person`, `repository`, `worktree`, `run`,
-`context`, `harness`, `settings`, `change`, `metrics`, `operation`, plus `health`.
+`context`, `harness`, `settings`, `change`, `metrics`, `operation`, `graph`, plus `health`.
 
 ### Backend
 
@@ -365,6 +377,9 @@ agentic-server info             # data dir, database, queue, harness availabilit
 GET/POST            /api/tasks
 GET/PATCH/DELETE    /api/tasks/{id}
 POST                /api/tasks/{id}/items            (associate)
+GET/POST            /api/tasks/{id}/dependencies     (before/after links)
+DELETE              /api/tasks/{id}/dependencies/{related}
+GET                 /api/graph                        (the before/after DAG)
 POST                /api/tasks/{id}/worktrees
 POST                /api/tasks/{id}/runs
 POST                /api/tasks/{id}/context/refresh

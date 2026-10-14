@@ -123,6 +123,24 @@ class AgenticClient:
     def unassociate(self, task_id: str, item_id: str) -> None:
         self._request("DELETE", f"/api/tasks/{task_id}/items/{item_id}")
 
+    def task_dependencies(self, task_id: str) -> dict:
+        """The tasks linked before and after this one."""
+        return self._request("GET", f"/api/tasks/{task_id}/dependencies")
+
+    def add_dependency(self, task_id: str, related_id: str, relation: str = "after") -> dict:
+        """Link a related task before or after this one (relation: before | after)."""
+        return self._request(
+            "POST", f"/api/tasks/{task_id}/dependencies", json={"related_id": related_id, "relation": relation}
+        )
+
+    def remove_dependency(self, task_id: str, related_id: str) -> None:
+        self._request("DELETE", f"/api/tasks/{task_id}/dependencies/{related_id}")
+
+    def get_graph(self, include_done: bool = False) -> dict:
+        """The whole before/after graph: every task and the edges between them."""
+        params = {"include_done": "true"} if include_done else None
+        return self._request("GET", "/api/graph", params=params)
+
     # --- items ------------------------------------------------------------
     def list_items(self, source: str | None = None) -> list[dict]:
         params = {"source": source} if source else {}

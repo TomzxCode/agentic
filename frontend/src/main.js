@@ -9,6 +9,7 @@ import PersonView from './views/PersonView.vue'
 import RepositoriesView from './views/RepositoriesView.vue'
 import RepositoryDetailView from './views/RepositoryDetailView.vue'
 import GanttView from './views/GanttView.vue'
+import DependencyGraphView from './views/DependencyGraphView.vue'
 import MetricsView from './views/MetricsView.vue'
 import StackView from './views/StackView.vue'
 import SettingsView from './views/SettingsView.vue'
@@ -21,6 +22,7 @@ const router = createRouter({
     { path: '/stack', name: 'stack', component: StackView },
     { path: '/task/:id', name: 'task', component: TaskView, props: true },
     { path: '/gantt', name: 'gantt', component: GanttView },
+    { path: '/graph', name: 'graph', component: DependencyGraphView },
     { path: '/metrics', name: 'metrics', component: MetricsView },
     { path: '/items', name: 'items', component: ItemsView },
     { path: '/people', name: 'people', component: PeopleView },

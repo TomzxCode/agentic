@@ -122,6 +122,24 @@ def _run_text(run: dict) -> str:
     return "\n".join(lines)
 
 
+def _deps_text(deps: dict) -> str:
+    lines = []
+    for label in ("before", "after"):
+        tasks = deps.get(label) or []
+        lines.append(f"{label}:")
+        if tasks:
+            lines.extend(f"  {_task_line(task)}" for task in tasks)
+        else:
+            lines.append("  (none)")
+    return "\n".join(lines)
+
+
+def _graph_text(data: dict) -> str:
+    lines = [f"nodes: {len(data.get('nodes') or [])}  edges: {len(data.get('edges') or [])}"]
+    lines.extend(f"{edge['before_id']} -> {edge['after_id']}" for edge in data.get("edges") or [])
+    return "\n".join(lines)
+
+
 # --- app ------------------------------------------------------------------
 # Plain console: no Rich markup (so `[open]` stays literal) and no wrapping
 # (so json output stays valid when piped).
@@ -294,6 +312,47 @@ def task_timeline(task_id: str) -> str:
         events = client.task_timeline(task_id)
     text = _join(events, lambda e: f"{e['created_at'][:19]}  {e['type']:<18} {e['message']}")
     return emit(events, text)
+
+
+@task_app.command(name="link")
+@safe
+def task_link(task_id: str, related_id: str, relation: Literal["before", "after"] = "after") -> str:
+    """Link a related task before or after this one.
+
+    `--relation before` means the related task must be done first; `after` means
+    it follows this one. A link that would close a cycle is refused.
+    """
+    with _client() as client:
+        deps = client.add_dependency(task_id, related_id, relation)
+    return emit(deps, _deps_text(deps))
+
+
+@task_app.command(name="unlink")
+@safe
+def task_unlink(task_id: str, related_id: str) -> str:
+    """Remove the before/after link between two tasks."""
+    with _client() as client:
+        client.remove_dependency(task_id, related_id)
+    return emit({"unlinked": related_id}, f"unlinked {related_id} from {task_id}")
+
+
+@task_app.command(name="deps")
+@safe
+def task_deps(task_id: str) -> str:
+    """Show the tasks linked before and after this one."""
+    with _client() as client:
+        deps = client.task_dependencies(task_id)
+    return emit(deps, _deps_text(deps))
+
+
+# --- graph ----------------------------------------------------------------
+@app.command(name="graph")
+@safe
+def graph(include_done: bool = False) -> str:
+    """Show the before/after graph: every task and the edges between them."""
+    with _client() as client:
+        data = client.get_graph(include_done=include_done)
+    return emit(data, _graph_text(data))
 
 
 # --- tags -----------------------------------------------------------------

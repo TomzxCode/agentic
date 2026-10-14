@@ -33,11 +33,18 @@ export const api = {
     remove: (id) => request(`/tasks/${id}`, { method: 'DELETE' }),
     timeline: (id) => request(`/tasks/${id}/timeline`),
     associate: (id, body) => request(`/tasks/${id}/items`, { method: 'POST', body }),
-    unassociate: (id, itemId) => request(`/tasks/${id}/items/${itemId}`, { method: 'DELETE' })
+    unassociate: (id, itemId) => request(`/tasks/${id}/items/${itemId}`, { method: 'DELETE' }),
+    dependencies: (id) => request(`/tasks/${id}/dependencies`),
+    addDependency: (id, body) => request(`/tasks/${id}/dependencies`, { method: 'POST', body }),
+    removeDependency: (id, relatedId) => request(`/tasks/${id}/dependencies/${relatedId}`, { method: 'DELETE' })
   },
 
   gantt: {
     get: ({ includeDone = false } = {}) => request(`/gantt${includeDone ? '?include_done=true' : ''}`)
+  },
+
+  graph: {
+    get: ({ includeDone = false } = {}) => request(`/graph${includeDone ? '?include_done=true' : ''}`)
   },
 
   tags: {

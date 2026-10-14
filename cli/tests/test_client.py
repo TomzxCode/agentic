@@ -198,6 +198,35 @@ def test_list_operations_passes_filters():
     assert seen["params"] == [("client", "cli"), ("actor", "agent"), ("limit", "5")]
 
 
+def test_dependency_methods():
+    seen: dict = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["method"] = request.method
+        seen["path"] = request.url.path
+        seen["body"] = json.loads(request.content) if request.content else None
+        seen["params"] = httpx.QueryParams(request.url.query).multi_items()
+        if request.method == "DELETE":
+            return httpx.Response(204)
+        return httpx.Response(200, json={"task_id": "t1", "before": [], "after": []})
+
+    client = _client(handler)
+    client.task_dependencies("t1")
+    assert seen["path"] == "/api/tasks/t1/dependencies"
+
+    client.add_dependency("t1", "t2", "before")
+    assert seen["method"] == "POST" and seen["path"] == "/api/tasks/t1/dependencies"
+    assert seen["body"] == {"related_id": "t2", "relation": "before"}
+
+    assert client.remove_dependency("t1", "t2") is None
+    assert seen["method"] == "DELETE" and seen["path"] == "/api/tasks/t1/dependencies/t2"
+
+    client.get_graph()
+    assert seen["path"] == "/api/graph" and seen["params"] == []
+    client.get_graph(include_done=True)
+    assert seen["params"] == [("include_done", "true")]
+
+
 def test_stack_methods():
     seen: dict = {}
 

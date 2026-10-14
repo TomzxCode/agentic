@@ -743,13 +743,21 @@ button.tag-chip.active {
   margin-left: 2px;
 }
 
-/* Repository and people selectors: selected chips plus an inline "add" search select. */
+/* Repository, people, and dependency selectors: selected chips plus an inline
+   "add" search select. */
 .repo-select,
-.people-select {
+.people-select,
+.dep-select {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 6px;
+}
+.dep-label {
+  font-size: 11px;
+  color: var(--faint);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 /* Focus hints (press f, then the letter over a control) */
@@ -1755,6 +1763,84 @@ button.gantt-marker::after {
 }
 .mk-muted {
   background: var(--muted);
+}
+
+/* Dependency graph */
+.dep-scroll {
+  overflow-x: auto;
+  margin: 0 -4px;
+  padding: 0 4px;
+}
+.dep-svg {
+  display: block;
+}
+.dep-edge {
+  fill: none;
+  stroke: var(--border);
+  stroke-width: 1.5;
+}
+.dep-arrowhead {
+  fill: var(--muted);
+}
+.dep-node-link {
+  cursor: pointer;
+}
+.dep-node {
+  fill: var(--bg-2);
+  stroke: var(--muted);
+  stroke-width: 1.5;
+}
+.dep-node-link:hover .dep-node {
+  fill: var(--bg-3);
+}
+.dep-node.st-open {
+  stroke: var(--muted);
+}
+.dep-node.st-in_progress {
+  stroke: var(--accent-2);
+}
+.dep-node.st-blocked {
+  stroke: var(--warn);
+}
+.dep-node.st-done {
+  stroke: var(--ok);
+}
+.dep-node.st-archived {
+  stroke: var(--faint);
+}
+.dep-node-text {
+  fill: var(--text);
+  font-size: 12px;
+  pointer-events: none;
+}
+.dep-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  margin-top: 14px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.dep-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex: none;
+}
+.dep-dot.st-open {
+  background: var(--muted);
+}
+.dep-dot.st-in_progress {
+  background: var(--accent-2);
+}
+.dep-dot.st-blocked {
+  background: var(--warn);
+}
+.dep-dot.st-done {
+  background: var(--ok);
+}
+.dep-dot.st-archived {
+  background: var(--faint);
 }
 
 /* Metrics */

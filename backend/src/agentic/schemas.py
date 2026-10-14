@@ -9,6 +9,7 @@ from pydantic import AfterValidator, BaseModel, ConfigDict
 
 from .models import (
     AgentRun,
+    DependencyRelation,
     Harness,
     Repository,
     SourceItem,
@@ -347,6 +348,45 @@ class TaskDetail(TaskRead):
     runs: list[RunRead] = []
     changes: list[ChangeRead] = []
     timeline: list[TimelineRead] = []
+
+
+# --- Task dependencies (before/after) --------------------------------------
+class DependencyCreate(BaseModel):
+    """Link ``related_id`` to the task: it comes before, or after, this one."""
+
+    related_id: str
+    relation: DependencyRelation = DependencyRelation.after
+
+
+class TaskDependencies(BaseModel):
+    """A task's neighbours in the before/after graph, resolved to full tasks."""
+
+    task_id: str
+    before: list[TaskRead] = []
+    after: list[TaskRead] = []
+
+
+class GraphNode(BaseModel):
+    """A task as a node in the before/after graph."""
+
+    id: str
+    title: str
+    status: TaskStatus
+    priority: int
+
+
+class GraphEdge(BaseModel):
+    """A directed edge: ``before_id`` must be done before ``after_id``."""
+
+    before_id: str
+    after_id: str
+
+
+class DependencyGraph(BaseModel):
+    """The whole before/after graph: the tasks and the edges between them."""
+
+    nodes: list[GraphNode] = []
+    edges: list[GraphEdge] = []
 
 
 # --- Stack (focus queue) ---------------------------------------------------

@@ -125,6 +125,12 @@ const taskFieldItems = computed(() =>
           run: () => store.focusField?.('repository')
         },
         { id: 'field-people', label: 'Link a person', group: 'This task', run: () => store.focusField?.('people') },
+        {
+          id: 'field-dependencies',
+          label: 'Link a dependency',
+          group: 'This task',
+          run: () => store.focusField?.('dependencies')
+        },
         { id: 'field-tags', label: 'Set tags', group: 'This task', run: () => store.focusField?.('tags') }
       ]
     : []
@@ -162,6 +168,7 @@ const paletteItems = computed(() => [
   { id: 'go-tasks', label: 'Go to tasks', group: 'Navigation', run: () => router.push('/') },
   { id: 'go-stack', label: 'Go to stack', group: 'Navigation', run: () => router.push('/stack') },
   { id: 'go-gantt', label: 'Go to gantt', group: 'Navigation', run: () => router.push('/gantt') },
+  { id: 'go-graph', label: 'Go to graph', group: 'Navigation', run: () => router.push('/graph') },
   { id: 'go-metrics', label: 'Go to metrics', group: 'Navigation', run: () => router.push('/metrics') },
   { id: 'go-items', label: 'Go to resources', group: 'Navigation', run: () => router.push('/items') },
   { id: 'go-people', label: 'Go to people', group: 'Navigation', run: () => router.push('/people') },
@@ -674,6 +681,31 @@ onUnmounted(() => {
               stroke-linecap="round"
             >
               <path d="M4 6h9M4 12h13M4 18h6" />
+            </svg>
+          </router-link>
+          <router-link
+            to="/graph"
+            class="nav-link"
+            :class="{ active: route.name === 'graph' }"
+            title="Graph"
+            aria-label="Graph"
+            @click="sidebarOpen = false"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              width="18"
+              height="18"
+              aria-hidden="true"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <circle cx="6" cy="6" r="2.4" />
+              <circle cx="6" cy="18" r="2.4" />
+              <circle cx="18" cy="12" r="2.4" />
+              <path d="M8.2 7.2 15.8 11M8.2 16.8 15.8 13" />
             </svg>
           </router-link>
           <router-link

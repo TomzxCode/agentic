@@ -235,6 +235,7 @@ describe('TaskView', () => {
     AgentPanel: passthrough,
     ItemsPanel: passthrough,
     WorktreesPanel: passthrough,
+    DependenciesSelect: passthrough,
     TimelinePanel: passthrough,
     SessionLinks: passthrough
   }
