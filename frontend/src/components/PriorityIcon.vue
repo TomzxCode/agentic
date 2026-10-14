@@ -1,5 +1,6 @@
 <script setup>
 import { computed } from 'vue'
+import { priorityLabel as priorityName } from '../store'
 
 const props = defineProps({
   priority: { type: [Number, String], default: 2 },
@@ -7,8 +8,7 @@ const props = defineProps({
 })
 
 // 0 = low, 1 = medium, 2 = high, 3 = urgent.
-const NAMES = { 0: 'low', 1: 'medium', 2: 'high', 3: 'urgent' }
-const level = computed(() => NAMES[Number(props.priority)] || 'medium')
+const level = computed(() => priorityName(props.priority))
 const name = computed(() => props.label || level.value)
 </script>
 

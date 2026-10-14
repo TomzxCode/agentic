@@ -125,6 +125,17 @@ describe('TimelinePanel', () => {
     expect(wrapper.text()).toContain('B')
   })
 
+  it('renders a priority change by name, not number', () => {
+    const wrapper = mount(TimelinePanel, {
+      props: { events: [event({ data_json: { changes: { priority: { from: 1, to: 3 } } } })] }
+    })
+    const change = wrapper.get('.change')
+    expect(change.text()).toContain('medium')
+    expect(change.text()).toContain('urgent')
+    expect(change.text()).not.toContain('1')
+    expect(change.text()).not.toContain('3')
+  })
+
   it('draws a one-row gantt with a marker per event', () => {
     const task = {
       id: 't1',

@@ -126,6 +126,14 @@ export function statusClass(status) {
   )
 }
 
+// Task priority levels, 0 = low, 1 = medium, 2 = high, 3 = urgent. The store
+// owns the names so the timeline, task cards, and the priority icon agree.
+export const PRIORITY_NAMES = { 0: 'low', 1: 'medium', 2: 'high', 3: 'urgent' }
+
+export function priorityLabel(priority) {
+  return PRIORITY_NAMES[Number(priority)] || 'medium'
+}
+
 // A GitHub pull request item's display status, or null when the item is not a
 // PR or carries no fetched state. ghx reports state as OPEN / CLOSED / MERGED,
 // with a separate draft flag for an open PR.

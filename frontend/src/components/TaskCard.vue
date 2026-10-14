@@ -1,6 +1,6 @@
 <script setup>
 import { computed } from 'vue'
-import { deadlineInfo, formatDeadline, statusLabel, store, timeAgo } from '../store'
+import { deadlineInfo, formatDeadline, priorityLabel as priorityName, statusLabel, store, timeAgo } from '../store'
 import EntityCard from './EntityCard.vue'
 import PriorityIcon from './PriorityIcon.vue'
 import SearchSelect from './SearchSelect.vue'
@@ -41,8 +41,7 @@ const statusOptions = STATUS_VALUES.map((value) => ({
 }))
 
 // 0 = low, 1 = medium, 2 = high, 3 = urgent.
-const PRIORITY_NAMES = { 0: 'low', 1: 'medium', 2: 'high', 3: 'urgent' }
-const priorityLabel = computed(() => `Priority: ${PRIORITY_NAMES[Number(props.task.priority)] || 'medium'}`)
+const priorityLabel = computed(() => `Priority: ${priorityName(props.task.priority)}`)
 
 const peopleById = computed(() => Object.fromEntries(props.people.map((person) => [person.id, person])))
 const linkedPeople = computed(() => (props.task.person_ids || []).map((id) => peopleById.value[id]).filter(Boolean))

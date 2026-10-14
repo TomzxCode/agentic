@@ -1,6 +1,6 @@
 <script setup>
 import { computed, nextTick, onUnmounted, ref } from 'vue'
-import { formatDuration, statusDurations, statusLabel, store, timeAgo } from '../store'
+import { formatDuration, priorityLabel, statusDurations, statusLabel, store, timeAgo } from '../store'
 import GanttChart from './GanttChart.vue'
 import StatusIcon from './StatusIcon.vue'
 import { resolveDomain } from '../gantt'
@@ -64,6 +64,7 @@ onUnmounted(() => clearTimeout(highlightTimer))
 function resolveValue(field, value, label) {
   if (label) return label
   if (value === null || value === undefined || value === '') return value
+  if (field === 'priority') return priorityLabel(value)
   if (field === 'repository_id') return store.repositories.find((r) => r.id === value)?.name || value
   if (field === 'group_id') return store.groups.find((g) => g.id === value)?.name || value
   if (field === 'harness_id') return store.harnesses.find((h) => h.id === value)?.name || value

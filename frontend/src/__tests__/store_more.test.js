@@ -11,7 +11,7 @@ vi.mock('../api', () => ({
   }
 }))
 
-import { store, taskHasTag } from '../store'
+import { store, priorityLabel, taskHasTag } from '../store'
 
 describe('store loaders', () => {
   it('loads each collection into the reactive store', async () => {
@@ -54,5 +54,17 @@ describe('taskHasTag', () => {
     expect(taskHasTag({ tags: ['bug', 'ui'] }, 'ui')).toBe(true)
     expect(taskHasTag({ tags: ['bug'] }, 'ui')).toBe(false)
     expect(taskHasTag({}, 'ui')).toBe(false)
+  })
+})
+
+describe('priorityLabel', () => {
+  it('names each level and defaults to medium', () => {
+    expect(priorityLabel(0)).toBe('low')
+    expect(priorityLabel(1)).toBe('medium')
+    expect(priorityLabel(2)).toBe('high')
+    expect(priorityLabel(3)).toBe('urgent')
+    expect(priorityLabel('3')).toBe('urgent')
+    expect(priorityLabel(undefined)).toBe('medium')
+    expect(priorityLabel(9)).toBe('medium')
   })
 })
