@@ -35,8 +35,26 @@ signal), the hotkey listener it spawned exits with it.
 | --- | --- | --- |
 | `AGENTIC_API_URL` | `http://127.0.0.1:8600` | Base URL of the Agentic API. |
 | `AGENTIC_STACK_URL` | `<api_url>/stack` | Page opened by the hotkey. |
+| `AGENTIC_STACK_OPEN` | (app window) | Shell command template (with `{url}`) used to open the page. |
 | `AGENTIC_STACK_HOTKEY` | `ctrl+shift+t` | Global hotkey spec. |
 | `AGENTIC_STACK_DEBUG_HOTKEY` | (unset) | Log hotkey events. |
+
+## Opening the app, not a browser tab
+
+By default the hotkey opens the page in a **browser app window**: a detected
+Chromium browser (Chrome, Chromium, Edge, Brave, Vivaldi) is launched with
+`--app=<url>`, which is a chromeless window with no tabs or address bar.
+
+To open the **installed PWA** instead, point `AGENTIC_STACK_OPEN` at it:
+
+```bash
+AGENTIC_STACK_OPEN='open -a Agentic' uv run agentic-stack
+```
+
+A PWA always launches at its manifest `start_url` (`/`), so this opens the tasks
+page rather than `/stack`. Any command template works, with `{url}` substituted,
+for example `AGENTIC_STACK_OPEN='open -a "Google Chrome" {url}'` for a normal
+tab.
 
 The hotkey spec is a `+`-separated list of tokens, case-insensitive:
 modifiers `ctrl`, `shift`, `alt`/`option`, `cmd`/`command`/`super`/`win`/`meta`,

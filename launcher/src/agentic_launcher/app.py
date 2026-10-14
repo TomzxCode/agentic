@@ -11,7 +11,6 @@ import contextlib
 import subprocess
 import sys
 import threading
-import webbrowser
 from collections.abc import Callable
 
 import pystray
@@ -19,6 +18,7 @@ import pystray
 from . import hotkey as hk
 from .client import StackClient
 from .icon import make_icon
+from .opener import open_url
 
 # How often the tray re-reads the stack, so changes made in the PWA show up.
 POLL_SECONDS = 30.0
@@ -159,10 +159,17 @@ class HotkeyListener:
 class TrayApp:
     """The tray icon, its menu, and the periodic stack refresh."""
 
-    def __init__(self, client: StackClient, stack_url: str, hotkey_label: str | None = None) -> None:
+    def __init__(
+        self,
+        client: StackClient,
+        stack_url: str,
+        hotkey_label: str | None = None,
+        open_template: str | None = None,
+    ) -> None:
         self._client = client
         self._stack_url = stack_url
         self._hotkey_label = hotkey_label
+        self._open_template = open_template
         self._entries: list[dict] = []
         self._icon: pystray.Icon | None = None
         self._listener: HotkeyListener | None = None
@@ -213,7 +220,7 @@ class TrayApp:
 
     # --- menu actions ------------------------------------------------------
     def _on_open(self, _icon: pystray.Icon | None = None, _item: pystray.MenuItem | None = None) -> None:
-        webbrowser.open(self._stack_url)
+        open_url(self._stack_url, self._open_template)
 
     def _on_pop(self, _icon: pystray.Icon | None = None, _item: pystray.MenuItem | None = None) -> None:
         try:
