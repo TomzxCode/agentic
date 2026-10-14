@@ -1332,14 +1332,6 @@ button.tag-chip.active {
 .ss-label.placeholder {
   color: var(--faint);
 }
-.ss-caret {
-  margin-left: auto;
-  color: var(--faint);
-  font-size: 9px;
-}
-.search-select.inline .ss-caret {
-  margin-left: 0;
-}
 .ss-panel {
   position: absolute;
   z-index: 60;

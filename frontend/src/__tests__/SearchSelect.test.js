@@ -82,7 +82,6 @@ describe('SearchSelect', () => {
     })
     expect(wrapper.get('.ss-trigger').find('.fake-icon').exists()).toBe(true)
     expect(wrapper.find('.ss-label').exists()).toBe(false)
-    expect(wrapper.find('.ss-caret').exists()).toBe(false)
 
     // The dropdown still spells out the options.
     await open(wrapper)

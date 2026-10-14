@@ -117,7 +117,6 @@ defineExpose({ activate: show })
       <component :is="selected.icon" v-if="selected?.icon" v-bind="selected.iconProps" />
       <template v-if="variant !== 'icon'">
         <span class="ss-label" :class="{ placeholder: !hasValue }">{{ selected ? selected.label : placeholder }}</span>
-        <span class="ss-caret">▾</span>
       </template>
     </button>
 
