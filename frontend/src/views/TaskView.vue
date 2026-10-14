@@ -36,6 +36,7 @@ const priorityRef = ref(null)
 const deadlineRef = ref(null)
 const repositoryRef = ref(null)
 const peopleRef = ref(null)
+const requesterRef = ref(null)
 const dependenciesRef = ref(null)
 const tagRef = ref(null)
 
@@ -146,6 +147,7 @@ onMounted(async () => {
       deadline: deadlineRef,
       repository: repositoryRef,
       people: peopleRef,
+      requesters: requesterRef,
       dependencies: dependenciesRef,
       tags: tagRef
     }[field]
@@ -253,6 +255,17 @@ watch(
       <div class="prop">
         <span class="prop-label">People</span>
         <PeopleSelect ref="peopleRef" :task="task" empty-label="None" link-to-detail @changed="onChanged" />
+      </div>
+      <div class="prop">
+        <span class="prop-label">Requested by</span>
+        <PeopleSelect
+          ref="requesterRef"
+          kind="requesters"
+          :task="task"
+          empty-label="None"
+          link-to-detail
+          @changed="onChanged"
+        />
       </div>
       <div class="prop">
         <span class="prop-label">Repositories</span>

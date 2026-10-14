@@ -781,6 +781,20 @@ button.tag-chip.active {
   letter-spacing: 0.06em;
 }
 
+/* A task on a person's page, tagged with how the person is attached to it
+   (people, requested by, or both). */
+.task-role {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.role-label {
+  font-size: 10px;
+  color: var(--faint);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
 /* Focus hints (press f, then the letter over a control) */
 .hint-badge {
   position: fixed;

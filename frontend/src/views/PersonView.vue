@@ -24,6 +24,19 @@ const aliases = computed(() => person.value?.aliases || [])
 const linkedTasks = computed(() => (person.value?.task_ids || []).map((id) => taskById.value[id]).filter(Boolean))
 const linkedItems = computed(() => (person.value?.item_ids || []).map((id) => itemById.value[id]).filter(Boolean))
 
+// How this person is attached to each linked task: as one of the people the
+// task involves, as its requester, or both. The two sets are separate, so a
+// task can carry either or both.
+const involvedTaskIds = computed(() => new Set(person.value?.involved_task_ids || []))
+const requesterTaskIds = computed(() => new Set(person.value?.requester_task_ids || []))
+
+function taskRoles(taskId) {
+  const roles = []
+  if (involvedTaskIds.value.has(taskId)) roles.push('people')
+  if (requesterTaskIds.value.has(taskId)) roles.push('requested by')
+  return roles
+}
+
 // The person's linked items grouped by source, in display order, so a long list
 // is scannable by type.
 const itemGroups = computed(() => {
@@ -206,7 +219,10 @@ onMounted(async () => {
           <div v-if="linkedTasks.length" class="field" :style="linkedItems.length ? '' : 'margin-bottom: 0'">
             <label>Tasks</label>
             <div class="row" style="gap: 6px; flex-wrap: wrap">
-              <TaskLink v-for="task in linkedTasks" :key="task.id" :task="task" />
+              <span v-for="task in linkedTasks" :key="task.id" class="task-role">
+                <TaskLink :task="task" />
+                <span class="role-label">{{ taskRoles(task.id).join(' · ') }}</span>
+              </span>
             </div>
           </div>
           <div v-if="linkedItems.length" class="field" style="margin-bottom: 0">

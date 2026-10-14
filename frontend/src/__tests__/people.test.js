@@ -13,6 +13,8 @@ const mocks = vi.hoisted(() => ({
   peopleMerge: vi.fn(),
   linkTask: vi.fn(),
   unlinkTask: vi.fn(),
+  linkRequester: vi.fn(),
+  unlinkRequester: vi.fn(),
   linkItem: vi.fn(),
   unlinkItem: vi.fn(),
   itemsList: vi.fn()
@@ -33,6 +35,8 @@ vi.mock('../api', () => ({
       merge: mocks.peopleMerge,
       linkTask: mocks.linkTask,
       unlinkTask: mocks.unlinkTask,
+      linkRequester: mocks.linkRequester,
+      unlinkRequester: mocks.unlinkRequester,
       linkItem: mocks.linkItem,
       unlinkItem: mocks.unlinkItem
     },
@@ -139,6 +143,42 @@ describe('PeopleSelect', () => {
     })
     expect(wrapper.find('.chip-add').exists()).toBe(false)
   })
+
+  it('renders and links the requesters when kind is requesters', async () => {
+    store.people = [
+      { id: 'p1', name: 'Ada' },
+      { id: 'p2', name: 'Grace' }
+    ]
+    mocks.linkRequester.mockResolvedValue({})
+    const wrapper = mount(PeopleSelect, {
+      props: { task: task({ requesters: [{ id: 'p1', name: 'Ada' }] }), kind: 'requesters' }
+    })
+    expect(wrapper.text()).toContain('Ada')
+    wrapper.findComponent(SearchSelect).vm.$emit('update:modelValue', 'p2')
+    await flushPromises()
+    expect(mocks.linkRequester).toHaveBeenCalledWith('t1', { person_id: 'p2' })
+    expect(mocks.linkTask).not.toHaveBeenCalled()
+  })
+
+  it('removes a requester', async () => {
+    mocks.unlinkRequester.mockResolvedValue(null)
+    const wrapper = mount(PeopleSelect, {
+      props: { task: task({ requesters: [{ id: 'p1', name: 'Ada' }] }), kind: 'requesters' }
+    })
+    await wrapper.get('.chip-x').trigger('click')
+    await flushPromises()
+    expect(mocks.unlinkRequester).toHaveBeenCalledWith('t1', 'p1')
+  })
+
+  it('does not offer item suggestions for requesters', () => {
+    const wrapper = mount(PeopleSelect, {
+      props: {
+        task: task({ requesters: [], suggested_people: [{ id: 'p2', name: 'Grace' }] }),
+        kind: 'requesters'
+      }
+    })
+    expect(wrapper.find('.chip-add').exists()).toBe(false)
+  })
 })
 
 describe('PeopleView', () => {
@@ -180,6 +220,8 @@ describe('PersonView', () => {
       aliases: ['ada', 'ada@example.com'],
       notes: '',
       task_ids: ['t1'],
+      involved_task_ids: ['t1'],
+      requester_task_ids: [],
       item_ids: ['i1', 'i2']
     })
   })
@@ -192,6 +234,8 @@ describe('PersonView', () => {
     expect(wrapper.text()).toContain('@ada')
     expect(wrapper.text()).toContain('ada@example.com')
     expect(wrapper.text()).toContain('Fix flaky test')
+    // A task the person is one of the people on, not its requester.
+    expect(wrapper.get('.role-label').text()).toBe('people')
     // Linked items are grouped by source, each group labelled with its type.
     expect(wrapper.text()).toContain('GitHub')
     expect(wrapper.text()).toContain('Slack')
@@ -200,6 +244,28 @@ describe('PersonView', () => {
     // A GitHub item shows its state; a Slack item shows a speech emoji.
     expect(wrapper.get('.badge.st-open').text()).toBe('Open')
     expect(wrapper.get('.item-emoji').text()).toBe('💬')
+  })
+
+  it('labels each task with how the person is attached to it', async () => {
+    store.tasks = [
+      { id: 't1', title: 'Involved' },
+      { id: 't2', title: 'Requested' },
+      { id: 't3', title: 'Both' }
+    ]
+    mocks.peopleGet.mockResolvedValue({
+      id: 'p1',
+      name: 'Ada',
+      aliases: [],
+      notes: '',
+      task_ids: ['t1', 't2', 't3'],
+      involved_task_ids: ['t1', 't3'],
+      requester_task_ids: ['t2', 't3'],
+      item_ids: []
+    })
+    const wrapper = mount(PersonView, { props: { id: 'p1' }, ...stub })
+    await flushPromises()
+    const labels = wrapper.findAll('.task-role').map((el) => el.get('.role-label').text())
+    expect(labels).toEqual(['people', 'requested by', 'people · requested by'])
   })
 
   it('renames a person', async () => {

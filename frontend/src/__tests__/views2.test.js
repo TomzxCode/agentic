@@ -336,6 +336,7 @@ describe('TaskView', () => {
     const wrapper = mountView()
     await flushPromises()
     const labels = wrapper.findAll('.properties .prop-label').map((label) => label.text())
+    expect(labels).toEqual(['Status', 'Priority', 'Deadline', 'Tags', 'People', 'Requested by', 'Repositories'])
   })
 
   it('blurs the focused field on Escape', async () => {

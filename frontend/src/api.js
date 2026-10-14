@@ -74,6 +74,8 @@ export const api = {
       request(`/people/${targetId}/merge`, { method: 'POST', body: { source_id: sourceId } }),
     linkTask: (taskId, body) => request(`/tasks/${taskId}/people`, { method: 'POST', body }),
     unlinkTask: (taskId, personId) => request(`/tasks/${taskId}/people/${personId}`, { method: 'DELETE' }),
+    linkRequester: (taskId, body) => request(`/tasks/${taskId}/requesters`, { method: 'POST', body }),
+    unlinkRequester: (taskId, personId) => request(`/tasks/${taskId}/requesters/${personId}`, { method: 'DELETE' }),
     linkItem: (itemId, body) => request(`/items/${itemId}/people`, { method: 'POST', body }),
     unlinkItem: (itemId, personId) => request(`/items/${itemId}/people/${personId}`, { method: 'DELETE' })
   },

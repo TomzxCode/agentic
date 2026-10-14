@@ -19,7 +19,7 @@ from sqlmodel import Session, col, select
 from ..crud import add_timeline, get_task_or_404
 from ..db import get_session
 from ..events import bus
-from ..models import ItemPerson, Person, PersonAlias, SourceItem, TaskPerson, utcnow
+from ..models import ItemPerson, Person, PersonAlias, SourceItem, TaskPerson, TaskRequester, utcnow
 from ..schemas import PersonCreate, PersonDetail, PersonLink, PersonMerge, PersonRead, PersonUpdate
 
 router = APIRouter(prefix="/api/people", tags=["people"])
@@ -95,7 +95,7 @@ def _find_by_alias(session: Session, values: list[str]) -> Person | None:
 def _person_read(session: Session, person: Person) -> PersonRead:
     data = PersonRead.model_validate(person)
     data.aliases = person_aliases(session, person.id)
-    data.task_count = len(session.exec(select(TaskPerson).where(TaskPerson.person_id == person.id)).all())
+    data.task_count = len(person_task_ids(session, person.id))
     data.item_count = len(session.exec(select(ItemPerson).where(ItemPerson.person_id == person.id)).all())
     return data
 
@@ -143,6 +143,51 @@ def task_person_ids(session: Session, task_id: str) -> list[str]:
     return [link.person_id for link in links]
 
 
+def task_requesters(session: Session, task_id: str) -> list[Person]:
+    """The people who requested a task, in link order."""
+    links = session.exec(
+        select(TaskRequester).where(TaskRequester.task_id == task_id).order_by(col(TaskRequester.created_at))
+    ).all()
+    people: list[Person] = []
+    for link in links:
+        person = session.get(Person, link.person_id)
+        if person is not None:
+            people.append(person)
+    return people
+
+
+def task_requester_ids(session: Session, task_id: str) -> list[str]:
+    """The ids of the people who requested a task, in link order."""
+    links = session.exec(
+        select(TaskRequester).where(TaskRequester.task_id == task_id).order_by(col(TaskRequester.created_at))
+    ).all()
+    return [link.person_id for link in links]
+
+
+def person_task_ids(session: Session, person_id: str) -> list[str]:
+    """Every task a person is attached to, as an involved person or as a requester.
+
+    A task the person both requested and is involved in counts once.
+    """
+    ids = person_involved_task_ids(session, person_id)
+    for task_id in person_requester_task_ids(session, person_id):
+        if task_id not in ids:
+            ids.append(task_id)
+    return ids
+
+
+def person_involved_task_ids(session: Session, person_id: str) -> list[str]:
+    """The tasks a person is attached to as one of the people they involve."""
+    return [link.task_id for link in session.exec(select(TaskPerson).where(TaskPerson.person_id == person_id)).all()]
+
+
+def person_requester_task_ids(session: Session, person_id: str) -> list[str]:
+    """The tasks a person is attached to as a requester."""
+    return [
+        link.task_id for link in session.exec(select(TaskRequester).where(TaskRequester.person_id == person_id)).all()
+    ]
+
+
 def item_person_ids(session: Session, item_id: str) -> list[str]:
     return [link.person_id for link in session.exec(select(ItemPerson).where(ItemPerson.item_id == item_id)).all()]
 
@@ -166,6 +211,18 @@ def _link_item(session: Session, item_id: str, person: Person) -> bool:
     if existing is not None:
         return False
     session.add(ItemPerson(item_id=item_id, person_id=person.id))
+    session.commit()
+    return True
+
+
+def _link_requester(session: Session, task_id: str, person: Person) -> bool:
+    """Link a person as a requester of a task; return True when a new link was created."""
+    existing = session.exec(
+        select(TaskRequester).where(TaskRequester.task_id == task_id, TaskRequester.person_id == person.id)
+    ).first()
+    if existing is not None:
+        return False
+    session.add(TaskRequester(task_id=task_id, person_id=person.id))
     session.commit()
     return True
 
@@ -238,6 +295,22 @@ def merge_people(session: Session, target: Person, source: Person) -> Person:
             add_timeline(session, task_id, "person_added", f"Person added: {target.name}", {"person_id": target.id})
         session.commit()
 
+    # Requesters: the same, as a link set of its own.
+    for link in session.exec(select(TaskRequester).where(TaskRequester.person_id == source.id)).all():
+        task_id = link.task_id
+        existing = session.exec(
+            select(TaskRequester).where(TaskRequester.task_id == task_id, TaskRequester.person_id == target.id)
+        ).first()
+        if existing is not None:
+            session.delete(link)
+        else:
+            link.person_id = target.id
+            session.add(link)
+            add_timeline(
+                session, task_id, "requester_added", f"Requester added: {target.name}", {"person_id": target.id}
+            )
+        session.commit()
+
     # Items: the same, with no timeline (items have none).
     for link in session.exec(select(ItemPerson).where(ItemPerson.person_id == source.id)).all():
         existing = session.exec(
@@ -253,6 +326,7 @@ def merge_people(session: Session, target: Person, source: Person) -> Person:
     target.updated_at = utcnow()
     session.add(target)
     session.exec(sa_delete(PersonAlias).where(col(PersonAlias.person_id) == source.id))
+    session.exec(sa_delete(TaskRequester).where(col(TaskRequester.person_id) == source.id))
     session.exec(sa_delete(Person).where(col(Person.id) == source.id))
     session.commit()
     session.refresh(target)
@@ -305,13 +379,19 @@ def create_person(payload: PersonCreate, session: Session = Depends(get_session)
 def get_person(person_id: str, session: Session = Depends(get_session)) -> PersonDetail:
     person = get_person_or_404(session, person_id)
     data = _person_read(session, person)
-    task_ids = [
-        link.task_id for link in session.exec(select(TaskPerson).where(TaskPerson.person_id == person.id)).all()
-    ]
+    task_ids = person_task_ids(session, person.id)
+    involved_task_ids = person_involved_task_ids(session, person.id)
+    requester_task_ids = person_requester_task_ids(session, person.id)
     item_ids = [
         link.item_id for link in session.exec(select(ItemPerson).where(ItemPerson.person_id == person.id)).all()
     ]
-    return PersonDetail(**data.model_dump(), task_ids=task_ids, item_ids=item_ids)
+    return PersonDetail(
+        **data.model_dump(),
+        task_ids=task_ids,
+        involved_task_ids=involved_task_ids,
+        requester_task_ids=requester_task_ids,
+        item_ids=item_ids,
+    )
 
 
 @router.patch("/{person_id}", response_model=PersonRead)
@@ -339,6 +419,7 @@ def update_person(person_id: str, payload: PersonUpdate, session: Session = Depe
 def delete_person(person_id: str, session: Session = Depends(get_session)) -> None:
     person = get_person_or_404(session, person_id)
     session.exec(sa_delete(TaskPerson).where(col(TaskPerson.person_id) == person.id))
+    session.exec(sa_delete(TaskRequester).where(col(TaskRequester.person_id) == person.id))
     session.exec(sa_delete(ItemPerson).where(col(ItemPerson.person_id) == person.id))
     session.exec(sa_delete(PersonAlias).where(col(PersonAlias.person_id) == person.id))
     session.exec(sa_delete(Person).where(col(Person.id) == person.id))
@@ -391,6 +472,39 @@ async def unlink_task_person(task_id: str, person_id: str, session: Session = De
     await bus.publish(f"task:{task_id}", {"kind": "task", "action": "people_changed"})
 
 
+# --- task requesters -------------------------------------------------------
+@link_router.post("/api/tasks/{task_id}/requesters", response_model=PersonRead, status_code=201)
+async def link_task_requester(task_id: str, payload: PersonLink, session: Session = Depends(get_session)) -> PersonRead:
+    """Link a person who requested the task, separately from the people it involves."""
+    get_task_or_404(session, task_id)
+    person = _resolve_person(session, payload)
+    if _link_requester(session, task_id, person):
+        add_timeline(session, task_id, "requester_added", f"Requester added: {person.name}", {"person_id": person.id})
+    await bus.publish(f"task:{task_id}", {"kind": "task", "action": "requesters_changed"})
+    return _person_read(session, person)
+
+
+@link_router.delete("/api/tasks/{task_id}/requesters/{person_id}", status_code=204)
+async def unlink_task_requester(task_id: str, person_id: str, session: Session = Depends(get_session)) -> None:
+    get_task_or_404(session, task_id)
+    link = session.exec(
+        select(TaskRequester).where(TaskRequester.task_id == task_id, TaskRequester.person_id == person_id)
+    ).first()
+    if link is None:
+        raise HTTPException(status_code=404, detail="Link not found")
+    session.delete(link)
+    session.commit()
+    person = session.get(Person, person_id)
+    add_timeline(
+        session,
+        task_id,
+        "requester_removed",
+        f"Requester removed: {person.name if person else person_id}",
+        {"person_id": person_id},
+    )
+    await bus.publish(f"task:{task_id}", {"kind": "task", "action": "requesters_changed"})
+
+
 # --- item links ------------------------------------------------------------
 @link_router.post("/api/items/{item_id}/people", response_model=PersonRead, status_code=201)
 def link_item_person(item_id: str, payload: PersonLink, session: Session = Depends(get_session)) -> PersonRead:
@@ -421,7 +535,12 @@ __all__ = [
     "merge_people",
     "normalize_aliases",
     "person_aliases",
+    "person_involved_task_ids",
+    "person_requester_task_ids",
+    "person_task_ids",
     "task_people",
     "task_person_ids",
+    "task_requester_ids",
+    "task_requesters",
     "upsert_person",
 ]

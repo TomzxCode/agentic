@@ -277,6 +277,22 @@ class TaskPerson(SQLModel, table=True):
     created_at: datetime = Field(default_factory=utcnow)
 
 
+class TaskRequester(SQLModel, table=True):
+    """Associates a task with 0..n people who requested it.
+
+    Kept separate from ``TaskPerson`` (the people a task involves): who asked
+    for the task is a distinct fact from who is involved in it, so the two link
+    sets can differ.
+    """
+
+    __table_args__ = (UniqueConstraint("task_id", "person_id", name="uq_task_requester"),)
+
+    id: str = Field(default_factory=new_id, primary_key=True)
+    task_id: str = Field(foreign_key="task.id", index=True)
+    person_id: str = Field(foreign_key="person.id", index=True)
+    created_at: datetime = Field(default_factory=utcnow)
+
+
 class ItemPerson(SQLModel, table=True):
     """Associates a source item with 0..n people behind it."""
 

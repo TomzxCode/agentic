@@ -96,6 +96,8 @@ def _task_text(task: dict) -> str:
     lines = [_task_line(task)]
     if task.get("people"):
         lines.append("  people: " + ", ".join(person["name"] for person in task["people"]))
+    if task.get("requesters"):
+        lines.append("  requested by: " + ", ".join(person["name"] for person in task["requesters"]))
     for session in task.get("sessions") or []:
         lines.append(f"  session: {session['session_id']} ({session['id']})")
     if task.get("summary"):
@@ -476,10 +478,20 @@ def person_merge(source_id: str, *, into: str) -> str:
 
 @person_app.command(name="link")
 @safe
-def person_link(person_id: str, *, task: str | None = None, item: str | None = None) -> str | int:
-    """Link a person to a task (--task) or an item (--item)."""
+def person_link(
+    person_id: str,
+    *,
+    task: str | None = None,
+    item: str | None = None,
+    requested_by: str | None = None,
+) -> str | int:
+    """Link a person to a task (--task), an item (--item), or as the requester of a task (--requested-by TASK)."""
+    if requested_by:
+        with _client() as client:
+            person = client.link_requester(person_id, requested_by)
+        return emit(person, f"linked {person['id']} as a requester of task {requested_by}")
     if not task and not item:
-        print("error: provide --task or --item", file=sys.stderr)
+        print("error: provide --task, --item, or --requested-by", file=sys.stderr)
         return 1
     with _client() as client:
         person = client.link_person(person_id, task_id=task, item_id=item)
@@ -489,10 +501,20 @@ def person_link(person_id: str, *, task: str | None = None, item: str | None = N
 
 @person_app.command(name="unlink")
 @safe
-def person_unlink(person_id: str, *, task: str | None = None, item: str | None = None) -> str | int:
-    """Unlink a person from a task (--task) or an item (--item)."""
+def person_unlink(
+    person_id: str,
+    *,
+    task: str | None = None,
+    item: str | None = None,
+    requested_by: str | None = None,
+) -> str | int:
+    """Unlink a person from a task (--task), an item (--item), or a task they requested (--requested-by TASK)."""
+    if requested_by:
+        with _client() as client:
+            client.unlink_requester(person_id, requested_by)
+        return emit({"unlinked": person_id}, f"unlinked {person_id} as a requester of task {requested_by}")
     if not task and not item:
-        print("error: provide --task or --item", file=sys.stderr)
+        print("error: provide --task, --item, or --requested-by", file=sys.stderr)
         return 1
     with _client() as client:
         client.unlink_person(person_id, task_id=task, item_id=item)

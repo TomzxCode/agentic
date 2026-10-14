@@ -129,6 +129,11 @@ erDiagram
         string task_id FK
         string person_id FK
     }
+    TASKREQUESTER {
+        string id PK
+        string task_id FK
+        string person_id FK
+    }
     ITEMPERSON {
         string id PK
         string item_id FK
@@ -240,7 +245,7 @@ The full schema with types, constraints, and indexes lives in [`schema.dbml`](sc
 | Source services | Parse/infer/fetch items, build the context prompt, parse agent JSON | httpx, subprocess (`ghx`, `slackx`) |
 | Git services | Create/remove worktrees, detect remote and default branch | `git` subprocess |
 | Gantt view | Tasks as time bars with one marker per timeline event | `routers/gantt.py`, Vue GanttView |
-| People directory | People linked to tasks and items, auto-populated from GitHub and Slack metadata, shown on the task page, the items list, and a People page | `routers/people.py`, `services.py`, Vue PeopleView/PeoplePanel |
+| People directory | People linked to tasks and items, auto-populated from GitHub and Slack metadata, shown on the task page, the items list, and a People page. A task also tracks who requested it, a link set separate from the people it involves | `routers/people.py`, `services.py`, Vue PeopleView/PeoplePanel |
 | Change lifecycle | Record changes and the human interventions on them, from a task page | `routers/changes.py`, Vue ChangesPanel |
 | Metrics engine | Compute autonomy rate and yield from changes, read against a baseline | `metrics.py`, `routers/metrics.py`, Vue MetricsView |
 | Stack | An ordered focus queue of tasks, materialized from the in-flight ones (open, in progress, blocked): position 0 is current, sessions track time and execution count, entries are soft-deleted | `stack.py`, `routers/stack.py`, Vue StackView |

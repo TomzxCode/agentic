@@ -318,6 +318,12 @@ class AgenticClient:
         else:
             self._request("DELETE", f"/api/items/{item_id}/people/{person_id}")
 
+    def link_requester(self, person_id: str, task_id: str) -> dict:
+        return self._request("POST", f"/api/tasks/{task_id}/requesters", json={"person_id": person_id})
+
+    def unlink_requester(self, person_id: str, task_id: str) -> None:
+        self._request("DELETE", f"/api/tasks/{task_id}/requesters/{person_id}")
+
     # --- changes ----------------------------------------------------------
     def list_changes(
         self,

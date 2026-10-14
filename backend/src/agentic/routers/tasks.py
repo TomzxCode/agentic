@@ -35,6 +35,7 @@ from ..models import (
     TaskDependency,
     TaskPerson,
     TaskRepository,
+    TaskRequester,
     TaskSession,
     TaskStatus,
     TimelineEvent,
@@ -69,6 +70,8 @@ from .people import (
     link_people_to_item,
     task_people,
     task_person_ids,
+    task_requester_ids,
+    task_requesters,
 )
 
 router = APIRouter(prefix="/api/tasks", tags=["tasks"])
@@ -131,6 +134,7 @@ def _task_read(session: Session, task: Task) -> TaskRead:
     data = TaskRead.model_validate(task)
     data.repository_ids = _task_repository_ids(session, task.id)
     data.person_ids = task_person_ids(session, task.id)
+    data.requester_ids = task_requester_ids(session, task.id)
     return data
 
 
@@ -194,6 +198,7 @@ def _detail(session: Session, task: Task) -> TaskDetail:
         **_task_read(session, task).model_dump(),
         associations=details,
         people=[_person_read(session, person) for person in task_people(session, task.id)],
+        requesters=[_person_read(session, person) for person in task_requesters(session, task.id)],
         suggested_people=[_person_read(session, person) for person in suggested],
         worktrees=[WorktreeRead.model_validate(w) for w in worktrees],
         runs=[run_read(session, r) for r in runs],
@@ -502,6 +507,7 @@ async def delete_task(task_id: str, session: Session = Depends(get_session)) -> 
     session.exec(sa_delete(TimelineEvent).where(col(TimelineEvent.task_id) == task.id))
     session.exec(sa_delete(TaskRepository).where(col(TaskRepository.task_id) == task.id))
     session.exec(sa_delete(TaskPerson).where(col(TaskPerson.task_id) == task.id))
+    session.exec(sa_delete(TaskRequester).where(col(TaskRequester.task_id) == task.id))
     # Before/after links point at the task from either side; drop them first.
     session.exec(
         sa_delete(TaskDependency).where(

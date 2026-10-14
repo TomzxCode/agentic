@@ -125,6 +125,21 @@ Table taskperson {
   }
 }
 
+// The people who requested a task, a link set separate from taskperson (the
+// people it involves).
+Table taskrequester {
+  id varchar [pk]
+  task_id varchar [not null, ref: > task.id]
+  person_id varchar [not null, ref: > person.id]
+  created_at datetime [not null]
+
+  Indexes {
+    task_id
+    person_id
+    (task_id, person_id) [unique, name: 'uq_task_requester']
+  }
+}
+
 Table itemperson {
   id varchar [pk]
   item_id varchar [not null, ref: > sourceitem.id]

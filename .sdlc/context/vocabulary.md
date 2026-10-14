@@ -23,6 +23,7 @@
 | Person alias | An identifier for a person (a handle such as a GitHub login or Slack user id, or an email), used to de-duplicate people across sources. |
 | Repository | A local git checkout registered with the app, from which worktrees are created. |
 | Repository group | A named set of repositories that tells a task's agent which checkouts may be relevant. |
+| Requester | A person recorded as having asked for a task, a link set separate from the people the task involves. |
 | Session link | A way to reopen an agent session: an OpenChamber URL, a terminal URL, or a copyable resume command. |
 | Source | The origin kind of an item: `slack`, `github`, `gdrive`, `url`, `note`, `commit`, or `file`. |
 | Stack | The focus queue of tasks: an ordered list where the top task is current and the rest are queued. It is materialized from the in-flight tasks, so an open, in-progress, or blocked task joins automatically. |

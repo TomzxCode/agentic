@@ -126,6 +126,12 @@ const taskFieldItems = computed(() =>
         },
         { id: 'field-people', label: 'Link a person', group: 'This task', run: () => store.focusField?.('people') },
         {
+          id: 'field-requesters',
+          label: 'Link a requester',
+          group: 'This task',
+          run: () => store.focusField?.('requesters')
+        },
+        {
           id: 'field-dependencies',
           label: 'Link a dependency',
           group: 'This task',

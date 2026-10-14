@@ -184,8 +184,11 @@ issues/PRs, Drive docs, URLs, notes) with per-source filters, search, and links
 to the tasks each one is used by.
 
 People are linked to both tasks and items. A task page has a **People** panel to
-link someone from the directory (or add a new person), and the **People** page
-lists everyone with the tasks and items each is attached to. People are also
+link someone from the directory (or add a new person), and a **Requested by**
+panel next to it that names the people who asked for the task, a separate link
+set from the people it involves. The **People** page lists everyone with the
+tasks and items each is attached to, and tags each task with how the person is
+attached (one of its people, its requester, or both). People are also
 auto-populated when an item is fetched: a GitHub issue/PR brings its author,
 assignees, and commenters, and a Slack thread brings its participants; linking
 that item to a task links those people to the task too.
@@ -366,6 +369,7 @@ agentic metrics baseline set autonomy_rate 0.2
 agentic operation list --actor agent # audit log: what changed, from where, by whom
 agentic person create --name "Ada Lovelace" --handle ada
 agentic person link <person> --task <task>   # also: --item <item>
+agentic person link <person> --requested-by <task>  # they asked for the task
 agentic person list                  # people with task and item counts
 ```
 

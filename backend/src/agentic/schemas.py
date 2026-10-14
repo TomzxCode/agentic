@@ -282,6 +282,7 @@ class TaskRead(ORMModel):
     deadline: datetime | None = None
     repository_ids: list[str] = []
     person_ids: list[str] = []
+    requester_ids: list[str] = []
     group_id: str | None = None
     harness_id: str | None = None
     summary: str
@@ -371,6 +372,9 @@ class TimelineRead(ORMModel):
 class TaskDetail(TaskRead):
     associations: list[AssociationDetail] = []
     people: list[PersonRead] = []
+    # People who asked for the task, a link set separate from the people it
+    # involves; the same person can appear in either or both.
+    requesters: list[PersonRead] = []
     # People named by the task's items (an issue/PR author, a commenter) that
     # are not yet linked to the task, offered as one-click links in the UI.
     suggested_people: list[PersonRead] = []
@@ -493,7 +497,16 @@ class PersonRead(ORMModel):
 
 
 class PersonDetail(PersonRead):
+    """A person with the tasks and items they are attached to.
+
+    ``task_ids`` is every task the person is attached to; ``involved_task_ids``
+    and ``requester_task_ids`` split that set by how they are attached (as a
+    person on the task, as the requester, or both).
+    """
+
     task_ids: list[str] = []
+    involved_task_ids: list[str] = []
+    requester_task_ids: list[str] = []
     item_ids: list[str] = []
 
 

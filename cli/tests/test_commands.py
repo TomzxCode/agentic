@@ -77,6 +77,12 @@ class FakeClient:
     def unlink_person(self, person_id, **kwargs):
         return None
 
+    def link_requester(self, person_id, task_id):
+        return {"id": person_id, "name": "Ada", "task_count": 1, "item_count": 0}
+
+    def unlink_requester(self, person_id, task_id):
+        return None
+
     def merge_person(self, source_id, target_id):
         return {"id": target_id, "name": "Grace", "task_count": 1, "item_count": 0}
 
@@ -156,6 +162,7 @@ class FakeClient:
             "title": "T",
             "summary": "s",
             "next_steps": [{"text": "a", "done": False}],
+            "requesters": [{"id": "p1", "name": "Ada"}],
         }
 
     def create_task(self, **fields):
@@ -495,6 +502,7 @@ def test_commands_emit_text(text_format, fake_client):
     assert "t1" in cli.task_list()
     assert "bug" in cli.tag_list()
     assert "T" in cli.task_get("t1")
+    assert "requested by: Ada" in cli.task_get("t1")
     assert "created t2" in cli.task_create(title="New")
     assert "updated t1" in cli.task_update("t1", title="T")
     assert "deleted t1" in cli.task_delete("t1")
@@ -604,10 +612,12 @@ def test_people_commands(text_format, fake_client, capsys):
     assert "deleted p1" in cli.person_delete("p1")
     assert "linked p1 to task t1" in cli.person_link("p1", task="t1")
     assert "linked p1 to item i1" in cli.person_link("p1", item="i1")
+    assert "linked p1 as a requester of task t1" in cli.person_link("p1", requested_by="t1")
     assert "unlinked p1 from task t1" in cli.person_unlink("p1", task="t1")
+    assert "unlinked p1 as a requester of task t1" in cli.person_unlink("p1", requested_by="t1")
     assert "merged p1 into p2  Grace" in cli.person_merge("p1", into="p2")
     assert cli.person_link("p1") == 1
-    assert "provide --task or --item" in capsys.readouterr().err
+    assert "provide --task, --item, or --requested-by" in capsys.readouterr().err
 
 
 def test_run_wait_polls_until_terminal(monkeypatch, text_format):

@@ -155,6 +155,13 @@ def test_people_methods():
     client.unlink_person("p1", item_id="i1")
     assert seen["path"] == "/api/items/i1/people/p1"
 
+    client.link_requester("p1", "t1")
+    assert seen["method"] == "POST" and seen["path"] == "/api/tasks/t1/requesters"
+    assert seen["body"] == {"person_id": "p1"}
+
+    client.unlink_requester("p1", "t1")
+    assert seen["method"] == "DELETE" and seen["path"] == "/api/tasks/t1/requesters/p1"
+
     client.merge_person("p1", "p2")
     assert seen["method"] == "POST" and seen["path"] == "/api/people/p2/merge"
     assert seen["body"] == {"source_id": "p1"}
