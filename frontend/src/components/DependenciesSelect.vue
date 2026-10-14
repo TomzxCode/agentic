@@ -74,39 +74,45 @@ defineExpose({ activate: () => beforeSelect.value?.activate?.() })
 
 <template>
   <div class="dep-select">
-    <span class="dep-label">before</span>
-    <span v-for="linked in deps.before" :key="`b-${linked.id}`" class="chip">
-      <RouterLink v-if="linkToDetail" :to="`/task/${linked.id}`">{{ linked.title }}</RouterLink>
-      <template v-else>{{ linked.title }}</template>
-      <button type="button" class="chip-x" title="Unlink" :disabled="busy" @click="unlink(linked.id)">×</button>
-    </span>
-    <SearchSelect
-      ref="beforeSelect"
-      variant="inline"
-      keep-open
-      :model-value="''"
-      :options="candidates"
-      placeholder="＋ link…"
-      title="Link a task that must be done before this one"
-      @update:model-value="(id) => link(id, 'before')"
-    />
+    <div class="dep-group">
+      <span class="dep-label">before</span>
+      <div class="dep-chips">
+        <span v-for="linked in deps.before" :key="`b-${linked.id}`" class="chip">
+          <RouterLink v-if="linkToDetail" :to="`/task/${linked.id}`">{{ linked.title }}</RouterLink>
+          <template v-else>{{ linked.title }}</template>
+          <button type="button" class="chip-x" title="Unlink" :disabled="busy" @click="unlink(linked.id)">×</button>
+        </span>
+        <SearchSelect
+          ref="beforeSelect"
+          variant="inline"
+          keep-open
+          :model-value="''"
+          :options="candidates"
+          placeholder="＋ link…"
+          title="Link a task that must be done before this one"
+          @update:model-value="(id) => link(id, 'before')"
+        />
+      </div>
+    </div>
 
-    <span class="meta-sep"></span>
-
-    <span class="dep-label">after</span>
-    <span v-for="linked in deps.after" :key="`a-${linked.id}`" class="chip">
-      <RouterLink v-if="linkToDetail" :to="`/task/${linked.id}`">{{ linked.title }}</RouterLink>
-      <template v-else>{{ linked.title }}</template>
-      <button type="button" class="chip-x" title="Unlink" :disabled="busy" @click="unlink(linked.id)">×</button>
-    </span>
-    <SearchSelect
-      variant="inline"
-      keep-open
-      :model-value="''"
-      :options="candidates"
-      placeholder="＋ link…"
-      title="Link a task that follows this one"
-      @update:model-value="(id) => link(id, 'after')"
-    />
+    <div class="dep-group">
+      <span class="dep-label">after</span>
+      <div class="dep-chips">
+        <span v-for="linked in deps.after" :key="`a-${linked.id}`" class="chip">
+          <RouterLink v-if="linkToDetail" :to="`/task/${linked.id}`">{{ linked.title }}</RouterLink>
+          <template v-else>{{ linked.title }}</template>
+          <button type="button" class="chip-x" title="Unlink" :disabled="busy" @click="unlink(linked.id)">×</button>
+        </span>
+        <SearchSelect
+          variant="inline"
+          keep-open
+          :model-value="''"
+          :options="candidates"
+          placeholder="＋ link…"
+          title="Link a task that follows this one"
+          @update:model-value="(id) => link(id, 'after')"
+        />
+      </div>
+    </div>
   </div>
 </template>

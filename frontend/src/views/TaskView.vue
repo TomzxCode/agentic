@@ -173,54 +173,6 @@ watch(
           placeholder="Untitled task"
           @save="(value) => update('title', value)"
         />
-        <div class="task-meta">
-          <SearchSelect
-            ref="statusRef"
-            variant="inline"
-            :model-value="task.status"
-            :options="STATUS_OPTIONS"
-            :sort="false"
-            title="Status"
-            @update:model-value="(value) => update('status', value)"
-          />
-          <span class="meta-sep" aria-hidden="true"></span>
-          <SearchSelect
-            ref="priorityRef"
-            variant="inline"
-            :model-value="task.priority"
-            :options="PRIORITY_OPTIONS"
-            :sort="false"
-            title="Priority"
-            @update:model-value="(value) => update('priority', Number(value))"
-          />
-          <span class="meta-sep" aria-hidden="true"></span>
-          <DeadlinePicker
-            ref="deadlineRef"
-            :model-value="task.deadline"
-            @update:model-value="(value) => update('deadline', value)"
-          />
-          <span class="meta-sep" aria-hidden="true"></span>
-          <RepositorySelect
-            ref="repositoryRef"
-            :model-value="task.repository_ids"
-            :repositories="store.repositories"
-            link-to-detail
-            @update:model-value="setRepositories"
-          />
-          <span class="meta-sep" aria-hidden="true"></span>
-          <PeopleSelect ref="peopleRef" :task="task" link-to-detail @changed="onChanged" />
-          <span class="meta-sep" aria-hidden="true"></span>
-          <DependenciesSelect ref="dependenciesRef" :task="task" link-to-detail @changed="onChanged" />
-          <span class="meta-sep" aria-hidden="true"></span>
-          <TagInput
-            ref="tagRef"
-            class="task-meta-tags"
-            :model-value="task.tags || []"
-            :suggestions="store.tags"
-            placeholder="Add tags…"
-            @update:model-value="(value) => update('tags', value)"
-          />
-        </div>
       </div>
       <div class="row task-actions">
         <SessionLinks v-if="latestLinks.length" :links="latestLinks" compact />
@@ -230,7 +182,7 @@ watch(
 
     <EditableText
       ref="descriptionRef"
-      class="muted"
+      class="muted task-description"
       as="p"
       multiline
       :value="task.description"
@@ -238,7 +190,68 @@ watch(
       @save="(value) => update('description', value)"
     />
 
-    <div class="grid-2" style="margin-top: 16px">
+    <section class="panel properties" aria-label="Task properties">
+      <div class="prop">
+        <span class="prop-label">Status</span>
+        <SearchSelect
+          ref="statusRef"
+          variant="inline"
+          :model-value="task.status"
+          :options="STATUS_OPTIONS"
+          :sort="false"
+          title="Status"
+          @update:model-value="(value) => update('status', value)"
+        />
+      </div>
+      <div class="prop">
+        <span class="prop-label">Priority</span>
+        <SearchSelect
+          ref="priorityRef"
+          variant="inline"
+          :model-value="task.priority"
+          :options="PRIORITY_OPTIONS"
+          :sort="false"
+          title="Priority"
+          @update:model-value="(value) => update('priority', Number(value))"
+        />
+      </div>
+      <div class="prop">
+        <span class="prop-label">Deadline</span>
+        <DeadlinePicker
+          ref="deadlineRef"
+          :model-value="task.deadline"
+          @update:model-value="(value) => update('deadline', value)"
+        />
+      </div>
+      <div class="prop">
+        <span class="prop-label">Tags</span>
+        <TagInput
+          ref="tagRef"
+          :model-value="task.tags || []"
+          :suggestions="store.tags"
+          placeholder="Add a tag…"
+          @update:model-value="(value) => update('tags', value)"
+        />
+      </div>
+      <div class="prop">
+        <span class="prop-label">People</span>
+        <PeopleSelect ref="peopleRef" :task="task" empty-label="None" link-to-detail @changed="onChanged" />
+      </div>
+      <div class="prop">
+        <span class="prop-label">Repositories</span>
+        <RepositorySelect
+          ref="repositoryRef"
+          :model-value="task.repository_ids"
+          :repositories="store.repositories"
+          empty-label="None"
+          link-to-detail
+          @update:model-value="setRepositories"
+        />
+      </div>
+      <DependenciesSelect ref="dependenciesRef" :task="task" link-to-detail @changed="onChanged" />
+    </section>
+
+    <div class="grid-2">
       <div>
         <ContextPanel :task="task" @changed="onChanged" />
         <AgentPanel :task="task" :harnesses="store.harnesses" @changed="onChanged" />

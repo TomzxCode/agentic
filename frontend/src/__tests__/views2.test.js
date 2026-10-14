@@ -289,6 +289,13 @@ describe('TaskView', () => {
     expect(wrapper.emitted('changed')).toBeTruthy()
   })
 
+  it('renders every property under its own label', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+    const labels = wrapper.findAll('.properties .prop-label').map((label) => label.text())
+    expect(labels).toEqual(['Status', 'Priority', 'Deadline', 'Tags', 'People', 'Repositories'])
+  })
+
   it('blurs the focused field on Escape', async () => {
     const wrapper = mount(TaskView, {
       props: { id: 't1' },
