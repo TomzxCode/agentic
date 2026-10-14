@@ -16,6 +16,16 @@ const repositoryOptions = computed(() => {
   return [{ value: '', label: 'Select a repository…' }, ...list.map((r) => ({ value: r.id, label: r.name }))]
 })
 
+// The repository a worktree was created from, so a task with several
+// repositories can tell its worktrees apart.
+function repoName(id) {
+  return props.repositories.find((r) => r.id === id)?.name || ''
+}
+
+// Offer the picker whenever there is a repository to create from, so a task
+// with several repositories can pick one for each worktree it creates.
+const hasRepositoryOptions = computed(() => repositoryOptions.value.length > 1)
+
 async function create() {
   busy.value = true
   try {
@@ -84,6 +94,9 @@ onMounted(() => {
       <template #title>
         <span class="mono title">{{ w.branch }}</span>
       </template>
+      <template #title-extra>
+        <span v-if="repoName(w.repository_id)" class="chip">{{ repoName(w.repository_id) }}</span>
+      </template>
       <template #actions>
         <button
           v-if="w.status === 'active' && editorUrl(w)"
@@ -102,7 +115,7 @@ onMounted(() => {
       </template>
     </EntityCard>
 
-    <div v-if="!task.worktrees?.length" class="field" style="margin-top: 8px">
+    <div v-if="hasRepositoryOptions" class="field" style="margin-top: 8px">
       <label>Repository</label>
       <SearchSelect v-model="draft.repository_id" :options="repositoryOptions" placeholder="Select a repository…" />
     </div>

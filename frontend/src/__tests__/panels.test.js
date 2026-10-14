@@ -325,7 +325,16 @@ describe('WorktreesPanel', () => {
   const task = (over = {}) => ({
     id: 't1',
     repository_ids: ['r1'],
-    worktrees: [{ id: 'w1', status: 'active', branch: 'feature', path: '/w', created_at: new Date().toISOString() }],
+    worktrees: [
+      {
+        id: 'w1',
+        status: 'active',
+        branch: 'feature',
+        path: '/w',
+        repository_id: 'r1',
+        created_at: new Date().toISOString()
+      }
+    ],
     ...over
   })
 
@@ -380,6 +389,35 @@ describe('WorktreesPanel', () => {
     await wrapper.get('.btn.primary').trigger('click')
     await flushPromises()
     expect(mocks.worktreeCreate).toHaveBeenCalledWith('t1', { repository_id: 'r1', branch: 'my-branch' })
+  })
+
+  it('picks the repository for a new worktree even after one exists', async () => {
+    mocks.worktreeCreate.mockResolvedValue({})
+    const wrapper = mount(WorktreesPanel, {
+      props: {
+        task: task({ repository_ids: ['r1', 'r2'] }),
+        repositories: [
+          { id: 'r1', name: 'alpha' },
+          { id: 'r2', name: 'beta' }
+        ]
+      }
+    })
+    expect(wrapper.findComponent(SearchSelect).exists()).toBe(true)
+    wrapper.findComponent(SearchSelect).vm.$emit('update:modelValue', 'r2')
+    await flushPromises()
+    await wrapper.get('.btn.primary').trigger('click')
+    await flushPromises()
+    expect(mocks.worktreeCreate).toHaveBeenCalledWith('t1', { repository_id: 'r2' })
+  })
+
+  it('labels each worktree with its repository', () => {
+    const wrapper = mount(WorktreesPanel, {
+      props: {
+        task: task(),
+        repositories: [{ id: 'r1', name: 'alpha' }]
+      }
+    })
+    expect(wrapper.get('.chip').text()).toBe('alpha')
   })
 
   it('disables creation without any repository', () => {
