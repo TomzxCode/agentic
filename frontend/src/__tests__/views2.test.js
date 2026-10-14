@@ -310,6 +310,19 @@ describe('TaskView', () => {
     expect(document.activeElement).not.toBe(entry.element)
   })
 
+  it('copies the task id', async () => {
+    const writeText = vi.fn().mockResolvedValue()
+    vi.stubGlobal('navigator', { clipboard: { writeText } })
+
+    const wrapper = mountView()
+    await flushPromises()
+    await wrapper.get('button[title="Copy task id: t1"]').trigger('click')
+    await flushPromises()
+
+    expect(writeText).toHaveBeenCalledWith('t1')
+    expect(store.toast).toEqual({ message: 'Copied task id', isError: false })
+  })
+
   it('deletes the task when confirmed', async () => {
     mocks.tasksRemove.mockResolvedValue(null)
     vi.stubGlobal('confirm', () => true)

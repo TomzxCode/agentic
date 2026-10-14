@@ -97,6 +97,15 @@ async function setRepositories(ids) {
   await update('repository_ids', ids)
 }
 
+async function copyId() {
+  try {
+    await navigator.clipboard.writeText(task.value.id)
+    store.notify('Copied task id')
+  } catch {
+    store.notify('Copy failed', true)
+  }
+}
+
 async function removeTask() {
   if (!confirm('Delete this task? This cannot be undone.')) return
   await api.tasks.remove(props.id)
@@ -176,6 +185,7 @@ watch(
       </div>
       <div class="row task-actions">
         <SessionLinks v-if="latestLinks.length" :links="latestLinks" compact />
+        <button class="btn sm ghost" :title="`Copy task id: ${task.id}`" @click="copyId">⧉ Copy ID</button>
         <button class="btn sm danger" @click="removeTask">Delete</button>
       </div>
     </div>
