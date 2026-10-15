@@ -27,6 +27,7 @@ dev = [
     "pytest-cov>=7.1.0",
     "ruff>=0.6",
     "ty>=0.0.86",
+    "zensical>=0.0.70",
 ]
 
 [tool.ruff]

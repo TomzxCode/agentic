@@ -1,5 +1,10 @@
 # Memory
 
+## 2026-10-15: the CLI reads no env vars; only its flags work
+
+- `AGENTIC_API_URL`, `AGENTIC_FORMAT`, and `AGENTIC_TIMEOUT` are read into `CONTEXT` at import, but `app.meta.default` in `cli.py` declares `api_url`/`format`/`timeout` with hardcoded defaults and calls `CONTEXT.update(...)`, which overwrites them, so all three env vars are ignored. The docstring, `client.py`, and the README claim otherwise; pass `--api-url`/`--format`/`--timeout` explicitly.
+- `Settings` loads `.env` relative to the process working directory (`env_file=".env"`), so `backend/.env` is not read when the server runs from the repo root even though `.env.example` says to copy it there. Put the file where you start the server, or export the variables.
+
 ## 2026-10-15: UI-only layout preferences live in localStorage, not /api/settings
 
 - The desktop sidebar width is a per-device preference (`agentic.sidebarWidth`, 260-560px), read and written in `App.vue`. Keep device-specific UI state (size, position, open/closed) in localStorage: the `setting` table is the server's state and is shared by every client, so a width there would fight across devices.

@@ -1,4 +1,4 @@
-.PHONY: help install dev-backend dev-worker dev-frontend dev-tray test test-frontend test-backend coverage-backend coverage-frontend lint lint-frontend typecheck build run run-dev
+.PHONY: help install dev-backend dev-worker dev-frontend dev-tray test test-frontend test-backend coverage-backend coverage-frontend lint lint-frontend typecheck build docs docs-serve run run-dev
 
 help:
 	@echo "install             install backend + CLI (workspace) and frontend deps"
@@ -15,6 +15,8 @@ help:
 	@echo "lint-frontend       eslint + prettier check (frontend)"
 	@echo "typecheck           ty check (static type checking)"
 	@echo "build               build the SPA into backend/static"
+	@echo "docs                build the documentation site into site/"
+	@echo "docs-serve          serve the documentation site with live reload"
 	@echo "run                 serve API + worker + frontend dev server + tray (0.0.0.0:8600 and :5173)"
 	@echo "run-dev             like run, with the API reloading on file changes"
 
@@ -59,6 +61,12 @@ typecheck:
 
 build:
 	cd frontend && npm run build
+
+docs:
+	uv run zensical build --clean
+
+docs-serve:
+	uv run zensical serve --dev-addr 0.0.0.0:8000
 
 run:
 	@echo "API on http://0.0.0.0:8600, worker, frontend dev server on http://0.0.0.0:5173, tray (Ctrl+C stops all)"

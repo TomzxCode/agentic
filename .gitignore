@@ -21,6 +21,7 @@ frontend/.vite/
 
 # Build outputs
 backend/static/
+site/
 
 # Coverage
 .coverage

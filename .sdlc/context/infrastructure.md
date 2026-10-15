@@ -18,6 +18,7 @@
 | Settings | pydantic-settings | >=2.0 |
 | SSE | sse-starlette | >=2.1 |
 | CLIs | cyclopts | >=5.2.0 |
+| Documentation | Zensical | >=0.0.70 |
 | Frontend framework | Vue | ^3.5.13 |
 | Routing | vue-router | ^4.5.0 |
 | Build tool | Vite | ^6.0.7 |
@@ -32,6 +33,7 @@
 | ty | Static type checking | `uv run ty check` |
 | pytest (+ pytest-asyncio) | Testing | `uv run pytest -q` |
 | Vite | SPA dev server and build | `cd frontend && npm run dev` / `npm run build` |
+| zensical | Documentation site build and preview | `make docs` / `make docs-serve` |
 | make | Task shortcuts | `make test`, `make lint`, `make build`, `make run` |
 
 Type hints are checked statically with `ty` (`make typecheck`, `uv run ty check`), against the Python 3.12 floor declared in `requires-python`.
@@ -52,6 +54,7 @@ Both servers bind `0.0.0.0` for remote/VPN access.
 |---|---|---|
 | `.github/workflows/ci.yml` (Python) | push to `main`, pull requests | `uv sync --frozen`, ruff check, ruff format check, `ty check`, `pytest -q`. |
 | `.github/workflows/ci.yml` (Frontend) | push to `main`, pull requests | `npm ci` then `npm run build` in `frontend/`. |
+| `.github/workflows/docs.yml` | push to `main`, pull requests, manual dispatch | `uv sync --frozen` then `zensical build`; on a non-PR event it uploads and deploys the site to GitHub Pages. |
 
 Both jobs run on `ubuntu-latest` (Python via uv, Node 22), cancel superseded runs on the same ref, and have `contents: read` permissions.
 
@@ -60,6 +63,7 @@ Both jobs run on `ubuntu-latest` (Python via uv, Node 22), cancel superseded run
 Deployment is local: `make build` builds the SPA into `backend/static`, then `uv run agentic-server serve --host 0.0.0.0 --port 8600` serves the API and the built SPA from one process.
 `make run` starts that same server together with the Vite dev server, for development.
 There is no packaging or release pipeline beyond the two installable Python packages (`agentic`, `agentic-cli`).
+The documentation site is published separately: the Docs workflow builds `docs/` with Zensical and deploys it to GitHub Pages at `https://tomzxcode.github.io/agentic/` on every push to `main`.
 
 ### Rollback
 
@@ -85,4 +89,4 @@ There is no infrastructure-as-code.
 ## Secrets Management
 
 No secrets are stored by the app.
-Configuration comes from environment variables prefixed `AGENTIC_` or from `backend/.env` (`pydantic-settings`); the optional `ghx` and `slackx` CLIs use their own external credentials.
+Configuration comes from environment variables prefixed `AGENTIC_` or from a `.env` file in the working directory the server is started from (`pydantic-settings`); the optional `ghx` and `slackx` CLIs use their own external credentials.

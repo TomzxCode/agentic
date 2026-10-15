@@ -488,6 +488,8 @@ make coverage-frontend # frontend tests, write frontend/coverage/
 make lint              # ruff format + check
 make typecheck         # ty static type checking
 make build             # build the SPA into backend/static
+make docs              # build the documentation site into site/
+make docs-serve        # serve the documentation site with live reload
 make dev-worker        # run the agent-run worker on its own
 make dev-tray          # run the tray/global-hotkey companion on its own
 make run               # start the API (:8600), worker, frontend dev server (:5173), and tray
