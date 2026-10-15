@@ -211,6 +211,34 @@ def test_stream_task_rejects_an_unknown_task():
         assert client.get("/api/tasks/missing/stream").status_code == 404
 
 
+def test_stored_events_carry_the_payload_under_the_streams_key():
+    """A row is rendered from an event's payload, and the stream calls it
+    `data`; the stored endpoint has to answer with the same key so a replayed
+    run reads the same as a live one."""
+    create_db_and_tables()
+    with Session(engine) as session:
+        task = Task(title="events")
+        session.add(task)
+        session.commit()
+        session.refresh(task)
+        run = AgentRun(task_id=task.id, prompt="p", status=RunStatus.succeeded)
+        session.add(run)
+        session.commit()
+        session.refresh(run)
+        persist_event(
+            session,
+            run.id,
+            {"seq": 1, "type": "tool_call", "text": "read", "data": {"toolCallId": "c1", "status": "pending"}},
+        )
+        run_id, task_id = run.id, task.id
+
+    with TestClient(app) as client:
+        events = client.get(f"/api/runs/{run_id}/events").json()
+        assert events[0]["data"] == {"toolCallId": "c1", "status": "pending"}
+        assert "data_json" not in events[0]
+        client.delete(f"/api/tasks/{task_id}")
+
+
 def test_stream_run_delivers_events_written_after_subscribe():
     """A worker runs in another process, so its persisted events must be polled."""
     with TestClient(app) as client:

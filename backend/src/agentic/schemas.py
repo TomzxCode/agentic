@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Annotated, Any
 
-from pydantic import AfterValidator, BaseModel, ConfigDict
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field
 
 from .models import (
     AgentRun,
@@ -806,7 +806,10 @@ class AgentEventRead(ORMModel):
     seq: int
     type: str
     text: str
-    data_json: dict[str, Any]
+    # The payload the client renders a row from. An event arrives as `data` on
+    # the SSE stream, so the stored endpoint emits the same key; only the
+    # column is named `data_json`.
+    data_json: dict[str, Any] = Field(default_factory=dict, serialization_alias="data")
     created_at: datetime
 
 
