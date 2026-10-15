@@ -37,14 +37,16 @@ export default defineConfig({
         ]
       },
       workbox: {
-        navigateFallbackDenylist: [/^\/api/],
+        // /api and /saq are served by the backend, not the SPA, so the service
+        // worker must not answer their navigations with the precached index.
+        navigateFallbackDenylist: [/^\/api/, /^\/saq/],
         // Take over as soon as an update is available so fixed JS isn't served
         // from a stale precache.
         clientsClaim: true,
         skipWaiting: true,
         runtimeCaching: [
           {
-            urlPattern: ({ url }) => url.pathname.startsWith('/api'),
+            urlPattern: ({ url }) => url.pathname.startsWith('/api') || url.pathname.startsWith('/saq'),
             handler: 'NetworkOnly'
           }
         ]
@@ -81,6 +83,11 @@ export default defineConfig({
             }
           })
         }
+      },
+      // The SAQ run-queue monitor is served by the backend at /saq.
+      '/saq': {
+        target: API_TARGET,
+        changeOrigin: true
       }
     }
   },
