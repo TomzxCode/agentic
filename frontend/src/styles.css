@@ -78,10 +78,15 @@ h3 {
 /* Layout */
 .app {
   display: grid;
-  grid-template-columns: 300px 1fr;
+  grid-template-columns: var(--sidebar-width, 300px) 1fr;
   grid-template-rows: 1fr;
   height: 100%;
   height: 100dvh;
+}
+/* Dragging the sidebar handle must not select text or resize anything else. */
+.app.sidebar-resizing {
+  cursor: col-resize;
+  user-select: none;
 }
 .brand {
   display: flex;
@@ -111,6 +116,7 @@ h3 {
   margin-left: auto;
 }
 .sidebar {
+  position: relative;
   border-right: 1px solid var(--border);
   background: var(--bg-1);
   padding: 12px;
@@ -120,6 +126,36 @@ h3 {
   display: flex;
   flex-direction: column;
   min-height: 0;
+}
+/* Desktop-only resize handle on the sidebar's right edge. */
+.sidebar-resizer {
+  position: absolute;
+  top: 0;
+  right: -4px;
+  bottom: 0;
+  z-index: 5;
+  width: 9px;
+  cursor: col-resize;
+  touch-action: none;
+}
+.sidebar-resizer::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 2px;
+  transform: translateX(-50%);
+  background: transparent;
+  transition: background 0.15s ease;
+}
+.sidebar-resizer:hover::after,
+.sidebar-resizer:focus-visible::after,
+.app.sidebar-resizing .sidebar-resizer::after {
+  background: var(--accent);
+}
+.sidebar-resizer:focus-visible {
+  outline: none;
 }
 .side-scroll {
   flex: 1;
@@ -1999,6 +2035,11 @@ button.gantt-marker::after {
 @media (max-width: 760px) {
   .app {
     grid-template-columns: 1fr;
+  }
+
+  /* Sized by the drawer, not by the handle. */
+  .sidebar-resizer {
+    display: none;
   }
 
   /* Sidebar becomes an off-canvas drawer. */

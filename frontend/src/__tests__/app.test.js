@@ -614,4 +614,116 @@ describe('App', () => {
       expect(wrapper.get('.app').classes()).not.toContain('sidebar-dragging')
     })
   })
+
+  describe('sidebar resize', () => {
+    // The handle only exists on the desktop layout.
+    beforeEach(() => {
+      localStorage.clear()
+    })
+
+    function pointer(type, x) {
+      const event = new Event(type, { bubbles: true, cancelable: true })
+      event.clientX = x
+      event.button = 0
+      return event
+    }
+    const appWidth = (wrapper) => wrapper.get('.app').element.style.getPropertyValue('--sidebar-width')
+
+    async function drag(wrapper, from, to) {
+      wrapper.get('.sidebar-resizer').element.dispatchEvent(pointer('pointerdown', from))
+      await nextTick()
+      window.dispatchEvent(pointer('pointermove', to))
+      await nextTick()
+      window.dispatchEvent(pointer('pointerup', to))
+      await nextTick()
+    }
+
+    it('starts at the default width and drags with the handle', async () => {
+      const wrapper = mountApp()
+      await flushPromises()
+      expect(appWidth(wrapper)).toBe('300px')
+
+      const handle = wrapper.get('.sidebar-resizer')
+      handle.element.dispatchEvent(pointer('pointerdown', 500))
+      await nextTick()
+      expect(wrapper.get('.app').classes()).toContain('sidebar-resizing')
+
+      window.dispatchEvent(pointer('pointermove', 560))
+      await nextTick()
+      expect(appWidth(wrapper)).toBe('360px')
+
+      window.dispatchEvent(pointer('pointerup', 560))
+      await nextTick()
+      expect(wrapper.get('.app').classes()).not.toContain('sidebar-resizing')
+      expect(localStorage.getItem('agentic.sidebarWidth')).toBe('360')
+    })
+
+    it('clamps the drag to the minimum and maximum width', async () => {
+      const wrapper = mountApp()
+      await flushPromises()
+      await drag(wrapper, 500, 50)
+      expect(appWidth(wrapper)).toBe('260px')
+      await drag(wrapper, 500, 2000)
+      expect(appWidth(wrapper)).toBe('560px')
+    })
+
+    it('sizes with the keyboard from the separator', async () => {
+      const wrapper = mountApp()
+      await flushPromises()
+      const handle = wrapper.get('.sidebar-resizer')
+      await handle.trigger('keydown', { key: 'ArrowRight' })
+      expect(appWidth(wrapper)).toBe('310px')
+      await handle.trigger('keydown', { key: 'ArrowLeft', shiftKey: true })
+      expect(appWidth(wrapper)).toBe('270px')
+      await handle.trigger('keydown', { key: 'Home' })
+      expect(appWidth(wrapper)).toBe('260px')
+      await handle.trigger('keydown', { key: 'End' })
+      expect(appWidth(wrapper)).toBe('560px')
+      await handle.trigger('keydown', { key: 'Enter' })
+      expect(appWidth(wrapper)).toBe('300px')
+    })
+
+    it('restores the default width on double-click', async () => {
+      const wrapper = mountApp()
+      await flushPromises()
+      await drag(wrapper, 500, 640)
+      expect(appWidth(wrapper)).toBe('440px')
+      await wrapper.get('.sidebar-resizer').trigger('dblclick')
+      expect(appWidth(wrapper)).toBe('300px')
+      expect(localStorage.getItem('agentic.sidebarWidth')).toBe('300')
+    })
+
+    it('restores a stored width on mount', async () => {
+      localStorage.setItem('agentic.sidebarWidth', '420')
+      const wrapper = mountApp()
+      await flushPromises()
+      expect(appWidth(wrapper)).toBe('420px')
+    })
+
+    it('clamps a stored width into the allowed range', async () => {
+      localStorage.setItem('agentic.sidebarWidth', '5')
+      const wrapper = mountApp()
+      await flushPromises()
+      expect(appWidth(wrapper)).toBe('260px')
+    })
+
+    it('falls back to the default when nothing usable is stored', async () => {
+      localStorage.setItem('agentic.sidebarWidth', 'not-a-number')
+      const wrapper = mountApp()
+      await flushPromises()
+      expect(appWidth(wrapper)).toBe('300px')
+    })
+
+    it('does not resize on the mobile layout', async () => {
+      window.innerWidth = 375
+      const wrapper = mountApp()
+      await flushPromises()
+      wrapper.get('.sidebar-resizer').element.dispatchEvent(pointer('pointerdown', 500))
+      window.dispatchEvent(pointer('pointermove', 560))
+      await nextTick()
+      expect(wrapper.get('.app').classes()).not.toContain('sidebar-resizing')
+      expect(appWidth(wrapper)).toBe('300px')
+      window.innerWidth = 1024
+    })
+  })
 })

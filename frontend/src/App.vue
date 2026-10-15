@@ -505,6 +505,89 @@ function releaseDrawer(seq) {
   })
 }
 
+// --- Sidebar resize (desktop) ----------------------------------------------
+// On desktop the sidebar is a grid column of its own. A handle on its right
+// edge drags that column between a floor that keeps the list readable and a
+// ceiling that leaves the page usable. Width is a per-device preference, so it
+// is kept in localStorage rather than on the server.
+const SIDEBAR_DEFAULT_PX = 300
+// The floor keeps the Search / New task row and the nav icon row intact.
+const SIDEBAR_MIN_PX = 260
+const SIDEBAR_MAX_PX = 560
+const SIDEBAR_WIDTH_KEY = 'agentic.sidebarWidth'
+const sidebarWidth = ref(readStoredWidth())
+const sidebarResizing = ref(false)
+
+function readStoredWidth() {
+  let stored = NaN
+  try {
+    stored = Number(localStorage.getItem(SIDEBAR_WIDTH_KEY))
+  } catch {
+    // Storage can be blocked (private mode); fall back to the default.
+  }
+  return Number.isFinite(stored) && stored > 0 ? clampSidebarWidth(stored) : SIDEBAR_DEFAULT_PX
+}
+
+function clampSidebarWidth(px) {
+  return Math.round(Math.min(SIDEBAR_MAX_PX, Math.max(SIDEBAR_MIN_PX, px)))
+}
+
+function setSidebarWidth(px, persist = true) {
+  sidebarWidth.value = clampSidebarWidth(px)
+  if (!persist) return
+  try {
+    localStorage.setItem(SIDEBAR_WIDTH_KEY, String(sidebarWidth.value))
+  } catch {
+    // Not fatal: the width still applies for this session.
+  }
+}
+
+let resizeFrom = null
+
+function startResize(event) {
+  // Below 760px the sidebar is an off-canvas drawer, not a column to size.
+  if (window.innerWidth <= 760 || event.button > 0) return
+  resizeFrom = { x: event.clientX, width: sidebarWidth.value }
+  sidebarResizing.value = true
+  window.addEventListener('pointermove', moveResize)
+  window.addEventListener('pointerup', endResize)
+  window.addEventListener('pointercancel', endResize)
+  event.preventDefault()
+}
+
+function moveResize(event) {
+  if (!resizeFrom) return
+  // Not persisted until the drag ends, so a drag writes storage once.
+  setSidebarWidth(resizeFrom.width + (event.clientX - resizeFrom.x), false)
+}
+
+function endResize() {
+  if (!resizeFrom) return
+  resizeFrom = null
+  sidebarResizing.value = false
+  window.removeEventListener('pointermove', moveResize)
+  window.removeEventListener('pointerup', endResize)
+  window.removeEventListener('pointercancel', endResize)
+  setSidebarWidth(sidebarWidth.value)
+}
+
+function resetSidebarWidth() {
+  setSidebarWidth(SIDEBAR_DEFAULT_PX)
+}
+
+// The handle is a separator the keyboard can drive: arrows nudge it, Home/End
+// jump to the bounds, Enter restores the default.
+function onResizerKeydown(event) {
+  const step = event.shiftKey ? 40 : 10
+  if (event.key === 'ArrowLeft') setSidebarWidth(sidebarWidth.value - step)
+  else if (event.key === 'ArrowRight') setSidebarWidth(sidebarWidth.value + step)
+  else if (event.key === 'Home') setSidebarWidth(SIDEBAR_MIN_PX)
+  else if (event.key === 'End') setSidebarWidth(SIDEBAR_MAX_PX)
+  else if (event.key === 'Enter') resetSidebarWidth()
+  else return
+  event.preventDefault()
+}
+
 async function loadIssues() {
   if (!importRepo.value) return
   loadingIssues.value = true
@@ -629,12 +712,19 @@ onUnmounted(() => {
   window.removeEventListener('touchmove', moveSwipe)
   window.removeEventListener('touchend', endSwipe)
   window.removeEventListener('touchcancel', cancelSwipe)
+  window.removeEventListener('pointermove', moveResize)
+  window.removeEventListener('pointerup', endResize)
+  window.removeEventListener('pointercancel', endResize)
   stopHints()
 })
 </script>
 
 <template>
-  <div class="app" :class="{ 'sidebar-open': sidebarOpen, 'sidebar-dragging': sidebarDragging }">
+  <div
+    class="app"
+    :class="{ 'sidebar-open': sidebarOpen, 'sidebar-dragging': sidebarDragging, 'sidebar-resizing': sidebarResizing }"
+    :style="{ '--sidebar-width': `${sidebarWidth}px` }"
+  >
     <aside class="sidebar" :style="sidebarDragStyle">
       <div class="side-brand">
         <router-link to="/" class="brand">
@@ -975,6 +1065,20 @@ onUnmounted(() => {
           </router-link>
         </div>
       </nav>
+      <div
+        class="sidebar-resizer"
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="Resize task list"
+        :aria-valuenow="sidebarWidth"
+        :aria-valuemin="SIDEBAR_MIN_PX"
+        :aria-valuemax="SIDEBAR_MAX_PX"
+        tabindex="0"
+        title="Drag to resize, double-click to reset"
+        @pointerdown="startResize"
+        @keydown="onResizerKeydown"
+        @dblclick="resetSidebarWidth"
+      ></div>
     </aside>
 
     <div v-if="sidebarOpen || sidebarDragging" class="sidebar-backdrop" @click="sidebarOpen = false"></div>
