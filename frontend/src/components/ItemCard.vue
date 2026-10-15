@@ -19,7 +19,11 @@ const props = defineProps({
   showContent: { type: Boolean, default: true },
   showTimes: { type: Boolean, default: true },
   selectable: { type: Boolean, default: false },
-  selected: { type: Boolean, default: false }
+  selected: { type: Boolean, default: false },
+  // When set, the title opens the item's own view instead of its external URL,
+  // so a list of the user's items stays in the app. A row with no stored item
+  // (a live-only GitHub row) passes nothing and keeps the external link.
+  to: { type: String, default: null }
 })
 
 const kind = computed(() => String(props.item.kind || '').replace('_', ' '))
@@ -36,7 +40,8 @@ const kind = computed(() => String(props.item.kind || '').replace('_', ' '))
     </template>
 
     <template #title>
-      <a v-if="item.url" :href="item.url" target="_blank" class="title">{{ item.title || item.url }}</a>
+      <router-link v-if="to" :to="to" class="title">{{ item.title || item.url }}</router-link>
+      <a v-else-if="item.url" :href="item.url" target="_blank" class="title">{{ item.title || item.url }}</a>
       <span v-else class="title">{{ item.title }}</span>
     </template>
 

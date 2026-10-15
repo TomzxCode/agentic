@@ -128,6 +128,7 @@ async function refreshItem(itemId) {
         v-for="assoc in items"
         :key="assoc.id"
         :item="assoc.item"
+        :to="`/items/${assoc.item.id}`"
         :expanded="!!expanded[assoc.item.id]"
         :show-source="false"
       >

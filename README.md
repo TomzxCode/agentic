@@ -194,7 +194,9 @@ again to go back.
 
 The **Items** page lists every resource the app tracks (Slack threads, GitHub
 issues/PRs, Drive docs, URLs, notes) with per-source filters, search, and links
-to the tasks each one is used by.
+to the tasks each one is used by. Each item opens a page laid out for its type
+(a GitHub issue/PR with its state and author, a Slack thread as a transcript, a
+note's text, or a fetched link) with its linked tasks and people.
 
 People are linked to both tasks and items. A task page has a **People** panel to
 link someone from the directory (or add a new person), and a **Requested by**

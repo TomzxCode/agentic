@@ -80,7 +80,11 @@ async function load() {
 function subscribe() {
   closeStream?.()
   closeStream = openTaskStream(props.id, (ev) => {
-    if (ev.kind === 'task') load()
+    if (ev.kind !== 'task') return
+    load()
+    // The timeline links item events to the item's view, so keep the store's
+    // items fresh when the task's associations change.
+    if (ev.action === 'items_changed') store.loadItems().catch(() => {})
   })
 }
 
@@ -126,6 +130,8 @@ function onChanged() {
   load()
   // Auto-populated people may have joined the directory; keep the panel's picker fresh.
   store.loadPeople().catch(() => {})
+  // The timeline links item events to the item's view; keep its lookup fresh.
+  store.loadItems().catch(() => {})
   emit('changed')
 }
 
@@ -157,6 +163,8 @@ onMounted(async () => {
   await store.loadHarnesses().catch(() => {})
   await store.loadRepositories().catch(() => {})
   await store.loadPeople().catch(() => {})
+  // The timeline resolves item events against the store to link them.
+  await store.loadItems().catch(() => {})
   await load()
   subscribe()
 })

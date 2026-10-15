@@ -29,6 +29,7 @@ The web app is organized into these pages:
 | Graph (`/graph`) | The before/after dependency DAG. |
 | Metrics (`/metrics`) | Autonomy rate and yield, each against a stored baseline. |
 | Items (`/items`) | Every tracked resource, with per-source filters. |
+| Item (`/items/:id`) | One resource, laid out for its type, with its linked tasks and people. |
 | People (`/people`) | The people directory and what each is attached to. |
 | Repositories (`/repositories`) | Registered checkouts and their issues and pull requests. |
 | Settings (`/settings`) | Harnesses, repository groups, refresh policies, and link templates. |

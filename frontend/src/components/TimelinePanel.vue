@@ -59,6 +59,19 @@ async function focusEvent(marker) {
 
 onUnmounted(() => clearTimeout(highlightTimer))
 
+// An item event (item_added / item_removed) links to the item's view when the
+// item still exists, so the row resolves the recorded id against the store.
+// A deleted item has no view to open, so its row keeps the recorded message as
+// plain text.
+const ITEM_EVENT_TYPES = new Set(['item_added', 'item_removed'])
+
+function itemId(event) {
+  if (!ITEM_EVENT_TYPES.has(event?.type)) return null
+  const id = event?.data_json?.item_id
+  if (!id) return null
+  return store.items.some((entry) => entry.id === id) ? id : null
+}
+
 // Relationship fields show a name instead of an id. Prefer the label recorded
 // in the event; fall back to the current store (and then the raw id).
 function resolveValue(field, value, label) {
@@ -118,7 +131,11 @@ function changes(event) {
           <span class="dot"></span>
           <span class="grow">
             <span
-              >{{ event.message || event.type }} <span class="faint">· {{ event.type }}</span>
+              ><router-link v-if="itemId(event)" :to="`/items/${itemId(event)}`">{{
+                event.message || event.type
+              }}</router-link
+              ><span v-else>{{ event.message || event.type }}</span>
+              <span class="faint"> · {{ event.type }}</span>
               <span class="badge" :title="`Recorded via ${event.client} by a ${event.actor}`"
                 >{{ event.client }} · {{ event.actor }}</span
               ></span

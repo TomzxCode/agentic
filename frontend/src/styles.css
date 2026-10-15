@@ -952,6 +952,20 @@ button.tag-chip.active {
 .item .mono {
   overflow-wrap: anywhere;
 }
+/* The fetched body of an item, on its detail page: the issue or PR text, a
+   Slack transcript, a note, or a page's extracted text. */
+.item-body {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+/* A Slack thread keeps its own lines and reads better with a little air. */
+.slack-thread {
+  border-left: 2px solid var(--border);
+  padding-left: 12px;
+}
 /* Bulk select on the tasks dashboard */
 .bulk-bar {
   background: var(--bg-2);

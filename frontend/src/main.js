@@ -4,6 +4,7 @@ import App from './App.vue'
 import TasksView from './views/TasksView.vue'
 import TaskView from './views/TaskView.vue'
 import ItemsView from './views/ItemsView.vue'
+import ItemDetailView from './views/ItemDetailView.vue'
 import PeopleView from './views/PeopleView.vue'
 import PersonView from './views/PersonView.vue'
 import RepositoriesView from './views/RepositoriesView.vue'
@@ -27,6 +28,7 @@ const router = createRouter({
     { path: '/graph', name: 'graph', component: DependencyGraphView },
     { path: '/metrics', name: 'metrics', component: MetricsView },
     { path: '/items', name: 'items', component: ItemsView },
+    { path: '/items/:id', name: 'item', component: ItemDetailView, props: true },
     { path: '/people', name: 'people', component: PeopleView },
     { path: '/person/:id', name: 'person', component: PersonView, props: true },
     { path: '/repositories', name: 'repositories', component: RepositoriesView },

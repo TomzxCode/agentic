@@ -136,6 +136,7 @@ export const api = {
       const query = qs.toString()
       return request(`/items${query ? `?${query}` : ''}`)
     },
+    get: (id) => request(`/items/${id}`),
     create: (body) => request('/items', { method: 'POST', body }),
     update: (id, body) => request(`/items/${id}`, { method: 'PATCH', body }),
     refresh: (id) => request(`/items/${id}/refresh`, { method: 'POST' }),

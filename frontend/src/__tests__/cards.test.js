@@ -73,6 +73,12 @@ describe('ItemCard', () => {
     expect(wrapper.text()).toContain('added just now')
   })
 
+  it('opens the item view when a `to` target is given', () => {
+    const wrapper = mount(ItemCard, { props: { item: item(), to: '/items/i1' }, ...stub })
+    expect(wrapper.get('a.title').attributes('href')).toBe('/items/i1')
+    expect(wrapper.find('a[target="_blank"]').exists()).toBe(false)
+  })
+
   it('shows the GitHub state badge of a pull request', () => {
     const wrapper = mount(ItemCard, {
       props: { item: item({ kind: 'pull_request', metadata_json: { state: 'MERGED' } }) }
@@ -166,12 +172,12 @@ describe('TaskLink', () => {
 })
 
 describe('ItemLink', () => {
-  it('renders a source badge and title linking to the resources list', () => {
+  it('renders a source badge and title linking to the item view', () => {
     const wrapper = mount(ItemLink, {
       props: { item: { id: 'i1', source: 'note', title: 'A note' } },
       ...stub
     })
-    expect(wrapper.get('a').attributes('href')).toBe('/items')
+    expect(wrapper.get('a').attributes('href')).toBe('/items/i1')
     expect(wrapper.get('.chip-source').text()).toBe('Note')
     expect(wrapper.text()).toContain('A note')
   })

@@ -425,6 +425,8 @@ describe('ItemsView', () => {
     await flushPromises()
     expect(wrapper.text()).toContain('Issue one')
     expect(wrapper.text()).toContain('A note')
+    // An item's title opens its own view.
+    expect(wrapper.get('a.title[href="/items/i1"]').text()).toBe('Issue one')
     // The linked task chip shows the task's status as an icon.
     expect(wrapper.find('.task-status.st-in_progress').exists()).toBe(true)
 

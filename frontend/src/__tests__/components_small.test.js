@@ -10,7 +10,11 @@ import { store } from '../store'
 afterEach(() => {
   vi.unstubAllGlobals()
   store.toast = null
+  store.items = []
 })
+
+const RouterLinkStub = { props: ['to'], template: '<a :href="to"><slot /></a>' }
+const routerStub = { global: { stubs: { RouterLink: RouterLinkStub } } }
 
 describe('StatusIcon', () => {
   it('renders the status class and an accessible label', () => {
@@ -201,6 +205,37 @@ describe('TimelinePanel', () => {
   it('ignores malformed change data', () => {
     const wrapper = mount(TimelinePanel, { props: { events: [event({ data_json: { changes: 'nope' } })] } })
     expect(wrapper.find('.changes').exists()).toBe(false)
+  })
+
+  it('links an item event to the item view when the item still exists', () => {
+    store.items = [{ id: 'i1', source: 'github', title: 'Fix the bug' }]
+    const wrapper = mount(TimelinePanel, {
+      props: {
+        events: [
+          event({
+            type: 'item_added',
+            message: 'Associated [github] Fix the bug',
+            data_json: { item_id: 'i1' }
+          })
+        ]
+      },
+      ...routerStub
+    })
+    const link = wrapper.get('.timeline a')
+    expect(link.attributes('href')).toBe('/items/i1')
+    expect(link.text()).toBe('Associated [github] Fix the bug')
+  })
+
+  it('leaves an item event as plain text when the item no longer exists', () => {
+    store.items = []
+    const wrapper = mount(TimelinePanel, {
+      props: {
+        events: [event({ type: 'item_removed', message: 'Item unassociated', data_json: { item_id: 'gone' } })]
+      },
+      ...routerStub
+    })
+    expect(wrapper.find('.timeline a').exists()).toBe(false)
+    expect(wrapper.text()).toContain('Item unassociated')
   })
 })
 

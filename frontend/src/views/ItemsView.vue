@@ -175,7 +175,13 @@ onMounted(async () => {
     <div v-if="loading" class="empty"><span class="spinner"></span></div>
     <div v-else-if="!visible.length" class="empty">No resources.</div>
     <div v-else>
-      <ItemCard v-for="item in visible" :key="item.id" :item="item" :expanded="!!expanded[item.id]">
+      <ItemCard
+        v-for="item in visible"
+        :key="item.id"
+        :item="item"
+        :to="`/items/${item.id}`"
+        :expanded="!!expanded[item.id]"
+      >
         <template #actions>
           <button class="btn sm ghost" title="Refresh" @click="refresh(item)">↻</button>
           <button class="btn sm ghost" title="Expand" @click="expanded[item.id] = !expanded[item.id]">
