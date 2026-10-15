@@ -174,12 +174,13 @@ def refresh_due_items(session: Session, policies: dict[str, str], now=None, orig
         return _refresh_report(0, [])
 
     items = list(session.exec(select(SourceItem).where(col(SourceItem.source).in_(active))).all())
-    due = [
-        item
-        for item in items
-        if parsed[item.source] is not None
-        and is_due(parsed[item.source], age=item_age(item, now), fetched_at=item.fetched_at, now=now)
-    ]
+    due = []
+    for item in items:
+        # A local narrows the policy for the checker; a repeated lookup in the
+        # comprehension does not.
+        policy = parsed[item.source]
+        if policy is not None and is_due(policy, age=item_age(item, now), fetched_at=item.fetched_at, now=now):
+            due.append(item)
     entries = _refresh_entries(session, due, now)
     _record_runs(session, active, entries, now, origin)
     return _refresh_report(len(items), entries)
