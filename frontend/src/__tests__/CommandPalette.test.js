@@ -57,6 +57,19 @@ describe('CommandPalette', () => {
     expect(wrapper.findAll('.palette-group-title').map((t) => t.text())).toEqual(['Navigation', 'Tags', 'Tasks'])
   })
 
+  it('lists People after Tasks', () => {
+    const wrapper = mount(CommandPalette, {
+      props: {
+        items: [
+          { id: 'p', label: 'Ada', group: 'People' },
+          { id: 't', label: 'Task', group: 'Tasks' }
+        ]
+      },
+      attachTo: document.body
+    })
+    expect(wrapper.findAll('.palette-group-title').map((t) => t.text())).toEqual(['Tasks', 'People'])
+  })
+
   it('shows an empty state when nothing matches', async () => {
     const wrapper = mountPalette()
     await wrapper.get('.palette-input').setValue('zzzzz')

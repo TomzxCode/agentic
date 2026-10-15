@@ -4,7 +4,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 const props = defineProps({ items: { type: Array, required: true } })
 const emit = defineEmits(['close', 'select'])
 
-const GROUP_ORDER = ['Actions', 'This task', 'Navigation', 'Tags', 'Tasks']
+const GROUP_ORDER = ['Actions', 'This task', 'Navigation', 'Tags', 'Tasks', 'People']
 
 const query = ref('')
 const highlighted = ref(0)
@@ -106,7 +106,7 @@ onBeforeUnmount(() => {
         ref="input"
         v-model="query"
         class="palette-input"
-        placeholder="Search tasks and actions…"
+        placeholder="Search tasks, people, and actions…"
         type="text"
         autocomplete="off"
         spellcheck="false"
