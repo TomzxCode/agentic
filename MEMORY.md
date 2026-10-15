@@ -1,5 +1,10 @@
 # Memory
 
+## 2026-10-15: UI-only layout preferences live in localStorage, not /api/settings
+
+- The desktop sidebar width is a per-device preference (`agentic.sidebarWidth`, 260-560px), read and written in `App.vue`. Keep device-specific UI state (size, position, open/closed) in localStorage: the `setting` table is the server's state and is shared by every client, so a width there would fight across devices.
+- 260px is the sidebar's floor because the bottom Search/New task row and the nav icon row start clipping below it; if that nav grows, re-measure before lowering the minimum.
+
 ## 2026-10-15: a screen-edge swipe never reaches the page on mobile
 
 - Android's system back gesture (and iOS Safari's edge back-swipe) owns the outer ~25px of the screen edge and consumes a touch that starts there before the page sees it, so an edge-triggered drawer or carousel cannot be made reliable by widening the zone. The sidebar drawer opens on a rightward swipe from anywhere on the page instead (`App.vue`), which also steers around the Gantt and dependency graph strips that scroll sideways.
