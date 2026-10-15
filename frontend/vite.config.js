@@ -37,16 +37,21 @@ export default defineConfig({
         ]
       },
       workbox: {
-        // /api and /saq are served by the backend, not the SPA, so the service
-        // worker must not answer their navigations with the precached index.
-        navigateFallbackDenylist: [/^\/api/, /^\/saq/],
+        // /api, /saq, /docs and the OpenAPI schema are served by the backend,
+        // not the SPA, so the service worker must not answer their navigations
+        // with the precached index.
+        navigateFallbackDenylist: [/^\/api/, /^\/saq/, /^\/docs/, /^\/openapi\.json$/],
         // Take over as soon as an update is available so fixed JS isn't served
         // from a stale precache.
         clientsClaim: true,
         skipWaiting: true,
         runtimeCaching: [
           {
-            urlPattern: ({ url }) => url.pathname.startsWith('/api') || url.pathname.startsWith('/saq'),
+            urlPattern: ({ url }) =>
+              url.pathname.startsWith('/api') ||
+              url.pathname.startsWith('/saq') ||
+              url.pathname.startsWith('/docs') ||
+              url.pathname === '/openapi.json',
             handler: 'NetworkOnly'
           }
         ]
@@ -84,7 +89,16 @@ export default defineConfig({
           })
         }
       },
-      // The SAQ run-queue monitor is served by the backend at /saq.
+      // The API reference (Scalar), its OpenAPI schema, and the SAQ run-queue
+      // monitor are served by the backend, not the SPA.
+      '/docs': {
+        target: API_TARGET,
+        changeOrigin: true
+      },
+      '/openapi.json': {
+        target: API_TARGET,
+        changeOrigin: true
+      },
       '/saq': {
         target: API_TARGET,
         changeOrigin: true
