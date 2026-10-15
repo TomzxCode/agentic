@@ -402,6 +402,109 @@ async function changeStatus(task, status) {
   }
 }
 
+// --- Sidebar drawer swipe ---------------------------------------------------
+// Below 760px the sidebar is an off-canvas drawer. Swiping right opens it and
+// swiping left while it is open closes it. An opening swipe is not restricted to
+// the screen edge: Android's own back gesture owns the outer few millimetres of
+// the edge and swallows a swipe that starts there, so the gesture starts
+// anywhere the page does not already use a sideways drag. Plain touch events,
+// never preventDefault, so vertical scrolling is untouched.
+const SIDEBAR_LOCK_PX = 12 // horizontal travel that claims the gesture
+const SIDEBAR_FLICK_MS = 250 // a quick swipe this short still commits
+const SIDEBAR_FLICK_PX = 24
+// While a swipe is in flight this is how far the drawer has been dragged
+// (0 closed, 1 open). It is null the rest of the time, when CSS owns the
+// transform; dragging holds the release back one frame so the transition runs.
+const sidebarDrag = ref(null)
+const sidebarDragging = ref(false)
+const sidebarDragStyle = computed(() =>
+  sidebarDrag.value === null ? null : { transform: `translateX(${(sidebarDrag.value - 1) * 100}%)` }
+)
+let swipe = null
+let swipeSeq = 0
+
+// A sideways swipe that starts on a strip that scrolls sideways belongs to that
+// strip, and one that starts in a text field belongs to the caret. `.main` is
+// the page scroller itself, so it is never treated as a sideways strip.
+function gestureIsOwned(target) {
+  if (!(target instanceof Element)) return false
+  if (target.closest('input, textarea, [contenteditable]')) return true
+  for (let node = target; node instanceof Element; node = node.parentElement) {
+    if (node.classList.contains('main')) return false
+    if (node.scrollWidth > node.clientWidth + 1) return true
+  }
+  return false
+}
+
+function beginSwipe(event) {
+  // Only on the mobile layout, one finger, and never under a modal or palette.
+  if (window.innerWidth > 760 || event.touches.length !== 1) return
+  if (showNew.value || paletteOpen.value) return
+  const opening = !sidebarOpen.value
+  if (opening && gestureIsOwned(event.target)) return
+  const touch = event.touches[0]
+  swipe = {
+    seq: ++swipeSeq,
+    startX: touch.clientX,
+    startY: touch.clientY,
+    startTime: Date.now(),
+    width: Math.max(window.innerWidth, 1),
+    opening,
+    decided: false,
+    dx: 0,
+    progress: opening ? 0 : 1
+  }
+}
+
+function moveSwipe(event) {
+  if (!swipe || event.touches.length !== 1) return
+  const touch = event.touches[0]
+  const dx = touch.clientX - swipe.startX
+  const dy = touch.clientY - swipe.startY
+  if (!swipe.decided) {
+    // Wait until the finger has committed to a horizontal swipe in the useful
+    // direction. Touch sampling drifts sideways early on, so one sideways
+    // sample must not kill the gesture; only a drag whose sideways travel keeps
+    // up with its horizontal travel (a page scroll) is left alone.
+    const along = swipe.opening ? dx : -dx
+    if (along < SIDEBAR_LOCK_PX || Math.abs(dy) >= along) return
+    swipe.decided = true
+    sidebarDragging.value = true
+  }
+  swipe.dx = dx
+  const raw = swipe.opening ? dx / swipe.width : 1 + dx / swipe.width
+  swipe.progress = Math.min(1, Math.max(0, raw))
+  sidebarDrag.value = swipe.progress
+}
+
+function endSwipe() {
+  if (!swipe) return
+  const gesture = swipe
+  swipe = null
+  if (!gesture.decided) return
+  const flick = Date.now() - gesture.startTime < SIDEBAR_FLICK_MS && Math.abs(gesture.dx) >= SIDEBAR_FLICK_PX
+  const committed = flick || (gesture.opening ? gesture.progress > 0.5 : gesture.progress < 0.5)
+  sidebarOpen.value = gesture.opening ? committed : !committed
+  releaseDrawer(gesture.seq)
+}
+
+function cancelSwipe() {
+  if (!swipe) return
+  const seq = swipe.seq
+  swipe = null
+  releaseDrawer(seq)
+}
+
+// Let the drawer render at the released position with the transition back on,
+// then hand it back to CSS, so it eases from where the finger let go instead of
+// snapping.
+function releaseDrawer(seq) {
+  sidebarDragging.value = false
+  requestAnimationFrame(() => {
+    if (swipeSeq === seq) sidebarDrag.value = null
+  })
+}
+
 async function loadIssues() {
   if (!importRepo.value) return
   loadingIssues.value = true
@@ -511,6 +614,10 @@ async function createTask() {
 
 onMounted(async () => {
   window.addEventListener('keydown', onGlobalKeydown)
+  window.addEventListener('touchstart', beginSwipe)
+  window.addEventListener('touchmove', moveSwipe)
+  window.addEventListener('touchend', endSwipe)
+  window.addEventListener('touchcancel', cancelSwipe)
   await refresh()
   await store.loadGroups().catch(() => {})
   await store.loadRepositories().catch(() => {})
@@ -518,13 +625,17 @@ onMounted(async () => {
 })
 onUnmounted(() => {
   window.removeEventListener('keydown', onGlobalKeydown)
+  window.removeEventListener('touchstart', beginSwipe)
+  window.removeEventListener('touchmove', moveSwipe)
+  window.removeEventListener('touchend', endSwipe)
+  window.removeEventListener('touchcancel', cancelSwipe)
   stopHints()
 })
 </script>
 
 <template>
-  <div class="app" :class="{ 'sidebar-open': sidebarOpen }">
-    <aside class="sidebar">
+  <div class="app" :class="{ 'sidebar-open': sidebarOpen, 'sidebar-dragging': sidebarDragging }">
+    <aside class="sidebar" :style="sidebarDragStyle">
       <div class="side-brand">
         <router-link to="/" class="brand">
           <svg viewBox="0 0 512 512" aria-hidden="true">
@@ -547,6 +658,11 @@ onUnmounted(() => {
           </svg>
           <span>Agentic</span>
         </router-link>
+        <button class="btn sm sidebar-close" aria-label="Close task list" @click="sidebarOpen = false">
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+            <path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none" />
+          </svg>
+        </button>
       </div>
       <div v-if="store.tags.length" class="side-filters" aria-label="Filter by tag">
         <button
@@ -861,7 +977,7 @@ onUnmounted(() => {
       </nav>
     </aside>
 
-    <div v-if="sidebarOpen" class="sidebar-backdrop" @click="sidebarOpen = false"></div>
+    <div v-if="sidebarOpen || sidebarDragging" class="sidebar-backdrop" @click="sidebarOpen = false"></div>
 
     <button class="btn menu-btn" aria-label="Toggle task list" @click="sidebarOpen = !sidebarOpen">
       <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">

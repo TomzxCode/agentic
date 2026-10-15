@@ -482,5 +482,136 @@ describe('App', () => {
     await flushPromises()
     await wrapper.get('.menu-btn').trigger('click')
     expect(wrapper.get('.app').classes()).toContain('sidebar-open')
+    await wrapper.get('.sidebar-close').trigger('click')
+    expect(wrapper.get('.app').classes()).not.toContain('sidebar-open')
+  })
+
+  describe('sidebar swipe', () => {
+    // The drawer only exists below the 760px breakpoint.
+    beforeEach(() => {
+      window.innerWidth = 375
+    })
+    afterEach(() => {
+      window.innerWidth = 1024
+    })
+
+    // jsdom has no TouchEvent, so build a plain event carrying the touches the
+    // handler reads.
+    function touch(type, x, y) {
+      const event = new Event(type, { bubbles: true, cancelable: true })
+      const point = { clientX: x, clientY: y }
+      event.touches = type === 'touchend' || type === 'touchcancel' ? [] : [point]
+      event.changedTouches = [point]
+      return event
+    }
+    const start = (x, y = 300, el = document.body) => el.dispatchEvent(touch('touchstart', x, y))
+    const move = (x, y = 300, el = document.body) => el.dispatchEvent(touch('touchmove', x, y))
+    const end = (x, y = 300, el = document.body) => el.dispatchEvent(touch('touchend', x, y))
+
+    it('opens the drawer on a rightward swipe', async () => {
+      const wrapper = mountApp()
+      await flushPromises()
+      start(200)
+      move(230)
+      await nextTick()
+      expect(wrapper.get('.app').classes()).toContain('sidebar-dragging')
+      move(330)
+      end(330)
+      await nextTick()
+      expect(wrapper.get('.app').classes()).toContain('sidebar-open')
+    })
+
+    it('opens from a swipe that starts at the screen edge', async () => {
+      const wrapper = mountApp()
+      await flushPromises()
+      start(2)
+      move(60)
+      move(320)
+      end(320)
+      await nextTick()
+      expect(wrapper.get('.app').classes()).toContain('sidebar-open')
+    })
+
+    it('opens the drawer on a quick flick, short of half the screen', async () => {
+      const wrapper = mountApp()
+      await flushPromises()
+      start(200)
+      move(240)
+      end(240)
+      await nextTick()
+      expect(wrapper.get('.app').classes()).toContain('sidebar-open')
+    })
+
+    it('opens after an early sideways drift', async () => {
+      const wrapper = mountApp()
+      await flushPromises()
+      start(200, 300)
+      move(212, 340)
+      move(330, 340)
+      await nextTick()
+      expect(wrapper.get('.app').classes()).toContain('sidebar-dragging')
+      end(330, 340)
+      await nextTick()
+      expect(wrapper.get('.app').classes()).toContain('sidebar-open')
+    })
+
+    it('leaves a sideways-scrolling strip alone', async () => {
+      const wrapper = mountApp()
+      await flushPromises()
+      const strip = document.createElement('div')
+      Object.defineProperty(strip, 'clientWidth', { value: 300 })
+      Object.defineProperty(strip, 'scrollWidth', { value: 900 })
+      wrapper.get('.main').element.appendChild(strip)
+      start(200, 300, strip)
+      move(340, 300, strip)
+      end(340, 300, strip)
+      await nextTick()
+      expect(wrapper.get('.app').classes()).not.toContain('sidebar-open')
+    })
+
+    it('ignores a vertical drag', async () => {
+      const wrapper = mountApp()
+      await flushPromises()
+      start(200, 100)
+      move(220, 500)
+      end(220, 500)
+      await nextTick()
+      expect(wrapper.get('.app').classes()).not.toContain('sidebar-open')
+    })
+
+    it('does not open the drawer while a modal is open', async () => {
+      const wrapper = mountApp()
+      await flushPromises()
+      await wrapper.get('.new-task').trigger('click')
+      start(10)
+      move(320)
+      end(320)
+      await nextTick()
+      expect(wrapper.get('.app').classes()).not.toContain('sidebar-open')
+    })
+
+    it('closes the drawer on a leftward swipe', async () => {
+      const wrapper = mountApp()
+      await flushPromises()
+      await wrapper.get('.menu-btn').trigger('click')
+      start(320)
+      move(180)
+      move(40)
+      end(40)
+      await nextTick()
+      expect(wrapper.get('.app').classes()).not.toContain('sidebar-open')
+    })
+
+    it('springs back on a swipe too short to commit', async () => {
+      const wrapper = mountApp()
+      await flushPromises()
+      await wrapper.get('.menu-btn').trigger('click')
+      start(320)
+      move(300)
+      end(300)
+      await nextTick()
+      expect(wrapper.get('.app').classes()).toContain('sidebar-open')
+      expect(wrapper.get('.app').classes()).not.toContain('sidebar-dragging')
+    })
   })
 })
