@@ -8,9 +8,10 @@ from contextlib import asynccontextmanager, suppress
 import structlog
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from saq.web.starlette import saq_web
+from scalar_fastapi import add_scalar_reference
 from sqlmodel import Session
 from starlette.types import ASGIApp, Receive, Scope, Send
 
@@ -95,7 +96,17 @@ async def lifespan(app: FastAPI):
     await close_queue()
 
 
-app = FastAPI(title="Agentic", version="0.1.0", lifespan=lifespan)
+app = FastAPI(title="Agentic", version="0.1.0", lifespan=lifespan, docs_url=None, redoc_url=None)
+
+# Render the OpenAPI reference with Scalar at /docs (Swagger UI and ReDoc are off).
+add_scalar_reference(app, route="/docs")
+
+
+@app.get("/redoc", include_in_schema=False)
+def redoc_removed() -> None:
+    """ReDoc is no longer served; the reference lives at /docs."""
+    raise HTTPException(status_code=404, detail="ReDoc is not served; see /docs")
+
 
 app.add_middleware(
     CORSMiddleware,
@@ -162,6 +173,13 @@ class _LiveQueueRegistry:
 
 def _mount_saq_monitor() -> None:
     """Serve the SAQ run-queue monitor at /saq (a read/retry/abort view)."""
+
+    # The Mount below only matches "/saq/..." (its regex is ^/saq/), so the bare
+    # "/saq" would otherwise fall through to the SPA catch-all and render blank.
+    @app.get("/saq", include_in_schema=False)
+    def saq_redirect() -> RedirectResponse:
+        return RedirectResponse(url="/saq/")
+
     app.mount("/saq", _LiveQueueRegistry(saq_web("/saq", queues=[])), name="saq")
 
 

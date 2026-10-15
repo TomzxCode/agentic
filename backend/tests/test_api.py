@@ -222,6 +222,11 @@ def test_saq_monitor_serves_the_queue():
         assert "SAQ" in client.get("/saq/").text
         assert client.get("/saq/static/app.js").status_code == 200
 
+        # The bare path redirects to the mount point, which needs the trailing slash.
+        redirect = client.get("/saq", follow_redirects=False)
+        assert redirect.status_code == 307
+        assert redirect.headers["location"] == "/saq/"
+
         task_id = client.post("/api/tasks", json={"title": "Monitored run"}).json()["id"]
         run = client.post(f"/api/tasks/{task_id}/runs", json={"prompt": "hello"}).json()
 
