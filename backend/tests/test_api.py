@@ -215,3 +215,21 @@ def test_harnesses_are_seeded():
 def test_health():
     with TestClient(app) as client:
         assert client.get("/api/health").json()["status"] == "ok"
+
+
+def test_saq_monitor_serves_the_queue():
+    with TestClient(app) as client:
+        assert "SAQ" in client.get("/saq/").text
+        assert client.get("/saq/static/app.js").status_code == 200
+
+        task_id = client.post("/api/tasks", json={"title": "Monitored run"}).json()["id"]
+        run = client.post(f"/api/tasks/{task_id}/runs", json={"prompt": "hello"}).json()
+
+        info = client.get("/saq/api/queues/default").json()["queue"]
+        assert info["name"] == "default"
+        assert info["queued"] == 1
+        assert info["jobs"] and info["jobs"][0]["function"] == "process_run"
+
+        # Abort the queued job so it does not leak into another test's worker.
+        assert client.post(f"/api/runs/{run['id']}/cancel").status_code == 200
+        client.delete(f"/api/tasks/{task_id}")

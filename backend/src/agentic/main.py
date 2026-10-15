@@ -10,7 +10,9 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+from saq.web.starlette import saq_web
 from sqlmodel import Session
+from starlette.types import ASGIApp, Receive, Scope, Send
 
 from .agents import seed_harnesses
 from .config import settings
@@ -138,6 +140,31 @@ def health() -> dict[str, str]:
     return {"status": "ok", "service": "agentic"}
 
 
+class _LiveQueueRegistry:
+    """Point the SAQ web UI at the process-wide queue before each request.
+
+    ``saq_web`` captures the queues it is given in a module global, but the app
+    builds its queue lazily (and the test suite rebuilds it per test), so the
+    live queue is resolved per request rather than wired once at import.
+    """
+
+    def __init__(self, inner: ASGIApp) -> None:
+        self._inner = inner
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] == "http":
+            from saq.web import starlette as saq_starlette
+
+            queue = await get_queue()
+            saq_starlette.QUEUES[queue.name] = queue
+        await self._inner(scope, receive, send)
+
+
+def _mount_saq_monitor() -> None:
+    """Serve the SAQ run-queue monitor at /saq (a read/retry/abort view)."""
+    app.mount("/saq", _LiveQueueRegistry(saq_web("/saq", queues=[])), name="saq")
+
+
 def _mount_frontend() -> None:
     static_dir = settings.static_dir
     if not (static_dir / "index.html").exists():
@@ -157,4 +184,5 @@ def _mount_frontend() -> None:
         return FileResponse(static_dir / "index.html")
 
 
+_mount_saq_monitor()
 _mount_frontend()

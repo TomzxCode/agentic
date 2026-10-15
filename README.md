@@ -65,7 +65,9 @@ harness is just a command row in the `harness` table.
 Each agent run is a **job on a queue** (SAQ, backed by SQLite by default), not an
 in-process task. The API only enqueues; one or more worker processes dequeue and
 run the harness. That way a long agent turn survives an API restart and can be
-retried, and workers scale independently of the API.
+retried, and workers scale independently of the API. The queue has a built-in
+monitor at `/saq` (SAQ's web UI): it lists queued, active, and finished jobs and
+can retry or abort one.
 
 ```
 FastAPI ──enqueue──▶ queue (SQLite) ◀──dequeue── worker ──spawn──▶ opencode acp   ┐
