@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from contextlib import asynccontextmanager
+import asyncio
+from contextlib import asynccontextmanager, suppress
 
 import structlog
 from fastapi import FastAPI, HTTPException
@@ -41,6 +42,39 @@ from .routers import tags as tags_router
 log = structlog.get_logger(__name__)
 
 
+def _refresh_due_once() -> dict:
+    """Run one pass of the refresh policy in a worker thread (slackx/ghx block).
+
+    Opens its own session so the blocking fetches never touch the event loop's
+    connection.
+    """
+    from .refresh import policies_from_settings
+    from .routers.items import refresh_due_items
+    from .settings_store import get_settings
+
+    with Session(engine) as session:
+        policies = policies_from_settings(get_settings(session))
+        if not any(text.strip() for text in policies.values()):
+            return {"refreshed": 0}
+        return refresh_due_items(session, policies)
+
+
+async def _refresh_due_forever() -> None:
+    """Tick on a timer and refresh the items the policy says are due."""
+    tick = settings.item_refresh_tick
+    if tick <= 0:
+        return
+    while True:
+        await asyncio.sleep(tick)
+        try:
+            result = await asyncio.to_thread(_refresh_due_once)
+        except Exception as exc:  # noqa: BLE001
+            log.warning("item refresh tick failed", error=str(exc))
+            continue
+        if result.get("refreshed"):
+            log.info("refreshed due items", refreshed=result["refreshed"])
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     create_db_and_tables()
@@ -49,8 +83,13 @@ async def lifespan(app: FastAPI):
     # Connect the run queue and fail any run left behind by a previous process.
     await get_queue()
     await reconcile_runs()
+    # Re-fetch Slack/GitHub items on the configured schedule.
+    refresh_task = asyncio.create_task(_refresh_due_forever())
     log.info("agentic ready", data_dir=str(settings.data_dir))
     yield
+    refresh_task.cancel()
+    with suppress(asyncio.CancelledError):
+        await refresh_task
     await close_queue()
 
 

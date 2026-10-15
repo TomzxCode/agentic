@@ -12,6 +12,7 @@ const router = useRouter()
 const SECTIONS = [
   { id: 'sessions', label: 'Session links' },
   { id: 'harnesses', label: 'Agent harnesses' },
+  { id: 'refresh', label: 'Refresh' },
   { id: 'groups', label: 'Repository groups' }
 ]
 const active = ref(SECTIONS.some((s) => s.id === route.query.section) ? route.query.section : SECTIONS[0].id)
@@ -19,6 +20,7 @@ const active = ref(SECTIONS.some((s) => s.id === route.query.section) ? route.qu
 function select(id) {
   active.value = id
   router.replace({ query: { section: id } })
+  if (id === 'refresh') previewAllRefresh()
 }
 
 watch(
@@ -47,6 +49,70 @@ const savingLinks = ref(false)
 const savedLinks = ref(false)
 let savedTimer
 
+const refreshForm = reactive({ slack_refresh_policy: '', github_refresh_policy: '' })
+const refreshDefaults = ref({})
+const refreshPreviews = reactive({ slack_refresh_policy: null, github_refresh_policy: null })
+const savingRefresh = ref('')
+const savedRefresh = ref('')
+let savedRefreshTimer
+const previewTimers = {}
+
+// Slack threads and GitHub issues/PRs refresh on their own schedules.
+const REFRESH_FIELDS = [
+  { key: 'slack_refresh_policy', label: 'Slack threads' },
+  { key: 'github_refresh_policy', label: 'GitHub issues/PRs' }
+]
+
+function formatDuration(seconds) {
+  if (seconds == null) return 'never'
+  for (const [label, size] of [
+    ['w', 604800],
+    ['d', 86400],
+    ['h', 3600],
+    ['m', 60],
+    ['s', 1]
+  ]) {
+    if (seconds >= size && seconds % size === 0) return `${seconds / size}${label}`
+  }
+  return `${seconds}s`
+}
+
+// Explain a policy as age bands, using the server's parser so the preview and
+// the saved behavior never disagree. Best effort: a backend without the
+// endpoint simply shows no preview.
+async function previewRefresh(key) {
+  if (typeof api.settings.previewRefreshPolicy !== 'function') return
+  try {
+    refreshPreviews[key] = await api.settings.previewRefreshPolicy(refreshForm[key])
+  } catch (e) {
+    refreshPreviews[key] = { valid: false, error: e.message }
+  }
+}
+
+function previewAllRefresh() {
+  return Promise.all(REFRESH_FIELDS.map((field) => previewRefresh(field.key)))
+}
+
+function onRefreshInput(key) {
+  clearTimeout(previewTimers[key])
+  previewTimers[key] = setTimeout(() => previewRefresh(key), 300)
+}
+
+async function saveRefresh(key) {
+  savingRefresh.value = key
+  try {
+    await api.settings.update({ [key]: refreshForm[key] })
+    savedRefresh.value = key
+    clearTimeout(savedRefreshTimer)
+    savedRefreshTimer = setTimeout(() => (savedRefresh.value = ''), 1500)
+    await previewRefresh(key)
+  } catch (e) {
+    store.notify(e.message, true)
+  } finally {
+    savingRefresh.value = ''
+  }
+}
+
 async function loadRepositories() {
   await store.loadRepositories().catch((e) => store.notify(e.message, true))
 }
@@ -70,6 +136,10 @@ async function loadSettings() {
     terminal_url_template: data.overrides.terminal_url_template ?? '',
     editor_url_template: data.overrides.editor_url_template ?? ''
   })
+  refreshDefaults.value = data.defaults
+  refreshForm.slack_refresh_policy = data.overrides.slack_refresh_policy ?? ''
+  refreshForm.github_refresh_policy = data.overrides.github_refresh_policy ?? ''
+  if (active.value === 'refresh') await previewAllRefresh()
 }
 
 async function load() {
@@ -279,6 +349,62 @@ onMounted(load)
             <input v-model="harnessDraft.args" class="input grow" placeholder="args (space separated, e.g. acp)" />
             <input v-model="harnessDraft.model" class="input grow mono" placeholder="model (optional)" />
             <button class="btn primary" @click="addHarness">Add harness</button>
+          </div>
+        </section>
+
+        <section v-show="active === 'refresh'" class="panel">
+          <div class="panel-head">
+            <h2>Refresh</h2>
+          </div>
+          <p class="faint" style="margin-top: 0">
+            How often to re-fetch Slack threads (slackx) and GitHub issues/PRs (ghx). Age bands pair an upper age with a
+            refresh interval. Each field saves when you leave it; leave one blank to stop refreshing that source.
+          </p>
+          <div v-for="field in REFRESH_FIELDS" :key="field.key" class="field">
+            <label>
+              {{ field.label }}
+              <span v-if="savingRefresh === field.key" class="faint">saving…</span>
+              <span v-else-if="savedRefresh === field.key" class="faint">saved</span>
+            </label>
+            <input
+              v-model="refreshForm[field.key]"
+              class="input mono"
+              :placeholder="refreshDefaults[field.key] || '1d=1h,7d=6h,30d=1d,*=7d'"
+              @input="onRefreshInput(field.key)"
+              @blur="saveRefresh(field.key)"
+            />
+            <p class="faint" style="margin: 4px 0 0">
+              <code>1d=1h,7d=6h,30d=1d,*=7d</code>: hourly while under a day old, every 6h under a week, daily under 30
+              days, weekly after. Omit the <code>*</code> band (or use <code>*=never</code>) to stop refreshing an item
+              once it outgrows the last band.
+            </p>
+            <div v-if="refreshPreviews[field.key]">
+              <p v-if="!refreshPreviews[field.key].valid" style="color: var(--danger); margin: 0">
+                {{ refreshPreviews[field.key].error }}
+              </p>
+              <template v-else-if="refreshPreviews[field.key].enabled">
+                <div
+                  v-for="(tier, index) in refreshPreviews[field.key].tiers"
+                  :key="index"
+                  class="row"
+                  style="gap: 8px"
+                >
+                  <span class="faint" style="min-width: 140px"
+                    >newer than {{ formatDuration(tier.max_age_seconds) }}</span
+                  >
+                  <span v-if="tier.interval_seconds != null">every {{ formatDuration(tier.interval_seconds) }}</span>
+                  <span v-else class="faint">never</span>
+                </div>
+                <div class="row" style="gap: 8px">
+                  <span class="faint" style="min-width: 140px">older than that</span>
+                  <span v-if="refreshPreviews[field.key].fallback_seconds != null">
+                    every {{ formatDuration(refreshPreviews[field.key].fallback_seconds) }}
+                  </span>
+                  <span v-else class="faint">never</span>
+                </div>
+              </template>
+              <p v-else class="faint" style="margin: 0">No automatic refresh.</p>
+            </div>
           </div>
         </section>
 

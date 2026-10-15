@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   harnessesUpdate: vi.fn(),
   settingsGet: vi.fn(),
   settingsUpdate: vi.fn(),
+  settingsPreviewPolicy: vi.fn(),
   repositoriesCreate: vi.fn(),
   repositoriesCreateBulk: vi.fn(),
   repositoriesRemove: vi.fn(),
@@ -37,7 +38,11 @@ vi.mock('../api', () => ({
       create: mocks.harnessesCreate,
       update: mocks.harnessesUpdate
     },
-    settings: { get: mocks.settingsGet, update: mocks.settingsUpdate },
+    settings: {
+      get: mocks.settingsGet,
+      update: mocks.settingsUpdate,
+      previewRefreshPolicy: mocks.settingsPreviewPolicy
+    },
     repositories: {
       create: mocks.repositoriesCreate,
       createBulk: mocks.repositoriesCreateBulk,
@@ -84,6 +89,12 @@ describe('SettingsView', () => {
       defaults: { openchamber_session_path: '/?session={session}' },
       overrides: {}
     })
+    mocks.settingsPreviewPolicy.mockResolvedValue({
+      valid: true,
+      enabled: true,
+      tiers: [{ max_age_seconds: 86400, interval_seconds: 3600 }],
+      fallback_seconds: 604800
+    })
   })
 
   const mountView = () =>
@@ -111,6 +122,31 @@ describe('SettingsView', () => {
     await input.trigger('blur')
     await flushPromises()
     expect(mocks.settingsUpdate).toHaveBeenCalledWith({ openchamber_url: 'http://oc/' })
+  })
+
+  it('previews and saves each source refresh policy', async () => {
+    mocks.settingsGet.mockResolvedValue({
+      defaults: { slack_refresh_policy: '', github_refresh_policy: '' },
+      overrides: { slack_refresh_policy: '1d=1h', github_refresh_policy: '1d=2h' }
+    })
+    mocks.settingsUpdate.mockResolvedValue({})
+    const wrapper = mountView()
+    await flushPromises()
+
+    const refreshNav = wrapper.findAll('.settings-nav-item').find((b) => b.text() === 'Refresh')
+    await refreshNav.trigger('click')
+    await flushPromises()
+    expect(mocks.settingsPreviewPolicy).toHaveBeenCalledWith('1d=1h')
+    expect(mocks.settingsPreviewPolicy).toHaveBeenCalledWith('1d=2h')
+    expect(wrapper.text()).toContain('Slack threads')
+    expect(wrapper.text()).toContain('GitHub issues/PRs')
+
+    const inputs = wrapper.findAll('input[placeholder="1d=1h,7d=6h,30d=1d,*=7d"]')
+    expect(inputs.length).toBe(2)
+    await inputs[0].setValue('1d=3h')
+    await inputs[0].trigger('blur')
+    await flushPromises()
+    expect(mocks.settingsUpdate).toHaveBeenCalledWith({ slack_refresh_policy: '1d=3h' })
   })
 
   it('adds a harness with parsed args', async () => {

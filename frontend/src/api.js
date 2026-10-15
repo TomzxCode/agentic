@@ -189,7 +189,8 @@ export const api = {
 
   settings: {
     get: () => request('/settings'),
-    update: (body) => request('/settings', { method: 'PATCH', body })
+    update: (body) => request('/settings', { method: 'PATCH', body }),
+    previewRefreshPolicy: (value) => request('/settings/refresh-policy/preview', { method: 'POST', body: { value } })
   },
 
   worktrees: {

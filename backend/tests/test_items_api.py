@@ -113,3 +113,41 @@ def test_item_links_read_list_and_delete():
         client.delete(f"/api/items/{item_id}")
         assert client.get(f"/api/tasks/{task['id']}").json()["associations"] == []
         client.delete(f"/api/tasks/{task['id']}")
+
+
+def test_refresh_due_refreshes_items_the_policy_says_are_due(monkeypatch):
+    def fake_fetch(source, url, external_id, title):
+        return {"title": "Fresh", "content": "updated body", "metadata": {}}
+
+    monkeypatch.setattr(items_router, "fetch_source", fake_fetch)
+    with TestClient(app) as client:
+        client.patch("/api/settings", json={"github_refresh_policy": "1d=1h,7d=6h,30d=1d"})
+        try:
+            item = client.post("/api/items", json={"url": "https://github.com/o/r/issues/9", "fetch": False}).json()
+            assert item["fetched_at"] is None
+
+            report = client.post("/api/items/refresh-due").json()
+            assert report["checked"] >= 1
+            assert any(entry["item_id"] == item["id"] and entry["refreshed"] for entry in report["items"])
+            assert report["refreshed"] == report["due"]
+
+            refreshed = client.get(f"/api/items/{item['id']}").json()
+            assert refreshed["content"] == "updated body"
+            assert refreshed["fetched_at"] is not None
+
+            # A second pass leaves the just-refreshed item alone.
+            again = client.post("/api/items/refresh-due").json()
+            assert not any(entry["item_id"] == item["id"] for entry in again["items"])
+
+            client.delete(f"/api/items/{item['id']}")
+        finally:
+            client.patch("/api/settings", json={"github_refresh_policy": ""})
+
+
+def test_refresh_due_is_a_noop_without_a_policy(monkeypatch):
+    monkeypatch.setattr(items_router, "fetch_source", lambda *args, **kwargs: {})
+    with TestClient(app) as client:
+        client.patch("/api/settings", json={"slack_refresh_policy": "", "github_refresh_policy": ""})
+        client.post("/api/items", json={"url": "https://github.com/o/r/issues/10", "fetch": False})
+        report = client.post("/api/items/refresh-due").json()
+        assert report == {"checked": 0, "due": 0, "refreshed": 0, "failed": 0, "items": []}

@@ -8,8 +8,18 @@ from sqlmodel import Session, col, select
 
 from ..db import get_session
 from ..models import Association, ItemPerson, SourceItem, utcnow
-from ..schemas import ItemCreate, ItemRead, ItemUpdate
+from ..refresh import (
+    REFRESHABLE_SOURCES,
+    PolicyError,
+    RefreshPolicy,
+    is_due,
+    item_age,
+    parse_policy,
+    policies_from_settings,
+)
+from ..schemas import ItemCreate, ItemRead, ItemUpdate, RefreshDueReport
 from ..services import fetch_source, infer_item_source, looks_like_url
+from ..settings_store import get_settings
 from .people import item_person_ids, link_people_to_item
 
 router = APIRouter(prefix="/api/items", tags=["items"])
@@ -82,6 +92,58 @@ def _item_read(session: Session, item: SourceItem) -> ItemRead:
     return data
 
 
+def refresh_due_items(session: Session, policies: dict[str, str], now=None) -> dict:
+    """Refresh every item whose source policy says it is due. Best effort per item.
+
+    ``policies`` maps a source ("slack", "github") to its policy text; a source
+    with no policy (or a malformed one) is skipped. Used by
+    ``POST /api/items/refresh-due`` and the API's background loop. A failure on
+    one item (slackx/ghx missing or erroring) is recorded and does not stop the
+    others.
+    """
+    now = now or utcnow()
+    parsed: dict[str, RefreshPolicy | None] = {}
+    for source in REFRESHABLE_SOURCES:
+        try:
+            parsed[source] = parse_policy(policies.get(source, ""))
+        except PolicyError:
+            parsed[source] = None
+    report = {"checked": 0, "due": 0, "refreshed": 0, "failed": 0, "items": []}
+    active = tuple(source for source, policy in parsed.items() if policy is not None and policy.enabled)
+    if not active:
+        return report
+
+    items = list(session.exec(select(SourceItem).where(col(SourceItem.source).in_(active))).all())
+    report["checked"] = len(items)
+    for item in items:
+        policy = parsed.get(item.source)
+        if policy is None or not is_due(policy, age=item_age(item, now), fetched_at=item.fetched_at, now=now):
+            continue
+        entry = {"item_id": item.id, "source": item.source, "title": item.title, "refreshed": False, "error": None}
+        try:
+            fetched = fetch_source(item.source, item.url, item.external_id, item.title)
+            item.title = fetched.get("title") or item.title
+            item.content = fetched.get("content") or item.content
+            item.metadata_json = {**(item.metadata_json or {}), **fetched.get("metadata", {})}
+            item.fetched_at = now
+            item.updated_at = now
+            session.add(item)
+            session.commit()
+            session.refresh(item)
+            link_people_to_item(session, item.id, fetched.get("people") or [])
+            entry["refreshed"] = True
+            entry["title"] = item.title
+        except Exception as exc:  # noqa: BLE001
+            session.rollback()
+            entry["error"] = str(exc)
+        report["items"].append(entry)
+
+    report["due"] = len(report["items"])
+    report["refreshed"] = sum(1 for entry in report["items"] if entry["refreshed"])
+    report["failed"] = sum(1 for entry in report["items"] if entry["error"])
+    return report
+
+
 @router.get("", response_model=list[ItemRead])
 def list_items(
     source: str | None = None,
@@ -107,6 +169,13 @@ def list_items(
 @router.post("", response_model=ItemRead, status_code=201)
 def create_item(payload: ItemCreate, session: Session = Depends(get_session)) -> ItemRead:
     return _item_read(session, _upsert_item(session, payload))
+
+
+@router.post("/refresh-due", response_model=RefreshDueReport)
+def refresh_due(session: Session = Depends(get_session)) -> RefreshDueReport:
+    """Re-fetch every item whose source refresh policy says it is due."""
+    policies = policies_from_settings(get_settings(session))
+    return RefreshDueReport.model_validate(refresh_due_items(session, policies))
 
 
 @router.get("/{item_id}", response_model=ItemRead)
@@ -162,4 +231,4 @@ def delete_item(item_id: str, session: Session = Depends(get_session)) -> None:
     session.commit()
 
 
-__all__ = ["router", "_upsert_item"]
+__all__ = ["router", "_upsert_item", "refresh_due_items"]

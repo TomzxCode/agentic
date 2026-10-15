@@ -158,6 +158,9 @@ class AgenticClient:
     def refresh_item(self, item_id: str) -> dict:
         return self._request("POST", f"/api/items/{item_id}/refresh")
 
+    def refresh_due_items(self) -> dict:
+        return self._request("POST", "/api/items/refresh-due")
+
     def delete_item(self, item_id: str) -> None:
         self._request("DELETE", f"/api/items/{item_id}")
 

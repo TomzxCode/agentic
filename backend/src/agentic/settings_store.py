@@ -13,6 +13,8 @@ OVERRIDABLE_KEYS = (
     "openchamber_session_path",
     "terminal_url_template",
     "editor_url_template",
+    "slack_refresh_policy",
+    "github_refresh_policy",
 )
 
 
@@ -22,6 +24,8 @@ def env_defaults() -> dict[str, str]:
         "openchamber_session_path": settings.openchamber_session_path,
         "terminal_url_template": settings.terminal_url_template,
         "editor_url_template": settings.editor_url_template,
+        "slack_refresh_policy": settings.slack_refresh_policy,
+        "github_refresh_policy": settings.github_refresh_policy,
     }
 
 

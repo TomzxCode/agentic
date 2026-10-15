@@ -55,6 +55,49 @@ class SettingsUpdate(BaseModel):
     openchamber_session_path: str | None = None
     terminal_url_template: str | None = None
     editor_url_template: str | None = None
+    slack_refresh_policy: str | None = None
+    github_refresh_policy: str | None = None
+
+
+class RefreshTierRead(BaseModel):
+    """One band of a refresh policy: an age bound and its refresh interval."""
+
+    max_age_seconds: float
+    interval_seconds: float | None = None
+
+
+class RefreshPolicyPreview(BaseModel):
+    """A refresh policy parsed for display, or the error that stopped it."""
+
+    valid: bool = True
+    error: str | None = None
+    enabled: bool = False
+    tiers: list[RefreshTierRead] = []
+    fallback_seconds: float | None = None
+
+
+class RefreshPolicyPreviewRequest(BaseModel):
+    value: str = ""
+
+
+class RefreshDueItem(BaseModel):
+    """One item the refresh runner considered."""
+
+    item_id: str
+    source: str
+    title: str
+    refreshed: bool = False
+    error: str | None = None
+
+
+class RefreshDueReport(BaseModel):
+    """The outcome of a run over the items the refresh policy says are due."""
+
+    checked: int = 0
+    due: int = 0
+    refreshed: int = 0
+    failed: int = 0
+    items: list[RefreshDueItem] = []
 
 
 # --- Filesystem (repository picker) ---------------------------------------
@@ -770,6 +813,11 @@ __all__ = [
     "PersonMerge",
     "PersonRead",
     "PersonUpdate",
+    "RefreshDueItem",
+    "RefreshDueReport",
+    "RefreshPolicyPreview",
+    "RefreshPolicyPreviewRequest",
+    "RefreshTierRead",
     "Task",
     "TaskBulkResult",
     "TaskBulkUpdate",

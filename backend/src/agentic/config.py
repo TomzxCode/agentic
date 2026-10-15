@@ -58,6 +58,15 @@ class Settings(BaseSettings):
     # "vscode://file/{path}" or "zed://file/{path}". Placeholder: {path}.
     editor_url_template: str = ""
 
+    # How often to re-fetch Slack threads (via slackx) and GitHub issues/PRs
+    # (via ghx). Each is a tiered age policy: "1d=1h,7d=6h,30d=1d,*=7d"
+    # refreshes hourly while an item is under a day old, every 6h under a week,
+    # daily under 30 days, and weekly past that. Empty disables that source.
+    slack_refresh_policy: str = ""
+    github_refresh_policy: str = ""
+    # How often (seconds) the API checks for due items. 0 disables the loop.
+    item_refresh_tick: int = 300
+
     # Auto-approve ACP permission requests (single-user local tool). When false,
     # permission requests are surfaced to the UI and the run waits.
     auto_approve_permissions: bool = True

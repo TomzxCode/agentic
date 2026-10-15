@@ -787,6 +787,21 @@ def item_refresh(item_id: str) -> str:
     return emit(item, f"refreshed {item['id']}  {_item_line(item)}")
 
 
+@item_app.command(name="refresh-due")
+@safe
+def item_refresh_due() -> str:
+    """Re-fetch the Slack/GitHub items the refresh policy says are due."""
+    with _client() as client:
+        report = client.refresh_due_items()
+    text = (
+        f"checked {report['checked']}  due {report['due']}  refreshed {report['refreshed']}  failed {report['failed']}"
+    )
+    for entry in report.get("items") or []:
+        marker = "ok" if entry.get("refreshed") else "fail"
+        text += f"\n  {marker}  {entry['source']}  {entry['title'] or entry['item_id']}"
+    return emit(report, text)
+
+
 @item_app.command(name="delete")
 @safe
 def item_delete(item_id: str) -> str:
@@ -1185,14 +1200,19 @@ def settings_set(
     openchamber_url: str | None = None,
     openchamber_session_path: str | None = None,
     terminal_url_template: str | None = None,
+    slack_refresh_policy: str | None = None,
+    github_refresh_policy: str | None = None,
 ) -> str:
-    """Override session-link settings (empty string disables a link)."""
+    """Override settings (empty disables a link or a source's refresh; policies look like 1d=1h,7d=6h,30d=1d,*=7d)."""
+    values: dict[str, Any] = {
+        "openchamber_url": openchamber_url,
+        "openchamber_session_path": openchamber_session_path,
+        "terminal_url_template": terminal_url_template,
+        "slack_refresh_policy": slack_refresh_policy,
+        "github_refresh_policy": github_refresh_policy,
+    }
     with _client() as client:
-        settings = client.update_settings(
-            openchamber_url=openchamber_url,
-            openchamber_session_path=openchamber_session_path,
-            terminal_url_template=terminal_url_template,
-        )
+        settings = client.update_settings(**values)
     effective = settings["effective"]
     text = "\n".join(f"{key} = {value!r}" for key, value in effective.items())
     return emit(settings, text)

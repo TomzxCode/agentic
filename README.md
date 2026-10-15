@@ -302,6 +302,9 @@ Environment variables (prefix `AGENTIC_`) or `backend/.env`:
 | `AGENTIC_OPENCHAMBER_SESSION_PATH` | `/?session={session}` | Path appended to the base. |
 | `AGENTIC_TERMINAL_URL_TEMPLATE` | (unset) | URL template for "Open in terminal" links. |
 | `AGENTIC_EDITOR_URL_TEMPLATE` | (unset) | URL template for the worktree "Open in editor" button. |
+| `AGENTIC_SLACK_REFRESH_POLICY` | (empty) | When to re-fetch Slack threads, e.g. `1d=1h,7d=6h,30d=1d,*=7d`. Empty disables it. |
+| `AGENTIC_GITHUB_REFRESH_POLICY` | (empty) | When to re-fetch GitHub issues/PRs, same format. Empty disables it. |
+| `AGENTIC_ITEM_REFRESH_TICK` | `300` | Seconds between checks for due items (0 disables the loop). |
 | `AGENTIC_QUEUE_URL` | `sqlite:///<data_dir>/queue.db` | Agent-run queue. Use a `redis://` or `postgres://` URL to share the queue. |
 | `AGENTIC_WORKER_CONCURRENCY` | `4` | Agent runs a worker processes concurrently. |
 | `AGENTIC_WORKER_SWEEP` | `60` | Seconds between sweeps for stuck jobs (a dead worker's run). |
@@ -311,6 +314,28 @@ Environment variables (prefix `AGENTIC_`) or `backend/.env`:
 
 All three session-link settings can also be overridden on the Settings page;
 the stored override wins over the environment variable.
+
+### Item refresh policy
+
+Slack threads and GitHub issues/PRs grow stale at different rates, so the API
+re-fetches them (`slackx` for Slack, `ghx` for GitHub) on an age-tiered schedule.
+Each source has its own policy: a comma-separated list of `age=interval` bands,
+with an optional `*` fallback:
+
+```text
+1d=1h,7d=6h,30d=1d,*=7d
+```
+
+reads: refresh hourly while the item is under a day old, every 6h under a week,
+daily under 30 days, and weekly after that. Omit the `*` band (or write
+`*=never`) to stop refreshing once an item outgrows the last band. An item's age
+is its upstream creation time when known (GitHub `createdAt`, a Slack thread
+timestamp), otherwise when it was recorded. An empty policy disables that source.
+
+Both policies are editable on **Settings → Refresh** (each with a live preview),
+or with `agentic settings set --slack-refresh-policy "1d=1h,*=7d"
+--github-refresh-policy "1d=1h,30d=1d"`, and `agentic item refresh-due` runs a
+pass immediately.
 
 ## CLI
 
