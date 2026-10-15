@@ -4,6 +4,8 @@ Track work as **tasks**, associate the Slack threads, GitHub issues/PRs, and
 Google Drive docs that feed them, spin up git worktrees to work on them, and let
 a coding agent keep a current summary and next-steps list so resuming is quick.
 
+Documentation: <https://tomzxcode.github.io/agentic/>
+
 - **Backend**: FastAPI + SQLModel (SQLite), single-user and local-first.
 - **Agents**: any [ACP](https://agentclientprotocol.com/) harness. OpenCode
   (`opencode acp` / `opencode2 acp`) and pi (`pi-acp`) are preconfigured; add

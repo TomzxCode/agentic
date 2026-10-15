@@ -7,6 +7,10 @@ requires-python = ">=3.12"
 # console scripts (agentic, agentic-server) land in the shared virtualenv.
 dependencies = ["agentic", "agentic-cli", "agentic-launcher"]
 
+[project.urls]
+Repository = "https://github.com/TomzxCode/agentic"
+Documentation = "https://tomzxcode.github.io/agentic/"
+
 [tool.uv]
 # The root is a virtual workspace project, not an installable package.
 package = false
