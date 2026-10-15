@@ -2032,7 +2032,8 @@ button.gantt-marker::after {
 }
 
 /* Desktop: the sidebar can be hidden entirely, leaving the page the full width.
-   A button in the freed top-left corner brings it back. */
+   The toggle sits in the page's left gutter, beside the title line, so the page
+   keeps its normal left edge whether the task list is shown or not. */
 @media (min-width: 761px) {
   /* A single column: with the sidebar gone, a `0 1fr` track pair would drop
      .main into the 0-width first track. */
@@ -2042,19 +2043,30 @@ button.gantt-marker::after {
   .app.sidebar-hidden .sidebar {
     display: none;
   }
-  /* Clear the reveal button, which floats over the page's top-left corner. */
-  .app.sidebar-hidden .main {
-    padding-left: 64px;
-  }
-  .app.sidebar-hidden > .menu-btn {
+  .app > .menu-btn {
     display: inline-flex;
     position: fixed;
     z-index: 30;
-    top: 10px;
-    left: 12px;
+    top: 20px;
+    /* The page's left gutter: just inside the sidebar's border, flush left once
+       the sidebar is hidden, so the page keeps the same left edge either way. */
+    left: var(--sidebar-width, 300px);
+    width: 24px;
+    height: 30px;
+    padding: 0;
+    justify-content: center;
+    align-items: center;
+    border: none;
+    border-radius: 0 8px 8px 0;
+    background: transparent;
+    color: var(--muted);
   }
-  .side-brand .sidebar-close {
-    display: inline-flex;
+  .app.sidebar-hidden > .menu-btn {
+    left: 0;
+  }
+  .app > .menu-btn:hover {
+    background: var(--bg-2);
+    color: var(--text);
   }
 }
 

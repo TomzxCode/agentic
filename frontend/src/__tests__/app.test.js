@@ -757,14 +757,15 @@ describe('App', () => {
       window.innerWidth = 1024
     })
 
-    it('hides the sidebar from its close button and remembers it', async () => {
+    it('hides the sidebar from the toggle beside the title and remembers it', async () => {
       const wrapper = mountApp()
       await flushPromises()
       expect(wrapper.get('.app').classes()).not.toContain('sidebar-hidden')
 
-      await wrapper.get('.sidebar-close').trigger('click')
+      await wrapper.get('.menu-btn').trigger('click')
       expect(wrapper.get('.app').classes()).toContain('sidebar-hidden')
       expect(localStorage.getItem('agentic.sidebarHidden')).toBe('1')
+      expect(wrapper.get('.menu-btn').attributes('aria-expanded')).toBe('false')
     })
 
     it('toggles with Cmd/Ctrl+B', async () => {

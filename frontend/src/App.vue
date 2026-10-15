@@ -600,10 +600,13 @@ function toggleSidebar() {
   else sidebarOpen.value = !sidebarOpen.value
 }
 
-// Hide without remembering a desktop preference from a mobile drawer close.
-function hideSidebar() {
-  sidebarOpen.value = false
-  if (isDesktop()) setSidebarHidden(true)
+// Whether the task list is on screen, for the toggle's state and label.
+function sidebarExpanded() {
+  return isDesktop() ? !sidebarHidden.value : sidebarOpen.value
+}
+
+function sidebarToggleLabel() {
+  return sidebarExpanded() ? 'Hide the task list (⌘B)' : 'Show the task list (⌘B)'
 }
 
 let resizeFrom = null
@@ -818,12 +821,7 @@ onUnmounted(() => {
           </svg>
           <span>Agentic</span>
         </router-link>
-        <button
-          class="btn sm sidebar-close"
-          aria-label="Close task list"
-          title="Hide the task list (⌘B)"
-          @click="hideSidebar"
-        >
+        <button class="btn sm sidebar-close" aria-label="Close task list" @click="sidebarOpen = false">
           <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
             <path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none" />
           </svg>
@@ -1160,12 +1158,14 @@ onUnmounted(() => {
 
     <button
       class="btn menu-btn"
-      aria-label="Toggle task list"
-      :aria-expanded="isDesktop() ? !sidebarHidden : sidebarOpen"
+      :title="sidebarToggleLabel()"
+      :aria-label="sidebarToggleLabel()"
+      :aria-expanded="sidebarExpanded()"
       @click="toggleSidebar"
     >
-      <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
-        <path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none" />
+      <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+        <rect x="3" y="4.5" width="18" height="15" rx="2.6" fill="none" stroke="currentColor" stroke-width="1.7" />
+        <path d="M9.1 5.4v13.2" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" fill="none" />
       </svg>
     </button>
 
