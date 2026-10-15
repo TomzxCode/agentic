@@ -16,6 +16,7 @@ dependencies = [
     "python-multipart>=0.0.9",
     "cyclopts>=5.2.0",
     "saq[sqlite]",
+    "scalar-fastapi>=1.9.1",
 ]
 
 [project.scripts]

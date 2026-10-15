@@ -11,7 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from saq.web.starlette import saq_web
-from scalar_fastapi import add_scalar_reference
+from scalar_fastapi import Theme, add_scalar_reference
 from sqlmodel import Session
 from starlette.types import ASGIApp, Receive, Scope, Send
 
@@ -99,7 +99,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Agentic", version="0.1.0", lifespan=lifespan, docs_url=None, redoc_url=None)
 
 # Render the OpenAPI reference with Scalar at /docs (Swagger UI and ReDoc are off).
-add_scalar_reference(app, route="/docs")
+add_scalar_reference(app, route="/docs", theme=Theme.SATURN, scalar_favicon_url="/icon.svg", telemetry=False)
 
 
 @app.get("/redoc", include_in_schema=False)
