@@ -92,6 +92,7 @@ def test_fetch_github_pull_request_carries_draft_and_state(monkeypatch):
     monkeypatch.setattr(services, "_run_cli", lambda cmd, timeout=60: payload)
 
     issue = services.fetch_github_issue("o", "r", 7, kind="pull_request")
+    assert issue is not None
     assert issue["state"] == "MERGED"
     assert issue["is_draft"] is False
     assert issue["merged_at"] == "2026-10-11T05:23:53Z"

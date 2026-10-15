@@ -13,7 +13,7 @@ environment declares, which the ACP runner sets to ``agent`` for a harness.
 
 from __future__ import annotations
 
-from collections.abc import Iterator
+from collections.abc import Generator
 from contextlib import contextmanager
 from contextvars import ContextVar
 from enum import StrEnum
@@ -66,7 +66,7 @@ def current_actor() -> OperationActor:
 
 
 @contextmanager
-def using(client: OperationClient, actor: OperationActor) -> Iterator[None]:
+def using(client: OperationClient, actor: OperationActor) -> Generator[None]:
     token = _context.set((client, actor))
     try:
         yield

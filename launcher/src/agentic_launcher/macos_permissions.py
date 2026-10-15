@@ -14,8 +14,9 @@ flag:
 
 All three are surfaced so the user can act instead of facing a silent failure.
 
-pyobjc exposes the HIServices and Quartz members dynamically, so ty cannot
-resolve them; those calls carry ``ty: ignore`` comments.
+pyobjc exposes the HIServices and Quartz members dynamically. HIServices resolves
+to untyped members, so those calls need no suppression; the Quartz imports cannot
+be resolved and carry ``ty: ignore`` comments.
 """
 
 from __future__ import annotations
@@ -36,7 +37,7 @@ def is_accessibility_trusted() -> bool:
     except ImportError:
         return True
     try:
-        return bool(HIServices.AXIsProcessTrusted())  # ty: ignore[unresolved-attribute]
+        return bool(HIServices.AXIsProcessTrusted())
     except Exception:
         return True
 
@@ -56,8 +57,8 @@ def prompt_for_accessibility() -> bool:
     except ImportError:
         return True
     try:
-        opts = {HIServices.kAXTrustedCheckOptionPrompt: True}  # ty: ignore[unresolved-attribute]
-        return bool(HIServices.AXIsProcessTrustedWithOptions(opts))  # ty: ignore[unresolved-attribute]
+        opts = {HIServices.kAXTrustedCheckOptionPrompt: True}
+        return bool(HIServices.AXIsProcessTrustedWithOptions(opts))
     except Exception:
         return is_accessibility_trusted()
 

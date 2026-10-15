@@ -7,7 +7,7 @@ is refused, so the whole set always forms a DAG.
 
 from __future__ import annotations
 
-from sqlmodel import Session, select
+from sqlmodel import Session, col, select
 
 from .models import TaskDependency
 
@@ -53,7 +53,7 @@ def dependencies(session: Session, task_id: str) -> tuple[list[str], list[str]]:
     edges = session.exec(
         select(TaskDependency)
         .where((TaskDependency.before_id == task_id) | (TaskDependency.after_id == task_id))
-        .order_by(TaskDependency.created_at)
+        .order_by(col(TaskDependency.created_at))
     ).all()
     before = [edge.before_id for edge in edges if edge.after_id == task_id]
     after = [edge.after_id for edge in edges if edge.before_id == task_id]
@@ -62,7 +62,7 @@ def dependencies(session: Session, task_id: str) -> tuple[list[str], list[str]]:
 
 def all_edges(session: Session) -> list[TaskDependency]:
     """Every before/after edge, oldest first."""
-    return list(session.exec(select(TaskDependency).order_by(TaskDependency.created_at)).all())
+    return list(session.exec(select(TaskDependency).order_by(col(TaskDependency.created_at))).all())
 
 
 __all__ = ["all_edges", "dependencies", "edge_exists", "would_cycle"]

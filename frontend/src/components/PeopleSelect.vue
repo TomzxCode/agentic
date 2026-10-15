@@ -27,9 +27,7 @@ const linkedIds = computed(() => new Set(linked.value.map((person) => person.id)
 // not linked yet; one click links them. Only the involved-people set offers
 // these suggestions, since a requester is not implied by an item.
 const suggested = computed(() =>
-  isRequesters.value
-    ? []
-    : (props.task.suggested_people || []).filter((person) => !linkedIds.value.has(person.id))
+  isRequesters.value ? [] : (props.task.suggested_people || []).filter((person) => !linkedIds.value.has(person.id))
 )
 
 // People in the directory who are not already on the task.

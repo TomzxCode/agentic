@@ -22,9 +22,9 @@ def test_using_sets_and_restores_the_context():
 
 
 def test_harness_env_marks_the_process_as_an_agent():
-    env = harness_env(Harness(command="opencode", env={"FOO": "bar"}))
+    env = harness_env(Harness(name="opencode", command="opencode", env={"FOO": "bar"}))
     assert env == {"FOO": "bar", "AGENTIC_ACTOR": "agent"}
-    assert harness_env(Harness(command="opencode"))["AGENTIC_ACTOR"] == "agent"
+    assert harness_env(Harness(name="opencode", command="opencode"))["AGENTIC_ACTOR"] == "agent"
 
 
 def test_declared_provenance_reaches_the_timeline_and_the_audit_log():
