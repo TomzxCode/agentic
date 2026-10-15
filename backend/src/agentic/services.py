@@ -244,7 +244,7 @@ def github_owner_repo(value: str | None) -> tuple[str, str] | None:
 
 def list_github_issues(owner: str, repo: str, state: str = "open", limit: int = 20) -> list[dict[str, Any]] | None:
     """List issues for a repository via ghx. None on failure."""
-    limit = max(1, min(limit, 100))
+    limit = max(1, min(limit, 1000))
     # ghx's --json is a boolean that emits the whole object list.
     raw = _run_cli(
         ["ghx", "issue", "list", "--repo", f"{owner}/{repo}", "--state", state, "--limit", str(limit), "--json"],
@@ -266,6 +266,87 @@ def list_github_issues(owner: str, repo: str, state: str = "open", limit: int = 
             }
         )
     return issues
+
+
+def list_github_pulls(owner: str, repo: str, state: str = "open", limit: int = 100) -> list[dict[str, Any]] | None:
+    """List a repository's pull requests via ghx. None on failure."""
+    limit = max(1, min(limit, 1000))
+    raw = _run_cli(
+        [
+            "ghx",
+            "pr",
+            "list",
+            "--repo",
+            f"{owner}/{repo}",
+            "--state",
+            state,
+            "--limit",
+            str(limit),
+            "--json",
+            "number,title,url,state,isDraft,mergedAt,createdAt,author,labels",
+        ],
+        timeout=90,
+    )
+    if not raw:
+        return None
+    pulls: list[dict[str, Any]] = []
+    for pull in json.loads(raw):
+        number = pull.get("number")
+        if number is None:
+            continue
+        pulls.append(
+            {
+                "kind": "pr",
+                "number": number,
+                "title": pull.get("title") or "",
+                "url": pull.get("url") or "",
+                "state": pull.get("state") or "",
+                # ghx reports an open draft only through this flag; the state
+                # alone cannot tell it apart from a plain open pull request.
+                "is_draft": bool(pull.get("isDraft")),
+                # Set once a pull request is merged; null for issues and open PRs.
+                "merged_at": pull.get("mergedAt"),
+                # The object's own creation time, so a refresh policy can age it.
+                "created_at": pull.get("createdAt"),
+                "author": (pull.get("author") or {}).get("login"),
+                "labels": [label.get("name") for label in pull.get("labels") or [] if isinstance(label, dict)],
+            }
+        )
+    return pulls
+
+
+def refresh_github_cache(owner: str, repo: str, timeout: int = 300) -> bool:
+    """Force ghx to re-fetch a repository's issues and PRs from GitHub.
+
+    ``ghx issue list``/``ghx pr list`` serve from the on-disk cache while it is
+    fresh, so a listing on its own is not a refresh. The repository view's
+    "refresh all" runs this first.
+    """
+    return _run_cli(["ghx", "cache", "--repo", f"{owner}/{repo}", "--force"], timeout=timeout) is not None
+
+
+def list_github_repo_items(owner: str, repo: str, state: str = "all", limit: int = 1000) -> dict[str, Any] | None:
+    """Every issue and pull request of a repository via ghx, tagged with its kind.
+
+    Returns ``{"items": [...], "failed": [...]}`` where ``failed`` names each
+    kind ghx could not list ("issues", "pull requests"), so a partial failure is
+    visible rather than reading as an empty section. None only when both kinds
+    fail.
+    """
+    issues = list_github_issues(owner, repo, state=state, limit=limit)
+    pulls = list_github_pulls(owner, repo, state=state, limit=limit)
+    if issues is None and pulls is None:
+        return None
+    failed = []
+    if issues is None:
+        failed.append("issues")
+    if pulls is None:
+        failed.append("pull requests")
+    # The listing only needs the metadata; an issue body would bloat the payload.
+    listed_issues = [{**issue, "kind": "issue"} for issue in issues or [] if issue.get("number") is not None]
+    for entry in listed_issues:
+        entry.pop("body", None)
+    return {"items": listed_issues + list(pulls or []), "failed": failed}
 
 
 def fetch_github_issue(owner: str, repo: str, number: object, kind: str = "issue") -> dict[str, Any] | None:

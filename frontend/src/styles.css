@@ -477,6 +477,12 @@ h3 {
   color: var(--muted);
   margin-bottom: 4px;
 }
+/* Inline label naming a toolbar control group (the repository list's Remote and
+   Sort groups), sitting on the same line as the controls it names. */
+.filter-label {
+  font-size: 12px;
+  color: var(--muted);
+}
 
 /* Panels */
 .panel {

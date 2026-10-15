@@ -6,6 +6,7 @@ enableAutoUnmount(afterEach)
 const mocks = vi.hoisted(() => ({
   routeQuery: {},
   replace: vi.fn(),
+  routerPush: vi.fn(),
   harnessesFull: vi.fn(),
   harnessesList: vi.fn(),
   harnessesCreate: vi.fn(),
@@ -19,6 +20,8 @@ const mocks = vi.hoisted(() => ({
   repositoriesRemove: vi.fn(),
   itemsRefresh: vi.fn(),
   itemsRefreshSource: vi.fn(),
+  githubRepository: vi.fn(),
+  tasksCreate: vi.fn(),
   changesList: vi.fn(),
   changesCreate: vi.fn(),
   tasksGet: vi.fn(),
@@ -29,7 +32,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('vue-router', () => ({
   useRoute: () => ({ query: mocks.routeQuery }),
-  useRouter: () => ({ replace: mocks.replace })
+  useRouter: () => ({ replace: mocks.replace, push: mocks.routerPush })
 }))
 
 vi.mock('../api', () => ({
@@ -52,8 +55,9 @@ vi.mock('../api', () => ({
       remove: mocks.repositoriesRemove
     },
     items: { refresh: mocks.itemsRefresh, refreshSource: mocks.itemsRefreshSource },
+    github: { repository: mocks.githubRepository },
     changes: { list: mocks.changesList, create: mocks.changesCreate },
-    tasks: { get: mocks.tasksGet, update: mocks.tasksUpdate, remove: mocks.tasksRemove }
+    tasks: { get: mocks.tasksGet, update: mocks.tasksUpdate, remove: mocks.tasksRemove, create: mocks.tasksCreate }
   },
   openTaskStream: mocks.openTaskStream
 }))
@@ -73,6 +77,7 @@ beforeEach(() => {
   store.repositories = []
   store.people = []
   mocks.changesList.mockResolvedValue([])
+  mocks.githubRepository.mockResolvedValue({ items: [], failed: [] })
   mocks.routeQuery = {}
 })
 
@@ -523,6 +528,7 @@ describe('RepositoryDetailView', () => {
     vi.spyOn(store, 'loadItems').mockResolvedValue()
     vi.spyOn(store, 'loadTasks').mockResolvedValue()
     vi.spyOn(store, 'loadPeople').mockResolvedValue()
+    mocks.tasksCreate.mockResolvedValue({ id: 't9', title: 'Imported issue' })
     store.repositories = [repository]
     store.people = []
     store.tasks = [{ id: 't1', title: 'Task One', status: 'open' }]
@@ -541,12 +547,34 @@ describe('RepositoryDetailView', () => {
       global: { stubs: { RouterLink: RouterLinkStub, StatusIcon: true } }
     })
 
+  it('shows the header right away and a spinner per section until the listing arrives', async () => {
+    // The listing is the slow part; hold it pending to see the loading state.
+    mocks.githubRepository.mockReturnValue(new Promise(() => {}))
+    const wrapper = mountView()
+    await flushPromises()
+
+    // The top section is up while the listing loads.
+    expect(wrapper.find('h1').text()).toBe('api')
+    expect(wrapper.find('[aria-label="Refresh all issues and pull requests"]').exists()).toBe(true)
+    // One spinner under each of the two section headings, and nothing else yet.
+    expect(wrapper.findAll('.spinner')).toHaveLength(2)
+    expect(wrapper.get('h2.group-head').text()).toBe('Issues')
+    // A half-loaded page (no listing yet) does not flash the empty state or the
+    // filters.
+    expect(wrapper.text()).not.toContain('No issues or pull requests')
+    expect(wrapper.find('input[aria-label="Filter items"]').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
   it('lists issues and PRs and filters them by kind', async () => {
     const wrapper = mountView()
     await flushPromises()
 
     expect(wrapper.text()).toContain('Open issue')
     expect(wrapper.text()).toContain('Merged PR')
+
+    // Each filter group is named by an inline label, like the repositories list.
+    expect(wrapper.findAll('.filter-label').map((l) => l.text())).toEqual(['Kind', 'State', 'Task status'])
 
     const kindRow = wrapper.get('[aria-label="Filter by kind"]')
     await kindRow
@@ -721,6 +749,26 @@ describe('RepositoryDetailView', () => {
     expect(wrapper.find('button[title="Record a change for this PR"]').exists()).toBe(false)
   })
 
+  it('matches a change by the item external id, not only its url', async () => {
+    mocks.changesList.mockResolvedValue([
+      {
+        id: 'c1',
+        task_id: 't1',
+        status: 'accepted',
+        change_class: 'feature',
+        title: 'Landed change',
+        external_ref: 'acme/api#5'
+      }
+    ])
+    store.items = [{ ...ghItem('i5', 'pr', 5, 'Merged PR', { state: 'MERGED' }), external_id: 'acme/api#5' }]
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Landed change')
+    // A change already references the PR, so no duplicate is offered.
+    expect(wrapper.find('button[title="Record a change for this PR"]').exists()).toBe(false)
+  })
+
   it("records a change on the PR's single task and shows it", async () => {
     store.items = [ghItem('i5', 'pr', 5, 'Merged PR', { state: 'MERGED', merged_at: '2026-10-11T05:23:53Z' })]
     mocks.changesCreate.mockResolvedValue({
@@ -846,41 +894,154 @@ describe('RepositoryDetailView', () => {
     expect(wrapper.find('[aria-label="Filter by task status"]').exists()).toBe(true)
   })
 
-  it('refreshes every issue and PR from GitHub', async () => {
+  it('refreshes the repository listing from GitHub', async () => {
+    mocks.githubRepository.mockResolvedValue({
+      items: [
+        { number: 1, kind: 'issue', title: 'Open issue', url: 'https://github.com/acme/api/issues/1', state: 'OPEN' },
+        { number: 7, kind: 'pr', title: 'Unlinked PR', url: 'https://github.com/acme/api/pull/7', state: 'OPEN' }
+      ],
+      failed: []
+    })
+    const wrapper = mountView()
+    await flushPromises()
+
+    // The unlinked PR appears alongside the stored, task-linked items.
+    expect(wrapper.text()).toContain('Unlinked PR')
+
+    await wrapper.get('[aria-label="Refresh all issues and pull requests"]').trigger('click')
+    await flushPromises()
+
+    // The refresh asks the backend to re-fetch from GitHub, not just re-read.
+    expect(mocks.githubRepository).toHaveBeenLastCalledWith({
+      repository_id: 'r1',
+      state: 'all',
+      limit: 1000,
+      refresh: true
+    })
+    expect(store.toast.message).toBe('Refreshed 1 issue and 1 pull request')
+    expect(store.toast.isError).toBe(false)
+  })
+
+  it('offers to create a task for an issue or PR no task uses', async () => {
+    mocks.githubRepository.mockResolvedValue({
+      items: [
+        { number: 1, kind: 'issue', title: 'Open issue', url: 'https://github.com/acme/api/issues/1', state: 'OPEN' },
+        { number: 7, kind: 'pr', title: 'Unlinked PR', url: 'https://github.com/acme/api/pull/7', state: 'OPEN' }
+      ],
+      failed: []
+    })
+    const wrapper = mountView()
+    await flushPromises()
+
+    // The unlinked PR gets the button; the stored, task-linked issue does not.
+    expect(wrapper.find('button[title="Create a task from this pull request"]').exists()).toBe(true)
+    expect(wrapper.find('button[title="Create a task from this issue"]').exists()).toBe(false)
+  })
+
+  it('creates a task from an unlinked PR and stays on the repository', async () => {
+    mocks.githubRepository.mockResolvedValue({
+      items: [
+        { number: 7, kind: 'pr', title: 'Unlinked PR', url: 'https://github.com/acme/api/pull/7', state: 'OPEN' }
+      ],
+      failed: []
+    })
+    const wrapper = mountView()
+    await flushPromises()
+
+    await wrapper.get('button[title="Create a task from this pull request"]').trigger('click')
+    await flushPromises()
+
+    expect(mocks.tasksCreate).toHaveBeenCalledWith({ github_url: 'https://github.com/acme/api/pull/7' })
+    // The import linked an item, so the stores reload and the row shows its chip.
+    expect(store.loadItems).toHaveBeenCalledTimes(2)
+    expect(store.loadTasks).toHaveBeenCalledTimes(2)
+    // No navigation: the toast and the row's new task chip are the confirmation.
+    expect(mocks.routerPush).not.toHaveBeenCalled()
+    expect(store.toast.message).toBe('Task created')
+    expect(store.toast.isError).toBe(false)
+  })
+
+  it('reports a failed task creation and stays on the repository', async () => {
+    mocks.githubRepository.mockResolvedValue({
+      items: [
+        { number: 7, kind: 'pr', title: 'Unlinked PR', url: 'https://github.com/acme/api/pull/7', state: 'OPEN' }
+      ],
+      failed: []
+    })
+    mocks.tasksCreate.mockRejectedValue(new Error('ghx down'))
+    const wrapper = mountView()
+    await flushPromises()
+
+    await wrapper.get('button[title="Create a task from this pull request"]').trigger('click')
+    await flushPromises()
+
+    expect(mocks.routerPush).not.toHaveBeenCalled()
+    expect(store.toast.message).toBe('ghx down')
+    expect(store.toast.isError).toBe(true)
+  })
+
+  it('notes a per-kind listing failure but keeps the other kind', async () => {
+    mocks.githubRepository.mockResolvedValue({
+      items: [
+        { number: 7, kind: 'pr', title: 'Unlinked PR', url: 'https://github.com/acme/api/pull/7', state: 'OPEN' }
+      ],
+      failed: ['issues']
+    })
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Unlinked PR')
+    expect(wrapper.text()).toContain('Could not load the issues from GitHub')
+  })
+
+  it('refreshes only the issues and PRs associated to tasks', async () => {
     mocks.itemsRefresh.mockResolvedValue({})
     const wrapper = mountView()
     await flushPromises()
 
-    await wrapper.get('[aria-label="Refresh issues and pull requests"]').trigger('click')
+    await wrapper.get('[aria-label="Refresh issues and pull requests associated to tasks"]').trigger('click')
     await flushPromises()
 
     expect(mocks.itemsRefresh.mock.calls.map((call) => call[0]).sort()).toEqual(['i1', 'i2', 'i3', 'i4', 'i5'])
     // The view reloads the items after refreshing, on top of the initial load.
     expect(store.loadItems).toHaveBeenCalledTimes(2)
-    expect(store.toast.message).toBe('Refreshed 5 items')
+    expect(store.toast.message).toBe('Refreshed 5 linked items')
     expect(store.toast.isError).toBe(false)
   })
 
-  it('keeps going when one item refresh fails', async () => {
+  it('keeps going when one linked item refresh fails', async () => {
     mocks.itemsRefresh.mockImplementation((id) =>
       id === 'i2' ? Promise.reject(new Error('ghx down')) : Promise.resolve({})
     )
     const wrapper = mountView()
     await flushPromises()
 
-    await wrapper.get('[aria-label="Refresh issues and pull requests"]').trigger('click')
+    await wrapper.get('[aria-label="Refresh issues and pull requests associated to tasks"]').trigger('click')
     await flushPromises()
 
     expect(mocks.itemsRefresh).toHaveBeenCalledTimes(5)
-    expect(store.toast.message).toBe('Refreshed 4 of 5 items; 1 failed')
+    expect(store.toast.message).toBe('Refreshed 4 of 5 linked items; 1 failed')
     expect(store.toast.isError).toBe(true)
   })
 
-  it('disables the refresh button when there is nothing to refresh', async () => {
+  it('disables the linked refresh when nothing is associated to a task', async () => {
     store.items = []
     const wrapper = mountView()
     await flushPromises()
-    expect(wrapper.get('[aria-label="Refresh issues and pull requests"]').attributes('disabled')).toBeDefined()
+    expect(
+      wrapper.get('[aria-label="Refresh issues and pull requests associated to tasks"]').attributes('disabled')
+    ).toBeDefined()
+    // The whole-repository refresh stays available: the remote is listable.
+    expect(wrapper.get('[aria-label="Refresh all issues and pull requests"]').attributes('disabled')).toBeUndefined()
+  })
+
+  it('keeps the stored items when the GitHub listing fails', async () => {
+    mocks.githubRepository.mockRejectedValue(new Error('ghx down'))
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Open issue')
+    expect(wrapper.text()).toContain('Could not list this repository from GitHub')
   })
 })
 
@@ -926,5 +1087,109 @@ describe('RepositoriesView', () => {
     await flushPromises()
     expect(wrapper.text()).toContain('api')
     expect(wrapper.text()).not.toContain('open')
+  })
+
+  it('filters by search and remote, and reports how much is shown', async () => {
+    store.repositories = [
+      {
+        id: 'r1',
+        name: 'api',
+        remote_url: 'https://github.com/acme/api.git',
+        path: '/src/api',
+        default_branch: 'main'
+      },
+      { id: 'r2', name: 'tools', remote_url: null, path: '/src/tools' }
+    ]
+    const wrapper = mountView()
+    await flushPromises()
+
+    const paths = () => wrapper.findAll('.mono').map((d) => d.text())
+    expect(paths()).toEqual(['/src/api', '/src/tools'])
+
+    await wrapper.get('input[aria-label="Filter repositories"]').setValue('tools')
+    expect(paths()).toEqual(['/src/tools'])
+    expect(wrapper.text()).toContain('1 of 2 repositories')
+
+    // The GitHub/Other buttons carry whole-list counts that do not move, and
+    // each control group is named by an inline label.
+    const toolbar = wrapper.get('.panel input ~ .row')
+    expect(toolbar.findAll('.filter-label').map((l) => l.text())).toEqual(['Remote', 'Sort'])
+    const remoteRow = toolbar.get('[aria-label="Filter by remote"]')
+    expect(remoteRow.findAll('.btn').map((b) => b.text())).toEqual(['All 2', 'GitHub 1', 'Other 1'])
+
+    await remoteRow
+      .findAll('.btn')
+      .find((b) => b.text().startsWith('Other'))
+      .trigger('click')
+    await wrapper.get('input[aria-label="Filter repositories"]').setValue('')
+    expect(paths()).toEqual(['/src/tools'])
+  })
+
+  it('re-sorts the list from the select', async () => {
+    store.repositories = [
+      {
+        id: 'r1',
+        name: 'api',
+        remote_url: 'https://github.com/acme/api.git',
+        path: '/src/api',
+        created_at: '2026-01-01T00:00:00Z'
+      },
+      { id: 'r2', name: 'tools', remote_url: null, path: '/src/tools', created_at: '2026-01-02T00:00:00Z' }
+    ]
+    const wrapper = mountView()
+    await flushPromises()
+
+    const paths = () => wrapper.findAll('.mono').map((d) => d.text())
+    // Name is the default order, and the sort keys are direction-neutral (the
+    // toggle carries ascending/descending, not the option names).
+    expect(paths()).toEqual(['/src/api', '/src/tools'])
+    expect(wrapper.findAll('select[aria-label="Sort repositories"] option').map((o) => o.text())).toEqual([
+      'Name',
+      'Item count',
+      'Date added'
+    ])
+
+    await wrapper.get('select[aria-label="Sort repositories"]').setValue('newest')
+    expect(paths()).toEqual(['/src/tools', '/src/api'])
+  })
+
+  it('toggles the sort direction, resetting it when the order changes', async () => {
+    store.repositories = [
+      {
+        id: 'r1',
+        name: 'api',
+        remote_url: 'https://github.com/acme/api.git',
+        path: '/src/api',
+        created_at: '2026-01-01T00:00:00Z'
+      },
+      { id: 'r2', name: 'tools', remote_url: null, path: '/src/tools', created_at: '2026-01-02T00:00:00Z' }
+    ]
+    const wrapper = mountView()
+    await flushPromises()
+
+    const paths = () => wrapper.findAll('.mono').map((d) => d.text())
+    const toggle = () => wrapper.get('button[aria-label="Toggle sort direction"]')
+
+    // Name defaults to ascending.
+    expect(toggle().text()).toContain('Asc')
+    await toggle().trigger('click')
+    expect(paths()).toEqual(['/src/tools', '/src/api'])
+
+    // Item count defaults to descending, so the toggle reset on the switch.
+    await wrapper.get('select[aria-label="Sort repositories"]').setValue('items')
+    expect(toggle().text()).toContain('Desc')
+    expect(paths()).toEqual(['/src/api', '/src/tools'])
+
+    // Ascending puts the item-less repository first.
+    await toggle().trigger('click')
+    expect(paths()).toEqual(['/src/tools', '/src/api'])
+  })
+
+  it('says so when nothing matches the filters', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+    await wrapper.get('input[aria-label="Filter repositories"]').setValue('nothing')
+    expect(wrapper.text()).toContain('No repositories match the filters')
+    expect(wrapper.find('.mono').exists()).toBe(false)
   })
 })

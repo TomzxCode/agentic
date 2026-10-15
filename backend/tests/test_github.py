@@ -108,6 +108,122 @@ def test_fetch_github_pull_request_carries_draft_and_state(monkeypatch):
     assert result["metadata"]["author"] == "a"
 
 
+def test_list_github_pulls_parses(monkeypatch):
+    payload = json.dumps(
+        [
+            {
+                "number": 6,
+                "title": "Bump vite",
+                "url": "https://github.com/o/r/pull/6",
+                "state": "CLOSED",
+                "isDraft": False,
+                "mergedAt": None,
+                "createdAt": "2026-10-11T03:53:08Z",
+                "author": {"login": "dependabot"},
+                "labels": [{"name": "dependencies"}],
+            }
+        ]
+    )
+    seen: dict = {}
+
+    def fake(cmd, timeout=60):
+        seen["cmd"] = cmd
+        return payload
+
+    monkeypatch.setattr(services, "_run_cli", fake)
+    pulls = services.list_github_pulls("o", "r", state="all")
+    assert pulls is not None
+    assert pulls[0]["kind"] == "pr"
+    assert pulls[0]["state"] == "CLOSED"
+    assert pulls[0]["author"] == "dependabot"
+    assert seen["cmd"][1] == "pr"
+    # The listing asks ghx for just the fields it renders, not the whole object.
+    assert "--json" in seen["cmd"] and "isDraft" in seen["cmd"][seen["cmd"].index("--json") + 1]
+
+
+def test_list_github_pulls_returns_none_when_cli_fails(monkeypatch):
+    monkeypatch.setattr(services, "_run_cli", lambda cmd, timeout=60: None)
+    assert services.list_github_pulls("o", "r") is None
+
+
+def test_list_github_repo_items_combines_issues_and_pulls(monkeypatch):
+    issue = json.dumps([{"number": 1, "title": "Bug", "url": "http://i/1", "state": "OPEN", "body": "long"}])
+    pull = json.dumps([{"number": 2, "title": "Fix", "url": "http://p/2", "state": "MERGED", "isDraft": False}])
+
+    def fake(cmd, timeout=60):
+        return issue if cmd[1] == "issue" else pull
+
+    monkeypatch.setattr(services, "_run_cli", fake)
+    listing = services.list_github_repo_items("o", "r")
+    assert listing is not None
+    assert listing["failed"] == []
+    assert [item["kind"] for item in listing["items"]] == ["issue", "pr"]
+    # The issue's body is dropped: the listing only needs metadata.
+    assert "body" not in listing["items"][0]
+
+
+def test_list_github_repo_items_returns_none_when_both_fail(monkeypatch):
+    monkeypatch.setattr(services, "_run_cli", lambda cmd, timeout=60: None)
+    assert services.list_github_repo_items("o", "r") is None
+
+
+def test_list_github_repo_items_reports_a_one_kind_failure(monkeypatch):
+    pull = json.dumps([{"number": 2, "title": "Fix", "url": "http://p/2", "state": "OPEN", "isDraft": False}])
+
+    def fake(cmd, timeout=60):
+        return None if cmd[1] == "issue" else pull
+
+    monkeypatch.setattr(services, "_run_cli", fake)
+    listing = services.list_github_repo_items("o", "r")
+    assert listing is not None
+    assert listing["failed"] == ["issues"]
+    assert [item["kind"] for item in listing["items"]] == ["pr"]
+
+
+def test_refresh_github_cache(monkeypatch):
+    seen: dict = {}
+
+    def fake(cmd, timeout=60):
+        seen["cmd"] = cmd
+        return "cached"
+
+    monkeypatch.setattr(services, "_run_cli", fake)
+    assert services.refresh_github_cache("o", "r") is True
+    assert seen["cmd"][:2] == ["ghx", "cache"]
+    assert "--force" in seen["cmd"]
+
+    monkeypatch.setattr(services, "_run_cli", lambda cmd, timeout=60: None)
+    assert services.refresh_github_cache("o", "r") is False
+
+
+def test_repository_endpoint(monkeypatch):
+    issue = json.dumps([{"number": 1, "title": "Bug", "url": "http://i/1", "state": "OPEN", "body": "b"}])
+    pull = json.dumps([{"number": 2, "title": "Fix", "url": "http://p/2", "state": "MERGED", "isDraft": False}])
+    monkeypatch.setattr(services, "_run_cli", lambda cmd, timeout=60: issue if cmd[1] == "issue" else pull)
+    with TestClient(app) as client:
+        body = client.get("/api/github/repository", params={"owner": "o", "repo": "r"}).json()
+        assert [(row["kind"], row["number"]) for row in body["items"]] == [("issue", 1), ("pr", 2)]
+        assert body["failed"] == []
+        # needs a repository or owner/repo
+        assert client.get("/api/github/repository").status_code == 400
+
+        monkeypatch.setattr(services, "_run_cli", lambda cmd, timeout=60: None)
+        assert client.get("/api/github/repository", params={"owner": "o", "repo": "r"}).status_code == 502
+
+
+def test_repository_endpoint_forces_a_refresh(monkeypatch):
+    seen: list[list[str]] = []
+
+    def fake(cmd, timeout=60):
+        seen.append(cmd)
+        return "[]"
+
+    monkeypatch.setattr(services, "_run_cli", fake)
+    with TestClient(app) as client:
+        client.get("/api/github/repository", params={"owner": "o", "repo": "r", "refresh": "true"})
+    assert seen and seen[0][:2] == ["ghx", "cache"]
+
+
 def test_issue_endpoint(monkeypatch):
     payload = json.dumps({"number": 9, "title": "Single", "url": "http://x", "author": {"login": "a"}, "body": "b"})
     monkeypatch.setattr(services, "_run_cli", lambda cmd, timeout=60: payload)

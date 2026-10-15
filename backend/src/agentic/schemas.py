@@ -142,6 +142,33 @@ class GithubIssue(BaseModel):
     body: str = ""
 
 
+class GithubRepoItem(BaseModel):
+    """An issue or pull request of a repository, as listed for browsing.
+
+    Unlike :class:`GithubIssue` (which backs issue import), this carries the
+    kind and the pull-request-only fields a repository view needs to render the
+    row: whether it is a draft and, once merged, when.
+    """
+
+    number: int
+    kind: str = "issue"
+    title: str = ""
+    url: str = ""
+    state: str = ""
+    is_draft: bool = False
+    merged_at: str | None = None
+    created_at: str | None = None
+    author: str | None = None
+    labels: list[str] = []
+
+
+class GithubRepoListing(BaseModel):
+    """A repository's issues and pull requests, plus each kind ghx could not list."""
+
+    items: list[GithubRepoItem] = []
+    failed: list[str] = []
+
+
 # --- Repository ------------------------------------------------------------
 class RepositoryCreate(BaseModel):
     name: str | None = None
@@ -806,6 +833,8 @@ __all__ = [
     "FsListing",
     "GanttTask",
     "GithubIssue",
+    "GithubRepoItem",
+    "GithubRepoListing",
     "Harness",
     "HarnessCreate",
     "HarnessRead",

@@ -177,7 +177,17 @@ export const api = {
       qs.set('limit', String(limit))
       return request(`/github/issues?${qs.toString()}`)
     },
-    issue: (url) => request(`/github/issue?${new URLSearchParams({ url }).toString()}`)
+    issue: (url) => request(`/github/issue?${new URLSearchParams({ url }).toString()}`),
+    repository: ({ repository_id, owner, repo, state = 'all', limit = 1000, refresh = false } = {}) => {
+      const qs = new URLSearchParams()
+      if (repository_id) qs.set('repository_id', repository_id)
+      if (owner) qs.set('owner', owner)
+      if (repo) qs.set('repo', repo)
+      qs.set('state', state)
+      qs.set('limit', String(limit))
+      if (refresh) qs.set('refresh', 'true')
+      return request(`/github/repository?${qs.toString()}`)
+    }
   },
 
   harnesses: {
