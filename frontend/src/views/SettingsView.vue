@@ -2,6 +2,7 @@
 import { onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { api } from '../api'
+import { DEFAULT_AGENT_PROMPTS, PROMPT_KINDS, parseAgentPrompts } from '../prompts'
 import { store, timeAgo } from '../store'
 import EntityCard from '../components/EntityCard.vue'
 import RepositoryGroupsPanel from '../components/RepositoryGroupsPanel.vue'
@@ -12,6 +13,7 @@ const router = useRouter()
 const SECTIONS = [
   { id: 'sessions', label: 'Session links' },
   { id: 'harnesses', label: 'Agent harnesses' },
+  { id: 'prompts', label: 'Agent prompts' },
   { id: 'refresh', label: 'Refresh' },
   { id: 'groups', label: 'Repository groups' }
 ]
@@ -62,6 +64,20 @@ const savedRefresh = ref('')
 const forcingRefresh = reactive({ slack: false, github: false })
 let savedRefreshTimer
 const previewTimers = {}
+
+// User-defined agent prompts (Settings → Agent prompts), edited as a list and
+// saved as one JSON string, so the agent panel reads them from settings.
+const promptDrafts = ref([])
+const promptSaving = ref(false)
+const promptSaved = ref(false)
+let savedPromptTimer
+let promptSeq = 0
+
+// A row keyed by a stable id, so removing one row never reuses another's input.
+function promptDraft(prompt) {
+  promptSeq += 1
+  return { id: promptSeq, kind: prompt.kind, label: prompt.label, template: prompt.template }
+}
 
 // Slack threads and GitHub issues/PRs refresh on their own schedules.
 const REFRESH_FIELDS = [
@@ -147,6 +163,41 @@ async function saveRefresh(key) {
   }
 }
 
+// Save every prompt edit at once: the list is small and stored as one JSON
+// string, so there is no per-row request to track. A row with an empty template
+// is still being added, so it is left out until it is filled in.
+async function savePrompts() {
+  const prompts = promptDrafts.value
+    .filter((prompt) => prompt.template.trim())
+    .map((prompt) => ({ kind: prompt.kind, label: prompt.label, template: prompt.template.trim() }))
+  promptSaving.value = true
+  try {
+    await api.settings.update({ agent_prompts: JSON.stringify(prompts) })
+    promptSaved.value = true
+    clearTimeout(savedPromptTimer)
+    savedPromptTimer = setTimeout(() => (promptSaved.value = false), 1500)
+    await store.loadSettings().catch(() => {})
+  } catch (e) {
+    store.notify(e.message, true)
+  } finally {
+    promptSaving.value = false
+  }
+}
+
+function addPrompt() {
+  promptDrafts.value.push(promptDraft({ kind: 'issue', label: '', template: '' }))
+}
+
+function removePrompt(index) {
+  promptDrafts.value.splice(index, 1)
+  savePrompts()
+}
+
+function resetPrompts() {
+  promptDrafts.value = DEFAULT_AGENT_PROMPTS.map(promptDraft)
+  savePrompts()
+}
+
 async function loadRepositories() {
   await store.loadRepositories().catch((e) => store.notify(e.message, true))
 }
@@ -173,6 +224,7 @@ async function loadSettings() {
   refreshDefaults.value = data.defaults
   refreshForm.slack_refresh_policy = data.overrides.slack_refresh_policy ?? ''
   refreshForm.github_refresh_policy = data.overrides.github_refresh_policy ?? ''
+  promptDrafts.value = parseAgentPrompts(data.overrides.agent_prompts ?? data.defaults.agent_prompts).map(promptDraft)
   if (active.value === 'refresh') await previewAllRefresh()
 }
 
@@ -384,6 +436,38 @@ onMounted(load)
             <input v-model="harnessDraft.args" class="input grow" placeholder="args (space separated, e.g. acp)" />
             <input v-model="harnessDraft.model" class="input grow mono" placeholder="model (optional)" />
             <button class="btn primary" @click="addHarness">Add harness</button>
+          </div>
+        </section>
+
+        <section v-show="active === 'prompts'" class="panel">
+          <div class="panel-head">
+            <h2>Agent prompts</h2>
+            <span v-if="promptSaving" class="faint">saving…</span>
+            <span v-else-if="promptSaved" class="faint">saved</span>
+          </div>
+          <p class="faint" style="margin-top: 0">
+            Buttons shown in the agent panel. Each appears when a task has exactly one associated item of its kind.
+            Placeholders: <code>{owner}</code>, <code>{repository}</code>, <code>{number}</code>.
+          </p>
+          <div v-for="(p, index) in promptDrafts" :key="p.id" class="row" style="margin-top: 8px">
+            <select v-model="p.kind" class="select" style="width: auto" aria-label="Item kind" @change="savePrompts">
+              <option v-for="kind in PROMPT_KINDS" :key="kind.value" :value="kind.value">{{ kind.label }}</option>
+            </select>
+            <input v-model="p.label" class="input" style="width: 150px" placeholder="Label" @blur="savePrompts" />
+            <input
+              v-model="p.template"
+              class="input grow mono"
+              placeholder="$review-pr-full {number} {owner}/{repository}"
+              @blur="savePrompts"
+            />
+            <button class="btn sm danger" title="Remove" @click="removePrompt(index)">✕</button>
+          </div>
+          <p v-if="!promptDrafts.length" class="faint" style="margin-top: 8px">
+            No prompts; the agent panel shows no buttons.
+          </p>
+          <div class="row" style="margin-top: 10px">
+            <button class="btn" @click="addPrompt">Add prompt</button>
+            <button class="btn ghost" @click="resetPrompts">Reset to defaults</button>
           </div>
         </section>
 

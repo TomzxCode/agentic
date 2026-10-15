@@ -158,6 +158,35 @@ describe('SettingsView', () => {
     expect(mocks.settingsUpdate).toHaveBeenCalledWith({ slack_refresh_policy: '1d=3h' })
   })
 
+  it('edits user-defined agent prompts and saves them as JSON', async () => {
+    mocks.settingsGet.mockResolvedValue({
+      defaults: {
+        agent_prompts: JSON.stringify([
+          { kind: 'pull_request', label: 'Review PR', template: '$review-pr-full {number} {owner}/{repository}' }
+        ])
+      },
+      overrides: {}
+    })
+    mocks.settingsUpdate.mockResolvedValue({})
+    const wrapper = mountView()
+    await flushPromises()
+
+    const promptsNav = wrapper.findAll('.settings-nav-item').find((b) => b.text() === 'Agent prompts')
+    await promptsNav.trigger('click')
+    await flushPromises()
+    // The seeded default is shown when nothing is overridden.
+    expect(wrapper.get('input[placeholder="$review-pr-full {number} {owner}/{repository}"]').element.value).toBe(
+      '$review-pr-full {number} {owner}/{repository}'
+    )
+
+    await wrapper.get('input[placeholder="$review-pr-full {number} {owner}/{repository}"]').setValue('$x {number}')
+    await wrapper.get('input[placeholder="$review-pr-full {number} {owner}/{repository}"]').trigger('blur')
+    await flushPromises()
+    expect(mocks.settingsUpdate).toHaveBeenCalledWith({
+      agent_prompts: JSON.stringify([{ kind: 'pull_request', label: 'Review PR', template: '$x {number}' }])
+    })
+  })
+
   it('shows when each source last ran and how it went', async () => {
     mocks.settingsRefreshStatus.mockResolvedValue({
       sources: {

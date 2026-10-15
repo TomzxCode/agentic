@@ -57,6 +57,8 @@ class SettingsUpdate(BaseModel):
     editor_url_template: str | None = None
     slack_refresh_policy: str | None = None
     github_refresh_policy: str | None = None
+    # A JSON list of user-defined agent prompts (kind, label, template).
+    agent_prompts: str | None = None
 
 
 class RefreshTierRead(BaseModel):

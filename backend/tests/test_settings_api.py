@@ -54,6 +54,48 @@ def test_refresh_policy_setting_validates_and_previews():
         client.patch("/api/settings", json={"slack_refresh_policy": "", "github_refresh_policy": ""})
 
 
+def test_agent_prompts_default_and_validation():
+    import json
+
+    from sqlmodel import Session
+
+    from agentic.db import engine
+    from agentic.models import Setting
+
+    with TestClient(app) as client:
+        initial = client.get("/api/settings").json()
+        # The seeded defaults are served when nothing is overridden.
+        defaults = json.loads(initial["defaults"]["agent_prompts"])
+        assert {prompt["kind"] for prompt in defaults} == {"issue", "pull_request"}
+        assert json.loads(initial["effective"]["agent_prompts"]) == defaults
+
+        # A valid list round-trips and is stored as an override.
+        prompts = [{"kind": "issue", "label": "Triage", "template": "triage {number} {owner}/{repository}"}]
+        saved = client.patch("/api/settings", json={"agent_prompts": json.dumps(prompts)}).json()
+        assert json.loads(saved["overrides"]["agent_prompts"]) == prompts
+
+        # A malformed list is rejected and names the field.
+        for bad in (
+            "not json",
+            json.dumps({"kind": "issue"}),
+            json.dumps([{"kind": "nope", "template": "x"}]),
+            json.dumps([{"kind": "issue", "template": "   "}]),
+        ):
+            rejected = client.patch("/api/settings", json={"agent_prompts": bad})
+            assert rejected.status_code == 422
+            assert "agent_prompts" in rejected.json()["detail"]
+
+        # An empty list is a valid override (no buttons in the panel).
+        empty = client.patch("/api/settings", json={"agent_prompts": "[]"}).json()
+        assert empty["effective"]["agent_prompts"] == "[]"
+
+    with Session(engine) as session:
+        row = session.get(Setting, "agent_prompts")
+        if row is not None:
+            session.delete(row)
+            session.commit()
+
+
 def test_refresh_status_reports_the_last_run():
     from datetime import UTC, datetime
 

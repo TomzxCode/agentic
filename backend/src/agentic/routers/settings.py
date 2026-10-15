@@ -14,7 +14,14 @@ from ..schemas import (
     SettingsRead,
     SettingsUpdate,
 )
-from ..settings_store import env_defaults, get_overrides, get_refresh_status, get_settings, update_settings
+from ..settings_store import (
+    env_defaults,
+    get_overrides,
+    get_refresh_status,
+    get_settings,
+    parse_agent_prompts,
+    update_settings,
+)
 
 router = APIRouter(prefix="/api/settings", tags=["settings"])
 
@@ -43,6 +50,12 @@ def patch_settings(payload: SettingsUpdate, session: Session = Depends(get_sessi
             parse_policy(policy_text)
         except PolicyError as exc:
             raise HTTPException(status_code=422, detail=f"{key}: {exc}") from exc
+    prompts = values.get("agent_prompts")
+    if prompts is not None:
+        try:
+            parse_agent_prompts(prompts)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=f"agent_prompts: {exc}") from exc
     update_settings(session, values)
     return _read(session)
 

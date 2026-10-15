@@ -11,7 +11,8 @@ from .config import settings
 from .models import Setting, utcnow
 from .refresh import REFRESHABLE_SOURCES
 
-# Keys the Settings page can override. Values are strings (URLs / templates).
+# Keys the Settings page can override. Values are strings (URLs, templates, and
+# JSON-encoded lists such as ``agent_prompts``).
 OVERRIDABLE_KEYS = (
     "openchamber_url",
     "openchamber_session_path",
@@ -19,7 +20,39 @@ OVERRIDABLE_KEYS = (
     "editor_url_template",
     "slack_refresh_policy",
     "github_refresh_policy",
+    "agent_prompts",
 )
+
+# The item kinds a user-defined agent prompt can target. A prompt appears in the
+# agent panel only when the task has exactly one associated item of its kind.
+AGENT_PROMPT_KINDS = ("issue", "pull_request")
+
+# Seeded prompt buttons: one to review a pull request, one to triage an issue.
+# ``{owner}``, ``{repository}``, and ``{number}`` are substituted from the
+# associated GitHub item before the run starts.
+DEFAULT_AGENT_PROMPTS: list[dict[str, str]] = [
+    {"kind": "pull_request", "label": "Review PR", "template": "$review-pr-full {number} {owner}/{repository}"},
+    {"kind": "issue", "label": "Triage issue", "template": "$triage-issue {number} {owner}/{repository}"},
+]
+
+
+def parse_agent_prompts(raw: str) -> list[dict[str, str]]:
+    """Validate the JSON list of user-defined prompts. Raises ``ValueError``."""
+    data = json.loads(raw)
+    if not isinstance(data, list):
+        raise ValueError("must be a JSON list of prompts")
+    prompts: list[dict[str, str]] = []
+    for entry in data:
+        if not isinstance(entry, dict):
+            raise ValueError("each prompt must be an object")
+        kind = entry.get("kind")
+        if kind not in AGENT_PROMPT_KINDS:
+            raise ValueError(f"prompt kind must be one of {', '.join(AGENT_PROMPT_KINDS)}")
+        template = str(entry.get("template") or "").strip()
+        if not template:
+            raise ValueError("prompt template is required")
+        prompts.append({"kind": kind, "label": str(entry.get("label") or ""), "template": template})
+    return prompts
 
 
 def env_defaults() -> dict[str, str]:
@@ -30,6 +63,7 @@ def env_defaults() -> dict[str, str]:
         "editor_url_template": settings.editor_url_template,
         "slack_refresh_policy": settings.slack_refresh_policy,
         "github_refresh_policy": settings.github_refresh_policy,
+        "agent_prompts": json.dumps(DEFAULT_AGENT_PROMPTS),
     }
 
 

@@ -325,4 +325,69 @@ describe('AgentPanel', () => {
     await flushPromises()
     expect(mocks.runsCancel).toHaveBeenCalledWith('r1')
   })
+
+  it('shows a user-defined prompt button and starts the run with its resolved text', async () => {
+    store.settings = {
+      agent_prompts: JSON.stringify([
+        { kind: 'pull_request', label: 'Review PR', template: '$review-pr-full {number} {owner}/{repository}' }
+      ])
+    }
+    mocks.runsCreate.mockResolvedValue({ id: 'r1', status: 'running', kind: 'chat', links: [] })
+    mocks.openRunStream.mockReturnValue(vi.fn())
+
+    const task = {
+      id: 't1',
+      associations: [
+        {
+          id: 'a1',
+          item: {
+            id: 'i1',
+            source: 'github',
+            kind: 'pull_request',
+            metadata_json: { owner: 'acme', repo: 'api', number: 123 }
+          }
+        }
+      ]
+    }
+    const wrapper = mount(AgentPanel, {
+      props: { task, harnesses: [] },
+      global: { stubs: { SearchSelect: true, SessionLinks: true } }
+    })
+    await flushPromises()
+
+    const promptButton = wrapper.findAll('button').find((b) => b.text().includes('Review PR'))
+    expect(promptButton).toBeTruthy()
+    await promptButton.trigger('click')
+    await flushPromises()
+    expect(mocks.runsCreate).toHaveBeenCalledWith('t1', { prompt: '$review-pr-full 123 acme/api' })
+    store.settings = {}
+  })
+
+  it('hides a prompt button when the task has two items of that kind', async () => {
+    store.settings = {
+      agent_prompts: JSON.stringify([
+        { kind: 'issue', label: 'Triage issue', template: '$triage-issue {number} {owner}/{repository}' }
+      ])
+    }
+    const task = {
+      id: 't1',
+      associations: [
+        {
+          id: 'a1',
+          item: { id: 'i1', source: 'github', kind: 'issue', metadata_json: { owner: 'acme', repo: 'api', number: 1 } }
+        },
+        {
+          id: 'a2',
+          item: { id: 'i2', source: 'github', kind: 'issue', metadata_json: { owner: 'acme', repo: 'api', number: 2 } }
+        }
+      ]
+    }
+    const wrapper = mount(AgentPanel, {
+      props: { task, harnesses: [] },
+      global: { stubs: { SearchSelect: true, SessionLinks: true } }
+    })
+    await flushPromises()
+    expect(wrapper.findAll('button').some((b) => b.text().includes('Triage issue'))).toBe(false)
+    store.settings = {}
+  })
 })

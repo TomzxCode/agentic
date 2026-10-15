@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { api, openRunStream } from '../api'
+import { parseAgentPrompts, taskPrompts } from '../prompts'
 import { store, timeAgo } from '../store'
 import EntityCard from './EntityCard.vue'
 import SessionLinks from './SessionLinks.vue'
@@ -43,6 +44,10 @@ const worktreeOptions = computed(() => [
   { value: '', label: 'Auto working directory' },
   ...(props.task.worktrees || []).filter((w) => w.status === 'active').map((w) => ({ value: w.id, label: w.branch }))
 ])
+
+// User-defined prompts (Settings → Agent prompts) that apply here: each shows
+// only when the task has exactly one associated GitHub item of its kind.
+const promptButtons = computed(() => taskPrompts(props.task, parseAgentPrompts(store.settings.agent_prompts)))
 
 // ACP names the tool in the update's title (opencode sends just `read` or
 // `skill`) and puts the call's own argument in `rawInput`, which arrives with
@@ -196,12 +201,13 @@ function handleEvent(ev) {
   events.value.push(ev)
 }
 
-async function start() {
-  if (!prompt.value.trim()) return
+async function start(text) {
+  const value = (typeof text === 'string' ? text : prompt.value).trim()
+  if (!value || running.value) return
   running.value = true
   events.value = []
   try {
-    const body = { prompt: prompt.value }
+    const body = { prompt: value }
     if (harnessId.value) body.harness_id = harnessId.value
     if (worktreeId.value) body.worktree_id = worktreeId.value
     const run = await api.runs.create(props.task.id, body)
@@ -249,15 +255,28 @@ onMounted(loadRuns)
     </div>
     <div class="faint mono" style="margin: 6px 0 8px">cwd: {{ liveCwd }}</div>
 
+    <div v-if="promptButtons.length" class="row" style="margin-bottom: 8px">
+      <button
+        v-for="p in promptButtons"
+        :key="p.key"
+        class="btn sm"
+        :disabled="running"
+        :title="p.text"
+        @click="start(p.text)"
+      >
+        {{ p.label }}
+      </button>
+    </div>
+
     <textarea
       v-model="prompt"
       class="textarea"
       :disabled="running"
       placeholder="Ask the agent to work on this task…"
-      @keydown.ctrl.enter="start"
+      @keydown.ctrl.enter="start()"
     ></textarea>
     <div class="row" style="margin-top: 8px">
-      <button class="btn primary" :disabled="running || !prompt.trim()" @click="start">
+      <button class="btn primary" :disabled="running || !prompt.trim()" @click="start()">
         <span v-if="running" class="spinner"></span> Run
       </button>
       <button v-if="running" class="btn danger" @click="cancel">Cancel</button>

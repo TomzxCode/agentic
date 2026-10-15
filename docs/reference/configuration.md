@@ -46,6 +46,12 @@ A stored override wins over the matching environment variable.
 
 The refresh policies are editable under **Settings → Refresh**.
 
+**Agent prompts** are editable under **Settings → Agent prompts**.
+Each prompt appears as a button in the agent panel when a task has exactly one associated issue or pull request of the prompt's kind, and clicking it starts a run with the resolved template.
+Placeholders: `{owner}`, `{repository}`, `{number}` (filled from the associated GitHub item).
+Two prompts are seeded by default: **Review PR** (`$review-pr-full {number} {owner}/{repository}`) and **Triage issue** (`$triage-issue {number} {owner}/{repository}`).
+There is no environment variable for these; they live only in the settings store.
+
 ## Refresh policy format
 
 A refresh policy is a comma-separated list of `age=interval` bands, with an optional `*` fallback, for example:

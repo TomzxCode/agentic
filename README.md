@@ -291,6 +291,13 @@ Configure the base URLs on the **Settings** page (persisted locally) or with
 environment variables. Each harness has an editable resume command template.
 Placeholders: `{session}`, `{cwd}`, `{harness}`.
 
+**Settings → Agent prompts** defines one-click prompt buttons for the agent
+panel. A prompt shows when a task has exactly one associated issue or pull
+request of its kind; clicking it starts a run with `{owner}`, `{repository}`,
+and `{number}` filled in from that item. Two prompts are seeded: **Review PR**
+(`$review-pr-full {number} {owner}/{repository}`) and **Triage issue**
+(`$triage-issue {number} {owner}/{repository}`).
+
 The same settings page has an **Editor URL template**; when set, each worktree in
 a task shows an **Open in editor** button that opens the worktree path (`{path}`).
 Local: `vscode://file{path}`. Remote VS Code over SSH:
@@ -459,7 +466,7 @@ GET/PATCH/DELETE    /api/tasks/{id}/sessions/{session}
 POST                /api/tasks/{id}/context/refresh
 GET                 /api/tasks/{id}/stream           (SSE: task changes)
 GET                 /api/runs/{id}/stream               (SSE: agent transcript)
-GET/PATCH           /api/settings                        (session-link config)
+GET/PATCH           /api/settings                        (session links, refresh policies, agent prompts)
 GET                 /api/fs/list                         (repository picker)
 POST                /api/repositories/bulk               (add several at once)
 GET                 /api/github/issues                   (issue picker for import)
