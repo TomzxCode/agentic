@@ -13,10 +13,12 @@ const mocks = vi.hoisted(() => ({
   settingsGet: vi.fn(),
   settingsUpdate: vi.fn(),
   settingsPreviewPolicy: vi.fn(),
+  settingsRefreshStatus: vi.fn(),
   repositoriesCreate: vi.fn(),
   repositoriesCreateBulk: vi.fn(),
   repositoriesRemove: vi.fn(),
   itemsRefresh: vi.fn(),
+  itemsRefreshSource: vi.fn(),
   changesList: vi.fn(),
   changesCreate: vi.fn(),
   tasksGet: vi.fn(),
@@ -41,14 +43,15 @@ vi.mock('../api', () => ({
     settings: {
       get: mocks.settingsGet,
       update: mocks.settingsUpdate,
-      previewRefreshPolicy: mocks.settingsPreviewPolicy
+      previewRefreshPolicy: mocks.settingsPreviewPolicy,
+      refreshStatus: mocks.settingsRefreshStatus
     },
     repositories: {
       create: mocks.repositoriesCreate,
       createBulk: mocks.repositoriesCreateBulk,
       remove: mocks.repositoriesRemove
     },
-    items: { refresh: mocks.itemsRefresh },
+    items: { refresh: mocks.itemsRefresh, refreshSource: mocks.itemsRefreshSource },
     changes: { list: mocks.changesList, create: mocks.changesCreate },
     tasks: { get: mocks.tasksGet, update: mocks.tasksUpdate, remove: mocks.tasksRemove }
   },
@@ -95,6 +98,7 @@ describe('SettingsView', () => {
       tiers: [{ max_age_seconds: 86400, interval_seconds: 3600 }],
       fallback_seconds: 604800
     })
+    mocks.settingsRefreshStatus.mockResolvedValue({ sources: {} })
   })
 
   const mountView = () =>
@@ -147,6 +151,75 @@ describe('SettingsView', () => {
     await inputs[0].trigger('blur')
     await flushPromises()
     expect(mocks.settingsUpdate).toHaveBeenCalledWith({ slack_refresh_policy: '1d=3h' })
+  })
+
+  it('shows when each source last ran and how it went', async () => {
+    mocks.settingsRefreshStatus.mockResolvedValue({
+      sources: {
+        slack: {
+          last_run_at: new Date().toISOString(),
+          refreshed: 2,
+          failed: 1,
+          error: 'slackx: rate limited',
+          origin: 'manual'
+        }
+      }
+    })
+    const wrapper = mountView()
+    await flushPromises()
+
+    const refreshNav = wrapper.findAll('.settings-nav-item').find((b) => b.text() === 'Refresh')
+    await refreshNav.trigger('click')
+    await flushPromises()
+    expect(wrapper.text()).toContain('Last run:')
+    expect(wrapper.text()).toContain('2 refreshed')
+    expect(wrapper.text()).toContain('1 failed')
+    expect(wrapper.text()).toContain('slackx: rate limited')
+    expect(wrapper.text()).toContain('forced')
+    // GitHub has no recorded run yet.
+    expect(wrapper.text()).toContain('never')
+  })
+
+  it('force refreshes one source and reports the outcome', async () => {
+    mocks.itemsRefreshSource.mockResolvedValue({ checked: 2, due: 2, refreshed: 2, failed: 0, items: [] })
+    const wrapper = mountView()
+    await flushPromises()
+
+    const refreshNav = wrapper.findAll('.settings-nav-item').find((b) => b.text() === 'Refresh')
+    await refreshNav.trigger('click')
+    await flushPromises()
+
+    const buttons = wrapper.findAll('button').filter((b) => b.text() === 'Force refresh')
+    expect(buttons.length).toBe(2)
+    await buttons[0].trigger('click')
+    await flushPromises()
+    expect(mocks.itemsRefreshSource).toHaveBeenCalledWith('slack')
+  })
+
+  it('lets one source force refresh while the other is still refreshing', async () => {
+    let pending
+    mocks.itemsRefreshSource.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          pending = resolve
+        })
+    )
+    const wrapper = mountView()
+    await flushPromises()
+
+    const refreshNav = wrapper.findAll('.settings-nav-item').find((b) => b.text() === 'Refresh')
+    await refreshNav.trigger('click')
+    await flushPromises()
+
+    const buttons = wrapper.findAll('button').filter((b) => b.text() === 'Force refresh')
+    await buttons[0].trigger('click')
+    await flushPromises()
+    expect(buttons[0].attributes('disabled')).toBeDefined()
+    expect(buttons[1].attributes('disabled')).toBeUndefined()
+
+    pending()
+    await flushPromises()
+    expect(buttons[0].attributes('disabled')).toBeUndefined()
   })
 
   it('adds a harness with parsed args', async () => {

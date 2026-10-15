@@ -2,7 +2,7 @@
 import { onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { api } from '../api'
-import { store } from '../store'
+import { store, timeAgo } from '../store'
 import EntityCard from '../components/EntityCard.vue'
 import RepositoryGroupsPanel from '../components/RepositoryGroupsPanel.vue'
 
@@ -20,7 +20,10 @@ const active = ref(SECTIONS.some((s) => s.id === route.query.section) ? route.qu
 function select(id) {
   active.value = id
   router.replace({ query: { section: id } })
-  if (id === 'refresh') previewAllRefresh()
+  if (id === 'refresh') {
+    previewAllRefresh()
+    loadRefreshStatus()
+  }
 }
 
 watch(
@@ -52,15 +55,18 @@ let savedTimer
 const refreshForm = reactive({ slack_refresh_policy: '', github_refresh_policy: '' })
 const refreshDefaults = ref({})
 const refreshPreviews = reactive({ slack_refresh_policy: null, github_refresh_policy: null })
+const refreshStatus = ref({})
 const savingRefresh = ref('')
 const savedRefresh = ref('')
+// Per source, so refreshing one does not block the other.
+const forcingRefresh = reactive({ slack: false, github: false })
 let savedRefreshTimer
 const previewTimers = {}
 
 // Slack threads and GitHub issues/PRs refresh on their own schedules.
 const REFRESH_FIELDS = [
-  { key: 'slack_refresh_policy', label: 'Slack threads' },
-  { key: 'github_refresh_policy', label: 'GitHub issues/PRs' }
+  { key: 'slack_refresh_policy', label: 'Slack threads', source: 'slack' },
+  { key: 'github_refresh_policy', label: 'GitHub issues/PRs', source: 'github' }
 ]
 
 function formatDuration(seconds) {
@@ -91,6 +97,34 @@ async function previewRefresh(key) {
 
 function previewAllRefresh() {
   return Promise.all(REFRESH_FIELDS.map((field) => previewRefresh(field.key)))
+}
+
+// When the background job last ran for each source. Best effort: a backend
+// without the endpoint simply shows no status.
+async function loadRefreshStatus() {
+  if (typeof api.settings.refreshStatus !== 'function') return
+  try {
+    refreshStatus.value = (await api.settings.refreshStatus()).sources || {}
+  } catch {
+    // Leave the last known status; a failed read should not block the settings.
+  }
+}
+
+// Re-fetch every item of one source now, ignoring its policy.
+async function forceRefresh(source) {
+  if (forcingRefresh[source]) return
+  forcingRefresh[source] = true
+  try {
+    const report = await api.items.refreshSource(source)
+    const label = REFRESH_FIELDS.find((field) => field.source === source)?.label || source
+    const summary = `${report.refreshed} refreshed${report.failed ? `, ${report.failed} failed` : ''}`
+    store.notify(`${label}: ${summary}`, report.failed > 0)
+    await loadRefreshStatus()
+  } catch (e) {
+    store.notify(e.message, true)
+  } finally {
+    forcingRefresh[source] = false
+  }
 }
 
 function onRefreshInput(key) {
@@ -147,7 +181,8 @@ async function load() {
   await Promise.all([
     loadRepositories(),
     loadHarnesses().catch((e) => store.notify(e.message, true)),
-    loadSettings().catch((e) => store.notify(e.message, true))
+    loadSettings().catch((e) => store.notify(e.message, true)),
+    loadRefreshStatus()
   ])
   loading.value = false
 }
@@ -366,17 +401,38 @@ onMounted(load)
               <span v-if="savingRefresh === field.key" class="faint">saving…</span>
               <span v-else-if="savedRefresh === field.key" class="faint">saved</span>
             </label>
-            <input
-              v-model="refreshForm[field.key]"
-              class="input mono"
-              :placeholder="refreshDefaults[field.key] || '1d=1h,7d=6h,30d=1d,*=7d'"
-              @input="onRefreshInput(field.key)"
-              @blur="saveRefresh(field.key)"
-            />
+            <div class="row">
+              <input
+                v-model="refreshForm[field.key]"
+                class="input mono grow"
+                :placeholder="refreshDefaults[field.key] || '1d=1h,7d=6h,30d=1d,*=7d'"
+                @input="onRefreshInput(field.key)"
+                @blur="saveRefresh(field.key)"
+              />
+              <button class="btn sm" :disabled="forcingRefresh[field.source]" @click="forceRefresh(field.source)">
+                <span v-if="forcingRefresh[field.source]" class="spinner" aria-hidden="true"></span>
+                Force refresh
+              </button>
+            </div>
             <p class="faint" style="margin: 4px 0 0">
               <code>1d=1h,7d=6h,30d=1d,*=7d</code>: hourly while under a day old, every 6h under a week, daily under 30
               days, weekly after. Omit the <code>*</code> band (or use <code>*=never</code>) to stop refreshing an item
               once it outgrows the last band.
+            </p>
+            <p class="faint" style="margin: 4px 0 0">
+              Last run:
+              <template v-if="refreshStatus[field.source]?.last_run_at">
+                {{ timeAgo(refreshStatus[field.source].last_run_at) }} ·
+                {{ refreshStatus[field.source].refreshed }} refreshed
+                <span v-if="refreshStatus[field.source].failed" style="color: var(--danger)">
+                  · {{ refreshStatus[field.source].failed }} failed
+                </span>
+                <span v-if="refreshStatus[field.source].origin === 'manual'"> · forced</span>
+              </template>
+              <template v-else>never</template>
+            </p>
+            <p v-if="refreshStatus[field.source]?.error" style="margin: 4px 0 0; color: var(--danger)">
+              {{ refreshStatus[field.source].error }}
             </p>
             <div v-if="refreshPreviews[field.key]">
               <p v-if="!refreshPreviews[field.key].valid" style="color: var(--danger); margin: 0">

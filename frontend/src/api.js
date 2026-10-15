@@ -139,6 +139,7 @@ export const api = {
     create: (body) => request('/items', { method: 'POST', body }),
     update: (id, body) => request(`/items/${id}`, { method: 'PATCH', body }),
     refresh: (id) => request(`/items/${id}/refresh`, { method: 'POST' }),
+    refreshSource: (source) => request(`/items/refresh-source/${source}`, { method: 'POST' }),
     remove: (id) => request(`/items/${id}`, { method: 'DELETE' })
   },
 
@@ -190,7 +191,8 @@ export const api = {
   settings: {
     get: () => request('/settings'),
     update: (body) => request('/settings', { method: 'PATCH', body }),
-    previewRefreshPolicy: (value) => request('/settings/refresh-policy/preview', { method: 'POST', body: { value } })
+    previewRefreshPolicy: (value) => request('/settings/refresh-policy/preview', { method: 'POST', body: { value } }),
+    refreshStatus: () => request('/settings/refresh-status')
   },
 
   worktrees: {

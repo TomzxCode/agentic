@@ -161,6 +161,9 @@ class AgenticClient:
     def refresh_due_items(self) -> dict:
         return self._request("POST", "/api/items/refresh-due")
 
+    def refresh_source(self, source: str) -> dict:
+        return self._request("POST", f"/api/items/refresh-source/{source}")
+
     def delete_item(self, item_id: str) -> None:
         self._request("DELETE", f"/api/items/{item_id}")
 
@@ -283,6 +286,9 @@ class AgenticClient:
     # --- settings ---------------------------------------------------------
     def get_settings(self) -> dict:
         return self._request("GET", "/api/settings")
+
+    def refresh_status(self) -> dict:
+        return self._request("GET", "/api/settings/refresh-status")
 
     def update_settings(self, **fields: Any) -> dict:
         return self._request("PATCH", "/api/settings", json=_compact(fields))

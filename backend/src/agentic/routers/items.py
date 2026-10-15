@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections import Counter
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import delete as sa_delete
 from sqlmodel import Session, col, select
@@ -19,7 +21,7 @@ from ..refresh import (
 )
 from ..schemas import ItemCreate, ItemRead, ItemUpdate, RefreshDueReport
 from ..services import fetch_source, infer_item_source, looks_like_url
-from ..settings_store import get_settings
+from ..settings_store import get_settings, record_refresh_run
 from .people import item_person_ids, link_people_to_item
 
 router = APIRouter(prefix="/api/items", tags=["items"])
@@ -92,33 +94,10 @@ def _item_read(session: Session, item: SourceItem) -> ItemRead:
     return data
 
 
-def refresh_due_items(session: Session, policies: dict[str, str], now=None) -> dict:
-    """Refresh every item whose source policy says it is due. Best effort per item.
-
-    ``policies`` maps a source ("slack", "github") to its policy text; a source
-    with no policy (or a malformed one) is skipped. Used by
-    ``POST /api/items/refresh-due`` and the API's background loop. A failure on
-    one item (slackx/ghx missing or erroring) is recorded and does not stop the
-    others.
-    """
-    now = now or utcnow()
-    parsed: dict[str, RefreshPolicy | None] = {}
-    for source in REFRESHABLE_SOURCES:
-        try:
-            parsed[source] = parse_policy(policies.get(source, ""))
-        except PolicyError:
-            parsed[source] = None
-    report = {"checked": 0, "due": 0, "refreshed": 0, "failed": 0, "items": []}
-    active = tuple(source for source, policy in parsed.items() if policy is not None and policy.enabled)
-    if not active:
-        return report
-
-    items = list(session.exec(select(SourceItem).where(col(SourceItem.source).in_(active))).all())
-    report["checked"] = len(items)
+def _refresh_entries(session: Session, items: list[SourceItem], now) -> list[dict]:
+    """Fetch and persist each item, recording success or the error. Best effort."""
+    entries: list[dict] = []
     for item in items:
-        policy = parsed.get(item.source)
-        if policy is None or not is_due(policy, age=item_age(item, now), fetched_at=item.fetched_at, now=now):
-            continue
         entry = {"item_id": item.id, "source": item.source, "title": item.title, "refreshed": False, "error": None}
         try:
             fetched = fetch_source(item.source, item.url, item.external_id, item.title)
@@ -136,12 +115,91 @@ def refresh_due_items(session: Session, policies: dict[str, str], now=None) -> d
         except Exception as exc:  # noqa: BLE001
             session.rollback()
             entry["error"] = str(exc)
-        report["items"].append(entry)
+        entries.append(entry)
+    return entries
 
-    report["due"] = len(report["items"])
-    report["refreshed"] = sum(1 for entry in report["items"] if entry["refreshed"])
-    report["failed"] = sum(1 for entry in report["items"] if entry["error"])
-    return report
+
+def _refresh_report(checked: int, entries: list[dict]) -> dict:
+    return {
+        "checked": checked,
+        "due": len(entries),
+        "refreshed": sum(1 for entry in entries if entry["refreshed"]),
+        "failed": sum(1 for entry in entries if entry["error"]),
+        "items": entries,
+    }
+
+
+def _record_runs(session: Session, sources, entries: list[dict], now, origin: str) -> None:
+    """Store the per-source outcome of a refresh pass, for the Settings page."""
+    refreshed: Counter = Counter()
+    failed: Counter = Counter()
+    errors: dict[str, str] = {}
+    for entry in entries:
+        source = entry["source"]
+        if entry["refreshed"]:
+            refreshed[source] += 1
+        if entry.get("error"):
+            failed[source] += 1
+            errors[source] = entry["error"]
+    for source in sources:
+        record_refresh_run(
+            session,
+            source,
+            last_run_at=now,
+            refreshed=refreshed.get(source, 0),
+            failed=failed.get(source, 0),
+            error=errors.get(source),
+            origin=origin,
+        )
+
+
+def refresh_due_items(session: Session, policies: dict[str, str], now=None, origin: str = "background") -> dict:
+    """Refresh every item whose source policy says it is due. Best effort per item.
+
+    ``policies`` maps a source ("slack", "github") to its policy text; a source
+    with no policy (or a malformed one) is skipped. Records each active source's
+    outcome under ``origin`` ("background" for the timer, "manual" for a run
+    asked for through the API/CLI). A failure on one item (slackx/ghx missing or
+    erroring) is recorded and does not stop the others.
+    """
+    now = now or utcnow()
+    parsed: dict[str, RefreshPolicy | None] = {}
+    for source in REFRESHABLE_SOURCES:
+        try:
+            parsed[source] = parse_policy(policies.get(source, ""))
+        except PolicyError:
+            parsed[source] = None
+    active = tuple(source for source, policy in parsed.items() if policy is not None and policy.enabled)
+    if not active:
+        return _refresh_report(0, [])
+
+    items = list(session.exec(select(SourceItem).where(col(SourceItem.source).in_(active))).all())
+    due = [
+        item
+        for item in items
+        if parsed[item.source] is not None
+        and is_due(parsed[item.source], age=item_age(item, now), fetched_at=item.fetched_at, now=now)
+    ]
+    entries = _refresh_entries(session, due, now)
+    _record_runs(session, active, entries, now, origin)
+    return _refresh_report(len(items), entries)
+
+
+def force_refresh_source(session: Session, source: str, now=None) -> dict:
+    """Re-fetch every item of one source now, ignoring the refresh policy.
+
+    Used by ``POST /api/items/refresh-source/{source}`` and the Settings
+    "Force refresh" button, so a source can be pulled on demand even when no
+    policy is set or nothing is due.
+    """
+    if source not in REFRESHABLE_SOURCES:
+        raise ValueError(f"Unknown source: {source}")
+    now = now or utcnow()
+    items = list(session.exec(select(SourceItem).where(SourceItem.source == source)).all())
+    fetchable = [item for item in items if item.url]
+    entries = _refresh_entries(session, fetchable, now)
+    _record_runs(session, [source], entries, now, "manual")
+    return _refresh_report(len(items), entries)
 
 
 @router.get("", response_model=list[ItemRead])
@@ -175,7 +233,17 @@ def create_item(payload: ItemCreate, session: Session = Depends(get_session)) ->
 def refresh_due(session: Session = Depends(get_session)) -> RefreshDueReport:
     """Re-fetch every item whose source refresh policy says it is due."""
     policies = policies_from_settings(get_settings(session))
-    return RefreshDueReport.model_validate(refresh_due_items(session, policies))
+    return RefreshDueReport.model_validate(refresh_due_items(session, policies, origin="manual"))
+
+
+@router.post("/refresh-source/{source}", response_model=RefreshDueReport)
+def refresh_source(source: str, session: Session = Depends(get_session)) -> RefreshDueReport:
+    """Re-fetch every item of one source now, ignoring the refresh policy."""
+    try:
+        report = force_refresh_source(session, source)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return RefreshDueReport.model_validate(report)
 
 
 @router.get("/{item_id}", response_model=ItemRead)
@@ -231,4 +299,4 @@ def delete_item(item_id: str, session: Session = Depends(get_session)) -> None:
     session.commit()
 
 
-__all__ = ["router", "_upsert_item", "refresh_due_items"]
+__all__ = ["router", "_upsert_item", "force_refresh_source", "refresh_due_items"]

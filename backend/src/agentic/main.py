@@ -49,7 +49,8 @@ def _refresh_due_once() -> dict:
     """Run one pass of the refresh policy in a worker thread (slackx/ghx block).
 
     Opens its own session so the blocking fetches never touch the event loop's
-    connection.
+    connection. ``refresh_due_items`` records each source's outcome, which is
+    what the Settings page shows.
     """
     from .refresh import policies_from_settings
     from .routers.items import refresh_due_items

@@ -52,3 +52,105 @@ def test_refresh_policy_setting_validates_and_previews():
         assert saved["overrides"]["slack_refresh_policy"] == "1d=1h,*=never"
 
         client.patch("/api/settings", json={"slack_refresh_policy": "", "github_refresh_policy": ""})
+
+
+def test_refresh_status_reports_the_last_run():
+    from datetime import UTC, datetime
+
+    from sqlmodel import Session
+
+    from agentic.db import engine
+    from agentic.models import Setting
+    from agentic.settings_store import record_refresh_run
+
+    with TestClient(app) as client:
+        assert client.get("/api/settings/refresh-status").json() == {"sources": {}}
+
+        with Session(engine) as session:
+            record_refresh_run(
+                session,
+                "slack",
+                last_run_at=datetime(2026, 10, 15, 12, 0, tzinfo=UTC),
+                refreshed=3,
+                failed=1,
+                error="slackx: rate limited",
+                origin="manual",
+            )
+
+        status = client.get("/api/settings/refresh-status").json()["sources"]
+        assert status["slack"]["refreshed"] == 3
+        assert status["slack"]["failed"] == 1
+        assert status["slack"]["error"] == "slackx: rate limited"
+        assert status["slack"]["origin"] == "manual"
+        assert status["slack"]["last_run_at"].startswith("2026-10-15T12:00")
+        assert "github" not in status
+
+        with Session(engine) as session:
+            session.delete(session.get(Setting, "slack_refresh_status"))
+            session.commit()
+
+
+def test_background_run_records_status_per_source(monkeypatch):
+    from sqlmodel import Session
+
+    from agentic import main
+    from agentic.db import engine
+    from agentic.models import Setting
+    from agentic.routers import items as items_router
+
+    monkeypatch.setattr(items_router, "fetch_source", lambda *args, **kwargs: {"title": "x", "content": "y"})
+    with TestClient(app) as client:
+        client.patch("/api/settings", json={"slack_refresh_policy": "1d=1h", "github_refresh_policy": "1d=1h"})
+        try:
+            item = client.post("/api/items", json={"url": "https://github.com/o/r/issues/11", "fetch": False}).json()
+            main._refresh_due_once()
+
+            sources = client.get("/api/settings/refresh-status").json()["sources"]
+            assert sources["github"]["last_run_at"] and sources["github"]["refreshed"] >= 1
+            assert sources["github"]["origin"] == "background"
+            # Every active source records a run, even when nothing was due.
+            assert sources["slack"]["last_run_at"]
+
+            client.delete(f"/api/items/{item['id']}")
+        finally:
+            client.patch("/api/settings", json={"slack_refresh_policy": "", "github_refresh_policy": ""})
+            with Session(engine) as session:
+                for key in ("slack_refresh_status", "github_refresh_status"):
+                    row = session.get(Setting, key)
+                    if row is not None:
+                        session.delete(row)
+                session.commit()
+
+
+def test_background_run_records_failures(monkeypatch):
+    from sqlmodel import Session
+
+    from agentic import main
+    from agentic.db import engine
+    from agentic.models import Setting
+    from agentic.routers import items as items_router
+
+    def boom(*args, **kwargs):
+        raise RuntimeError("ghx: authentication required")
+
+    monkeypatch.setattr(items_router, "fetch_source", boom)
+    with TestClient(app) as client:
+        client.patch("/api/settings", json={"github_refresh_policy": "1d=1h"})
+        try:
+            item = client.post("/api/items", json={"url": "https://github.com/o/r/issues/12", "fetch": False}).json()
+            main._refresh_due_once()
+
+            status = client.get("/api/settings/refresh-status").json()["sources"]["github"]
+            assert status["refreshed"] == 0
+            assert status["failed"] >= 1
+            assert "authentication" in status["error"]
+
+            client.delete(f"/api/items/{item['id']}")
+        finally:
+            client.patch("/api/settings", json={"github_refresh_policy": ""})
+            with Session(engine) as session:
+                for key in ("slack_refresh_status", "github_refresh_status"):
+                    row = session.get(Setting, key)
+                    if row is not None:
+                        session.delete(row)
+                session.commit()

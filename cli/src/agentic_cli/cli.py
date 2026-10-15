@@ -802,6 +802,19 @@ def item_refresh_due() -> str:
     return emit(report, text)
 
 
+@item_app.command(name="refresh-source")
+@safe
+def item_refresh_source(source: str) -> str:
+    """Re-fetch every item of one source now, ignoring the refresh policy."""
+    with _client() as client:
+        report = client.refresh_source(source)
+    text = f"checked {report['checked']}  refreshed {report['refreshed']}  failed {report['failed']}"
+    for entry in report.get("items") or []:
+        marker = "ok" if entry.get("refreshed") else "fail"
+        text += f"\n  {marker}  {entry['title'] or entry['item_id']}"
+    return emit(report, text)
+
+
 @item_app.command(name="delete")
 @safe
 def item_delete(item_id: str) -> str:
@@ -1192,6 +1205,20 @@ def settings_get() -> str:
     effective = settings["effective"]
     text = "\n".join(f"{key} = {value!r}" for key, value in effective.items())
     return emit(settings, text)
+
+
+@settings_app.command(name="refresh-status")
+@safe
+def settings_refresh_status() -> str:
+    """Show when the background refresh job last ran for each source."""
+    with _client() as client:
+        status = client.refresh_status()
+    sources = status.get("sources") or {}
+    lines = [
+        f"{source}: {entry.get('last_run_at') or 'never'}  ({entry.get('refreshed', 0)} refreshed)"
+        for source, entry in sources.items()
+    ]
+    return emit(status, "\n".join(lines) or "no background runs recorded")
 
 
 @settings_app.command(name="set")

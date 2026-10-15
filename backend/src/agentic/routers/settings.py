@@ -7,8 +7,14 @@ from sqlmodel import Session
 
 from ..db import get_session
 from ..refresh import POLICY_SETTING_KEYS, PolicyError, describe_policy, parse_policy
-from ..schemas import RefreshPolicyPreview, RefreshPolicyPreviewRequest, SettingsRead, SettingsUpdate
-from ..settings_store import env_defaults, get_overrides, get_settings, update_settings
+from ..schemas import (
+    RefreshPolicyPreview,
+    RefreshPolicyPreviewRequest,
+    RefreshStatusRead,
+    SettingsRead,
+    SettingsUpdate,
+)
+from ..settings_store import env_defaults, get_overrides, get_refresh_status, get_settings, update_settings
 
 router = APIRouter(prefix="/api/settings", tags=["settings"])
 
@@ -48,6 +54,12 @@ def preview_refresh_policy(payload: RefreshPolicyPreviewRequest) -> RefreshPolic
         return RefreshPolicyPreview.model_validate(describe_policy(payload.value))
     except PolicyError as exc:
         return RefreshPolicyPreview(valid=False, error=str(exc))
+
+
+@router.get("/refresh-status", response_model=RefreshStatusRead)
+def read_refresh_status(session: Session = Depends(get_session)) -> RefreshStatusRead:
+    """When the background refresh job last ran for each source."""
+    return RefreshStatusRead(sources=get_refresh_status(session))
 
 
 __all__ = ["router"]

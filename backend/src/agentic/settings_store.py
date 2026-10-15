@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+import json
+from datetime import datetime
+
 from sqlmodel import Session, select
 
 from .config import settings
 from .models import Setting, utcnow
+from .refresh import REFRESHABLE_SOURCES
 
 # Keys the Settings page can override. Values are strings (URLs / templates).
 OVERRIDABLE_KEYS = (
@@ -52,3 +56,54 @@ def update_settings(session: Session, values: dict[str, str | None]) -> dict[str
         session.add(row)
     session.commit()
     return get_settings(session)
+
+
+def refresh_status_key(source: str) -> str:
+    """The non-overridable setting key holding a source's last background run."""
+    return f"{source}_refresh_status"
+
+
+def record_refresh_run(
+    session: Session,
+    source: str,
+    *,
+    last_run_at: datetime,
+    refreshed: int,
+    failed: int = 0,
+    error: str | None = None,
+    origin: str = "background",
+) -> None:
+    """Persist a source's last refresh pass (invisible to the settings API)."""
+    key = refresh_status_key(source)
+    value = json.dumps(
+        {
+            "last_run_at": last_run_at.isoformat(),
+            "refreshed": refreshed,
+            "failed": failed,
+            "error": error[:300] if error else None,
+            "origin": origin,
+        }
+    )
+    row = session.get(Setting, key)
+    if row is None:
+        row = Setting(key=key, value=value)
+    else:
+        row.value = value
+        row.updated_at = utcnow()
+    session.add(row)
+    session.commit()
+
+
+def get_refresh_status(session: Session) -> dict[str, dict]:
+    """Read each source's last refresh pass, skipping unset or unreadable ones."""
+    rows = {row.key: row.value for row in session.exec(select(Setting)).all()}
+    status: dict[str, dict] = {}
+    for source in REFRESHABLE_SOURCES:
+        raw = rows.get(refresh_status_key(source))
+        if not raw:
+            continue
+        try:
+            status[source] = json.loads(raw)
+        except json.JSONDecodeError:
+            continue
+    return status

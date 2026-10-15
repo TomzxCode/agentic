@@ -100,6 +100,22 @@ class RefreshDueReport(BaseModel):
     items: list[RefreshDueItem] = []
 
 
+class RefreshSourceStatus(BaseModel):
+    """When a source was last refreshed, how it went, and what triggered it."""
+
+    last_run_at: datetime | None = None
+    refreshed: int = 0
+    failed: int = 0
+    error: str | None = None
+    origin: str | None = None
+
+
+class RefreshStatusRead(BaseModel):
+    """Per-source background refresh status, keyed by source."""
+
+    sources: dict[str, RefreshSourceStatus] = {}
+
+
 # --- Filesystem (repository picker) ---------------------------------------
 class FsEntry(BaseModel):
     name: str
@@ -817,6 +833,8 @@ __all__ = [
     "RefreshDueReport",
     "RefreshPolicyPreview",
     "RefreshPolicyPreviewRequest",
+    "RefreshSourceStatus",
+    "RefreshStatusRead",
     "RefreshTierRead",
     "Task",
     "TaskBulkResult",

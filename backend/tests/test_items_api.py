@@ -151,3 +151,43 @@ def test_refresh_due_is_a_noop_without_a_policy(monkeypatch):
         client.post("/api/items", json={"url": "https://github.com/o/r/issues/10", "fetch": False})
         report = client.post("/api/items/refresh-due").json()
         assert report == {"checked": 0, "due": 0, "refreshed": 0, "failed": 0, "items": []}
+
+
+def test_force_refresh_source_ignores_the_policy(monkeypatch):
+    from sqlmodel import Session
+
+    from agentic.db import engine
+    from agentic.models import Setting
+
+    def fake_fetch(source, url, external_id, title):
+        # Only touch the item this test created; leave any other item alone.
+        if "issues/13" not in (url or ""):
+            raise RuntimeError("unexpected item")
+        return {"title": "Fresh", "content": "updated body", "metadata": {}}
+
+    monkeypatch.setattr(items_router, "fetch_source", fake_fetch)
+    with TestClient(app) as client:
+        # No policy is set, so a due refresh would do nothing; force still pulls.
+        client.patch("/api/settings", json={"slack_refresh_policy": "", "github_refresh_policy": ""})
+        item = client.post("/api/items", json={"url": "https://github.com/o/r/issues/13", "fetch": False}).json()
+        assert item["fetched_at"] is None
+
+        report = client.post("/api/items/refresh-source/github").json()
+        assert any(entry["item_id"] == item["id"] and entry["refreshed"] for entry in report["items"])
+
+        # The forced run is recorded, so the Settings status line updates.
+        status = client.get("/api/settings/refresh-status").json()["sources"]["github"]
+        assert status["origin"] == "manual"
+        assert status["last_run_at"] and status["refreshed"] >= 1
+
+        refreshed = client.get(f"/api/items/{item['id']}").json()
+        assert refreshed["content"] == "updated body" and refreshed["fetched_at"] is not None
+        client.delete(f"/api/items/{item['id']}")
+
+        assert client.post("/api/items/refresh-source/nope").status_code == 404
+
+        with Session(engine) as session:
+            row = session.get(Setting, "github_refresh_status")
+            if row is not None:
+                session.delete(row)
+            session.commit()
