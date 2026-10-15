@@ -178,11 +178,12 @@ the keyboard.
 
 The task list on the left is sizeable: drag its right edge (with the keyboard,
 the arrow keys nudge it, **Home**/**End** jump to the bounds, **Enter** resets,
-and a double-click restores the default). The panel icon beside the page title,
-or **Ctrl/Cmd+B**, hides it entirely and gives the page the full width; the same
-icon or shortcut brings it back. Both the width and the hidden state are
-remembered per device. On a narrow screen the task list is a drawer instead,
-opened with the panel button in the corner or a right swipe.
+and a double-click restores the default). The panel icon at the left of the page
+title, or **Ctrl/Cmd+B** (which works anywhere on the page), hides it entirely
+and gives the page the full width; the same icon or shortcut brings it back. Both
+the width and the hidden state are remembered per device. On a narrow screen the
+task list is a drawer instead, opened with the panel button in the corner or a
+right swipe.
 
 The **Tasks in flight** page also lists the people linked to the current
 in-flight work, so you can narrow the list (and its status counts and upcoming

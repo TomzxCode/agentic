@@ -170,7 +170,7 @@ h3 {
 .sidebar-backdrop {
   display: none;
 }
-.app > .menu-btn {
+.main > .menu-btn {
   display: none;
 }
 
@@ -2032,8 +2032,9 @@ button.gantt-marker::after {
 }
 
 /* Desktop: the sidebar can be hidden entirely, leaving the page the full width.
-   The toggle sits in the page's left gutter, beside the title line, so the page
-   keeps its normal left edge whether the task list is shown or not. */
+   The toggle floats at the page's left edge, on the title's line, so it reads as
+   a leading icon of the title: the title makes room for it and the rest of the
+   page keeps flowing at the page's left edge. */
 @media (min-width: 761px) {
   /* A single column: with the sidebar gone, a `0 1fr` track pair would drop
      .main into the 0-width first track. */
@@ -2043,28 +2044,21 @@ button.gantt-marker::after {
   .app.sidebar-hidden .sidebar {
     display: none;
   }
-  .app > .menu-btn {
+  .main > .menu-btn {
     display: inline-flex;
-    position: fixed;
-    z-index: 30;
-    top: 20px;
-    /* The page's left gutter: just inside the sidebar's border, flush left once
-       the sidebar is hidden, so the page keeps the same left edge either way. */
-    left: var(--sidebar-width, 300px);
-    width: 24px;
+    float: left;
+    width: 22px;
     height: 30px;
+    margin: 0 10px 0 0;
     padding: 0;
     justify-content: center;
     align-items: center;
     border: none;
-    border-radius: 0 8px 8px 0;
+    border-radius: 8px;
     background: transparent;
     color: var(--muted);
   }
-  .app.sidebar-hidden > .menu-btn {
-    left: 0;
-  }
-  .app > .menu-btn:hover {
+  .main > .menu-btn:hover {
     background: var(--bg-2);
     color: var(--text);
   }
@@ -2116,7 +2110,7 @@ button.gantt-marker::after {
     background: rgba(0, 0, 0, 0.5);
     z-index: 39;
   }
-  .app > .menu-btn {
+  .main > .menu-btn {
     display: inline-flex;
     position: fixed;
     z-index: 30;

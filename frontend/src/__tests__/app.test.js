@@ -782,6 +782,23 @@ describe('App', () => {
       expect(localStorage.getItem('agentic.sidebarHidden')).toBe('0')
     })
 
+    it('keeps the toggle in the page flow beside the title', async () => {
+      const wrapper = mountApp()
+      await flushPromises()
+      // Inside .main, ahead of the view, so it floats on the title's line.
+      expect(wrapper.get('.main > .menu-btn').exists()).toBe(true)
+      expect(wrapper.find('.app > .menu-btn').exists()).toBe(false)
+    })
+
+    it('leaves the toggle out of focus hints', async () => {
+      const wrapper = mountApp()
+      await flushPromises()
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'f' }))
+      await nextTick()
+      expect(store.hintMode).toBe(false)
+      expect(wrapper.find('.hint-badge').exists()).toBe(false)
+    })
+
     it('reveals a hidden sidebar from the menu button', async () => {
       localStorage.setItem('agentic.sidebarHidden', '1')
       const wrapper = mountApp()

@@ -274,7 +274,8 @@ function startHints() {
   const container = document.querySelector('.main')
   if (!container) return
   const nodes = Array.from(container.querySelectorAll(HINT_SELECTOR)).filter(
-    (el) => !el.disabled && !el.closest('.transcript')
+    // Skip the agent transcript and controls that opt out (the sidebar toggle).
+    (el) => !el.disabled && !el.closest('.transcript') && !el.hasAttribute('data-no-hint')
   )
   hintTargets = nodes.map((el, index) => ({ key: hintLabelFor(index), el }))
   hintBadges.value = hintTargets.map(({ key }) => ({ key, left: 0, top: 0, hidden: false, dimmed: false }))
@@ -355,7 +356,7 @@ function onGlobalKeydown(event) {
     !isTyping(event.target) &&
     !paletteOpen.value &&
     !showNew.value &&
-    document.querySelector('.main')?.querySelector(HINT_SELECTOR)
+    document.querySelector('.main')?.querySelector(`:is(${HINT_SELECTOR}):not([data-no-hint])`)
   ) {
     event.preventDefault()
     store.hintMode = true
@@ -1156,20 +1157,20 @@ onUnmounted(() => {
 
     <div v-if="sidebarOpen || sidebarDragging" class="sidebar-backdrop" @click="sidebarOpen = false"></div>
 
-    <button
-      class="btn menu-btn"
-      :title="sidebarToggleLabel()"
-      :aria-label="sidebarToggleLabel()"
-      :aria-expanded="sidebarExpanded()"
-      @click="toggleSidebar"
-    >
-      <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
-        <rect x="3" y="4.5" width="18" height="15" rx="2.6" fill="none" stroke="currentColor" stroke-width="1.7" />
-        <path d="M9.1 5.4v13.2" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" fill="none" />
-      </svg>
-    </button>
-
     <main class="main">
+      <button
+        class="btn menu-btn"
+        data-no-hint
+        :title="sidebarToggleLabel()"
+        :aria-label="sidebarToggleLabel()"
+        :aria-expanded="sidebarExpanded()"
+        @click="toggleSidebar"
+      >
+        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+          <rect x="3" y="4.5" width="18" height="15" rx="2.6" fill="none" stroke="currentColor" stroke-width="1.7" />
+          <path d="M9.1 5.4v13.2" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" fill="none" />
+        </svg>
+      </button>
       <router-view :key="route.fullPath" @changed="refresh" />
     </main>
 
