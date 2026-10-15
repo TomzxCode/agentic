@@ -66,6 +66,7 @@ beforeEach(() => {
   route.params = {}
   store.tasks = []
   store.tags = []
+  store.people = []
   store.tagFilter = ''
   store.repositories = []
   store.groups = []
@@ -76,6 +77,7 @@ beforeEach(() => {
   vi.spyOn(store, 'loadTags').mockResolvedValue()
   vi.spyOn(store, 'loadGroups').mockResolvedValue()
   vi.spyOn(store, 'loadRepositories').mockResolvedValue()
+  vi.spyOn(store, 'loadPeople').mockResolvedValue()
   vi.spyOn(store, 'loadSettings').mockResolvedValue()
 })
 
@@ -386,6 +388,26 @@ describe('App', () => {
     expect(store.tagFilter).toBe('')
   })
 
+  it('offers people in the command palette and opens the picked one', async () => {
+    store.people = [
+      { id: 'p1', name: 'Ada Lovelace', aliases: ['ada', 'ada@example.com'] },
+      { id: 'p2', name: 'Grace Hopper', aliases: [] }
+    ]
+    const wrapper = mountAppWithPalette()
+    await flushPromises()
+
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true }))
+    await nextTick()
+    await wrapper.get('.palette-input').setValue('ada')
+
+    const personItem = wrapper.findAll('.palette-item').find((i) => i.text().includes('Ada Lovelace'))
+    expect(personItem).toBeTruthy()
+    expect(personItem.text()).toContain('@ada · ada@example.com')
+    await personItem.trigger('click')
+    await flushPromises()
+    expect(mocks.push).toHaveBeenCalledWith('/person/p1')
+  })
+
   it('enters focus-hint mode with f and focuses a control by letter', async () => {
     const wrapper = mountApp()
     await flushPromises()
@@ -478,12 +500,14 @@ describe('App', () => {
   })
 
   it('toggles the mobile sidebar', async () => {
+    window.innerWidth = 375
     const wrapper = mountApp()
     await flushPromises()
     await wrapper.get('.menu-btn').trigger('click')
     expect(wrapper.get('.app').classes()).toContain('sidebar-open')
     await wrapper.get('.sidebar-close').trigger('click')
     expect(wrapper.get('.app').classes()).not.toContain('sidebar-open')
+    window.innerWidth = 1024
   })
 
   describe('sidebar swipe', () => {
@@ -723,6 +747,71 @@ describe('App', () => {
       await nextTick()
       expect(wrapper.get('.app').classes()).not.toContain('sidebar-resizing')
       expect(appWidth(wrapper)).toBe('300px')
+      window.innerWidth = 1024
+    })
+  })
+
+  describe('sidebar visibility', () => {
+    beforeEach(() => {
+      localStorage.clear()
+      window.innerWidth = 1024
+    })
+
+    it('hides the sidebar from its close button and remembers it', async () => {
+      const wrapper = mountApp()
+      await flushPromises()
+      expect(wrapper.get('.app').classes()).not.toContain('sidebar-hidden')
+
+      await wrapper.get('.sidebar-close').trigger('click')
+      expect(wrapper.get('.app').classes()).toContain('sidebar-hidden')
+      expect(localStorage.getItem('agentic.sidebarHidden')).toBe('1')
+    })
+
+    it('toggles with Cmd/Ctrl+B', async () => {
+      const wrapper = mountApp()
+      await flushPromises()
+
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'b', metaKey: true, cancelable: true }))
+      await nextTick()
+      expect(wrapper.get('.app').classes()).toContain('sidebar-hidden')
+
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'b', ctrlKey: true, cancelable: true }))
+      await nextTick()
+      expect(wrapper.get('.app').classes()).not.toContain('sidebar-hidden')
+      expect(localStorage.getItem('agentic.sidebarHidden')).toBe('0')
+    })
+
+    it('reveals a hidden sidebar from the menu button', async () => {
+      localStorage.setItem('agentic.sidebarHidden', '1')
+      const wrapper = mountApp()
+      await flushPromises()
+      expect(wrapper.get('.app').classes()).toContain('sidebar-hidden')
+
+      await wrapper.get('.menu-btn').trigger('click')
+      expect(wrapper.get('.app').classes()).not.toContain('sidebar-hidden')
+    })
+
+    it('offers to hide the sidebar from the command palette', async () => {
+      const wrapper = mountAppWithPalette()
+      await flushPromises()
+
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true }))
+      await nextTick()
+      const item = wrapper.findAll('.palette-item').find((i) => i.text().includes('Hide task list'))
+      expect(item).toBeTruthy()
+      await item.trigger('click')
+      expect(wrapper.get('.app').classes()).toContain('sidebar-hidden')
+    })
+
+    it('keeps a mobile drawer close out of the desktop preference', async () => {
+      window.innerWidth = 375
+      const wrapper = mountApp()
+      await flushPromises()
+
+      await wrapper.get('.sidebar-close').trigger('click')
+      expect(wrapper.get('.app').classes()).not.toContain('sidebar-open')
+      expect(wrapper.get('.app').classes()).not.toContain('sidebar-hidden')
+      expect(localStorage.getItem('agentic.sidebarHidden')).toBeNull()
       window.innerWidth = 1024
     })
   })

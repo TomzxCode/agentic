@@ -2,7 +2,7 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { api } from './api'
-import { store, timeAgo, taskHasTag } from './store'
+import { store, timeAgo, taskHasTag, aliasLabel } from './store'
 import SearchSelect from './components/SearchSelect.vue'
 import RepositorySelect from './components/RepositorySelect.vue'
 import TagInput from './components/TagInput.vue'
@@ -157,9 +157,30 @@ const tagItems = computed(() =>
   }))
 )
 
+// One palette entry per person: pick it to open that person's page. Aliases are
+// shown as the hint and are searchable, so a handle or email finds the person.
+const personItems = computed(() =>
+  store.people.map((person) => ({
+    id: `person-${person.id}`,
+    label: person.name,
+    group: 'People',
+    hint: (person.aliases || []).map(aliasLabel).join(' · ') || undefined,
+    keywords: (person.aliases || []).join(' '),
+    run: () => router.push(`/person/${person.id}`)
+  }))
+)
+
 const paletteItems = computed(() => [
   { id: 'new-task', label: 'New task', hint: '⌘N', group: 'Actions', run: () => (showNew.value = true) },
   { id: 'focus-hints', label: 'Show focus hints', hint: 'f', group: 'Actions', run: () => (store.hintMode = true) },
+  {
+    id: 'toggle-sidebar',
+    label: sidebarHidden.value ? 'Show task list' : 'Hide task list',
+    hint: '⌘B',
+    group: 'Actions',
+    keywords: 'sidebar panel collapse',
+    run: toggleSidebar
+  },
   ...(store.tagFilter
     ? [
         {
@@ -189,7 +210,8 @@ const paletteItems = computed(() => [
     hint: [task.status.replace('_', ' '), ...(task.tags || []).map((tag) => `#${tag}`)].join(' '),
     keywords: (task.tags || []).join(' '),
     run: () => router.push(`/task/${task.id}`)
-  }))
+  })),
+  ...personItems.value
 ])
 
 function runPaletteItem(item) {
@@ -269,6 +291,13 @@ function onGlobalKeydown(event) {
   if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
     event.preventDefault()
     paletteOpen.value = !paletteOpen.value
+    return
+  }
+
+  // Cmd/Ctrl+B hides or shows the sidebar (Shift is left to the browser).
+  if ((event.metaKey || event.ctrlKey) && !event.shiftKey && event.key.toLowerCase() === 'b') {
+    event.preventDefault()
+    toggleSidebar()
     return
   }
 
@@ -515,17 +544,38 @@ const SIDEBAR_DEFAULT_PX = 300
 const SIDEBAR_MIN_PX = 260
 const SIDEBAR_MAX_PX = 560
 const SIDEBAR_WIDTH_KEY = 'agentic.sidebarWidth'
+const SIDEBAR_HIDDEN_KEY = 'agentic.sidebarHidden'
+// Above this width the sidebar is a column; at or below it is a drawer.
+const DESKTOP_MIN_PX = 760
 const sidebarWidth = ref(readStoredWidth())
 const sidebarResizing = ref(false)
+const sidebarHidden = ref(readStoredNumber(SIDEBAR_HIDDEN_KEY) === 1)
+
+function isDesktop() {
+  return window.innerWidth > DESKTOP_MIN_PX
+}
+
+function readStoredNumber(key) {
+  try {
+    const raw = localStorage.getItem(key)
+    return raw === null ? null : Number(raw)
+  } catch {
+    // Storage can be blocked (private mode).
+    return null
+  }
+}
+
+function writeStored(key, value) {
+  try {
+    localStorage.setItem(key, value)
+  } catch {
+    // Not fatal: the choice still applies for this session.
+  }
+}
 
 function readStoredWidth() {
-  let stored = NaN
-  try {
-    stored = Number(localStorage.getItem(SIDEBAR_WIDTH_KEY))
-  } catch {
-    // Storage can be blocked (private mode); fall back to the default.
-  }
-  return Number.isFinite(stored) && stored > 0 ? clampSidebarWidth(stored) : SIDEBAR_DEFAULT_PX
+  const stored = readStoredNumber(SIDEBAR_WIDTH_KEY)
+  return stored !== null && stored > 0 ? clampSidebarWidth(stored) : SIDEBAR_DEFAULT_PX
 }
 
 function clampSidebarWidth(px) {
@@ -535,18 +585,32 @@ function clampSidebarWidth(px) {
 function setSidebarWidth(px, persist = true) {
   sidebarWidth.value = clampSidebarWidth(px)
   if (!persist) return
-  try {
-    localStorage.setItem(SIDEBAR_WIDTH_KEY, String(sidebarWidth.value))
-  } catch {
-    // Not fatal: the width still applies for this session.
-  }
+  writeStored(SIDEBAR_WIDTH_KEY, String(sidebarWidth.value))
+}
+
+function setSidebarHidden(hidden) {
+  sidebarHidden.value = hidden
+  writeStored(SIDEBAR_HIDDEN_KEY, hidden ? '1' : '0')
+}
+
+// The menu button toggles the drawer on mobile and reveals the column on
+// desktop, where it is only shown while the sidebar is hidden.
+function toggleSidebar() {
+  if (isDesktop()) setSidebarHidden(!sidebarHidden.value)
+  else sidebarOpen.value = !sidebarOpen.value
+}
+
+// Hide without remembering a desktop preference from a mobile drawer close.
+function hideSidebar() {
+  sidebarOpen.value = false
+  if (isDesktop()) setSidebarHidden(true)
 }
 
 let resizeFrom = null
 
 function startResize(event) {
   // Below 760px the sidebar is an off-canvas drawer, not a column to size.
-  if (window.innerWidth <= 760 || event.button > 0) return
+  if (!isDesktop() || event.button > 0) return
   resizeFrom = { x: event.clientX, width: sidebarWidth.value }
   sidebarResizing.value = true
   window.addEventListener('pointermove', moveResize)
@@ -704,6 +768,7 @@ onMounted(async () => {
   await refresh()
   await store.loadGroups().catch(() => {})
   await store.loadRepositories().catch(() => {})
+  await store.loadPeople().catch(() => {})
   await store.loadSettings().catch(() => {})
 })
 onUnmounted(() => {
@@ -722,7 +787,12 @@ onUnmounted(() => {
 <template>
   <div
     class="app"
-    :class="{ 'sidebar-open': sidebarOpen, 'sidebar-dragging': sidebarDragging, 'sidebar-resizing': sidebarResizing }"
+    :class="{
+      'sidebar-open': sidebarOpen,
+      'sidebar-dragging': sidebarDragging,
+      'sidebar-resizing': sidebarResizing,
+      'sidebar-hidden': sidebarHidden
+    }"
     :style="{ '--sidebar-width': `${sidebarWidth}px` }"
   >
     <aside class="sidebar" :style="sidebarDragStyle">
@@ -748,7 +818,12 @@ onUnmounted(() => {
           </svg>
           <span>Agentic</span>
         </router-link>
-        <button class="btn sm sidebar-close" aria-label="Close task list" @click="sidebarOpen = false">
+        <button
+          class="btn sm sidebar-close"
+          aria-label="Close task list"
+          title="Hide the task list (⌘B)"
+          @click="hideSidebar"
+        >
           <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
             <path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none" />
           </svg>
@@ -1083,7 +1158,12 @@ onUnmounted(() => {
 
     <div v-if="sidebarOpen || sidebarDragging" class="sidebar-backdrop" @click="sidebarOpen = false"></div>
 
-    <button class="btn menu-btn" aria-label="Toggle task list" @click="sidebarOpen = !sidebarOpen">
+    <button
+      class="btn menu-btn"
+      aria-label="Toggle task list"
+      :aria-expanded="isDesktop() ? !sidebarHidden : sidebarOpen"
+      @click="toggleSidebar"
+    >
       <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
         <path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none" />
       </svg>

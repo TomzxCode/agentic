@@ -2031,6 +2031,33 @@ button.gantt-marker::after {
   font-size: 13px;
 }
 
+/* Desktop: the sidebar can be hidden entirely, leaving the page the full width.
+   A button in the freed top-left corner brings it back. */
+@media (min-width: 761px) {
+  /* A single column: with the sidebar gone, a `0 1fr` track pair would drop
+     .main into the 0-width first track. */
+  .app.sidebar-hidden {
+    grid-template-columns: 1fr;
+  }
+  .app.sidebar-hidden .sidebar {
+    display: none;
+  }
+  /* Clear the reveal button, which floats over the page's top-left corner. */
+  .app.sidebar-hidden .main {
+    padding-left: 64px;
+  }
+  .app.sidebar-hidden > .menu-btn {
+    display: inline-flex;
+    position: fixed;
+    z-index: 30;
+    top: 10px;
+    left: 12px;
+  }
+  .side-brand .sidebar-close {
+    display: inline-flex;
+  }
+}
+
 /* Mobile */
 @media (max-width: 760px) {
   .app {
