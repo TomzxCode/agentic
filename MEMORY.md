@@ -1,5 +1,10 @@
 # Memory
 
+## 2026-10-15: a screen-edge swipe never reaches the page on mobile
+
+- Android's system back gesture (and iOS Safari's edge back-swipe) owns the outer ~25px of the screen edge and consumes a touch that starts there before the page sees it, so an edge-triggered drawer or carousel cannot be made reliable by widening the zone. The sidebar drawer opens on a rightward swipe from anywhere on the page instead (`App.vue`), which also steers around the Gantt and dependency graph strips that scroll sideways.
+- Touch sampling drifts sideways at the start of a swipe, so an axis lock must not be decided from one sample: require the horizontal travel to pass a threshold and to dominate the sideways travel before claiming the gesture, otherwise a thumb that drifts down first kills the swipe.
+
 ## 2026-10-13: the owner's live dev server is on :8600 (~/.agentic); ad-hoc CLI runs can miss AGENTIC_API_URL
 
 - `make run` starts the API on `:8600` backed by `~/.agentic` (the real database). A scratch/test server must set `AGENTIC_DATA_DIR=/tmp/...`; the env var does work for `agentic-server`.
