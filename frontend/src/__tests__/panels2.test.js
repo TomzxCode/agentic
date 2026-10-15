@@ -225,10 +225,13 @@ describe('AgentPanel', () => {
     onEvent({ type: 'message', text: ' world' })
     onEvent({
       type: 'tool_call',
-      text: 'Bash',
-      data: { toolCallId: 'x', rawInput: { command: 'ls' }, status: 'pending' }
+      text: 'shell',
+      data: { toolCallId: 'x', kind: 'execute', rawInput: { cwd: '/w' }, status: 'pending', locations: [] }
     })
-    onEvent({ type: 'tool_update', data: { toolCallId: 'x', status: 'done' } })
+    onEvent({
+      type: 'tool_update',
+      data: { toolCallId: 'x', kind: 'execute', rawInput: { command: 'ls' }, status: 'completed' }
+    })
     onEvent({ type: 'plan', data: { entries: [{ content: 'step one' }] } })
     onEvent({ type: 'error', text: 'oops' })
     onEvent({ type: 'info', text: 'noise' })
@@ -242,6 +245,53 @@ describe('AgentPanel', () => {
     onEvent({ type: 'run_finished' })
     await flushPromises()
     expect(mocks.runsGet).toHaveBeenCalledWith('r1')
+  })
+
+  it('shows what a tool call touched, which the ACP title alone does not', async () => {
+    let onEvent
+    mocks.runsCreate.mockResolvedValue({ id: 'r2', status: 'running', kind: 'chat', links: [] })
+    mocks.openRunStream.mockImplementation((id, cb) => {
+      onEvent = cb
+      return vi.fn()
+    })
+
+    const wrapper = mountPanel()
+    await flushPromises()
+    await wrapper.get('textarea').setValue('do work')
+    await wrapper.get('.btn.primary').trigger('click')
+    await flushPromises()
+
+    // Both calls start before either reports, so their updates interleave: each
+    // update still lands on the row its toolCallId belongs to.
+    onEvent({
+      type: 'tool_call',
+      text: 'read',
+      data: { toolCallId: 'a', kind: 'read', status: 'pending', rawInput: {}, locations: [] }
+    })
+    onEvent({
+      type: 'tool_call',
+      text: 'skill',
+      data: { toolCallId: 'b', kind: 'other', status: 'pending', rawInput: {}, locations: [] }
+    })
+    onEvent({
+      type: 'tool_update',
+      data: { toolCallId: 'b', kind: 'other', status: 'completed', rawInput: { id: 'validate-pr' } }
+    })
+    // A read names its file only in rawInput, on the call's first update.
+    onEvent({
+      type: 'tool_update',
+      data: {
+        toolCallId: 'a',
+        kind: 'read',
+        status: 'completed',
+        rawInput: { path: '/w/src/main.js' },
+        locations: [{ path: '/w/src/main.js' }]
+      }
+    })
+    await flushPromises()
+
+    const rows = wrapper.findAll('.ev.tool .body').map((row) => row.text())
+    expect(rows).toEqual(['read · completed · src/main.js', 'skill · completed · validate-pr'])
   })
 
   it('opens a previous run and loads its transcript', async () => {

@@ -44,10 +44,77 @@ const worktreeOptions = computed(() => [
   ...(props.task.worktrees || []).filter((w) => w.status === 'active').map((w) => ({ value: w.id, label: w.branch }))
 ])
 
+// ACP names the tool in the update's title (opencode sends just `read` or
+// `skill`) and puts the call's own argument in `rawInput`, which arrives with
+// the first `tool_update`, not on the `tool_call` itself. The title alone says
+// which tool ran and nothing about what it touched, so the row adds the one
+// argument that tells two calls of the same tool apart: the file, the skill,
+// the command.
+const TOOL_DETAIL_LIMIT = 400
+
+function toolName(block) {
+  const title = (block.title || '').trim()
+  // Some harnesses prefix the call with its description: "Assess PR 27 risk: read".
+  const tail = title.includes(': ') ? title.slice(title.lastIndexOf(': ') + 2) : title
+  return tail.toLowerCase()
+}
+
+// The run's working directory when it is known, so a file under it reads as a
+// repo-relative path instead of an absolute one.
+const runCwd = computed(() => activeRun.value?.cwd || liveCwd.value)
+
+function displayPath(path, cwd) {
+  const value = String(path || '').trim()
+  if (!value) return ''
+  const base = (cwd || '').replace(/\/+$/, '')
+  if (base && value.startsWith(`${base}/`)) return value.slice(base.length + 1)
+  const parts = value.split('/').filter(Boolean)
+  return parts.length > 3 ? `…/${parts.slice(-3).join('/')}` : value
+}
+
+function toolDetail(block, cwd) {
+  const raw = block.rawInput || {}
+  const locations = block.locations || []
+  const name = toolName(block)
+  const kind = block.toolKind
+  const path = raw.path || raw.filePath || raw.file_path
+  const command = raw.command || raw.code || raw.script
+  let detail
+  if (name === 'shell' || name === 'bash' || name === 'execute' || kind === 'execute') {
+    // opencode repeats the command as the call's title, so the detail only adds
+    // something when the title says something else.
+    const text = command ? command.trim() : ''
+    detail = text && text !== (block.title || '').trim() ? `$ ${text}` : ''
+  } else if (path) {
+    detail = displayPath(path, cwd)
+  } else if (locations.length > 1) {
+    detail = `${locations.length} files`
+  } else if (locations.length === 1) {
+    detail = displayPath(locations[0].path, cwd)
+  } else if (name === 'grep' || name === 'glob' || name === 'search' || kind === 'search') {
+    detail = raw.pattern || raw.query || ''
+  } else if (name === 'skill') {
+    detail = raw.id || raw.name || ''
+  } else if (name === 'subagent' || name === 'task' || kind === 'think') {
+    detail = [raw.agent, raw.description].filter(Boolean).join(' · ')
+  } else if (name === 'webfetch') {
+    detail = raw.url || ''
+  } else if (name === 'websearch') {
+    detail = raw.query || ''
+  } else {
+    detail = raw.id || raw.name || raw.query || raw.url || ''
+  }
+  const text = String(detail).trim()
+  return text.length > TOOL_DETAIL_LIMIT ? `${text.slice(0, TOOL_DETAIL_LIMIT - 1)}…` : text
+}
+
 // The agent streams tiny chunks; merge consecutive ones into readable blocks so
 // a message reads as a message instead of one line per token.
 const blocks = computed(() => {
   const out = []
+  // Calls run in parallel, so their updates interleave: a `tool_update` belongs
+  // to the row its `toolCallId` was created for, wherever that row sits.
+  const tools = new Map()
   for (const ev of events.value) {
     const kind = ev.type
     if (kind === 'message' || kind === 'thought') {
@@ -63,23 +130,33 @@ const blocks = computed(() => {
         })
       }
     } else if (kind === 'tool_call' || kind === 'tool_update') {
-      const toolId = ev.data?.toolCallId
-      const last = out[out.length - 1]
-      if (last && last.kind === 'tool' && toolId && last.toolId === toolId) {
-        last.title = ev.text || last.title
-        last.command = ev.data?.rawInput?.command || last.command
-        last.status = ev.data?.status || last.status
+      const data = ev.data || {}
+      const toolId = data.toolCallId
+      let block = toolId ? tools.get(toolId) : undefined
+      if (block) {
+        block.title = ev.text || block.title
+        if (data.kind) block.toolKind = data.kind
+        // `rawInput` and `locations` arrive with the call's first update; later
+        // updates repeat `locations` and carry only the status.
+        if (data.rawInput && Object.keys(data.rawInput).length) block.rawInput = data.rawInput
+        if (data.locations?.length) block.locations = data.locations
+        block.status = data.status || block.status
       } else {
-        out.push({
+        block = {
           id: `b${out.length}`,
           kind: 'tool',
           label: 'tool',
           toolId,
           title: ev.text,
-          command: ev.data?.rawInput?.command,
-          status: ev.data?.status
-        })
+          toolKind: data.kind,
+          rawInput: data.rawInput,
+          locations: data.locations,
+          status: data.status
+        }
+        out.push(block)
+        if (toolId) tools.set(toolId, block)
       }
+      block.detail = toolDetail(block, runCwd.value)
     } else if (kind === 'plan') {
       out.push({
         id: `b${out.length}`,
@@ -199,9 +276,9 @@ onMounted(loadRuns)
         <span class="who">{{ block.label }}</span>
         <template v-if="block.kind === 'tool'">
           <span class="body"
-            >{{ block.title }}<span v-if="block.status"> · {{ block.status }}</span></span
+            >{{ block.title }}<span v-if="block.status"> · {{ block.status }}</span
+            ><span v-if="block.detail"> · {{ block.detail }}</span></span
           >
-          <span v-if="block.command" class="body"> $ {{ block.command }}</span>
         </template>
         <template v-else-if="block.kind === 'plan'">
           <span class="body">{{ block.entries.join(' · ') }}</span>
