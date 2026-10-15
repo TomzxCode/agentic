@@ -7,7 +7,8 @@ vi.mock('../api', () => ({
     harnesses: { list: vi.fn(async () => [{ id: 'h1' }]) },
     repositories: { list: vi.fn(async () => [{ id: 'r1' }]) },
     groups: { list: vi.fn(async () => [{ id: 'g1' }]) },
-    settings: { get: vi.fn(async () => ({ effective: { openchamber_url: 'x' } })) }
+    settings: { get: vi.fn(async () => ({ effective: { openchamber_url: 'x' } })) },
+    inbox: { get: vi.fn(async () => ({ suggestions: [{ id: 's1' }], count: 1 })) }
   }
 }))
 
@@ -32,6 +33,10 @@ describe('store loaders', () => {
 
     await store.loadSettings()
     expect(store.settings).toEqual({ openchamber_url: 'x' })
+
+    await store.loadInbox()
+    expect(store.inbox).toEqual([{ id: 's1' }])
+    expect(store.inboxCount).toBe(1)
   })
 })
 

@@ -172,6 +172,7 @@ const paletteItems = computed(() => [
     : []),
   ...taskFieldItems.value,
   { id: 'go-tasks', label: 'Go to tasks', group: 'Navigation', run: () => router.push('/') },
+  { id: 'go-inbox', label: 'Go to inbox', group: 'Navigation', run: () => router.push('/inbox') },
   { id: 'go-stack', label: 'Go to stack', group: 'Navigation', run: () => router.push('/stack') },
   { id: 'go-gantt', label: 'Go to gantt', group: 'Navigation', run: () => router.push('/gantt') },
   { id: 'go-graph', label: 'Go to graph', group: 'Navigation', run: () => router.push('/graph') },
@@ -350,6 +351,8 @@ async function refresh() {
   try {
     await store.loadTasks()
     await store.loadTags()
+    // The inbox badge in the nav tracks the same state the tasks do.
+    await store.loadInbox().catch(() => {})
     // Drop a filter whose tag no longer exists on any task.
     if (store.tagFilter && !store.tags.some((tag) => tag.name === store.tagFilter)) store.tagFilter = ''
   } catch (e) {
@@ -643,6 +646,30 @@ onUnmounted(() => {
               <path d="M9 6h11M9 12h11M9 18h11" />
               <path d="M4 6l1 1 2-2M4 12l1 1 2-2M4 18l1 1 2-2" />
             </svg>
+          </router-link>
+          <router-link
+            to="/inbox"
+            class="nav-link"
+            :class="{ active: route.name === 'inbox' }"
+            title="Inbox"
+            aria-label="Inbox"
+            @click="sidebarOpen = false"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              width="18"
+              height="18"
+              aria-hidden="true"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <rect x="4" y="5.5" width="16" height="13" rx="2" />
+              <path d="M4.5 7.5l7.5 6 7.5-6" />
+            </svg>
+            <span v-if="store.inboxCount" class="nav-badge" aria-hidden="true">{{ store.inboxCount }}</span>
           </router-link>
           <router-link
             to="/stack"

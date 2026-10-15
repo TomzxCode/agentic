@@ -201,6 +201,15 @@ that had no human intervention) and **yield** (the share of accepted changes
 that survived the observation window without a revert). Each metric is shown
 against a stored baseline with a direction (improving, worsening, or flat).
 
+The **Inbox** page (`/inbox`, the envelope icon in the sidebar, with a count
+badge) suggests things to do, derived from the current state rather than stored:
+it recomputes on every read, so acting on a suggestion makes it disappear. It
+groups suggestions by intent: close a task whose only linked pull request is
+merged, record a change for a merged PR that has none, and remove a worktree
+left behind by a closed task. Each suggestion names the task it is about and
+offers the action as a button that calls the same endpoint the rest of the app
+uses.
+
 The task header also links **dependencies**, next to the repository and people
 selectors: add the tasks that must come first (**before**) and the tasks that
 follow (**after**). The links form a DAG (the API refuses a link that would close
@@ -430,6 +439,7 @@ POST                /api/changes/{id}/status             (lifecycle transition)
 POST                /api/changes/{id}/interventions      (record a human touch)
 GET                 /api/metrics                         (autonomy rate + yield)
 GET/PUT/DELETE      /api/metrics/baselines/{metric}
+GET                 /api/inbox                           (suggested next actions)
 ```
 
 ## Development

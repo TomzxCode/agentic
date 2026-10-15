@@ -298,6 +298,7 @@ h3 {
   font-size: 13px;
   font-weight: 500;
   white-space: nowrap;
+  position: relative;
 }
 .sidebar-nav .nav-link:hover {
   color: var(--text);
@@ -320,6 +321,29 @@ h3 {
   background: var(--bg-2);
   border: 1px solid var(--border);
   border-radius: 10px;
+}
+/* The count of inbox suggestions, shown on the nav icon. */
+.sidebar-nav .nav-badge {
+  position: absolute;
+  top: -4px;
+  right: -2px;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #06281d;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 15px;
+  text-align: center;
+}
+/* One inbox suggestion: its task, why it is here, and what can be done. */
+.inbox-item {
+  margin-bottom: 8px;
+}
+.inbox-item:hover {
+  border-color: var(--muted);
 }
 .sidebar-nav .new-task {
   justify-content: center;

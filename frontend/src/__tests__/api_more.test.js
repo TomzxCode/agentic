@@ -48,6 +48,7 @@ describe('api endpoints', () => {
     await api.harnesses.remove('h1')
     await api.settings.get()
     await api.settings.update({ openchamber_url: 'x' })
+    await api.inbox.get()
     await api.worktrees.list('t1')
     await api.worktrees.create('t1', {})
     await api.worktrees.remove('t1', 'w1')
@@ -58,7 +59,7 @@ describe('api endpoints', () => {
     await api.runs.get('r1')
     await api.runs.events('r1')
     await api.runs.cancel('r1')
-    expect(fetchMock).toHaveBeenCalledTimes(37)
+    expect(fetchMock).toHaveBeenCalledTimes(38)
   })
 
   it('adds include_done to the gantt query when asked', async () => {

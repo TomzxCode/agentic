@@ -11,6 +11,8 @@ export const store = reactive({
   items: [],
   groups: [],
   settings: {},
+  inbox: [],
+  inboxCount: 0,
   loading: false,
   toast: null,
   // Tag filter applied to task lists ("" means every tag).
@@ -52,6 +54,11 @@ export const store = reactive({
   },
   async loadSettings() {
     this.settings = (await api.settings.get()).effective
+  },
+  async loadInbox() {
+    const report = await api.inbox.get()
+    this.inbox = report.suggestions || []
+    this.inboxCount = report.count ?? this.inbox.length
   },
   toggleTagFilter(name) {
     this.tagFilter = this.tagFilter === name ? '' : name

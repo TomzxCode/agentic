@@ -97,6 +97,10 @@ export const api = {
     remove: (id) => request(`/changes/${id}`, { method: 'DELETE' })
   },
 
+  inbox: {
+    get: () => request('/inbox')
+  },
+
   metrics: {
     get: ({ windowDays, observationDays, tolerance, taskId, changeClass } = {}) => {
       const qs = new URLSearchParams()
