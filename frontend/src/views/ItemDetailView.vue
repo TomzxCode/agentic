@@ -34,6 +34,10 @@ const reviewGroups = computed(() => groupReviewFiles(reviewFiles.value))
 // to HTML.
 const reviewHtml = computed(() => renderMarkdown(stripReportMarker(reviewContent.value)))
 
+// A GitHub issue or PR description is Markdown, rendered the same way as a
+// review report: raw HTML is allowed by the renderer, then sanitized.
+const githubHtml = computed(() => renderMarkdown(item.value?.content))
+
 // Each source gets its own layout: a GitHub issue/PR (state, author, body), a
 // Slack thread (a transcript), a plain note, or a fetched link (a Drive doc,
 // another URL, a commit, a file). Anything unrecognised falls back to the link
@@ -250,7 +254,10 @@ onMounted(async () => {
             <div>{{ formatDateTime(mergedAt) }}</div>
           </div>
         </div>
-        <div v-if="item.content" class="item-body">{{ item.content }}</div>
+        <!-- The description is Markdown, rendered with the shared renderer and
+             sanitized before it reaches v-html. -->
+        <!-- eslint-disable-next-line vue/no-v-html -->
+        <div v-if="item.content" class="md" v-html="githubHtml"></div>
         <div v-else class="faint">No description stored. Use Refresh to fetch it from GitHub.</div>
       </section>
 
@@ -308,7 +315,7 @@ onMounted(async () => {
         </div>
         <div v-if="reviewLoading" class="empty"><span class="spinner"></span></div>
         <!-- eslint-disable-next-line vue/no-v-html -->
-        <div v-else-if="reviewContent !== null" class="review-content" v-html="reviewHtml"></div>
+        <div v-else-if="reviewContent !== null" class="review-content md" v-html="reviewHtml"></div>
         <div v-if="reviewTruncated" class="faint">Showing the first part of a large report.</div>
       </section>
 

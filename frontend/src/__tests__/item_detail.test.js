@@ -81,6 +81,23 @@ describe('ItemDetailView', () => {
     expect(wrapper.get('.task-actions a.btn').text()).toBe('Open on GitHub')
   })
 
+  it('renders the GitHub description as Markdown', async () => {
+    mocks.itemsGet.mockResolvedValue(
+      item({ content: '## Steps\n\nRun **this** in `dir`:\n\n- one\n- two\n\n[docs](https://example.com/x)' })
+    )
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(wrapper.get('.md h2').text()).toBe('Steps')
+    expect(wrapper.get('.md strong').text()).toBe('this')
+    expect(wrapper.get('.md code').text()).toBe('dir')
+    expect(wrapper.findAll('.md li')).toHaveLength(2)
+    // Links open in a new tab; the raw Markdown is not shown.
+    expect(wrapper.get('.md a').attributes('href')).toBe('https://example.com/x')
+    expect(wrapper.get('.md a').attributes('target')).toBe('_blank')
+    expect(wrapper.text()).not.toContain('**this**')
+  })
+
   it('links the GitHub author to their person page', async () => {
     store.people = [{ id: 'p1', name: 'Alice', aliases: ['alice'] }]
     mocks.itemsGet.mockResolvedValue(item())
