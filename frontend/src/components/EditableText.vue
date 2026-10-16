@@ -8,7 +8,9 @@ const props = defineProps({
   multiline: { type: Boolean, default: false },
   as: { type: String, default: 'span' },
   // Render the display value as Markdown. The editor still opens the raw value.
-  markdown: { type: Boolean, default: false }
+  markdown: { type: Boolean, default: false },
+  // Leave task-list checkboxes in the rendered Markdown clickable.
+  taskLists: { type: Boolean, default: false }
 })
 const emit = defineEmits(['save'])
 
@@ -17,7 +19,10 @@ const draft = ref('')
 const input = ref(null)
 let skipCommit = false
 
-function start() {
+function start(event) {
+  // A click on a control inside the rendered Markdown (a link or a task-list
+  // checkbox) belongs to that control, not to opening the editor.
+  if (event?.target?.closest?.('a, input, button, label, select, textarea')) return
   draft.value = props.value || ''
   editing.value = true
   nextTick(() => {
@@ -95,7 +100,7 @@ defineExpose({ activate: start, isEditing: () => editing.value })
     @click="start"
     @keydown="onDisplayKeydown"
   >
-    <MarkdownView :source="value" />
+    <MarkdownView :source="value" :task-lists="taskLists" />
   </component>
   <component
     :is="as"

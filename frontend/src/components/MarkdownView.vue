@@ -6,9 +6,14 @@ import { renderMarkdown } from '../markdown'
 // function sets innerHTML directly, which keeps v-html out of the templates
 // while still producing the shared `.md` styling.
 export default {
-  props: { source: { type: String, default: '' } },
+  props: {
+    source: { type: String, default: '' },
+    // Leave task-list checkboxes clickable rather than disabled.
+    taskLists: { type: Boolean, default: false }
+  },
   render() {
-    return h('div', { class: 'md', innerHTML: renderMarkdown(this.source) })
+    const html = renderMarkdown(this.source, { taskListInteractive: this.taskLists })
+    return h('div', { class: 'md', innerHTML: html })
   }
 }
 </script>

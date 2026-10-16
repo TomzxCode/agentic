@@ -1163,47 +1163,22 @@ button.tag-chip.active {
     padding-bottom: 48px;
   }
 }
-/* Next steps */
-.steps {
+/* GitHub-style task list: no bullet, checkbox before the text. */
+.md li.task-list-item {
   list-style: none;
-  margin: 0;
-  padding: 0;
 }
-.steps li {
-  display: flex;
-  gap: 10px;
-  align-items: flex-start;
-  padding: 7px 0;
-  border-bottom: 1px dashed var(--border);
-}
-.steps li:last-child {
-  border-bottom: none;
-}
-.steps input[type='checkbox'] {
-  margin-top: 3px;
+.md .task-list-item-checkbox {
+  margin-right: 6px;
+  vertical-align: middle;
   accent-color: var(--accent);
 }
-.steps .done {
-  color: var(--faint);
-  text-decoration: line-through;
+.md .task-list-item-checkbox:not([disabled]) {
+  cursor: pointer;
 }
-/* Empty next-steps state: make "no next steps defined" stand out rather than
-   blending in as faint helper text. */
-.context-missing {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  font-size: 13px;
-  color: var(--muted);
-  background: rgba(251, 191, 36, 0.08);
-  border: 1px solid #5b4a1a;
-  border-left: 3px solid var(--warn);
-  border-radius: 8px;
-  padding: 10px 12px;
-}
-.context-missing strong {
-  color: var(--warn);
-}
+
+/* Next steps are edited as one multiline text field (EditableText), so the list
+   markup and the empty-state callout are gone; the header badge still flags a
+   task with no next steps. */
 .summary {
   white-space: pre-wrap;
   color: var(--text);

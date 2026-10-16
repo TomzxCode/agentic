@@ -77,4 +77,12 @@ describe('EditableText', () => {
     await textarea.trigger('blur')
     expect(wrapper.emitted('save')).toEqual([['*it*']])
   })
+
+  it('does not open the editor when a task-list checkbox is clicked', async () => {
+    const wrapper = mount(EditableText, {
+      props: { value: '- [ ] Do it', markdown: true, taskLists: true, as: 'div', multiline: true }
+    })
+    await wrapper.get('input[type=checkbox]').trigger('click')
+    expect(wrapper.find('textarea').exists()).toBe(false)
+  })
 })

@@ -44,6 +44,20 @@ describe('renderMarkdown', () => {
     expect(html).toContain('target="_blank"')
   })
 
+  it('renders a task list with checkboxes disabled by default', () => {
+    const html = renderMarkdown('- [ ] one\n- [x] two\n')
+    expect(html).toContain('class="task-list-item"')
+    expect(html).toContain('type="checkbox"')
+    expect(html).toContain('checked')
+    expect(html).toContain('disabled')
+  })
+
+  it('leaves task-list checkboxes enabled when interactive', () => {
+    const html = renderMarkdown('- [ ] one', { taskListInteractive: true })
+    expect(html).toContain('type="checkbox"')
+    expect(html).not.toContain('disabled')
+  })
+
   it('has no trailing whitespace, so the last block keeps no bottom margin', () => {
     expect(renderMarkdown('hello')).toBe('<p>hello</p>')
     expect(renderMarkdown('- one\n- two')).toBe('<ul>\n<li>one</li>\n<li>two</li>\n</ul>')

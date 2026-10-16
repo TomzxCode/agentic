@@ -58,13 +58,36 @@ describe('ContextPanel', () => {
     ...over
   })
 
-  it('renders the summary and toggles a next step', async () => {
+  it('renders the summary and edits the next steps as a Markdown field', async () => {
     mocks.taskUpdate.mockResolvedValue({})
     const wrapper = mount(ContextPanel, { props: { task: task() } })
     expect(wrapper.get('.summary').text()).toBe('The summary')
     expect(wrapper.find('.badge.warn').exists()).toBe(false)
 
-    await wrapper.get('input[type=checkbox]').trigger('change')
+    const box = wrapper.get('.next-steps input.task-list-item-checkbox')
+    expect(box.element.disabled).toBe(false)
+    expect(box.element.checked).toBe(false)
+    expect(wrapper.get('.next-steps .md li').text()).toBe('Step A')
+
+    await wrapper.get('.next-steps').trigger('click')
+    const field = wrapper.get('textarea.inline-input')
+    expect(field.element.value).toBe('- [ ] Step A')
+    await field.setValue('- [ ] Step A\n- [x] Step B')
+    await field.trigger('blur')
+    await flushPromises()
+    expect(mocks.taskUpdate).toHaveBeenCalledWith('t1', {
+      next_steps: [
+        { text: 'Step A', done: false },
+        { text: 'Step B', done: true }
+      ]
+    })
+    expect(wrapper.emitted('changed')).toHaveLength(1)
+  })
+
+  it('ticks a next step from its checkbox', async () => {
+    mocks.taskUpdate.mockResolvedValue({})
+    const wrapper = mount(ContextPanel, { props: { task: task() } })
+    await wrapper.get('.next-steps input.task-list-item-checkbox').trigger('click')
     await flushPromises()
     expect(mocks.taskUpdate).toHaveBeenCalledWith('t1', { next_steps: [{ text: 'Step A', done: true }] })
     expect(wrapper.emitted('changed')).toHaveLength(1)
@@ -73,13 +96,12 @@ describe('ContextPanel', () => {
   it('shows empty states', () => {
     const wrapper = mount(ContextPanel, { props: { task: task({ summary: '', next_steps: [] }) } })
     expect(wrapper.text()).toContain('No context yet')
-    expect(wrapper.text()).toContain('No next steps defined')
+    expect(wrapper.get('.next-steps').text()).toContain('No next steps yet')
   })
 
   it('flags a task with no next steps in the header badge', () => {
     const wrapper = mount(ContextPanel, { props: { task: task({ summary: 'Has a summary', next_steps: [] }) } })
     expect(wrapper.get('.badge.warn').text()).toBe('no next steps')
-    expect(wrapper.get('.context-missing').text()).toContain('No next steps defined')
   })
 
   it('refreshes with the agent and emits changed', async () => {

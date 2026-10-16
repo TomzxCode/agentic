@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue'
 import { api } from '../api'
 import { store, timeAgo } from '../store'
+import EditableText from './EditableText.vue'
 
 const props = defineProps({ task: { type: Object, required: true } })
 const emit = defineEmits(['changed'])
@@ -12,9 +13,45 @@ const summarizing = ref(false)
 // prominently so the user notices it and can refresh the context.
 const hasNextSteps = computed(() => (props.task.next_steps || []).length > 0)
 
+// Steps are stored one per entry, but the field's value is Markdown (as with
+// notes): one task-list item per step, so the display renders a checkbox per
+// step and `[x]` carries the done flag. Saving reads that syntax back.
+const stepsText = computed(() =>
+  (props.task.next_steps || []).map((s) => `- [${s.done ? 'x' : ' '}] ${s.text}`).join('\n')
+)
+
 // A task imported from Slack can be re-named and re-summarized with an agent,
 // which is also the recovery path when the import run failed or was interrupted.
 const hasSlackItem = computed(() => (props.task.associations || []).some((a) => a.item?.source === 'slack'))
+
+const TASK_ITEM = /^\s*[-*+]\s+\[([ xX])\]\s*(.*)$/
+const BULLET = /^\s*[-*+]\s+(.*)$/
+
+async function saveNextSteps(value) {
+  const steps = value
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const task = TASK_ITEM.exec(line)
+      if (task) return { text: task[2].trim(), done: task[1].toLowerCase() === 'x' }
+      const bullet = BULLET.exec(line)
+      return { text: (bullet ? bullet[1] : line).trim(), done: false }
+    })
+    .filter((step) => step.text)
+  await api.tasks.update(props.task.id, { next_steps: steps })
+  emit('changed')
+}
+
+// Ticking a rendered checkbox flips that step's done flag. The index comes from
+// the box order, which matches the step order the field was built from.
+async function onFieldClick(event) {
+  const box = event.target?.closest?.('input.task-list-item-checkbox')
+  if (!box) return
+  const index = [...event.currentTarget.querySelectorAll('input.task-list-item-checkbox')].indexOf(box)
+  if (index < 0) return
+  await toggleStep(index)
+}
 
 async function toggleStep(index) {
   const steps = (props.task.next_steps || []).map((s, i) => (i === index ? { ...s, done: !s.done } : s))
@@ -73,15 +110,16 @@ async function summarize() {
     </p>
 
     <h3 style="margin: 14px 0 6px">Next steps</h3>
-    <ul v-if="hasNextSteps" class="steps">
-      <li v-for="(step, i) in task.next_steps" :key="i">
-        <input type="checkbox" :checked="step.done" @change="toggleStep(i)" />
-        <span :class="{ done: step.done }">{{ step.text }}</span>
-      </li>
-    </ul>
-    <div v-else class="context-missing" role="status">
-      <strong>No next steps defined.</strong>
-      <span>Hit <strong>Refresh with agent</strong> so an agent writes the next steps for this task.</span>
-    </div>
+    <EditableText
+      class="next-steps"
+      multiline
+      markdown
+      task-lists
+      as="div"
+      :value="stepsText"
+      placeholder="No next steps yet. Click to write some, or hit Refresh with agent."
+      @click="onFieldClick"
+      @save="saveNextSteps"
+    />
   </section>
 </template>
