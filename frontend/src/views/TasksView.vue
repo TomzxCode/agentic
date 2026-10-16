@@ -77,6 +77,20 @@ async function changeStatus(task, status) {
   }
 }
 
+// Change a task's priority from the circle in its row.
+async function changePriority(task, priority) {
+  const value = Number(priority)
+  if (value === task.priority) return
+  const previous = task.priority
+  task.priority = value
+  try {
+    await api.tasks.update(task.id, { priority: value })
+  } catch (e) {
+    task.priority = previous
+    store.notify(e.message, true)
+  }
+}
+
 // --- Bulk edit -------------------------------------------------------------
 
 const selected = ref([])
@@ -274,6 +288,7 @@ onMounted(() => {
         :selected="selectedSet.has(p.id)"
         @toggle="toggle"
         @change-status="changeStatus"
+        @change-priority="changePriority"
       />
     </section>
 

@@ -6,10 +6,10 @@ import PriorityIcon from './PriorityIcon.vue'
 import SearchSelect from './SearchSelect.vue'
 import StatusIcon from './StatusIcon.vue'
 
-// A single Task rendered as a card: an inline status picker and priority icon, a
-// title linking to the task, the people linked to it, its deadline and age, its
-// next step, and its tags. The tasks page (and its deadlines section) use it so
-// a task row looks the same wherever it appears.
+// A single Task rendered as a card: inline status and priority pickers, a title
+// linking to the task, the people linked to it, its deadline and age, its next
+// step, and its tags. The tasks page (and its deadlines section) use it so a
+// task row looks the same wherever it appears.
 //
 // Person and tag chips act on the shared filters in the store, the same way the
 // tasks page's filter rows do.
@@ -30,7 +30,7 @@ const props = defineProps({
   showTags: { type: Boolean, default: true }
 })
 
-defineEmits(['change-status', 'toggle'])
+defineEmits(['change-status', 'change-priority', 'toggle'])
 
 const STATUS_VALUES = ['open', 'in_progress', 'blocked', 'done', 'archived']
 const statusOptions = STATUS_VALUES.map((value) => ({
@@ -40,8 +40,18 @@ const statusOptions = STATUS_VALUES.map((value) => ({
   iconProps: { status: value, label: statusLabel(value) }
 }))
 
-// 0 = low, 1 = medium, 2 = high, 3 = urgent.
-const priorityLabel = computed(() => `Priority: ${priorityName(props.task.priority)}`)
+// 0 = low, 1 = medium, 2 = high, 3 = urgent. The icon-only picker reuses the
+// priority icon, so the circle can be clicked to change the level in place.
+const PRIORITY_VALUES = [0, 1, 2, 3]
+const priorityOptions = PRIORITY_VALUES.map((value) => {
+  const name = priorityName(value)
+  return {
+    value,
+    label: name.charAt(0).toUpperCase() + name.slice(1),
+    icon: PriorityIcon,
+    iconProps: { priority: value, label: `Priority: ${name}` }
+  }
+})
 
 const peopleById = computed(() => Object.fromEntries(props.people.map((person) => [person.id, person])))
 const linkedPeople = computed(() => (props.task.person_ids || []).map((id) => peopleById.value[id]).filter(Boolean))
@@ -83,7 +93,16 @@ const age = computed(() => {
         title="Change status"
         @update:model-value="(value) => $emit('change-status', task, value)"
       />
-      <PriorityIcon v-if="showPriority" :priority="task.priority" :label="priorityLabel" />
+      <SearchSelect
+        v-if="showPriority"
+        class="task-priority-select"
+        variant="icon"
+        :model-value="task.priority"
+        :options="priorityOptions"
+        :sort="false"
+        title="Change priority"
+        @update:model-value="(value) => $emit('change-priority', task, Number(value))"
+      />
     </template>
 
     <template #title>

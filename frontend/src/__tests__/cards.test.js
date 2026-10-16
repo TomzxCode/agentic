@@ -126,6 +126,18 @@ describe('TaskCard', () => {
     expect(wrapper.emitted('change-status')[0]).toEqual([expect.objectContaining({ id: 't1' }), 'blocked'])
   })
 
+  it('emits the chosen priority from the priority icon', async () => {
+    const wrapper = mount(TaskCard, { props: { task: task() }, ...stub })
+    const select = wrapper.get('.task-priority-select')
+    expect(select.get('.task-priority').classes()).toContain('prio-urgent')
+    await select.get('.ss-trigger').trigger('click')
+    await wrapper
+      .findAll('.ss-option')
+      .find((option) => option.text().includes('Low'))
+      .trigger('click')
+    expect(wrapper.emitted('change-priority')[0]).toEqual([expect.objectContaining({ id: 't1' }), 0])
+  })
+
   it('emits toggle from the select checkbox when selectable', async () => {
     const wrapper = mount(TaskCard, {
       props: { task: task(), selectable: true, selected: true },
