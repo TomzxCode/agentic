@@ -262,11 +262,17 @@ async function refreshLinked() {
   const ids = linkedItems.value.map((item) => item.id)
   const queue = [...ids]
   let failed = 0
+  let firstError = ''
   const worker = async () => {
     while (queue.length) {
       const id = queue.shift()
       try {
-        await api.items.refresh(id)
+        const refreshed = await api.items.refresh(id)
+        // A 200 can still carry a fetch_error (ghx/slackx could not run).
+        if (refreshed?.fetch_error) {
+          failed += 1
+          firstError = firstError || refreshed.fetch_error
+        }
       } catch {
         failed += 1
       }
@@ -280,7 +286,11 @@ async function refreshLinked() {
   }
   refreshingLinked.value = false
   const done = ids.length - failed
-  if (failed) store.notify(`Refreshed ${done} of ${ids.length} linked items; ${failed} failed`, true)
+  if (failed)
+    store.notify(
+      `Refreshed ${done} of ${ids.length} linked items; ${failed} failed${firstError ? `: ${firstError}` : ''}`,
+      true
+    )
   else store.notify(`Refreshed ${done} linked item${done === 1 ? '' : 's'}`)
 }
 

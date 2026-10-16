@@ -112,6 +112,8 @@ def test_ensure_columns_adds_missing_post_init_columns(monkeypatch, tmp_path):
         conn.execute(sqlalchemy.text("CREATE TABLE task (id VARCHAR PRIMARY KEY, title VARCHAR)"))
         conn.execute(sqlalchemy.text("CREATE TABLE timelineevent (id VARCHAR PRIMARY KEY, type VARCHAR)"))
         conn.execute(sqlalchemy.text("INSERT INTO timelineevent (id, type) VALUES ('e1', 'created')"))
+        conn.execute(sqlalchemy.text("CREATE TABLE sourceitem (id VARCHAR PRIMARY KEY, title VARCHAR)"))
+        conn.execute(sqlalchemy.text("INSERT INTO sourceitem (id, title) VALUES ('i1', 'A title')"))
     monkeypatch.setattr(db, "engine", engine)
 
     db._ensure_columns()
@@ -119,14 +121,18 @@ def test_ensure_columns_adds_missing_post_init_columns(monkeypatch, tmp_path):
     harness_columns = {column["name"] for column in sqlalchemy.inspect(engine).get_columns("harness")}
     task_columns = {column["name"] for column in sqlalchemy.inspect(engine).get_columns("task")}
     timeline_columns = {column["name"] for column in sqlalchemy.inspect(engine).get_columns("timelineevent")}
+    item_columns = {column["name"] for column in sqlalchemy.inspect(engine).get_columns("sourceitem")}
     assert "resume_command" in harness_columns
     assert "group_id" in task_columns
     assert "client" in timeline_columns and "actor" in timeline_columns
+    assert "title_custom" in item_columns
 
     # The DEFAULT backfills pre-existing rows.
     with engine.connect() as conn:
         row = conn.execute(sqlalchemy.text("SELECT client, actor FROM timelineevent WHERE id='e1'")).one()
+        item = conn.execute(sqlalchemy.text("SELECT title_custom FROM sourceitem WHERE id='i1'")).one()
     assert tuple(row) == ("api", "human")
+    assert item[0] == 0
 
     # A second pass is a no-op now that the columns exist.
     db._ensure_columns()

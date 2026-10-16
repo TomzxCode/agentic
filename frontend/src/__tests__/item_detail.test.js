@@ -31,6 +31,7 @@ vi.mock('../api', () => ({
 }))
 
 import ItemDetailView from '../views/ItemDetailView.vue'
+import EditableText from '../components/EditableText.vue'
 import { store } from '../store'
 
 const RouterLinkStub = { props: ['to'], template: '<a :href="to"><slot /></a>' }
@@ -154,6 +155,42 @@ describe('ItemDetailView', () => {
     await flushPromises()
     expect(wrapper.text()).toContain('fresh')
     expect(store.toast).toEqual({ message: 'Refreshed', isError: false })
+  })
+
+  it('shows a failed refresh instead of a silent success', async () => {
+    mocks.itemsGet.mockResolvedValue(item())
+    mocks.itemsRefresh.mockResolvedValue(item({ fetch_error: 'slackx could not fetch the Slack thread' }))
+    const wrapper = mountView()
+    await flushPromises()
+    await wrapper.get('button[aria-label="Refresh this item"]').trigger('click')
+    await flushPromises()
+    expect(store.toast).toEqual({ message: 'slackx could not fetch the Slack thread', isError: true })
+  })
+
+  it('asks for the source title when the title is cleared', async () => {
+    mocks.itemsGet.mockResolvedValue(item({ title_custom: true }))
+    mocks.itemsUpdate.mockResolvedValue(item())
+    const wrapper = mountView()
+    await flushPromises()
+    wrapper.findComponent(EditableText).vm.$emit('save', '')
+    await flushPromises()
+    expect(mocks.itemsUpdate).toHaveBeenCalledWith('i1', { title: '' })
+  })
+
+  it('offers a reset-title action only for a custom title', async () => {
+    mocks.itemsGet.mockResolvedValue(item({ title_custom: true }))
+    mocks.itemsUpdate.mockResolvedValue(item())
+    const wrapper = mountView()
+    await flushPromises()
+    const reset = wrapper.get('button[aria-label="Reset this item\'s title"]')
+    await reset.trigger('click')
+    await flushPromises()
+    expect(mocks.itemsUpdate).toHaveBeenCalledWith('i1', { title: '' })
+
+    mocks.itemsGet.mockResolvedValue(item({ title_custom: false }))
+    const plain = mountView()
+    await flushPromises()
+    expect(plain.find('button[aria-label="Reset this item\'s title"]').exists()).toBe(false)
   })
 
   it('deletes the item after confirmation and returns to resources', async () => {

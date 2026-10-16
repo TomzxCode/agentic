@@ -216,6 +216,9 @@ class SourceItem(SQLModel, table=True):
     source: str  # slack | github | gdrive | url | note | commit | file
     kind: str = ""  # thread | issue | pr | doc | ...
     title: str = ""
+    # True once a person set the title; a refresh leaves a custom title alone
+    # and only re-derives a title the source itself produced.
+    title_custom: bool = False
     url: str | None = None
     external_id: str | None = None
     metadata_json: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))

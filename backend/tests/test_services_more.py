@@ -1,6 +1,7 @@
 """Side-effectful services helpers: git, source fetching, and prompt building."""
 
 import subprocess
+from datetime import UTC
 
 import pytest
 
@@ -216,13 +217,19 @@ def test_fetch_slack_refreshes_with_fetch_then_reads_participants(monkeypatch):
 
     def fake(cmd, timeout=60):
         calls.append(cmd)
-        return "transcript" if "--json" not in cmd else '{"messages": []}'
+        if cmd[1:3] == ["conversations", "show"]:
+            return "transcript" if "--json" not in cmd else '{"channel_name": "general", "messages": []}'
+        return None
 
+    monkeypatch.setattr(services, "_cli_available", lambda name: True)
     monkeypatch.setattr(services, "_run_cli", fake)
     result: dict = {"title": "t", "content": "", "metadata": {}}
     services._fetch_slack("https://acme.slack.com/archives/C1/p1700000000000000", result)
     assert result["content"] == "transcript"
     assert result["metadata"]["channel"] == "C1"
+    # A Slack thread is named after its organization, channel, and datetime.
+    assert result["title"] == f"acme - #general - {services.slack_item_datetime('1700000000.000000')}"
+    assert result.get("error") is None
     # Both conversation reads are `show`: the transcript forces a refresh with
     # --fetch, and the participants read comes from the refreshed cache (no
     # second fetch). Names come from `users list`.
@@ -234,11 +241,100 @@ def test_fetch_slack_refreshes_with_fetch_then_reads_participants(monkeypatch):
     assert "--fetch" in calls[0]
     assert "--json" in calls[1] and "--fetch" not in calls[1]
 
-    # No slackx output: the item still gets its metadata and no content.
+    # No slackx output: the item still gets its metadata and a name, but the
+    # refresh is reported as a failure so it does not read as success.
     result = {"title": "t", "content": "", "metadata": {}}
     monkeypatch.setattr(services, "_run_cli", lambda cmd, timeout=60: None)
     services._fetch_slack("https://acme.slack.com/archives/C1/p1700000000000000", result)
     assert result["content"] == "" and result["metadata"]["channel"] == "C1"
+    assert result["title"] == f"acme - C1 - {services.slack_item_datetime('1700000000.000000')}"
+    assert result["error"] == "slackx could not fetch the Slack thread"
+
+
+def test_fetch_slack_reports_a_missing_slackx(monkeypatch):
+    monkeypatch.setattr(services, "_cli_available", lambda name: False)
+    result: dict = {"title": "", "content": "", "metadata": {}}
+    services._fetch_slack("https://acme.slack.com/archives/C1/p1700000000000000", result)
+    assert result["error"] == "slackx is not installed; install it to fetch Slack threads"
+    # The item is still named from its URL, even without slackx.
+    assert result["title"] == f"acme - C1 - {services.slack_item_datetime('1700000000.000000')}"
+
+
+def test_failed_slack_fetch_keeps_a_resolved_channel_name(monkeypatch):
+    monkeypatch.setattr(services, "_cli_available", lambda name: True)
+    monkeypatch.setattr(services, "_run_cli", lambda cmd, timeout=60: None)
+    # The stored title already carries the channel name; a later failed fetch
+    # must not revert it to the channel id.
+    result: dict = {
+        "title": "acme - #general - 2023-11-14 22:13",
+        "content": "",
+        "metadata": {},
+    }
+    services._fetch_slack("https://acme.slack.com/archives/C1/p1700000000000000", result)
+    assert result["error"] == "slackx could not fetch the Slack thread"
+    assert result["title"] == f"acme - #general - {services.slack_item_datetime('1700000000.000000')}"
+
+
+def test_fetch_slack_resolves_an_uncached_channel_name(monkeypatch):
+    # The thread payload carries no channel_name; `channels list` resolves it.
+    def fake(cmd, timeout=60):
+        if cmd[1:3] == ["conversations", "show"]:
+            return '{"messages": []}' if "--json" in cmd else "transcript"
+        if cmd[1:3] == ["channels", "list"]:
+            return '{"channel_count": 1, "channels": [{"id": "C1", "name": "test"}]}'
+        return None
+
+    monkeypatch.setattr(services, "_cli_available", lambda name: True)
+    monkeypatch.setattr(services, "_run_cli", fake)
+    result: dict = {"title": "", "content": "", "metadata": {}}
+    services._fetch_slack("https://acme.slack.com/archives/C1/p1700000000000000", result)
+    assert result["title"] == f"acme - #test - {services.slack_item_datetime('1700000000.000000')}"
+
+
+def test_slack_naming_helpers():
+    assert services.slack_item_datetime("1700000000.000000", tz=UTC) == "2023-11-14 22:13"
+    # A bad timestamp falls back to the raw value rather than raising.
+    assert services.slack_item_datetime("nope") == "nope"
+
+    assert services.slack_channel_label("C1", "general") == "#general"
+    assert services.slack_channel_label("C1", "#general") == "#general"
+    assert services.slack_channel_label("C1", "") == "C1"
+    # A direct message keeps its bare name, with no channel prefix.
+    assert services.slack_channel_label("D1", "alice") == "alice"
+
+    parsed = {"workspace": "acme", "channel": "C1", "ts": "1700000000.000000"}
+    assert services.slack_item_title(parsed, "general", tz=UTC) == "acme - #general - 2023-11-14 22:13"
+    assert services.slack_item_title(parsed, tz=UTC) == "acme - C1 - 2023-11-14 22:13"
+
+    assert services.slack_channel_name('{"channel_name": "general"}') == "general"
+    # A payload without a channel name (or not JSON) resolves to None.
+    assert services.slack_channel_name("no json") is None
+    assert services.slack_channel_name('{"messages": []}') is None
+
+    # A title already naming the channel is not downgraded to the bare id, and
+    # a bare-id title is not mistaken for a name (no "#C1").
+    assert services.slack_title_channel("acme - #general - 2023-11-14 22:13", "acme") == "#general"
+    assert services.slack_title_channel("acme - C1 - 2023-11-14 22:13", "acme") == "C1"
+    assert services.slack_title_channel("acme - alice - 2023-11-14 22:13", "acme") == "alice"
+    # A user-edited title, another workspace, or a non-title is not our format.
+    assert services.slack_title_channel("My own name", "acme") is None
+    assert services.slack_title_channel("other - #general - 2023-11-14 22:13", "acme") is None
+    assert services.slack_item_title(parsed, "C1", tz=UTC) == "acme - C1 - 2023-11-14 22:13"
+
+
+def test_resolve_slack_channel_name(monkeypatch):
+    monkeypatch.setattr(
+        services,
+        "_run_cli",
+        lambda cmd, timeout=60: '{"channel_count": 1, "channels": [{"id": "C1", "name": "test"}]}',
+    )
+    assert services.resolve_slack_channel_name("C1") == "test"
+    monkeypatch.setattr(services, "_run_cli", lambda cmd, timeout=60: None)
+    assert services.resolve_slack_channel_name("C1") is None
+    monkeypatch.setattr(services, "_run_cli", lambda cmd, timeout=60: "not json")
+    assert services.resolve_slack_channel_name("C1") is None
+    monkeypatch.setattr(services, "_run_cli", lambda cmd, timeout=60: '{"channels": []}')
+    assert services.resolve_slack_channel_name("C1") is None
 
 
 def test_fetch_url_extracts_title_and_strips_markup(monkeypatch):

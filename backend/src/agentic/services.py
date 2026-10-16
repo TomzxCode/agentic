@@ -8,6 +8,7 @@ import re
 import secrets
 import shutil
 import subprocess
+from datetime import datetime, tzinfo
 from pathlib import Path
 from typing import Any
 
@@ -134,6 +135,11 @@ def random_branch_name(repo_path: str, prefix: str = "agentic/") -> str:
     return f"{prefix}{random_name()}-{secrets.token_hex(3)}"
 
 
+def _cli_available(name: str) -> bool:
+    """Whether a helper CLI (ghx, slackx) is on PATH, so a fetch can name it."""
+    return shutil.which(name) is not None
+
+
 def _run_cli(cmd: list[str], timeout: int = 60) -> str | None:
     if shutil.which(cmd[0]) is None:
         return None
@@ -176,6 +182,53 @@ def parse_slack(url: str) -> dict[str, str] | None:
     }
 
 
+def slack_item_datetime(ts: str, tz: tzinfo | None = None) -> str:
+    """A Slack timestamp rendered as a readable datetime (local time by default)."""
+    try:
+        moment = datetime.fromtimestamp(float(ts), tz=tz)
+    except (TypeError, ValueError, OSError, OverflowError):
+        return ts
+    return moment.strftime("%Y-%m-%d %H:%M")
+
+
+def slack_channel_label(channel_id: str, channel_name: str) -> str:
+    """A channel as ``#name``; a direct message (id ``D...``) keeps its bare name."""
+    name = (channel_name or "").strip()
+    if not name:
+        return channel_id
+    if name.startswith("#") or channel_id[:1].upper() == "D":
+        return name
+    return f"#{name}"
+
+
+def slack_item_title(parsed: dict[str, str], channel_name: str | None = None, tz: tzinfo | None = None) -> str:
+    """The name of a Slack thread item: organization - channel - datetime.
+
+    ``channel_name`` is the human-readable channel (from slackx) when known;
+    otherwise the channel id from the URL stands in for it.
+    """
+    channel = parsed["channel"]
+    if channel_name and channel_name != parsed["channel"]:
+        channel = slack_channel_label(parsed["channel"], channel_name)
+    return f"{parsed['workspace']} - {channel} - {slack_item_datetime(parsed['ts'], tz)}"
+
+
+# Our own Slack item name: "<organization> - <channel> - <datetime>".
+_SLACK_TITLE_RE = re.compile(r"^(?P<workspace>.+?) - (?P<channel>.+?) - \d{4}-\d{2}-\d{2} \d{2}:\d{2}$")
+
+
+def slack_title_channel(title: str, workspace: str) -> str | None:
+    """The channel already named in a Slack item title, when it fits our format.
+
+    Lets a refresh keep a resolved channel name (``#test``) instead of falling
+    back to the channel id when the fetch that would resolve it fails.
+    """
+    match = _SLACK_TITLE_RE.match((title or "").strip())
+    if match and match.group("workspace") == workspace:
+        return match.group("channel")
+    return None
+
+
 GOOGLE_DOC_RE = re.compile(r"https?://(?:docs|drive)\.google\.com/[^/]+/d/([A-Za-z0-9_-]+)")
 URL_SCHEME_RE = re.compile(r"^[a-zA-Z][a-zA-Z0-9+.\-]*://\S+$")
 BARE_HOST_RE = re.compile(r"^[a-z0-9](?:[a-z0-9\-]*[a-z0-9])?(?:\.[a-z0-9\-]+)+(?:[/?#]\S*)?$", re.IGNORECASE)
@@ -216,9 +269,14 @@ def infer_item_source(
 
 
 def fetch_source(source: str, url: str | None, external_id: str | None, title: str) -> dict[str, Any]:
-    """Best-effort metadata/content pull. Never raises."""
+    """Best-effort metadata/content pull. Never raises.
 
-    result: dict[str, Any] = {"metadata": {}, "content": "", "title": title, "people": []}
+    ``error`` is set when the underlying fetch could not run (a missing or
+    failing CLI, an unreachable URL) so a caller can surface the failure rather
+    than treating empty output as a successful refresh.
+    """
+
+    result: dict[str, Any] = {"metadata": {}, "content": "", "title": title, "people": [], "error": None}
     try:
         if source == "github" and url:
             _fetch_github(url, result)
@@ -228,6 +286,7 @@ def fetch_source(source: str, url: str | None, external_id: str | None, title: s
             _fetch_url(url, result)
     except Exception as exc:  # noqa: BLE001
         log.info("fetch_source failed", source=source, url=url, error=str(exc))
+        result["error"] = f"could not fetch {url or source}: {exc}"
     return result
 
 
@@ -416,6 +475,10 @@ def _fetch_github(url: str, result: dict[str, Any]) -> None:
         return
     issue = fetch_github_issue(parsed["owner"], parsed["repo"], parsed["number"], parsed["kind"])
     if issue is None:
+        if not _cli_available("ghx"):
+            result["error"] = "ghx is not installed; install it to fetch GitHub issues and pull requests"
+        else:
+            result["error"] = "ghx could not fetch the GitHub issue or pull request"
         return
     result["title"] = issue["title"] or result["title"]
     result["metadata"] = {
@@ -483,20 +546,71 @@ def slack_people(payload: str, names: dict[str, str] | None = None) -> list[dict
     return dedupe_people(people)
 
 
+def slack_channel_name(payload: str) -> str | None:
+    """The channel name from a slackx thread payload, when it carries one."""
+    try:
+        data = json.loads(payload)
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(data, dict):
+        return None
+    name = data.get("channel_name")
+    return str(name) if name else None
+
+
+def resolve_slack_channel_name(channel: str) -> str | None:
+    """Resolve a Slack channel's name through slackx, fetching it when uncached.
+
+    The thread payload only carries ``channel_name`` when the channel is already
+    cached, so a miss is resolved with ``channels list`` (which calls
+    ``conversations.info``). None when slackx is missing or cannot resolve it.
+    """
+    raw = _run_cli(["slackx", "channels", "list", channel, "--json", "--fields", "id,name"], timeout=30)
+    if not raw:
+        return None
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError:
+        return None
+    channels = data.get("channels") if isinstance(data, dict) else None
+    for entry in channels or []:
+        if isinstance(entry, dict) and entry.get("name"):
+            return str(entry["name"])
+    return None
+
+
 def _fetch_slack(url: str, result: dict[str, Any]) -> None:
     parsed = parse_slack(url)
     if parsed:
         result["metadata"] = parsed
+        # A Slack thread has no title of its own; name the item after the
+        # organization, channel, and thread datetime so it is identifiable.
+        # Keep a channel name the title already carries, so a failed fetch does
+        # not downgrade "#test" back to the channel id.
+        existing = slack_title_channel(result.get("title", ""), parsed["workspace"])
+        result["title"] = slack_item_title(parsed, existing)
+    if not _cli_available("slackx"):
+        result["error"] = "slackx is not installed; install it to fetch Slack threads"
+        return
     # ``--fetch`` refreshes an already-cached thread, so a refresh from the web UI
     # (POST /api/items/{id}/refresh) sees new replies instead of the stale cache.
     # It also fetches on a cache miss, so no separate ``conversations fetch``.
     text = _run_cli(["slackx", "conversations", "show", url, "--fetch"], timeout=90)
     if text:
         result["content"] = text
+    else:
+        # A missing binary is named separately above; here slackx ran (or was
+        # expected to) but produced nothing, which must not read as success.
+        result["error"] = "slackx could not fetch the Slack thread"
     # A second, structured read of the same (now cached) thread names its people.
     raw = _run_cli(["slackx", "conversations", "show", url, "--json"], timeout=90)
+    channel_name = slack_channel_name(raw) if raw else None
     if raw:
         result["people"] = slack_people(raw, slack_user_names())
+    if parsed and not channel_name:
+        channel_name = resolve_slack_channel_name(parsed["channel"])
+    if parsed and channel_name:
+        result["title"] = slack_item_title(parsed, channel_name)
 
 
 def _fetch_url(url: str, result: dict[str, Any]) -> None:

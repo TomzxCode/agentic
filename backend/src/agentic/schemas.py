@@ -286,6 +286,8 @@ class ItemRead(ORMModel):
     source: str
     kind: str
     title: str
+    # True when a person set the title; a refresh leaves such a title alone.
+    title_custom: bool = False
     url: str | None = None
     external_id: str | None = None
     metadata_json: dict[str, Any]
@@ -295,6 +297,9 @@ class ItemRead(ORMModel):
     updated_at: datetime
     task_ids: list[str] = []
     person_ids: list[str] = []
+    # Set on a single-item response (create or refresh) when the fetch could not
+    # run, so the UI can show the failure instead of reading empty data as success.
+    fetch_error: str | None = None
 
 
 class ItemReviewFile(BaseModel):

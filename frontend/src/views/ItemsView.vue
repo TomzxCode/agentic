@@ -118,7 +118,7 @@ async function refresh(item) {
   try {
     const updated = await api.items.refresh(item.id)
     Object.assign(item, updated)
-    store.notify('Refreshed')
+    store.notifyRefresh(updated)
   } catch (e) {
     store.notify(e.message, true)
   }

@@ -2,6 +2,7 @@
 
 from fastapi.testclient import TestClient
 
+from agentic import services
 from agentic.main import app
 from agentic.routers import items as items_router
 
@@ -69,6 +70,60 @@ def test_create_item_fetches_when_requested(monkeypatch):
         client.delete(f"/api/items/{item['id']}")
 
 
+def test_clearing_the_title_restores_the_source_title(monkeypatch):
+    monkeypatch.setattr(
+        items_router,
+        "fetch_source",
+        lambda *args, **kwargs: {"title": "From the source", "content": "", "metadata": {}},
+    )
+    with TestClient(app) as client:
+        item = client.post(
+            "/api/items", json={"url": "https://example.com/reset", "title": "Mine", "fetch": False}
+        ).json()
+        assert item["title"] == "Mine" and item["title_custom"] is True
+
+        reset = client.patch(f"/api/items/{item['id']}", json={"title": ""}).json()
+        assert reset["title"] == "From the source" and reset["title_custom"] is False
+        client.delete(f"/api/items/{item['id']}")
+
+
+def test_clearing_a_note_title_falls_back_to_its_content(monkeypatch):
+    monkeypatch.setattr(
+        items_router, "fetch_source", lambda *args, **kwargs: {"title": "", "content": "", "metadata": {}}
+    )
+    with TestClient(app) as client:
+        item = client.post("/api/items", json={"content": "first line\nsecond line", "fetch": False}).json()
+        assert client.patch(f"/api/items/{item['id']}", json={"title": "Custom"}).json()["title_custom"] is True
+
+        reset = client.patch(f"/api/items/{item['id']}", json={"title": ""}).json()
+        assert reset["title"] == "first line" and reset["title_custom"] is False
+        client.delete(f"/api/items/{item['id']}")
+
+
+def test_refresh_keeps_a_custom_title_but_rederives_an_auto_one(monkeypatch):
+    monkeypatch.setattr(
+        items_router,
+        "fetch_source",
+        lambda *args, **kwargs: {"title": "From the source", "content": "body", "metadata": {}},
+    )
+    with TestClient(app) as client:
+        # No title given: the item takes the fetched title on refresh.
+        auto = client.post("/api/items", json={"url": "https://example.com/auto", "fetch": False}).json()
+        auto = client.post(f"/api/items/{auto['id']}/refresh").json()
+        assert auto["title"] == "From the source" and auto["title_custom"] is False
+
+        # A title given by a person survives the same refresh.
+        custom = client.post(
+            "/api/items", json={"url": "https://example.com/custom", "title": "Mine", "fetch": False}
+        ).json()
+        assert custom["title_custom"] is True
+        custom = client.post(f"/api/items/{custom['id']}/refresh").json()
+        assert custom["title"] == "Mine" and custom["title_custom"] is True
+
+        client.delete(f"/api/items/{auto['id']}")
+        client.delete(f"/api/items/{custom['id']}")
+
+
 def test_patch_and_refresh_item(monkeypatch):
     monkeypatch.setattr(
         items_router,
@@ -86,11 +141,72 @@ def test_patch_and_refresh_item(monkeypatch):
         assert client.patch("/api/items/missing", json={"title": "x"}).status_code == 404
 
         refreshed = client.post(f"/api/items/{item['id']}/refresh").json()
-        assert refreshed["title"] == "Refreshed" and refreshed["content"] == "new body"
+        # The title was edited here, so a refresh keeps it and only merges content.
+        assert refreshed["title"] == "T2" and refreshed["title_custom"] is True
+        assert refreshed["content"] == "new body"
         assert client.post("/api/items/missing/refresh").status_code == 404
 
         assert client.delete(f"/api/items/{item['id']}").status_code == 204
         assert client.delete("/api/items/missing").status_code == 404
+
+
+def test_create_item_reports_a_failed_fetch(monkeypatch):
+    # A slackx that cannot run must surface, not read as a successful create.
+    monkeypatch.setattr(services, "_cli_available", lambda name: False)
+    with TestClient(app) as client:
+        item = client.post(
+            "/api/items",
+            json={"url": "https://acme.slack.com/archives/C7/p1700000000000000", "fetch": True},
+        ).json()
+        assert item["fetch_error"] == "slackx is not installed; install it to fetch Slack threads"
+        client.delete(f"/api/items/{item['id']}")
+
+
+def test_refresh_item_surfaces_a_failed_fetch(monkeypatch):
+    monkeypatch.setattr(services, "_cli_available", lambda name: False)
+    with TestClient(app) as client:
+        item = client.post(
+            "/api/items",
+            json={"url": "https://acme.slack.com/archives/C8/p1700000000000000", "fetch": False},
+        ).json()
+        assert item["fetched_at"] is None and item["fetch_error"] is None
+
+        refreshed = client.post(f"/api/items/{item['id']}/refresh").json()
+        assert refreshed["fetch_error"] == "slackx is not installed; install it to fetch Slack threads"
+        # A failed fetch does not advance fetched_at, so the policy retries it.
+        assert refreshed["fetched_at"] is None
+        client.delete(f"/api/items/{item['id']}")
+
+
+def test_refresh_due_records_a_failed_fetch(monkeypatch):
+    from sqlmodel import Session
+
+    from agentic.db import engine
+    from agentic.models import Setting
+    from agentic.settings_store import refresh_status_key
+
+    monkeypatch.setattr(services, "_cli_available", lambda name: False)
+    with TestClient(app) as client:
+        client.patch("/api/settings", json={"slack_refresh_policy": "1d=1h,*=7d"})
+        item = client.post(
+            "/api/items",
+            json={"url": "https://acme.slack.com/archives/C9/p1700000000000000", "fetch": False},
+        ).json()
+        try:
+            report = client.post("/api/items/refresh-due").json()
+            entry = next(entry for entry in report["items"] if entry["item_id"] == item["id"])
+            assert entry["refreshed"] is False
+            assert entry["error"] == "slackx is not installed; install it to fetch Slack threads"
+        finally:
+            client.patch("/api/settings", json={"slack_refresh_policy": ""})
+            client.delete(f"/api/items/{item['id']}")
+            # Clear the run this test recorded so it does not leak into the
+            # settings tests that assert an empty refresh status.
+            with Session(engine) as session:
+                row = session.get(Setting, refresh_status_key("slack"))
+                if row is not None:
+                    session.delete(row)
+                    session.commit()
 
 
 def test_item_links_read_list_and_delete():

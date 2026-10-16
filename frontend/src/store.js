@@ -73,6 +73,12 @@ export const store = reactive({
     this.toast = { message, isError }
     clearTimeout(this._t)
     this._t = setTimeout(() => (this.toast = null), 4000)
+  },
+  // A refresh that could not fetch (a missing or failing ghx/slackx) carries a
+  // fetch_error; show it as an error rather than reporting a silent success.
+  notifyRefresh(result, okMessage = 'Refreshed') {
+    if (result?.fetch_error) this.notify(result.fetch_error, true)
+    else this.notify(okMessage)
   }
 })
 

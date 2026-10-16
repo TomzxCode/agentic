@@ -36,7 +36,7 @@ from .people import item_person_ids, link_people_to_item
 router = APIRouter(prefix="/api/items", tags=["items"])
 
 
-def _upsert_item(session: Session, payload: ItemCreate) -> SourceItem:
+def _upsert_item(session: Session, payload: ItemCreate, errors: list[str] | None = None) -> SourceItem:
     # Text pasted where a URL was expected is not a URL: keep it as the note's
     # content instead of storing (and later rendering) a bogus link.
     raw_url = (payload.url or "").strip()
@@ -63,7 +63,10 @@ def _upsert_item(session: Session, payload: ItemCreate) -> SourceItem:
 
     item.source = source
     item.kind = kind or item.kind
-    item.title = payload.title or item.title
+    if payload.title:
+        # A title the caller supplied is the person's; a refresh will not replace it.
+        item.title = payload.title
+        item.title_custom = True
     if url:
         item.url = url
     item.external_id = external_id or item.external_id
@@ -79,6 +82,8 @@ def _upsert_item(session: Session, payload: ItemCreate) -> SourceItem:
         item.metadata_json = {**(item.metadata_json or {}), **fetched.get("metadata", {})}
         item.fetched_at = utcnow()
         fetched_people = fetched.get("people") or []
+        if fetched.get("error") and errors is not None:
+            errors.append(fetched["error"])
 
     if not item.title and item.content:
         item.title = item.content.strip().splitlines()[0][:120]
@@ -94,13 +99,32 @@ def _upsert_item(session: Session, payload: ItemCreate) -> SourceItem:
     return item
 
 
-def _item_read(session: Session, item: SourceItem) -> ItemRead:
+def _item_read(session: Session, item: SourceItem, fetch_error: str | None = None) -> ItemRead:
     data = ItemRead.model_validate(item)
+    data.fetch_error = fetch_error
     data.task_ids = [
         assoc.task_id for assoc in session.exec(select(Association).where(Association.item_id == item.id)).all()
     ]
     data.person_ids = item_person_ids(session, item.id)
     return data
+
+
+def _apply_fetch(item: SourceItem, fetched: dict, now) -> str | None:
+    """Merge a fetch result into the item and return the fetch's error, if any.
+
+    A failed fetch still merges what it did return (a Slack item's name comes
+    from its URL), but leaves ``fetched_at`` alone so the refresh policy retries
+    it rather than treating the miss as fresh. A title a person set is kept.
+    """
+    if not item.title_custom:
+        item.title = fetched.get("title") or item.title
+    item.content = fetched.get("content") or item.content
+    item.metadata_json = {**(item.metadata_json or {}), **fetched.get("metadata", {})}
+    error = fetched.get("error")
+    if not error:
+        item.fetched_at = now
+    item.updated_at = now
+    return error
 
 
 def _refresh_entries(session: Session, items: list[SourceItem], now) -> list[dict]:
@@ -110,16 +134,15 @@ def _refresh_entries(session: Session, items: list[SourceItem], now) -> list[dic
         entry = {"item_id": item.id, "source": item.source, "title": item.title, "refreshed": False, "error": None}
         try:
             fetched = fetch_source(item.source, item.url, item.external_id, item.title)
-            item.title = fetched.get("title") or item.title
-            item.content = fetched.get("content") or item.content
-            item.metadata_json = {**(item.metadata_json or {}), **fetched.get("metadata", {})}
-            item.fetched_at = now
-            item.updated_at = now
+            error = _apply_fetch(item, fetched, now)
             session.add(item)
             session.commit()
             session.refresh(item)
             link_people_to_item(session, item.id, fetched.get("people") or [])
-            entry["refreshed"] = True
+            if error:
+                entry["error"] = error
+            else:
+                entry["refreshed"] = True
             entry["title"] = item.title
         except Exception as exc:  # noqa: BLE001
             session.rollback()
@@ -236,7 +259,9 @@ def list_items(
 
 @router.post("", response_model=ItemRead, status_code=201)
 def create_item(payload: ItemCreate, session: Session = Depends(get_session)) -> ItemRead:
-    return _item_read(session, _upsert_item(session, payload))
+    errors: list[str] = []
+    item = _upsert_item(session, payload, errors=errors)
+    return _item_read(session, item, fetch_error=errors[0] if errors else None)
 
 
 @router.post("/refresh-due", response_model=RefreshDueReport)
@@ -269,10 +294,26 @@ def update_item(item_id: str, payload: ItemUpdate, session: Session = Depends(ge
     item = session.get(SourceItem, item_id)
     if item is None:
         raise HTTPException(status_code=404, detail="Item not found")
-    for key, value in payload.model_dump(exclude_unset=True).items():
+    fields = payload.model_dump(exclude_unset=True)
+    reset_title = "title" in fields and not str(fields.get("title") or "").strip()
+    for key, value in fields.items():
         if value is None and key == "metadata_json":
             continue
+        if key == "title" and reset_title:
+            continue
         setattr(item, key, value)
+        if key == "title":
+            # An edited title is the person's; clearing it hands it back to the source.
+            item.title_custom = bool(value)
+    if reset_title:
+        # Clearing the title drops the custom flag and puts the source's own
+        # title back: the same name a first fetch would have produced.
+        item.title_custom = False
+        item.title = ""
+        derived = fetch_source(item.source, item.url, item.external_id, "")
+        item.title = derived.get("title") or ""
+        if not item.title and item.content:
+            item.title = item.content.strip().splitlines()[0][:120]
     item.updated_at = utcnow()
     session.add(item)
     session.commit()
@@ -286,16 +327,12 @@ def refresh_item(item_id: str, session: Session = Depends(get_session)) -> ItemR
     if item is None:
         raise HTTPException(status_code=404, detail="Item not found")
     fetched = fetch_source(item.source, item.url, item.external_id, item.title)
-    item.title = fetched.get("title") or item.title
-    item.content = fetched.get("content") or item.content
-    item.metadata_json = {**(item.metadata_json or {}), **fetched.get("metadata", {})}
-    item.fetched_at = utcnow()
-    item.updated_at = utcnow()
+    error = _apply_fetch(item, fetched, utcnow())
     session.add(item)
     session.commit()
     session.refresh(item)
     link_people_to_item(session, item.id, fetched.get("people") or [])
-    return _item_read(session, item)
+    return _item_read(session, item, fetch_error=error)
 
 
 def _pull_request_location(item: SourceItem) -> tuple[str, str, str] | None:

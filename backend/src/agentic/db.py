@@ -138,6 +138,12 @@ def _ensure_columns() -> None:
                 connection.execute(text("ALTER TABLE timelineevent ADD COLUMN client VARCHAR NOT NULL DEFAULT 'api'"))
             if "actor" not in timeline_columns:
                 connection.execute(text("ALTER TABLE timelineevent ADD COLUMN actor VARCHAR NOT NULL DEFAULT 'human'"))
+    if "sourceitem" in inspector.get_table_names():
+        item_columns = {column["name"] for column in inspector.get_columns("sourceitem")}
+        if "title_custom" not in item_columns:
+            with engine.begin() as connection:
+                # Pre-existing items read as auto-titled; DEFAULT backfills them.
+                connection.execute(text("ALTER TABLE sourceitem ADD COLUMN title_custom BOOLEAN NOT NULL DEFAULT 0"))
 
 
 def get_session() -> Iterator[Session]:

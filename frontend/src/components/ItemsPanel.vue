@@ -77,7 +77,8 @@ async function remove(itemId) {
 
 async function refreshItem(itemId) {
   try {
-    await api.items.refresh(itemId)
+    const updated = await api.items.refresh(itemId)
+    store.notifyRefresh(updated)
     emit('changed')
   } catch (e) {
     store.notify(e.message, true)

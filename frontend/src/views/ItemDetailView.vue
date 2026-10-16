@@ -16,6 +16,7 @@ const item = ref(null)
 const loading = ref(true)
 const notFound = ref(false)
 const refreshing = ref(false)
+const resettingTitle = ref(false)
 
 // The Markdown review reports the review skills wrote for this PR, read from
 // the user-global ~/.sdlc store. The list is loaded once; picking a report
@@ -99,16 +100,28 @@ async function load() {
 }
 
 async function saveTitle(value) {
-  if (!String(value || '').trim()) {
-    await load()
-    return
-  }
+  // An empty title is not a rejection: it asks for the source's own title back.
+  const title = String(value || '').trim() ? value : ''
   try {
-    await api.items.update(props.id, { title: value })
+    await api.items.update(props.id, { title })
     await load()
   } catch (e) {
     store.notify(e.message, true)
     await load()
+  }
+}
+
+// The title a first fetch would have produced, for an item whose title was edited.
+async function resetTitle() {
+  if (resettingTitle.value) return
+  resettingTitle.value = true
+  try {
+    await api.items.update(props.id, { title: '' })
+    await load()
+  } catch (e) {
+    store.notify(e.message, true)
+  } finally {
+    resettingTitle.value = false
   }
 }
 
@@ -117,7 +130,7 @@ async function refresh() {
   refreshing.value = true
   try {
     item.value = await api.items.refresh(props.id)
-    store.notify('Refreshed')
+    store.notifyRefresh(item.value)
   } catch (e) {
     store.notify(e.message, true)
   } finally {
@@ -208,6 +221,18 @@ onMounted(async () => {
         </div>
         <div class="row task-actions">
           <a v-if="item.url" class="btn sm ghost" :href="item.url" target="_blank" rel="noopener">{{ openLabel }}</a>
+          <button
+            v-if="item.title_custom"
+            class="btn sm ghost"
+            :disabled="resettingTitle"
+            aria-label="Reset this item's title"
+            title="Restore the title derived from the source"
+            @click="resetTitle"
+          >
+            <span v-if="resettingTitle" class="spinner" aria-hidden="true"></span>
+            <span v-else aria-hidden="true">↺</span>
+            {{ resettingTitle ? 'Resetting…' : 'Reset title' }}
+          </button>
           <button
             class="btn sm ghost"
             :disabled="refreshing"
