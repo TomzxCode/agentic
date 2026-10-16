@@ -127,6 +127,9 @@ describe('ItemDetailView', () => {
     expect(wrapper.text()).toContain('Note')
     expect(wrapper.text()).toContain('Rotate the token.')
     expect(wrapper.find('.task-actions a.btn').exists()).toBe(false)
+    // A note has no source to re-fetch and no author, so neither is offered.
+    expect(wrapper.find('button[aria-label="Refresh this item"]').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('People')
   })
 
   it('lists the linked tasks and people', async () => {

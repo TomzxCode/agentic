@@ -64,4 +64,17 @@ describe('EditableText', () => {
     await wrapper.vm.activate()
     expect(wrapper.find('input').exists()).toBe(true)
   })
+
+  it('renders display Markdown while editing the raw value', async () => {
+    const wrapper = mount(EditableText, {
+      props: { value: '**bold**', markdown: true, as: 'div', multiline: true }
+    })
+    expect(wrapper.get('.md strong').text()).toBe('bold')
+    await wrapper.get('.inline-edit').trigger('click')
+    const textarea = wrapper.get('textarea')
+    expect(textarea.element.value).toBe('**bold**')
+    await textarea.setValue('*it*')
+    await textarea.trigger('blur')
+    expect(wrapper.emitted('save')).toEqual([['*it*']])
+  })
 })

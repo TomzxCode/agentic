@@ -1145,6 +1145,28 @@ button.tag-chip.active {
 .select-item .title:hover {
   text-decoration: underline;
 }
+/* The add-note field: the Add button sits in a reserved bottom band so the typed
+   text keeps the full width. A textarea lays its text out in its own content box,
+   so CSS cannot make it flow around the button; reserving a band along the bottom
+   edge costs no width, unlike reserving the right edge. */
+.note-add {
+  position: relative;
+}
+.note-add .textarea {
+  display: block;
+  padding-bottom: 38px;
+}
+.note-add .btn {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+}
+@media (max-width: 760px) {
+  /* The touch-sized button is taller, so the band grows with it. */
+  .note-add .textarea {
+    padding-bottom: 48px;
+  }
+}
 /* Next steps */
 .steps {
   list-style: none;

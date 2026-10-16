@@ -43,4 +43,9 @@ describe('renderMarkdown', () => {
     expect(html).toContain('href="https://example.com/x"')
     expect(html).toContain('target="_blank"')
   })
+
+  it('has no trailing whitespace, so the last block keeps no bottom margin', () => {
+    expect(renderMarkdown('hello')).toBe('<p>hello</p>')
+    expect(renderMarkdown('- one\n- two')).toBe('<ul>\n<li>one</li>\n<li>two</li>\n</ul>')
+  })
 })

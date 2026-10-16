@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   deadlineInfo,
+  formatDateTime,
   formatDeadline,
   formatDuration,
   prStatus,
@@ -102,6 +103,19 @@ describe('timeAgo', () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-01-10T12:00:00Z'))
     expect(timeAgo(new Date(Date.now() + 60_000).toISOString())).toBe('just now')
+  })
+})
+
+describe('formatDateTime', () => {
+  it('is empty for a missing or unparseable timestamp', () => {
+    expect(formatDateTime(null)).toBe('')
+    expect(formatDateTime('not-a-date')).toBe('')
+  })
+
+  it('formats an absolute date and time as YYYY-MM-DD HH:MM', () => {
+    // Built from local parts, so the expectation holds in any timezone.
+    const local = new Date(2026, 9, 16, 2, 43)
+    expect(formatDateTime(local.toISOString())).toBe('2026-10-16 02:43')
   })
 })
 

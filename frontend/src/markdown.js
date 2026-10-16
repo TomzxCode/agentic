@@ -18,6 +18,9 @@ md.renderer.rules.link_open = (tokens, idx, options, env, self) => {
 
 export function renderMarkdown(source) {
   // DOMPurify drops `target` by default; it is safe to keep for the new-tab
-  // link behaviour the renderer adds.
-  return DOMPurify.sanitize(md.render(String(source || '')), { ADD_ATTR: ['target'] })
+  // link behaviour the renderer adds. The trailing newline markdown-it leaves
+  // is trimmed so a container's `> :last-child` margin reset matches the last
+  // block instead of a stray text node (which would leave it with its bottom
+  // margin, reading as a blank line).
+  return DOMPurify.sanitize(md.render(String(source || '')), { ADD_ATTR: ['target'] }).trim()
 }

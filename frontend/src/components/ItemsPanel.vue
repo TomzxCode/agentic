@@ -13,15 +13,22 @@ const busy = ref(false)
 // No type field: the backend infers the source from the URL/content.
 const draft = reactive({ url: '', title: '', content: '', note: '', showContent: false })
 
+// Notes have their own section under Context (NotesPanel), so the Items panel
+// only groups the external sources.
 const grouped = computed(() => {
   const groups = {}
   for (const assoc of props.task.associations || []) {
+    if (assoc.item.source === 'note') continue
     ;(groups[assoc.item.source] ||= []).push(assoc)
   }
   return groups
 })
 
 const changes = computed(() => props.task.changes || [])
+
+// Notes are shown in their own section, so the Items panel counts only the
+// external sources it lists.
+const itemCount = computed(() => (props.task.associations || []).filter((a) => a.item.source !== 'note').length)
 
 // A GitHub pull request item, from either its inferred kind or its fetched metadata.
 function isPullRequest(item) {
@@ -90,7 +97,7 @@ async function refreshItem(itemId) {
   <section class="panel">
     <div class="panel-head">
       <h2>
-        Items <span class="faint">{{ task.associations?.length || 0 }}</span>
+        Items <span class="faint">{{ itemCount }}</span>
       </h2>
     </div>
 
@@ -119,8 +126,8 @@ async function refreshItem(itemId) {
       ></textarea>
     </div>
 
-    <div v-if="!task.associations?.length" class="faint" style="margin-bottom: 12px">
-      Nothing associated yet. Paste a Slack thread, GitHub issue/PR, Drive link, or a note.
+    <div v-if="!itemCount" class="faint" style="margin-bottom: 12px">
+      Nothing associated yet. Paste a Slack thread, GitHub issue/PR, or Drive link.
     </div>
 
     <div v-for="(items, source) in grouped" :key="source" style="margin-bottom: 12px">

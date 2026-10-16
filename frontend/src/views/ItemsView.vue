@@ -75,6 +75,12 @@ function itemPeople(item) {
   return (item.person_ids || []).map((id) => peopleById.value[id]).filter(Boolean)
 }
 
+// A note is plain text kept with a task: it has no source to re-fetch and no
+// author, so the list offers it no refresh and no person linker.
+function isNote(item) {
+  return item.source === 'note'
+}
+
 function linkablePeople(item) {
   const linked = new Set(item.person_ids || [])
   return store.people
@@ -183,7 +189,7 @@ onMounted(async () => {
         :expanded="!!expanded[item.id]"
       >
         <template #actions>
-          <button class="btn sm ghost" title="Refresh" @click="refresh(item)">↻</button>
+          <button v-if="!isNote(item)" class="btn sm ghost" title="Refresh" @click="refresh(item)">↻</button>
           <button class="btn sm ghost" title="Expand" @click="expanded[item.id] = !expanded[item.id]">
             {{ expanded[item.id] ? '▾' : '▸' }}
           </button>
@@ -202,7 +208,7 @@ onMounted(async () => {
             @update:model-value="(value) => linkTask(item, value)"
           />
         </div>
-        <div class="row" style="margin-top: 6px; gap: 6px; flex-wrap: wrap">
+        <div v-if="!isNote(item)" class="row" style="margin-top: 6px; gap: 6px; flex-wrap: wrap">
           <span v-for="person in itemPeople(item)" :key="person.id" class="chip">
             {{ person.name }}
             <button class="chip-x" title="Unlink person" @click="unlinkPerson(item, person.id)">✕</button>

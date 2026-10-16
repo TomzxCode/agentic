@@ -382,6 +382,7 @@ describe('TaskView', () => {
     StatusIcon: passthrough,
     PriorityIcon: passthrough,
     ContextPanel: passthrough,
+    NotesPanel: passthrough,
     AgentPanel: passthrough,
     SessionsPanel: passthrough,
     ItemsPanel: passthrough,
@@ -480,6 +481,21 @@ describe('TaskView', () => {
     await flushPromises()
     const labels = wrapper.findAll('.properties .prop-label').map((label) => label.text())
     expect(labels).toEqual(['Status', 'Priority', 'Deadline', 'Tags', 'People', 'Requested by', 'Repositories'])
+  })
+
+  it('puts the Notes section directly under Context', async () => {
+    const wrapper = mount(TaskView, {
+      props: { id: 't1' },
+      global: {
+        stubs: {
+          ...stubs,
+          ContextPanel: { template: '<section class="context" />' },
+          NotesPanel: { template: '<section class="notes" />' }
+        }
+      }
+    })
+    await flushPromises()
+    expect(wrapper.get('.context').element.nextElementSibling.classList.contains('notes')).toBe(true)
   })
 
   it('blurs the focused field on Escape', async () => {

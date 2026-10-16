@@ -2,7 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { api } from '../api'
-import { sourceLabel, store, timeAgo } from '../store'
+import { formatDateTime, sourceLabel, store, timeAgo } from '../store'
 import { itemAuthor, itemStatus, parseGithubUrl, personForHandle } from '../repositories'
 import { renderMarkdown } from '../markdown'
 import { groupReviewFiles, reviewLabel, stripReportMarker } from '../reviews'
@@ -50,6 +50,9 @@ const variant = computed(() => {
 })
 
 const status = computed(() => itemStatus(item.value))
+// A note has no source to re-fetch from and no author, so its view offers no
+// Refresh and no People field.
+const isNote = computed(() => item.value?.source === 'note')
 const github = computed(() => parseGithubUrl(item.value?.url))
 // "issue" or "pull request", the two GitHub kinds, as a readable label.
 const githubKind = computed(() => (github.value?.kind === 'pr' ? 'pull request' : 'issue'))
@@ -79,13 +82,6 @@ const tasksById = computed(() => Object.fromEntries(store.tasks.map((task) => [t
 const linkedTasks = computed(() => (item.value?.task_ids || []).map((id) => tasksById.value[id]).filter(Boolean))
 const peopleById = computed(() => Object.fromEntries(store.people.map((person) => [person.id, person])))
 const linkedPeople = computed(() => (item.value?.person_ids || []).map((id) => peopleById.value[id]).filter(Boolean))
-
-function formatDateTime(iso) {
-  if (!iso) return ''
-  const date = new Date(iso)
-  if (Number.isNaN(date.getTime())) return ''
-  return date.toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric' })
-}
 
 async function load() {
   loading.value = true
@@ -234,6 +230,7 @@ onMounted(async () => {
             {{ resettingTitle ? 'Resetting…' : 'Reset title' }}
           </button>
           <button
+            v-if="!isNote"
             class="btn sm ghost"
             :disabled="refreshing"
             aria-label="Refresh this item"
@@ -347,14 +344,14 @@ onMounted(async () => {
       <div class="grid-2">
         <section class="panel">
           <div class="panel-head"><h2>Links</h2></div>
-          <div class="field">
+          <div class="field" :style="isNote ? { marginBottom: 0 } : null">
             <label>Tasks</label>
             <div v-if="linkedTasks.length" class="row" style="gap: 6px; flex-wrap: wrap">
               <TaskLink v-for="task in linkedTasks" :key="task.id" :task="task" />
             </div>
             <div v-else class="faint">Not linked to a task.</div>
           </div>
-          <div class="field" style="margin-bottom: 0">
+          <div v-if="!isNote" class="field" style="margin-bottom: 0">
             <label>People</label>
             <div v-if="linkedPeople.length" class="row" style="gap: 6px; flex-wrap: wrap">
               <router-link v-for="person in linkedPeople" :key="person.id" class="chip" :to="`/person/${person.id}`">

@@ -3,6 +3,7 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { api, openTaskStream } from '../api'
 import { store } from '../store'
 import ContextPanel from '../components/ContextPanel.vue'
+import NotesPanel from '../components/NotesPanel.vue'
 import ItemsPanel from '../components/ItemsPanel.vue'
 import ChangesPanel from '../components/ChangesPanel.vue'
 import WorktreesPanel from '../components/WorktreesPanel.vue'
@@ -292,6 +293,7 @@ watch(
     <div class="grid-2">
       <div>
         <ContextPanel :task="task" @changed="onChanged" />
+        <NotesPanel :task="task" @changed="onChanged" />
         <AgentPanel :task="task" :harnesses="store.harnesses" @changed="onChanged" />
         <SessionsPanel :task="task" @changed="onChanged" />
         <TimelinePanel :events="task.timeline" :task="task" />

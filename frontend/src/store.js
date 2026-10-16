@@ -170,6 +170,17 @@ export function timeAgo(iso) {
   return new Date(iso).toLocaleDateString()
 }
 
+// An absolute timestamp in the local zone as "YYYY-MM-DD HH:MM" (24-hour), for a
+// value that should read as a date rather than an interval. Returns '' for a
+// missing or unparseable value.
+export function formatDateTime(iso) {
+  if (!iso) return ''
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) return ''
+  const pad = (n) => String(n).padStart(2, '0')
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`
+}
+
 // The state of a deadline relative to now: overdue, due soon, or later. Returns
 // null when there is no (parseable) deadline. The comparison is by calendar day
 // so "due today" means today, whatever the time.

@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   associate: vi.fn(),
   unassociate: vi.fn(),
   itemRefresh: vi.fn(),
+  itemUpdate: vi.fn(),
   worktreeCreate: vi.fn(),
   worktreeRemove: vi.fn(),
   refreshContext: vi.fn(),
@@ -23,7 +24,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock('../api', () => ({
   api: {
     tasks: { update: mocks.taskUpdate, associate: mocks.associate, unassociate: mocks.unassociate },
-    items: { refresh: mocks.itemRefresh },
+    items: { refresh: mocks.itemRefresh, update: mocks.itemUpdate },
     worktrees: { create: mocks.worktreeCreate, remove: mocks.worktreeRemove },
     runs: { refreshContext: mocks.refreshContext, refreshSummary: mocks.refreshSummary },
     settings: { get: mocks.settingsGet },
@@ -33,6 +34,7 @@ vi.mock('../api', () => ({
 
 import ContextPanel from '../components/ContextPanel.vue'
 import ItemsPanel from '../components/ItemsPanel.vue'
+import NotesPanel from '../components/NotesPanel.vue'
 import RepositorySelect from '../components/RepositorySelect.vue'
 import SearchSelect from '../components/SearchSelect.vue'
 import WorktreesPanel from '../components/WorktreesPanel.vue'
@@ -287,6 +289,167 @@ describe('ItemsPanel', () => {
   it('does not offer a change for a non-PR item', () => {
     const wrapper = mount(ItemsPanel, { props: { task: task() } })
     expect(wrapper.find('button[title="Record a change for this PR"]').exists()).toBe(false)
+  })
+
+  it('leaves notes to the Notes panel', () => {
+    const withNote = task({
+      associations: [
+        ...task().associations,
+        {
+          id: 'a2',
+          note: '',
+          created_at: new Date().toISOString(),
+          item: { id: 'i2', source: 'note', title: 'Just a note', url: null, content: 'kept text', fetched_at: null }
+        }
+      ]
+    })
+    const wrapper = mount(ItemsPanel, { props: { task: withNote } })
+    expect(wrapper.text()).toContain('GitHub')
+    expect(wrapper.text()).not.toContain('Just a note')
+    expect(wrapper.text()).not.toContain('kept text')
+  })
+})
+
+describe('NotesPanel', () => {
+  const task = (over = {}) => ({
+    id: 't1',
+    associations: [
+      {
+        id: 'a1',
+        note: '',
+        created_at: new Date().toISOString(),
+        item: {
+          id: 'i1',
+          source: 'note',
+          title: 'Remember this',
+          url: null,
+          content: 'the note body',
+          fetched_at: null
+        }
+      },
+      {
+        id: 'a2',
+        note: '',
+        created_at: new Date().toISOString(),
+        item: { id: 'i2', source: 'github', title: 'Issue 1', url: 'https://x', content: 'body', fetched_at: null }
+      }
+    ],
+    ...over
+  })
+
+  it('shows a note as one value, without a title or extra controls', () => {
+    const wrapper = mount(NotesPanel, { props: { task: task() } })
+    // The note's single value is its text; its (derived) title is not shown.
+    expect(wrapper.text()).toContain('the note body')
+    expect(wrapper.text()).not.toContain('Remember this')
+    expect(wrapper.text()).not.toContain('Issue 1')
+    expect(wrapper.find('button[title="Refresh"]').exists()).toBe(false)
+    expect(wrapper.find('button[title="Expand"]').exists()).toBe(false)
+  })
+
+  it('shows an empty state without notes', () => {
+    const wrapper = mount(NotesPanel, { props: { task: { id: 't1', associations: [] } } })
+    expect(wrapper.text()).toContain('No notes yet')
+  })
+
+  it('shows the note date, not a relative time', () => {
+    const wrapper = mount(NotesPanel, { props: { task: task() } })
+    const meta = wrapper.get('.item .faint').text()
+    expect(meta).toContain('added')
+    expect(meta).not.toContain('ago')
+    expect(meta).toContain(String(new Date().getFullYear()))
+  })
+
+  it('renders the note content as Markdown', () => {
+    const md = task({
+      associations: [
+        {
+          id: 'a1',
+          note: '',
+          created_at: new Date().toISOString(),
+          item: { id: 'i1', source: 'note', title: 'T', url: null, content: '**bold** and `code`', fetched_at: null }
+        }
+      ]
+    })
+    const wrapper = mount(NotesPanel, { props: { task: md } })
+    const body = wrapper.get('.inline-edit .md')
+    expect(body.find('strong').text()).toBe('bold')
+    expect(body.find('code').text()).toBe('code')
+  })
+
+  it('associates a written note and clears the draft', async () => {
+    mocks.associate.mockResolvedValue({})
+    const wrapper = mount(NotesPanel, { props: { task: task() } })
+    await wrapper.get('textarea.textarea').setValue('a fresh note')
+    await wrapper.get('.btn.primary').trigger('click')
+    await flushPromises()
+    expect(mocks.associate).toHaveBeenCalledWith('t1', {
+      item: { title: '', content: 'a fresh note', fetch: false }
+    })
+    expect(wrapper.emitted('changed')).toHaveLength(1)
+    expect(wrapper.get('textarea.textarea').element.value).toBe('')
+  })
+
+  it('does nothing when the draft is empty', async () => {
+    const wrapper = mount(NotesPanel, { props: { task: task() } })
+    await wrapper.get('.btn.primary').trigger('click')
+    await flushPromises()
+    expect(mocks.associate).not.toHaveBeenCalled()
+  })
+
+  it('submits the typed note on Ctrl+Enter', async () => {
+    mocks.associate.mockResolvedValue({})
+    const wrapper = mount(NotesPanel, { props: { task: task() } })
+    const field = wrapper.get('textarea.textarea')
+    await field.setValue('a quick note')
+    await field.trigger('keydown', { key: 'Enter', ctrlKey: true })
+    await flushPromises()
+    expect(mocks.associate).toHaveBeenCalledWith('t1', {
+      item: { title: '', content: 'a quick note', fetch: false }
+    })
+    expect(field.element.value).toBe('')
+  })
+
+  it('leaves a bare Enter to insert a newline', async () => {
+    mocks.associate.mockResolvedValue({})
+    const wrapper = mount(NotesPanel, { props: { task: task() } })
+    const field = wrapper.get('textarea.textarea')
+    await field.setValue('line one')
+    await field.trigger('keydown', { key: 'Enter' })
+    await flushPromises()
+    expect(mocks.associate).not.toHaveBeenCalled()
+  })
+
+  it('edits a note content inline', async () => {
+    mocks.itemUpdate.mockResolvedValue({})
+    const wrapper = mount(NotesPanel, { props: { task: task() } })
+    await wrapper.get('.inline-edit').trigger('click')
+    const textarea = wrapper.get('textarea.inline-input')
+    await textarea.setValue('edited body')
+    await textarea.trigger('blur')
+    await flushPromises()
+    expect(mocks.itemUpdate).toHaveBeenCalledWith('i1', { content: 'edited body' })
+    expect(wrapper.emitted('changed')).toHaveLength(1)
+  })
+
+  it('notifies when editing a note fails', async () => {
+    mocks.itemUpdate.mockRejectedValueOnce(new Error('nope'))
+    const wrapper = mount(NotesPanel, { props: { task: task() } })
+    await wrapper.get('.inline-edit').trigger('click')
+    const textarea = wrapper.get('textarea.inline-input')
+    await textarea.setValue('edited body')
+    await textarea.trigger('blur')
+    await flushPromises()
+    expect(store.toast).toEqual({ message: 'nope', isError: true })
+  })
+
+  it('removes a note', async () => {
+    mocks.unassociate.mockResolvedValue({})
+    const wrapper = mount(NotesPanel, { props: { task: task() } })
+
+    await wrapper.get('button[title="Remove"]').trigger('click')
+    await flushPromises()
+    expect(mocks.unassociate).toHaveBeenCalledWith('t1', 'i1')
   })
 })
 

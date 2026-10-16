@@ -1,11 +1,14 @@
 <script setup>
 import { nextTick, ref } from 'vue'
+import MarkdownView from './MarkdownView.vue'
 
 const props = defineProps({
   value: { type: String, default: '' },
   placeholder: { type: String, default: 'Click to edit' },
   multiline: { type: Boolean, default: false },
-  as: { type: String, default: 'span' }
+  as: { type: String, default: 'span' },
+  // Render the display value as Markdown. The editor still opens the raw value.
+  markdown: { type: Boolean, default: false }
 })
 const emit = defineEmits(['save'])
 
@@ -82,6 +85,18 @@ defineExpose({ activate: start, isEditing: () => editing.value })
     @keydown="onKeydown"
     @blur="commit"
   ></textarea>
+  <!-- Displayed as Markdown; the editor still opens the raw value. -->
+  <component
+    :is="as"
+    v-else-if="markdown && value"
+    class="inline-edit"
+    tabindex="0"
+    title="Click or press Enter to edit"
+    @click="start"
+    @keydown="onDisplayKeydown"
+  >
+    <MarkdownView :source="value" />
+  </component>
   <component
     :is="as"
     v-else

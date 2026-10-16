@@ -479,6 +479,29 @@ describe('ItemsView', () => {
     expect(wrapper.text()).toContain('No resources')
   })
 
+  it('offers a note no refresh and no person linker', async () => {
+    mocks.itemsList.mockResolvedValue([
+      {
+        id: 'i2',
+        source: 'note',
+        kind: '',
+        title: 'A note',
+        url: null,
+        content: 'hello',
+        task_ids: [],
+        created_at: new Date().toISOString(),
+        fetched_at: null
+      }
+    ])
+    const wrapper = mount(ItemsView, stub)
+    await flushPromises()
+    expect(wrapper.text()).toContain('A note')
+    // A note has no source to re-fetch and no author, so the list offers
+    // neither a refresh nor a person linker for it.
+    expect(wrapper.find('button[title="Refresh"]').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('Link a person')
+  })
+
   it('notifies when loading fails', async () => {
     mocks.itemsList.mockRejectedValueOnce(new Error('offline'))
     mount(ItemsView, stub)
