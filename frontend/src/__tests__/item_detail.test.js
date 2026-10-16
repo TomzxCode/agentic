@@ -8,7 +8,9 @@ const mocks = vi.hoisted(() => ({
   itemsGet: vi.fn(),
   itemsUpdate: vi.fn(),
   itemsRefresh: vi.fn(),
-  itemsRemove: vi.fn()
+  itemsRemove: vi.fn(),
+  reviewsGet: vi.fn(),
+  reviewGet: vi.fn()
 }))
 
 vi.mock('vue-router', () => ({
@@ -21,7 +23,9 @@ vi.mock('../api', () => ({
       get: mocks.itemsGet,
       update: mocks.itemsUpdate,
       refresh: mocks.itemsRefresh,
-      remove: mocks.itemsRemove
+      remove: mocks.itemsRemove,
+      reviews: mocks.reviewsGet,
+      review: mocks.reviewGet
     }
   }
 }))
@@ -145,5 +149,116 @@ describe('ItemDetailView', () => {
     expect(mocks.itemsRemove).toHaveBeenCalledWith('i1')
     expect(mocks.routerPush).toHaveBeenCalledWith('/items')
     vi.unstubAllGlobals()
+  })
+
+  it('groups a PR’s review reports by commit and opens the newest', async () => {
+    mocks.itemsGet.mockResolvedValue(item({ url: 'https://github.com/acme/api/pull/42', kind: 'pull_request' }))
+    mocks.reviewsGet.mockResolvedValue({
+      path: '/home/u/.sdlc/acme/api/pull-requests/42',
+      files: [
+        {
+          name: 'review-pr.abc1234.md',
+          skill: 'review-pr',
+          commit: 'abc1234',
+          size: 12,
+          modified_at: '2026-01-03T00:00:00Z'
+        },
+        {
+          name: 'validate-pr.abc1234.md',
+          skill: 'validate-pr',
+          commit: 'abc1234',
+          size: 12,
+          modified_at: '2026-01-02T00:00:00Z'
+        },
+        {
+          name: 'review-pr.def5678.md',
+          skill: 'review-pr',
+          commit: 'def5678',
+          size: 12,
+          modified_at: '2026-01-01T00:00:00Z'
+        }
+      ]
+    })
+    mocks.reviewGet.mockResolvedValue({
+      name: 'review-pr.abc1234.md',
+      content: '<!-- {"step":"review-pr","sha":"abc1234"} -->\n# Verdict\n\nApproved.',
+      truncated: false
+    })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(mocks.reviewsGet).toHaveBeenCalledWith('i1')
+    expect(mocks.reviewGet).toHaveBeenCalledWith('i1', 'review-pr.abc1234.md')
+    expect(wrapper.text()).toContain('Review reports')
+    expect(wrapper.text()).toContain('/home/u/.sdlc/acme/api/pull-requests/42')
+    // One group per reviewed commit, newest commit first.
+    const groups = wrapper.findAll('.review-group')
+    expect(groups).toHaveLength(2)
+    expect(groups[0].get('.review-commit').text()).toBe('abc1234')
+    expect(groups[0].text()).toContain('2 reports')
+    expect(groups[1].get('.review-commit').text()).toBe('def5678')
+    // Reports are labelled by skill; the report itself is rendered as Markdown.
+    expect(groups[0].findAll('.review-tabs button').map((b) => b.text())).toEqual(['review-pr', 'validate-pr'])
+    expect(wrapper.get('.review-content h1').text()).toBe('Verdict')
+    // The leading marker comment is stripped from the rendered body.
+    expect(wrapper.get('.review-content').text()).not.toContain('step')
+  })
+
+  it('switches to another review report when its tab is clicked', async () => {
+    mocks.itemsGet.mockResolvedValue(item({ url: 'https://github.com/acme/api/pull/42', kind: 'pull_request' }))
+    mocks.reviewsGet.mockResolvedValue({
+      path: '/home/u/.sdlc/acme/api/pull-requests/42',
+      files: [
+        {
+          name: 'review-pr.abc1234.md',
+          skill: 'review-pr',
+          commit: 'abc1234',
+          size: 12,
+          modified_at: '2026-01-03T00:00:00Z'
+        },
+        {
+          name: 'validate-pr.abc1234.md',
+          skill: 'validate-pr',
+          commit: 'abc1234',
+          size: 12,
+          modified_at: '2026-01-02T00:00:00Z'
+        }
+      ]
+    })
+    mocks.reviewGet.mockImplementation((id, name) =>
+      Promise.resolve({ name, content: `Body of ${name}`, truncated: false })
+    )
+
+    const wrapper = mountView()
+    await flushPromises()
+    await wrapper.findAll('.review-tabs button')[1].trigger('click')
+    await flushPromises()
+
+    expect(mocks.reviewGet).toHaveBeenLastCalledWith('i1', 'validate-pr.abc1234.md')
+    expect(wrapper.get('.review-content').text()).toContain('Body of validate-pr.abc1234.md')
+  })
+
+  it('collects a commitless report under a No commit group', async () => {
+    mocks.itemsGet.mockResolvedValue(item({ url: 'https://github.com/acme/api/pull/42', kind: 'pull_request' }))
+    mocks.reviewsGet.mockResolvedValue({
+      path: '/home/u/.sdlc/acme/api/pull-requests/42',
+      files: [{ name: 'gh-pr-view.md', skill: null, commit: null, size: 12, modified_at: '2026-01-03T00:00:00Z' }]
+    })
+    mocks.reviewGet.mockResolvedValue({ name: 'gh-pr-view.md', content: 'raw', truncated: false })
+
+    const wrapper = mountView()
+    await flushPromises()
+    expect(wrapper.get('.review-commit').text()).toBe('No commit')
+    // With no skill, the tab falls back to the file name.
+    expect(wrapper.get('.review-tabs button').text()).toBe('gh-pr-view')
+  })
+
+  it('does not look for review reports on an issue', async () => {
+    mocks.itemsGet.mockResolvedValue(item())
+    const wrapper = mountView()
+    await flushPromises()
+    expect(mocks.reviewsGet).not.toHaveBeenCalled()
+    expect(wrapper.find('.review-tabs').exists()).toBe(false)
   })
 })

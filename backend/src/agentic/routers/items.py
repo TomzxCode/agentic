@@ -19,8 +19,17 @@ from ..refresh import (
     parse_policy,
     policies_from_settings,
 )
-from ..schemas import ItemCreate, ItemRead, ItemUpdate, RefreshDueReport
-from ..services import fetch_source, infer_item_source, looks_like_url
+from ..reviews import list_report_files, read_report, review_dir
+from ..schemas import (
+    ItemCreate,
+    ItemRead,
+    ItemReviewContent,
+    ItemReviewFile,
+    ItemReviews,
+    ItemUpdate,
+    RefreshDueReport,
+)
+from ..services import fetch_source, infer_item_source, looks_like_url, parse_github
 from ..settings_store import get_settings, record_refresh_run
 from .people import item_person_ids, link_people_to_item
 
@@ -287,6 +296,53 @@ def refresh_item(item_id: str, session: Session = Depends(get_session)) -> ItemR
     session.refresh(item)
     link_people_to_item(session, item.id, fetched.get("people") or [])
     return _item_read(session, item)
+
+
+def _pull_request_location(item: SourceItem) -> tuple[str, str, str] | None:
+    """The (owner, repo, number) of a GitHub pull-request item, or None."""
+    if item.source != "github" or not item.url:
+        return None
+    parsed = parse_github(item.url)
+    if not parsed or parsed["kind"] != "pull_request":
+        return None
+    return parsed["owner"], parsed["repo"], parsed["number"]
+
+
+@router.get("/{item_id}/reviews", response_model=ItemReviews)
+def list_item_reviews(item_id: str, session: Session = Depends(get_session)) -> ItemReviews:
+    """List the review reports the review skills wrote for a PR item.
+
+    A non-PR item (or a PR with no report directory) returns an empty list
+    rather than an error, so the UI can render the section unconditionally.
+    """
+    item = session.get(SourceItem, item_id)
+    if item is None:
+        raise HTTPException(status_code=404, detail="Item not found")
+    location = _pull_request_location(item)
+    if location is None:
+        return ItemReviews()
+    directory = review_dir(*location)
+    if directory is None:
+        return ItemReviews()
+    return ItemReviews(
+        path=str(directory),
+        files=[ItemReviewFile.model_validate(report) for report in list_report_files(*location)],
+    )
+
+
+@router.get("/{item_id}/reviews/{name:path}", response_model=ItemReviewContent)
+def get_item_review(item_id: str, name: str, session: Session = Depends(get_session)) -> ItemReviewContent:
+    """Read one review report for a PR item, addressed by its relative path."""
+    item = session.get(SourceItem, item_id)
+    if item is None:
+        raise HTTPException(status_code=404, detail="Item not found")
+    location = _pull_request_location(item)
+    if location is None:
+        raise HTTPException(status_code=404, detail="Item has no review reports")
+    report = read_report(*location, name)
+    if report is None:
+        raise HTTPException(status_code=404, detail="Report not found")
+    return ItemReviewContent(name=name, content=report["content"], truncated=report["truncated"])
 
 
 @router.delete("/{item_id}", status_code=204)

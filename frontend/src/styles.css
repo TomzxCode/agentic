@@ -966,6 +966,130 @@ button.tag-chip.active {
   border-left: 2px solid var(--border);
   padding-left: 12px;
 }
+/* The PR review reports panel: the directory, one tab per report, and the
+   selected report rendered as Markdown. */
+.review-path {
+  margin: 0 0 8px;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+}
+.review-group + .review-group {
+  margin-top: 12px;
+}
+.review-group-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 6px;
+  font-size: 12px;
+}
+.review-commit {
+  color: var(--text);
+}
+.review-tabs {
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 0;
+}
+.review-content {
+  margin: 12px 0 0;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-1);
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+  max-height: 70vh;
+  overflow: auto;
+}
+.review-content > :first-child {
+  margin-top: 0;
+}
+.review-content > :last-child {
+  margin-bottom: 0;
+}
+.review-content h1,
+.review-content h2,
+.review-content h3,
+.review-content h4 {
+  color: var(--text);
+  margin: 16px 0 8px;
+  line-height: 1.3;
+}
+.review-content h1 {
+  font-size: 18px;
+}
+.review-content h2 {
+  font-size: 16px;
+}
+.review-content h3 {
+  font-size: 14px;
+}
+.review-content p {
+  margin: 8px 0;
+}
+.review-content ul,
+.review-content ol {
+  margin: 8px 0;
+  padding-left: 22px;
+}
+.review-content li {
+  margin: 2px 0;
+}
+.review-content code {
+  font-family: var(--mono);
+  font-size: 12px;
+  background: var(--bg-3);
+  padding: 1px 4px;
+  border-radius: 4px;
+}
+.review-content pre {
+  background: var(--bg-2);
+  padding: 10px 12px;
+  border-radius: 8px;
+  overflow: auto;
+}
+.review-content pre code {
+  background: none;
+  padding: 0;
+}
+.review-content table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 10px 0;
+  font-size: 12px;
+}
+.review-content th,
+.review-content td {
+  border: 1px solid var(--border);
+  padding: 5px 8px;
+  text-align: left;
+}
+.review-content th {
+  background: var(--bg-2);
+  color: var(--text);
+}
+.review-content blockquote {
+  margin: 8px 0;
+  padding-left: 12px;
+  border-left: 2px solid var(--border);
+  color: var(--faint);
+}
+.review-content hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 12px 0;
+}
+.review-content img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 6px;
+}
+.review-content a {
+  color: var(--accent);
+}
 /* Bulk select on the tasks dashboard */
 .bulk-bar {
   background: var(--bg-2);

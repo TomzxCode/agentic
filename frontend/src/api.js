@@ -141,6 +141,10 @@ export const api = {
     update: (id, body) => request(`/items/${id}`, { method: 'PATCH', body }),
     refresh: (id) => request(`/items/${id}/refresh`, { method: 'POST' }),
     refreshSource: (source) => request(`/items/refresh-source/${source}`, { method: 'POST' }),
+    reviews: (id) => request(`/items/${id}/reviews`),
+    // The report name is a path relative to the PR's review directory (it may
+    // hold a "feedback/" segment), so each segment is encoded separately.
+    review: (id, name) => request(`/items/${id}/reviews/${String(name).split('/').map(encodeURIComponent).join('/')}`),
     remove: (id) => request(`/items/${id}`, { method: 'DELETE' })
   },
 

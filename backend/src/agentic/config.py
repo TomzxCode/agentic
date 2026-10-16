@@ -35,6 +35,10 @@ class Settings(BaseSettings):
     # set to "/" to allow browsing anywhere on the machine.
     fs_root: Path = Path.home()
 
+    # Root of the user-global SDLC reviews store the review skills write to
+    # ($HOME/.sdlc/{owner}/{repo}/pull-requests/{n}/). Read-only here.
+    sdlc_dir: Path = Path.home() / ".sdlc"
+
     # Static frontend build output (frontend/dist). Served when it exists.
     static_dir: Path = Path(__file__).resolve().parents[2] / "static"
 

@@ -297,6 +297,40 @@ class ItemRead(ORMModel):
     person_ids: list[str] = []
 
 
+class ItemReviewFile(BaseModel):
+    """One Markdown report in a PR's user-global review directory.
+
+    ``skill`` and ``commit`` come from the ``<skill>.<short-sha>.md`` name, so
+    the UI can group the reports of one reviewed commit together; both are None
+    for a file without a commit in its name (a raw cache, a "no-issue" variant).
+    """
+
+    name: str
+    skill: str | None = None
+    commit: str | None = None
+    size: int
+    modified_at: datetime
+
+
+class ItemReviews(BaseModel):
+    """The review reports a GitHub pull request item has on disk.
+
+    ``path`` is the resolved directory (None when the PR has no report
+    directory); ``files`` is empty when there is nothing to show.
+    """
+
+    path: str | None = None
+    files: list[ItemReviewFile] = []
+
+
+class ItemReviewContent(BaseModel):
+    """The content of one review report."""
+
+    name: str
+    content: str
+    truncated: bool = False
+
+
 class AssociationRead(ORMModel):
     id: str
     task_id: str
@@ -852,6 +886,9 @@ __all__ = [
     "InterventionRead",
     "ItemCreate",
     "ItemRead",
+    "ItemReviewContent",
+    "ItemReviewFile",
+    "ItemReviews",
     "ItemUpdate",
     "MetricCounts",
     "MetricResult",

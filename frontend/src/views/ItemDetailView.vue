@@ -4,6 +4,8 @@ import { useRouter } from 'vue-router'
 import { api } from '../api'
 import { sourceLabel, store, timeAgo } from '../store'
 import { itemAuthor, itemStatus, parseGithubUrl, personForHandle } from '../repositories'
+import { renderMarkdown } from '../markdown'
+import { groupReviewFiles, reviewLabel, stripReportMarker } from '../reviews'
 import EditableText from '../components/EditableText.vue'
 import TaskLink from '../components/TaskLink.vue'
 
@@ -14,6 +16,23 @@ const item = ref(null)
 const loading = ref(true)
 const notFound = ref(false)
 const refreshing = ref(false)
+
+// The Markdown review reports the review skills wrote for this PR, read from
+// the user-global ~/.sdlc store. The list is loaded once; picking a report
+// fetches its content.
+const reviewFiles = ref([])
+const reviewPath = ref(null)
+const selectedReview = ref(null)
+const reviewContent = ref(null)
+const reviewTruncated = ref(false)
+const reviewLoading = ref(false)
+
+// The reports of one reviewed commit belong together, so the list is grouped by
+// the commit in each report's name.
+const reviewGroups = computed(() => groupReviewFiles(reviewFiles.value))
+// The selected report's Markdown, without its leading marker comment, rendered
+// to HTML.
+const reviewHtml = computed(() => renderMarkdown(stripReportMarker(reviewContent.value)))
 
 // Each source gets its own layout: a GitHub issue/PR (state, author, body), a
 // Slack thread (a transcript), a plain note, or a fetched link (a Drive doc,
@@ -29,6 +48,7 @@ const status = computed(() => itemStatus(item.value))
 const github = computed(() => parseGithubUrl(item.value?.url))
 // "issue" or "pull request", the two GitHub kinds, as a readable label.
 const githubKind = computed(() => (github.value?.kind === 'pr' ? 'pull request' : 'issue'))
+const isPullRequest = computed(() => github.value?.kind === 'pr')
 const repoLabel = computed(() =>
   github.value ? `${github.value.owner}/${github.value.repo}` : String(item.value?.external_id || '')
 )
@@ -101,6 +121,41 @@ async function refresh() {
   }
 }
 
+async function loadReviews() {
+  reviewFiles.value = []
+  reviewPath.value = null
+  selectedReview.value = null
+  reviewContent.value = null
+  reviewTruncated.value = false
+  if (!isPullRequest.value) return
+  try {
+    const data = await api.items.reviews(props.id)
+    reviewFiles.value = data.files || []
+    reviewPath.value = data.path || null
+  } catch {
+    return
+  }
+  // Open the most recent report so the section is useful at a glance.
+  if (reviewFiles.value.length) await openReview(reviewFiles.value[0].name)
+}
+
+async function openReview(name) {
+  if (!name) return
+  selectedReview.value = name
+  reviewLoading.value = true
+  reviewContent.value = null
+  reviewTruncated.value = false
+  try {
+    const data = await api.items.review(props.id, name)
+    reviewContent.value = data.content
+    reviewTruncated.value = !!data.truncated
+  } catch (e) {
+    store.notify(e.message, true)
+  } finally {
+    reviewLoading.value = false
+  }
+}
+
 async function remove() {
   const linked = linkedTasks.value.length
   const message = linked
@@ -119,6 +174,7 @@ async function remove() {
 onMounted(async () => {
   await Promise.all([store.loadTasks().catch(() => {}), store.loadPeople().catch(() => {})])
   await load()
+  await loadReviews()
 })
 </script>
 
@@ -219,6 +275,41 @@ onMounted(async () => {
         <p v-if="item.url" class="faint" style="word-break: break-all">{{ item.url }}</p>
         <div v-if="item.content" class="item-body">{{ item.content }}</div>
         <div v-else class="faint">Nothing fetched yet. Use Refresh to pull the page.</div>
+      </section>
+
+      <!-- Review reports: the Markdown the review skills wrote for this PR,
+           read from the user-global ~/.sdlc store and grouped by the commit
+           each run reviewed. Rendered as Markdown, with the leading marker
+           comment stripped and the HTML sanitized before it reaches v-html. -->
+      <section v-if="isPullRequest && reviewFiles.length" class="panel">
+        <div class="panel-head">
+          <h2>Review reports</h2>
+          <span class="faint">{{ reviewFiles.length }}</span>
+        </div>
+        <p v-if="reviewPath" class="faint review-path">{{ reviewPath }}</p>
+        <div v-for="group in reviewGroups" :key="group.commit || 'none'" class="review-group">
+          <div class="review-group-head">
+            <span class="review-commit mono">{{ group.commit || 'No commit' }}</span>
+            <span class="faint">{{ group.files.length }} report{{ group.files.length === 1 ? '' : 's' }}</span>
+            <span v-if="group.updated_at" class="faint">· {{ timeAgo(group.updated_at) }}</span>
+          </div>
+          <div class="row review-tabs">
+            <button
+              v-for="file in group.files"
+              :key="file.name"
+              class="btn sm"
+              :class="{ ghost: selectedReview !== file.name }"
+              :title="file.name"
+              @click="openReview(file.name)"
+            >
+              {{ reviewLabel(file) }}
+            </button>
+          </div>
+        </div>
+        <div v-if="reviewLoading" class="empty"><span class="spinner"></span></div>
+        <!-- eslint-disable-next-line vue/no-v-html -->
+        <div v-else-if="reviewContent !== null" class="review-content" v-html="reviewHtml"></div>
+        <div v-if="reviewTruncated" class="faint">Showing the first part of a large report.</div>
       </section>
 
       <div class="grid-2">

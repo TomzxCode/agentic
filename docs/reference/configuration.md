@@ -12,6 +12,7 @@ The backend reads environment variables prefixed with `AGENTIC_`, or the same ke
 | `AGENTIC_DATABASE_URL` | `sqlite:///<data_dir>/agentic.db` | Full database URL. Overrides `AGENTIC_DATA_DIR` when set. |
 | `AGENTIC_WORKTREE_ROOT` | `~/.agentic/worktrees` | Where git worktrees are created. |
 | `AGENTIC_FS_ROOT` | `~` | Root the repository picker may browse. Use `/` to allow browsing anywhere. |
+| `AGENTIC_SDLC_DIR` | `~/.sdlc` | User-global SDLC reviews store the item view reads PR review reports from. |
 | `AGENTIC_STATIC_DIR` | `backend/static` | Built SPA for the API to serve. |
 | `AGENTIC_CORS_ORIGINS` | `["http://localhost:5173","http://127.0.0.1:5173"]` | CORS origins allowed for the Vite dev server. |
 | `AGENTIC_DEFAULT_HARNESS` | `opencode` | Fallback harness by name, used when no harness is marked default. |

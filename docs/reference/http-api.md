@@ -63,6 +63,8 @@ There is no authentication, so expose it only on a trusted network.
 | `POST` | `/api/items/refresh-due` | Run one refresh pass immediately. |
 | `GET` / `PATCH` / `DELETE` | `/api/items/{id}` | Read, update, and delete an item. |
 | `POST` | `/api/items/{id}/refresh` | Refresh one item now. |
+| `GET` | `/api/items/{id}/reviews` | List the review reports a pull request item has on disk. |
+| `GET` | `/api/items/{id}/reviews/{name}` | Read one review report. |
 | `GET` / `POST` | `/api/repositories` | List and create registered repositories. |
 | `POST` | `/api/repositories/bulk` | Add several repositories at once. |
 | `GET` / `DELETE` | `/api/repositories/{id}` | Read and remove a repository. |
