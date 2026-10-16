@@ -82,13 +82,18 @@ def _join(rows: list, render) -> str:
     return "\n".join(render(row) for row in rows) if rows else "(none)"
 
 
+# An ISO deadline rendered as "YYYY-MM-DD HH:MM" (24-hour).
+def _format_deadline(iso: str) -> str:
+    return iso[:16].replace("T", " ")
+
+
 def _task_line(task: dict) -> str:
     line = f"{task['id']}  [{task['status']}] p{task['priority']}  {task['title']}"
     tags = task.get("tags") or []
     if tags:
         line += "  " + " ".join(f"#{tag}" for tag in tags)
     if task.get("deadline"):
-        line += f"  due {task['deadline'][:16]}"
+        line += f"  due {_format_deadline(task['deadline'])}"
     return line
 
 

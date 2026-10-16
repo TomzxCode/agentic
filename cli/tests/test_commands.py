@@ -541,7 +541,7 @@ def test_commands_emit_text(text_format, fake_client):
 def test_task_deadlines_lists_soonest_with_due(text_format, fake_client):
     out = cli.task_deadlines(within_days=3)
     assert "t1" in out
-    assert "due 2026-01-02T00" in out
+    assert "due 2026-01-02 00:00" in out
 
 
 def test_task_create_forwards_deadline(text_format, monkeypatch):

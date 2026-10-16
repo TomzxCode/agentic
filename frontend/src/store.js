@@ -205,12 +205,10 @@ export function deadlineInfo(iso, now = Date.now()) {
   return { overdue: false, tone: '', label: `Due in ${days}d` }
 }
 
-// A deadline rendered in the reader's local time zone (e.g. "Oct 20, 5:00 PM").
+// A deadline rendered in the reader's local time zone as "YYYY-MM-DD HH:MM"
+// (24-hour), the same absolute format as formatDateTime.
 export function formatDeadline(iso) {
-  if (!iso) return ''
-  const date = new Date(iso)
-  if (Number.isNaN(date.getTime())) return ''
-  return date.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+  return formatDateTime(iso)
 }
 
 export function formatDuration(ms) {

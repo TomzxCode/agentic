@@ -222,8 +222,10 @@ describe('formatDeadline', () => {
     expect(formatDeadline(null)).toBe('')
   })
 
-  it('renders a parseable deadline in local time', () => {
-    expect(formatDeadline('2026-06-15T12:00:00Z')).not.toBe('')
+  it('renders a parseable deadline in local time as YYYY-MM-DD HH:MM', () => {
+    // Built from local parts, so the expectation holds in any timezone.
+    const local = new Date(2026, 5, 15, 8, 5)
+    expect(formatDeadline(local.toISOString())).toBe('2026-06-15 08:05')
   })
 })
 

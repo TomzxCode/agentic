@@ -5,7 +5,7 @@ import ItemCard from '../components/ItemCard.vue'
 import ItemLink from '../components/ItemLink.vue'
 import TaskCard from '../components/TaskCard.vue'
 import TaskLink from '../components/TaskLink.vue'
-import { store } from '../store'
+import { formatDeadline, store } from '../store'
 
 const RouterLinkStub = { props: ['to'], template: '<a :href="to"><slot /></a>' }
 const stub = { global: { stubs: { RouterLink: RouterLinkStub } } }
@@ -167,7 +167,7 @@ describe('TaskCard', () => {
     })
     expect(wrapper.find('.task-status-select').exists()).toBe(false)
     expect(wrapper.get('.badge.warn').text()).toBe('Due today')
-    expect(wrapper.text()).toContain(new Date(soon).toLocaleString(undefined, { month: 'short', day: 'numeric' }))
+    expect(wrapper.text()).toContain(formatDeadline(soon))
   })
 })
 
