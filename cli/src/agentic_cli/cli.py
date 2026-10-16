@@ -117,6 +117,8 @@ def _run_line(run: dict) -> str:
 
 def _run_text(run: dict) -> str:
     lines = [_run_line(run)]
+    if run.get("model"):
+        lines.append(f"  model: {run['model']}")
     if run.get("session_id"):
         lines.append(f"  session: {run['session_id']}")
     if run.get("cwd"):

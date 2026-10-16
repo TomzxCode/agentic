@@ -113,6 +113,16 @@ function toolDetail(block, cwd) {
   return text.length > TOOL_DETAIL_LIMIT ? `${text.slice(0, TOOL_DETAIL_LIMIT - 1)}…` : text
 }
 
+// The model the run answers with. ACP reports it as the session's `model`
+// config option, so the run reaches the page as a `model` event while it
+// streams and as the run's own `model` field once it is stored.
+const modelName = computed(() => {
+  const stored = String(activeRun.value?.model || '').trim()
+  if (stored) return stored
+  const reported = events.value.find((ev) => ev.type === 'model')
+  return String(reported?.text || '').trim()
+})
+
 // The agent streams tiny chunks; merge consecutive ones into readable blocks so
 // a message reads as a message instead of one line per token.
 const blocks = computed(() => {
@@ -176,7 +186,7 @@ const blocks = computed(() => {
     } else if (kind === 'warning') {
       out.push({ id: `b${out.length}`, kind: 'warning', label: 'warning', text: ev.text })
     }
-    // 'info' and 'usage' are noise; skip them.
+    // 'info' and 'usage' are noise; the model is the header's, not a row; skip them.
   }
   return out
 })
@@ -284,9 +294,12 @@ onMounted(loadRuns)
       <span v-else class="faint kbd-hint">Ctrl+Enter to run</span>
     </div>
 
-    <div v-if="activeRun" class="row" style="margin-top: 12px; justify-content: space-between">
+    <div v-if="activeRun" class="row transcript-head" style="margin-top: 12px; justify-content: space-between">
       <h3>{{ activeRun.kind === 'refresh_context' ? 'Context refresh' : 'Transcript' }}</h3>
-      <span class="badge" :class="{ run: activeRun.status === 'running' }">{{ activeRun.status }}</span>
+      <span class="row">
+        <span v-if="modelName" class="faint mono">{{ modelName }}</span>
+        <span class="badge" :class="{ run: activeRun.status === 'running' }">{{ activeRun.status }}</span>
+      </span>
     </div>
     <SessionLinks v-if="activeRun" :links="activeRun.links" />
     <div v-if="activeRun" class="transcript" style="margin-top: 6px">
@@ -322,6 +335,7 @@ onMounted(loadRuns)
         <span class="title">{{ run.prompt.slice(0, 90) }}</span>
       </template>
       <template #actions>
+        <span v-if="run.model" class="faint mono">{{ run.model }}</span>
         <span class="faint">{{ timeAgo(run.created_at) }}</span>
       </template>
       <div v-if="run.links?.length" @click.stop>

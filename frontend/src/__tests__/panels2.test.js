@@ -309,6 +309,41 @@ describe('AgentPanel', () => {
     expect(wrapper.text()).toContain('old transcript')
   })
 
+  it('names the model the run answers with, live and replayed', async () => {
+    let onEvent
+    mocks.runsList.mockResolvedValue([
+      {
+        id: 'r8',
+        status: 'succeeded',
+        kind: 'chat',
+        prompt: 'old prompt',
+        model: 'zai-coding-plan/glm-5.3',
+        created_at: new Date().toISOString()
+      }
+    ])
+    mocks.runsCreate.mockResolvedValue({ id: 'r7', status: 'running', kind: 'chat', links: [] })
+    mocks.openRunStream.mockImplementation((id, cb) => {
+      onEvent = cb
+      return vi.fn()
+    })
+
+    const wrapper = mountPanel()
+    await flushPromises()
+
+    // The history row carries the model the stored run recorded.
+    expect(wrapper.text()).toContain('zai-coding-plan/glm-5.3')
+
+    // A live run has no stored model yet, so the ACP-reported one heads the
+    // transcript as soon as the harness says what it selected.
+    await wrapper.get('textarea').setValue('do work')
+    await wrapper.get('.btn.primary').trigger('click')
+    await flushPromises()
+    onEvent({ type: 'model', text: 'opencode/its-own-default' })
+    await flushPromises()
+
+    expect(wrapper.get('.transcript-head').text()).toContain('opencode/its-own-default')
+  })
+
   it('cancels the active run', async () => {
     mocks.runsCreate.mockResolvedValue({ id: 'r1', status: 'running', kind: 'chat', links: [] })
     mocks.openRunStream.mockReturnValue(vi.fn())

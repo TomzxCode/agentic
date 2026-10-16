@@ -445,12 +445,14 @@ def test_renderers():
         "status": "queued",
         "kind": "chat",
         "prompt": "p",
+        "model": "zai-coding-plan/glm-5.3",
         "session_id": "s",
         "cwd": "/w",
         "links": [{"label": "L", "command": "c"}],
     }
     assert "queued" in cli._run_line(run)
     run_text = cli._run_text(run)
+    assert "model: zai-coding-plan/glm-5.3" in run_text
     assert "session: s" in run_text and "cwd: /w" in run_text and "L: c" in run_text
 
     session = {

@@ -350,6 +350,10 @@ class AgentRun(SQLModel, table=True):
     kind: str = "chat"  # chat | refresh_context
     status: RunStatus = RunStatus.queued
     session_id: str | None = None  # ACP session id
+    # The model the run's session answers with, read from the ACP session's
+    # ``model`` config option. Empty when the harness exposes none, so the
+    # transcript says nothing rather than naming the harness's own default.
+    model: str | None = None
     stop_reason: str | None = None
     error: str | None = None
     created_at: datetime = Field(default_factory=utcnow)
@@ -380,7 +384,7 @@ class AgentEvent(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     run_id: str = Field(foreign_key="agentrun.id", index=True)
     seq: int = 0
-    type: str = "info"  # message | thought | tool_call | tool_update | plan | usage | status | error
+    type: str = "info"  # message | thought | tool_call | tool_update | plan | usage | model | status | error
     text: str = ""
     data_json: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
     created_at: datetime = Field(default_factory=utcnow)

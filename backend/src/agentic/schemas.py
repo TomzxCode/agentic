@@ -442,6 +442,7 @@ class RunRead(ORMModel):
     kind: str
     status: str
     session_id: str | None = None
+    model: str | None = None
     stop_reason: str | None = None
     error: str | None = None
     created_at: datetime

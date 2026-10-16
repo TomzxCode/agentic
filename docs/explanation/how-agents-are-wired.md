@@ -44,10 +44,11 @@ A harness can carry a **model**.
 The runner selects it over ACP with `session/set_config_option(config_id="model", ...)` after the session is created or resumed.
 A blank model uses the harness's own default.
 A harness that does not expose a model config option logs a warning and runs with its own default, and the run is not failed.
+Whatever the harness then reports as the session's model is recorded on the run and heads its transcript, so a run says which model answered even when it selected none.
 
 ## Events
 
-The worker normalizes the harness's ACP output into events: `message`, `thought`, `tool_call`, `tool_update`, `plan`, `usage`, `status`, and `error`.
+The worker normalizes the harness's ACP output into events: `message`, `thought`, `tool_call`, `tool_update`, `plan`, `usage`, `model`, `status`, and `error`.
 The UI streams them over server-sent events.
 Context refresh reads `message` events and falls back to `thought` events only when the agent produced no message text, so a thought and a message are never concatenated.
 

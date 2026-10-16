@@ -331,39 +331,63 @@ class AgenticClient(Client):
         return None
 
 
-async def _acquire_session(conn: Any, cwd: str, resume_session_id: str | None) -> str:
+async def _acquire_session(conn: Any, cwd: str, resume_session_id: str | None) -> tuple[str, str | None]:
     """Resume an existing session when asked, else open a new one.
 
     Resuming keeps the conversation context, so a retried run continues where the
-    previous attempt stopped instead of starting over.
+    previous attempt stopped instead of starting over. Returns the session id and
+    the model the harness reports for that session, so a run can say what
+    answered even when it selects no model of its own.
     """
     if resume_session_id:
         try:
-            await conn.resume_session(session_id=resume_session_id, cwd=cwd)
-            return resume_session_id
+            resumed = await conn.resume_session(session_id=resume_session_id, cwd=cwd)
+            return resume_session_id, _session_model(resumed)
         except Exception as exc:  # noqa: BLE001 - a missing session is recoverable
             log.info("could not resume session; starting a new one", session_id=resume_session_id, error=str(exc))
     session = await conn.new_session(cwd=cwd)
-    return session.session_id
+    return session.session_id, _session_model(session)
 
 
-async def _apply_model(conn: Any, session_id: str, model: str | None) -> str | None:
-    """Select the session model over ACP, returning an error message on failure.
+def _session_model(response: Any) -> str | None:
+    """The model an ACP session response reports, or None when it reports none.
+
+    ACP carries the session's model as a config option whose ``currentValue`` is
+    the model in use. The option's id is ``model``; its ``category`` says the
+    same when a harness picks another id. A harness with no such option says
+    nothing, and the run then has no model to print rather than a guess.
+    """
+    options = getattr(response, "config_options", None) or []
+    for option in options:
+        value = getattr(option, "current_value", None)
+        if value is None:
+            continue
+        if getattr(option, "id", None) == "model" or getattr(option, "category", None) == "model":
+            return str(value)
+    return None
+
+
+async def _apply_model(conn: Any, session_id: str, model: str | None) -> tuple[str | None, str | None]:
+    """Select the session model over ACP.
 
     The model is chosen with the ACP ``session/set_config_option`` request (the
     ``model`` config option), not a command-line flag: ``opencode acp`` rejects
     ``--model`` as an unknown flag and would fail to start. A harness that does
     not expose a model option, or rejects the requested value, keeps its own
     default; the caller surfaces the returned message instead of failing the run.
+
+    Returns the model the session reports afterwards (the requested one when the
+    response does not say, which is also what a harness that ignores the request
+    keeps claiming) and the error message, if any.
     """
     if not model:
-        return None
+        return None, None
     try:
-        await conn.set_config_option(config_id="model", session_id=session_id, value=model)
+        response = await conn.set_config_option(config_id="model", session_id=session_id, value=model)
     except Exception as exc:  # noqa: BLE001 - an unsupported option must not fail the run
         log.warning("could not select harness model", model=model, error=str(exc))
-        return str(exc)
-    return None
+        return None, str(exc)
+    return _session_model(response) or model, None
 
 
 def harness_env(harness: Harness) -> dict[str, str]:
@@ -392,7 +416,8 @@ async def run_agent(
     ``on_session`` is called with the session id as soon as it exists (created or
     resumed), so the caller can persist it before the turn finishes. A
     ``resume_session_id`` continues an existing session rather than starting a new
-    one. Returns a summary dict (``session_id``, ``stop_reason``).
+    one. Returns a summary dict (``session_id``, ``stop_reason``), plus ``model``
+    when the harness names the model the session answers with.
     """
     env = harness_env(harness)
     args = list(harness.args or [])
@@ -410,14 +435,22 @@ async def run_agent(
             client_info=Implementation(name="agentic", title="Agentic", version="0.1.0"),
         )
         result["agent_info"] = _dump(getattr(init, "agent_info", None) or getattr(init, "agentInfo", None))
-        session_id = await _acquire_session(conn, cwd, resume_session_id)
+        session_id, session_model = await _acquire_session(conn, cwd, resume_session_id)
         result["session_id"] = session_id
         if on_session is not None:
             # Persist the handle before the turn runs, so a crash leaves a resumable run.
             await on_session(session_id)
-        model_error = await _apply_model(conn, session_id, harness.model)
+        selected_model, model_error = await _apply_model(conn, session_id, harness.model)
         if model_error is not None:
             await client.emit("warning", f"Could not select model {harness.model}: {model_error}")
+        # What the session answers with: the model the harness reported after the
+        # selection, else the one it reported for the session, else the harness's
+        # own configured model. The transcript header and the run row read this,
+        # so a live run names its model before its first token.
+        model = selected_model or session_model or harness.model
+        if model:
+            result["model"] = model
+            await client.emit("model", model)
 
         cancel_task = asyncio.create_task(cancel_event.wait())
         prompt_task = asyncio.create_task(conn.prompt(session_id, [TextContentBlock(type="text", text=prompt)]))
@@ -532,6 +565,10 @@ async def execute_run(
             run = s.get(AgentRun, run_id)
             if run is not None:
                 run.session_id = summary.get("session_id")
+                # A retried run resumes a session, and a harness that stops
+                # reporting its model keeps whatever the first attempt recorded.
+                if summary.get("model"):
+                    run.model = str(summary["model"])
                 run.stop_reason = str(summary.get("stop_reason") or "")
                 run.status = RunStatus.cancelled if summary.get("stop_reason") == "cancelled" else RunStatus.succeeded
                 run.ended_at = utcnow()
