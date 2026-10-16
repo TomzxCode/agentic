@@ -121,7 +121,7 @@ describe('App', () => {
     expect(sidebar.text()).not.toContain('Stored away')
   })
 
-  it('filters the sidebar by tag without showing tag pills', async () => {
+  it('shows every in-flight task in the sidebar, with no tag filter', async () => {
     store.tags = [
       { name: 'bug', count: 1 },
       { name: 'ui', count: 1 }
@@ -130,21 +130,11 @@ describe('App', () => {
       { id: 't1', title: 'Bug task', status: 'open', updated_at: null, next_steps: [], tags: ['bug'] },
       { id: 't2', title: 'UI task', status: 'open', updated_at: null, next_steps: [], tags: ['ui'] }
     ]
+    store.tagFilter = 'bug'
     const wrapper = mountApp()
     await flushPromises()
+    expect(wrapper.find('.side-filters').exists()).toBe(false)
     expect(wrapper.get('.side-scroll').text()).toContain('Bug task')
-    expect(wrapper.find('.side-scroll .task-tags').exists()).toBe(false)
-
-    await wrapper
-      .findAll('.side-filters .tag-filter')
-      .find((b) => b.text().startsWith('bug'))
-      .trigger('click')
-    expect(store.tagFilter).toBe('bug')
-    expect(wrapper.get('.side-scroll').text()).toContain('Bug task')
-    expect(wrapper.get('.side-scroll').text()).not.toContain('UI task')
-
-    await wrapper.get('.side-filters .tag-filter').trigger('click') // "All"
-    expect(store.tagFilter).toBe('')
     expect(wrapper.get('.side-scroll').text()).toContain('UI task')
   })
 

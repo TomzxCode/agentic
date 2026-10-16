@@ -2,7 +2,7 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { api } from './api'
-import { store, timeAgo, taskHasTag, aliasLabel } from './store'
+import { store, timeAgo, aliasLabel } from './store'
 import SearchSelect from './components/SearchSelect.vue'
 import RepositorySelect from './components/RepositorySelect.vue'
 import TagInput from './components/TagInput.vue'
@@ -96,13 +96,8 @@ watch(
 )
 const importRepoOptions = computed(() => githubRepos.value.map((r) => ({ value: r.id, label: r.name })))
 
-// The sidebar is for work in flight: hide done and archived tasks, and apply
-// the active tag filter so a tag can be viewed on its own.
-const sidebarTasks = computed(() =>
-  store.tasks
-    .filter((p) => p.status !== 'done' && p.status !== 'archived')
-    .filter((p) => !store.tagFilter || taskHasTag(p, store.tagFilter))
-)
+// The sidebar is for work in flight: hide done and archived tasks.
+const sidebarTasks = computed(() => store.tasks.filter((p) => p.status !== 'done' && p.status !== 'archived'))
 
 // Command palette: navigate anywhere (and a couple of actions) from the keyboard.
 const taskFieldItems = computed(() =>
@@ -828,38 +823,10 @@ onUnmounted(() => {
           </svg>
         </button>
       </div>
-      <div v-if="store.tags.length" class="side-filters" aria-label="Filter by tag">
-        <button
-          class="tag-filter"
-          :class="{ active: !store.tagFilter }"
-          type="button"
-          title="Show every task"
-          @click="store.tagFilter = ''"
-        >
-          All
-        </button>
-        <button
-          v-for="tag in store.tags"
-          :key="tag.name"
-          class="tag-filter"
-          :class="{ active: store.tagFilter === tag.name }"
-          type="button"
-          :title="`Show tasks tagged ${tag.name}`"
-          @click="store.toggleTagFilter(tag.name)"
-        >
-          {{ tag.name }} <span class="count">{{ tag.count }}</span>
-        </button>
-      </div>
       <div class="side-scroll">
         <div v-if="store.loading && !store.tasks.length" class="empty"><span class="spinner"></span></div>
         <div v-else-if="!sidebarTasks.length" class="empty">
-          {{
-            store.tagFilter
-              ? `No tasks tagged "${store.tagFilter}".`
-              : store.tasks.length
-                ? 'All caught up.'
-                : 'No tasks yet.'
-          }}
+          {{ store.tasks.length ? 'All caught up.' : 'No tasks yet.' }}
         </div>
         <div v-for="p in sidebarTasks" :key="p.id" class="task-card" :class="{ active: route.params.id === p.id }">
           <SearchSelect

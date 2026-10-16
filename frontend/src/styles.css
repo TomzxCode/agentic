@@ -778,16 +778,12 @@ button.tag-chip.active {
   border-color: var(--accent);
   color: var(--accent);
 }
-/* A row of clickable tag filters (sidebar and the tasks dashboard). */
-.side-filters,
+/* A row of clickable tag filters on the tasks dashboard. */
 .tag-filters {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
   margin-bottom: 12px;
-}
-.side-filters {
-  padding: 0 4px;
 }
 .tag-filter {
   flex: 0 0 auto;
