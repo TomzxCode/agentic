@@ -9,6 +9,7 @@ import secrets
 import shutil
 import subprocess
 from datetime import datetime, tzinfo
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -467,6 +468,18 @@ def dedupe_people(people: list[dict[str, Any]]) -> list[dict[str, Any]]:
         seen.add(key)
         result.append(person)
     return result
+
+
+@lru_cache(maxsize=1)
+def detect_github_login() -> str:
+    """The login of the authenticated ``gh`` account, or "" when unavailable.
+
+    Only a fallback for when no ``github_login`` is configured. The result is
+    cached for the process, so a re-login to another account needs a restart or
+    an explicit setting; both are cheap for a single-user local tool.
+    """
+    raw = _run_cli(["gh", "api", "user", "--jq", ".login"], timeout=15)
+    return (raw or "").strip()
 
 
 def _fetch_github(url: str, result: dict[str, Any]) -> None:

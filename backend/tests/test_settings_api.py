@@ -96,6 +96,27 @@ def test_agent_prompts_default_and_validation():
             session.commit()
 
 
+def test_github_login_setting_falls_back_to_detection(monkeypatch):
+    from agentic import settings_store
+
+    with TestClient(app) as client:
+        # An explicit login is stored as an override and served as effective.
+        saved = client.patch("/api/settings", json={"github_login": "me"}).json()
+        assert saved["effective"]["github_login"] == "me"
+        assert saved["overrides"]["github_login"] == "me"
+
+        # Clearing it falls back to the login the authenticated `gh` reports.
+        monkeypatch.setattr(settings_store, "detect_github_login", lambda: "detected")
+        client.patch("/api/settings", json={"github_login": ""})
+        fallback = client.get("/api/settings").json()
+        assert fallback["effective"]["github_login"] == "detected"
+        assert fallback["overrides"]["github_login"] == ""
+
+        # With nothing configured and nothing detected, the login is empty.
+        monkeypatch.setattr(settings_store, "detect_github_login", lambda: "")
+        assert client.get("/api/settings").json()["effective"]["github_login"] == ""
+
+
 def test_refresh_status_reports_the_last_run():
     from datetime import UTC, datetime
 

@@ -27,3 +27,14 @@ def _reset_queue():
     from agentic import jobs
 
     jobs._queue = None
+
+
+@pytest.fixture(autouse=True)
+def _no_github_login_detection(monkeypatch):
+    """Keep settings reads deterministic: never shell out to `gh` for the login.
+
+    A test that wants a detected login patches ``detect_github_login`` itself.
+    """
+    from agentic import settings_store
+
+    monkeypatch.setattr(settings_store, "detect_github_login", lambda: "")

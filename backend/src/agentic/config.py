@@ -48,6 +48,11 @@ class Settings(BaseSettings):
     # Default harness used when a task does not specify one.
     default_harness: str = "opencode"
 
+    # The GitHub login that counts as "you": a merged pull request is only
+    # offered a change record when this account authored it. Empty auto-detects
+    # the authenticated `gh` account (see ``detect_github_login``).
+    github_login: str = ""
+
     # Session links. These are defaults; the Settings page can override them,
     # and overrides are stored in the database.
     # OpenChamber opens a session at "<base><path>" (default: /?session=<id>).

@@ -12,6 +12,7 @@ const router = useRouter()
 
 const SECTIONS = [
   { id: 'sessions', label: 'Session links' },
+  { id: 'identity', label: 'Identity' },
   { id: 'harnesses', label: 'Agent harnesses' },
   { id: 'prompts', label: 'Agent prompts' },
   { id: 'refresh', label: 'Refresh' },
@@ -53,6 +54,14 @@ const linkDefaults = ref({})
 const savingLinks = ref(false)
 const savedLinks = ref(false)
 let savedTimer
+
+// The GitHub login that counts as "you". An empty field falls back to the login
+// detected from `gh`, shown as the placeholder so the fallback is visible.
+const identityForm = reactive({ github_login: '' })
+const detectedLogin = ref('')
+const savingIdentity = ref(false)
+const savedIdentity = ref(false)
+let savedIdentityTimer
 
 const refreshForm = reactive({ slack_refresh_policy: '', github_refresh_policy: '' })
 const refreshDefaults = ref({})
@@ -224,6 +233,9 @@ async function loadSettings() {
   refreshDefaults.value = data.defaults
   refreshForm.slack_refresh_policy = data.overrides.slack_refresh_policy ?? ''
   refreshForm.github_refresh_policy = data.overrides.github_refresh_policy ?? ''
+  identityForm.github_login = data.overrides.github_login ?? ''
+  // Only show a detected value when the user has not overridden it.
+  detectedLogin.value = data.overrides.github_login ? '' : data.effective?.github_login || ''
   promptDrafts.value = parseAgentPrompts(data.overrides.agent_prompts ?? data.defaults.agent_prompts).map(promptDraft)
   if (active.value === 'refresh') await previewAllRefresh()
 }
@@ -298,6 +310,23 @@ async function saveLinkField(key) {
     store.notify(e.message, true)
   } finally {
     savingLinks.value = false
+  }
+}
+
+// Saving the login reloads the shared settings so the inbox and repository
+// views see the new identity without a page reload.
+async function saveIdentity() {
+  savingIdentity.value = true
+  try {
+    await api.settings.update({ github_login: identityForm.github_login.trim() })
+    savedIdentity.value = true
+    clearTimeout(savedIdentityTimer)
+    savedIdentityTimer = setTimeout(() => (savedIdentity.value = false), 1500)
+    await store.loadSettings().catch(() => {})
+  } catch (e) {
+    store.notify(e.message, true)
+  } finally {
+    savingIdentity.value = false
   }
 }
 
@@ -389,6 +418,34 @@ onMounted(load)
               <code>~/.ssh/config</code>; needs the Remote-SSH extension). Add <code>?windowId=_blank</code> to open in
               a new window. code-server: <code>https://&lt;host&gt;:8443/?folder={path}</code>. Tunnel:
               <code>https://vscode.dev/tunnel/&lt;name&gt;{path}</code>.
+            </p>
+          </div>
+        </section>
+
+        <section v-show="active === 'identity'" class="panel">
+          <div class="panel-head">
+            <h2>Identity</h2>
+            <span v-if="savingIdentity" class="faint">saving…</span>
+            <span v-else-if="savedIdentity" class="faint">saved</span>
+          </div>
+          <p class="faint" style="margin-top: 0">
+            The GitHub account that counts as you. The inbox and a repository's pull requests only offer to record a
+            change for a merged PR this account authored.
+          </p>
+          <div class="field">
+            <label>Your GitHub login</label>
+            <input
+              v-model="identityForm.github_login"
+              class="input"
+              :placeholder="detectedLogin || 'detected from gh when blank'"
+              @blur="saveIdentity"
+            />
+            <p class="faint" style="margin: 4px 0 0">
+              <template v-if="detectedLogin">
+                Detected from <code>gh</code>: <code>{{ detectedLogin }}</code
+                >.
+              </template>
+              Leave blank to use that, or set a login to override it.
             </p>
           </div>
         </section>

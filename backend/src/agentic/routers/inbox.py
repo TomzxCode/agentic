@@ -15,6 +15,7 @@ from ..db import get_session
 from ..inbox import build_suggestions
 from ..models import Association, Change, SourceItem, Task, Worktree, utcnow
 from ..schemas import InboxReport
+from ..settings_store import resolve_github_login
 
 router = APIRouter(prefix="/api/inbox", tags=["inbox"])
 
@@ -37,7 +38,14 @@ def get_inbox(session: Session = Depends(get_session)) -> InboxReport:
     for change in session.exec(select(Change)).all():
         task_changes.setdefault(change.task_id, []).append(change)
 
-    suggestions = build_suggestions(tasks, items_by_id, task_item_ids, task_worktrees, task_changes)
+    suggestions = build_suggestions(
+        tasks,
+        items_by_id,
+        task_item_ids,
+        task_worktrees,
+        task_changes,
+        viewer_login=resolve_github_login(session),
+    )
     return InboxReport(generated_at=utcnow(), count=len(suggestions), suggestions=suggestions)
 
 

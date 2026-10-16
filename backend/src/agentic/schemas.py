@@ -51,6 +51,7 @@ class SettingsRead(BaseModel):
 
 
 class SettingsUpdate(BaseModel):
+    github_login: str | None = None
     openchamber_url: str | None = None
     openchamber_session_path: str | None = None
     terminal_url_template: str | None = None

@@ -10,10 +10,12 @@ from sqlmodel import Session, select
 from .config import settings
 from .models import Setting, utcnow
 from .refresh import REFRESHABLE_SOURCES
+from .services import detect_github_login
 
 # Keys the Settings page can override. Values are strings (URLs, templates, and
 # JSON-encoded lists such as ``agent_prompts``).
 OVERRIDABLE_KEYS = (
+    "github_login",
     "openchamber_url",
     "openchamber_session_path",
     "terminal_url_template",
@@ -57,6 +59,7 @@ def parse_agent_prompts(raw: str) -> list[dict[str, str]]:
 
 def env_defaults() -> dict[str, str]:
     return {
+        "github_login": settings.github_login,
         "openchamber_url": settings.openchamber_url,
         "openchamber_session_path": settings.openchamber_session_path,
         "terminal_url_template": settings.terminal_url_template,
@@ -74,7 +77,18 @@ def get_overrides(session: Session) -> dict[str, str]:
 def get_settings(session: Session) -> dict[str, str]:
     effective = env_defaults()
     effective.update(get_overrides(session))
+    # No login configured anywhere? Fall back to the authenticated `gh` account,
+    # so the identity works without the user setting anything.
+    if not effective.get("github_login", "").strip():
+        detected = detect_github_login()
+        if detected:
+            effective["github_login"] = detected
     return effective
+
+
+def resolve_github_login(session: Session) -> str:
+    """The GitHub login that counts as the user, or "" when none is known."""
+    return get_settings(session).get("github_login", "").strip()
 
 
 def update_settings(session: Session, values: dict[str, str | None]) -> dict[str, str]:

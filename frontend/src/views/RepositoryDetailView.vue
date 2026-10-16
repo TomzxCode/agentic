@@ -123,9 +123,31 @@ function changesFor(row) {
 }
 
 // Offer to record a change for a merged PR only when exactly one task uses it
-// (so the change has an unambiguous owner) and no change references it yet.
+// (so the change has an unambiguous owner), no change references it yet, and
+// the viewer authored it (a PR someone else wrote is not the viewer's change).
 function canRecordChange(row) {
-  return !!row.item && itemState(row) === 'merged' && tasksFor(row).length === 1 && !changesFor(row).length
+  return (
+    !!row.item &&
+    itemState(row) === 'merged' &&
+    tasksFor(row).length === 1 &&
+    !changesFor(row).length &&
+    authoredByMe(row)
+  )
+}
+
+// A PR counts as the viewer's when its GitHub author matches the configured
+// login (case-insensitive). With no login known (never set and `gh` could not
+// detect one), authorship cannot be attributed, so nothing is filtered out.
+function authoredByMe(row) {
+  const login = String(store.settings?.github_login || '')
+    .trim()
+    .toLowerCase()
+  if (!login) return true
+  return (
+    String(itemAuthor(row) || '')
+      .trim()
+      .toLowerCase() === login
+  )
 }
 
 // Swap a refreshed stored item back into the store so its row reflects the new

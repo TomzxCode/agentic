@@ -560,6 +560,7 @@ describe('RepositoryDetailView', () => {
     mocks.tasksCreate.mockResolvedValue({ id: 't9', title: 'Imported issue' })
     store.repositories = [repository]
     store.people = []
+    store.settings = {}
     store.tasks = [{ id: 't1', title: 'Task One', status: 'open' }]
     store.items = [
       ghItem('i1', 'issue', 1, 'Open issue', { state: 'OPEN' }),
@@ -741,6 +742,31 @@ describe('RepositoryDetailView', () => {
     await flushPromises()
     // Only the merged PR (i5) gets a button; open and draft PRs and issues do not.
     expect(wrapper.findAll('button[title="Record a change for this PR"]')).toHaveLength(1)
+  })
+
+  it('hides the record button for a merged PR someone else authored', async () => {
+    store.settings = { github_login: 'me' }
+    store.items = [ghItem('i5', 'pr', 5, 'Merged PR', { state: 'MERGED', author: 'someone' })]
+    const wrapper = mountView()
+    await flushPromises()
+    expect(wrapper.find('button[title="Record a change for this PR"]').exists()).toBe(false)
+  })
+
+  it('offers the record button when the author matches the configured login', async () => {
+    store.settings = { github_login: 'me' }
+    // Case-insensitive: GitHub logins differ in case.
+    store.items = [ghItem('i5', 'pr', 5, 'Merged PR', { state: 'MERGED', author: 'Me' })]
+    const wrapper = mountView()
+    await flushPromises()
+    expect(wrapper.find('button[title="Record a change for this PR"]').exists()).toBe(true)
+  })
+
+  it('offers the record button when no login is known', async () => {
+    store.settings = {}
+    store.items = [ghItem('i5', 'pr', 5, 'Merged PR', { state: 'MERGED', author: 'someone' })]
+    const wrapper = mountView()
+    await flushPromises()
+    expect(wrapper.find('button[title="Record a change for this PR"]').exists()).toBe(true)
   })
 
   it('hides the record button for an open PR', async () => {

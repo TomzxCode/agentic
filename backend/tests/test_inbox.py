@@ -18,7 +18,7 @@ def _task(task_id: str, status: TaskStatus = TaskStatus.open) -> Task:
     return Task(id=task_id, title=f"Task {task_id}", status=status)
 
 
-def _pr(item_id: str, number: int, state: str = "MERGED") -> SourceItem:
+def _pr(item_id: str, number: int, state: str = "MERGED", author: str | None = None) -> SourceItem:
     return SourceItem(
         id=item_id,
         source="github",
@@ -26,7 +26,7 @@ def _pr(item_id: str, number: int, state: str = "MERGED") -> SourceItem:
         title=f"PR {number}",
         url=f"https://github.com/o/r/pull/{number}",
         external_id=f"o/r#{number}",
-        metadata_json={"state": state, "merged_at": MERGED_AT if state == "MERGED" else None},
+        metadata_json={"state": state, "merged_at": MERGED_AT if state == "MERGED" else None, "author": author},
     )
 
 
@@ -41,13 +41,14 @@ def _worktree(worktree_id: str, task_id: str, status: WorktreeStatus = WorktreeS
     )
 
 
-def _run(tasks, items, links, worktrees=None, changes=None):
+def _run(tasks, items, links, worktrees=None, changes=None, viewer_login=None):
     return build_suggestions(
         tasks,
         {item.id: item for item in items},
         links,
         worktrees or {},
         changes or {},
+        viewer_login=viewer_login,
     )
 
 
@@ -83,6 +84,30 @@ def test_two_linked_prs_are_not_offered_for_closing():
     assert CLOSE_TASK_MERGED_PR not in kinds
     # Each merged PR still asks for its own change record.
     assert kinds == [RECORD_CHANGE_MERGED_PR, RECORD_CHANGE_MERGED_PR]
+
+
+def test_only_the_viewers_merged_prs_are_offered_a_change():
+    task = _task("t1")
+    mine, theirs = _pr("i1", 5, author="Me"), _pr("i2", 6, author="someone")
+    suggestions = _run([task], [mine, theirs], {"t1": ["i1", "i2"]}, viewer_login="me")
+
+    # Only the PR the viewer authored; the other author is not their change
+    # to record. Two PRs, so neither is offered for closing.
+    assert [s["kind"] for s in suggestions] == [RECORD_CHANGE_MERGED_PR]
+    assert suggestions[0]["actions"][0]["item_id"] == "i1"
+
+
+def test_an_unknown_viewer_does_not_filter_by_author():
+    task = _task("t1")
+    pr = _pr("i1", 5, author="someone")
+    kinds = [s["kind"] for s in _run([task], [pr], {"t1": ["i1"]}, viewer_login="")]
+    assert kinds == [CLOSE_TASK_MERGED_PR, RECORD_CHANGE_MERGED_PR]
+
+
+def test_a_pr_with_no_stored_author_is_not_the_viewers():
+    task = _task("t1")
+    pr = _pr("i1", 5)
+    assert [s["kind"] for s in _run([task], [pr], {"t1": ["i1"]}, viewer_login="me")] == [CLOSE_TASK_MERGED_PR]
 
 
 def test_an_open_pull_request_is_not_merged():
@@ -170,3 +195,32 @@ def test_inbox_endpoint_lists_a_close_suggestion_for_a_merged_pr():
 
         client.delete(f"/api/tasks/{task['id']}")
         client.delete(f"/api/items/{item['id']}")
+
+
+def test_inbox_endpoint_hides_a_change_for_a_pr_the_viewer_did_not_author():
+    with TestClient(app) as client:
+        client.patch("/api/settings", json={"github_login": "me"})
+        try:
+            task = client.post("/api/tasks", json={"title": "Inbox author filter"}).json()
+            theirs = client.post(
+                "/api/items",
+                json={
+                    "source": "github",
+                    "kind": "pull_request",
+                    "title": "Someone else's merged PR",
+                    "url": "https://github.com/inbox-test/repo/pull/992",
+                    "metadata_json": {"state": "MERGED", "merged_at": MERGED_AT, "author": "someone"},
+                    "fetch": False,
+                },
+            ).json()
+            client.post(f"/api/tasks/{task['id']}/items", json={"item_id": theirs["id"]})
+
+            mine = [s for s in client.get("/api/inbox").json()["suggestions"] if s["task_id"] == task["id"]]
+            # The close suggestion stays; the change offer is hidden because the
+            # viewer did not author the PR.
+            assert [s["kind"] for s in mine] == [CLOSE_TASK_MERGED_PR]
+
+            client.delete(f"/api/tasks/{task['id']}")
+            client.delete(f"/api/items/{theirs['id']}")
+        finally:
+            client.patch("/api/settings", json={"github_login": ""})

@@ -51,6 +51,12 @@ def is_merged_pr(item: SourceItem) -> bool:
     return str((item.metadata_json or {}).get("state") or "").upper() == "MERGED"
 
 
+def is_authored_by(item: SourceItem, login: str) -> bool:
+    """True when the item's stored GitHub author matches ``login`` (case-insensitive)."""
+    author = str((item.metadata_json or {}).get("author") or "").strip()
+    return bool(author) and author.lower() == login.strip().lower()
+
+
 def _pr_label(item: SourceItem) -> str:
     """A short way to name a PR: its number when known, else its title."""
     parsed = parse_github(item.url or "")
@@ -136,6 +142,7 @@ def build_suggestions(
     task_item_ids: dict[str, list[str]],
     task_worktrees: dict[str, list[Worktree]],
     task_changes: dict[str, list[Change]],
+    viewer_login: str | None = None,
 ) -> list[dict[str, Any]]:
     """Turn the current rows into an ordered list of actionable suggestions.
 
@@ -145,7 +152,9 @@ def build_suggestions(
     - A task with exactly one linked pull request, and that PR is merged, is
       offered for closing.
     - A merged PR with no change recorded against it is offered for recording,
-      unless the task is archived.
+      unless the task is archived. Only PRs authored by ``viewer_login`` are
+      offered (a PR someone else wrote is not the viewer's change to record);
+      with no login known, the author is not filtered.
     - A closed task (done or archived) with an active worktree is offered for
       pruning.
     """
@@ -162,6 +171,8 @@ def build_suggestions(
 
         if task.status != TaskStatus.archived:
             for item in merged:
+                if viewer_login and not is_authored_by(item, viewer_login):
+                    continue
                 if not _change_references(changes, item):
                     suggestions.append(_record_change_suggestion(task, item))
 
@@ -180,6 +191,7 @@ __all__ = [
     "RECORD_CHANGE_MERGED_PR",
     "REMOVE_WORKTREE_DONE_TASK",
     "build_suggestions",
+    "is_authored_by",
     "is_merged_pr",
     "is_pull_request",
 ]

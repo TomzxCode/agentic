@@ -221,9 +221,11 @@ badge) suggests things to do, derived from the current state rather than stored:
 it recomputes on every read, so acting on a suggestion makes it disappear. It
 groups suggestions by intent: close a task whose only linked pull request is
 merged, record a change for a merged PR that has none, and remove a worktree
-left behind by a closed task. Each suggestion names the task it is about and
-offers the action as a button that calls the same endpoint the rest of the app
-uses.
+left behind by a closed task. A merged PR is only offered a change record when
+you authored it (the login in Settings → Identity, else the authenticated `gh`
+account); a PR someone else wrote is not your change to record. Each suggestion
+names the task it is about and offers the action as a button that calls the
+same endpoint the rest of the app uses.
 
 The task header also links **dependencies**, next to the repository and people
 selectors: add the tasks that must come first (**before**) and the tasks that
@@ -319,6 +321,7 @@ Environment variables (prefix `AGENTIC_`) or `backend/.env`:
 | `AGENTIC_FS_ROOT` | `~` | Root the repository picker may browse (`/` for anywhere). |
 | `AGENTIC_STATIC_DIR` | `backend/static` | Built SPA to serve. |
 | `AGENTIC_DEFAULT_HARNESS` | `opencode` | Fallback harness (by name) when no harness is marked default. |
+| `AGENTIC_GITHUB_LOGIN` | (empty) | The GitHub login that counts as you, for change-record suggestions. Empty auto-detects the authenticated `gh` account. |
 | `AGENTIC_AUTO_APPROVE_PERMISSIONS` | `true` | Auto-approve ACP permission requests. |
 | `AGENTIC_OPENCHAMBER_URL` | (unset) | Base URL for "Open in OpenChamber" links. |
 | `AGENTIC_OPENCHAMBER_SESSION_PATH` | `/?session={session}` | Path appended to the base. |
