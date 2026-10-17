@@ -540,6 +540,39 @@ describe('TaskView', () => {
     expect(mocks.tasksRemove).toHaveBeenCalledWith('t1')
   })
 
+  it('renders the description as Markdown and edits it from its edit button', async () => {
+    mocks.tasksGet.mockResolvedValue({
+      ...task,
+      description: 'A **bold** claim with [a link](https://example.com/x)'
+    })
+    // The real editor, so the rendered Markdown is asserted rather than a stub.
+    const wrapper = mount(TaskView, {
+      props: { id: 't1' },
+      global: { stubs: { ...stubs, EditableText: false } }
+    })
+    await flushPromises()
+
+    const description = wrapper.get('.task-description')
+    expect(description.get('.md strong').text()).toBe('bold')
+    expect(description.get('.md a').attributes('href')).toBe('https://example.com/x')
+    expect(description.get('.md a').attributes('target')).toBe('_blank')
+    expect(description.text()).not.toContain('**bold**')
+
+    // The content is not an edit target (its own controls need the click); the
+    // edit button opens the editor on the raw Markdown.
+    await description.trigger('click')
+    expect(description.find('textarea').exists()).toBe(false)
+
+    await description.get('.inline-edit-btn').trigger('click')
+    // The editor replaces the field, so re-query from the view.
+    const textarea = wrapper.get('textarea')
+    expect(textarea.element.value).toBe('A **bold** claim with [a link](https://example.com/x)')
+    await textarea.setValue('Edited')
+    await textarea.trigger('blur')
+    await flushPromises()
+    expect(mocks.tasksUpdate).toHaveBeenCalledWith('t1', { description: 'Edited' })
+  })
+
   it('clears palette state on unmount', async () => {
     const wrapper = mountView()
     await flushPromises()

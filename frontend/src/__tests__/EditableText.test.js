@@ -85,4 +85,29 @@ describe('EditableText', () => {
     await wrapper.get('input[type=checkbox]').trigger('click')
     expect(wrapper.find('textarea').exists()).toBe(false)
   })
+
+  it('opens the editor from an edit button, leaving the content its own clicks', async () => {
+    const raw = '<details><summary>More</summary>body</details>'
+    const wrapper = mount(EditableText, {
+      props: { value: raw, markdown: true, editButton: true, as: 'div', multiline: true }
+    })
+    // The click belongs to the collapsible section, not to the field.
+    await wrapper.get('summary').trigger('click')
+    expect(wrapper.find('textarea').exists()).toBe(false)
+
+    await wrapper.get('.inline-edit-btn').trigger('click')
+    const textarea = wrapper.get('textarea')
+    expect(textarea.element.value).toBe(raw)
+    await textarea.setValue('plain text')
+    await textarea.trigger('blur')
+    expect(wrapper.emitted('save')).toEqual([['plain text']])
+  })
+
+  it('keeps the placeholder clickable when an edit button field is empty', async () => {
+    const wrapper = mount(EditableText, {
+      props: { markdown: true, editButton: true, as: 'div', multiline: true, placeholder: 'Add one…' }
+    })
+    await wrapper.trigger('click')
+    expect(wrapper.find('textarea').exists()).toBe(true)
+  })
 })

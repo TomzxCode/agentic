@@ -1214,6 +1214,27 @@ button.tag-chip.active {
   display: block;
   white-space: pre-wrap;
 }
+/* A field with an edit button is not click-to-edit, so the hover highlight that
+   promises it is gone; the button is the affordance. */
+.inline-edit.with-edit-btn {
+  cursor: default;
+}
+.inline-edit.with-edit-btn:hover {
+  background: none;
+  box-shadow: none;
+}
+/* Sits under the field's content, faint until reached for, so the field still
+   reads as text first. */
+.inline-edit-btn {
+  display: block;
+  margin-top: 6px;
+  border-color: transparent;
+  color: var(--faint);
+}
+.inline-edit-btn:hover {
+  color: var(--text);
+  border-color: var(--border);
+}
 .inline-input {
   width: 100%;
   background: var(--bg);

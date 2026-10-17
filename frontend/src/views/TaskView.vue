@@ -208,11 +208,18 @@ watch(
       </div>
     </div>
 
+    <!-- The description is Markdown (a task imported from a GitHub issue keeps
+         its body), rendered with the shared renderer like notes and next steps.
+         `as="div"`: the renderer emits block elements, which a <p> cannot hold.
+         `edit-button`: the body may carry its own controls (a collapsible
+         <details> section), which a click on the field would otherwise steal. -->
     <EditableText
       ref="descriptionRef"
       class="muted task-description"
-      as="p"
+      as="div"
       multiline
+      markdown
+      edit-button
       :value="task.description"
       placeholder="Add a description…"
       @save="(value) => update('description', value)"
