@@ -1,22 +1,27 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, resolveComponent } from 'vue'
 import { aliasLabel, store } from '../store'
-import EntityCard from '../components/EntityCard.vue'
+import PeopleGrid from '../components/PeopleGrid.vue'
 
 const people = ref([])
 const loading = ref(true)
-const search = ref('')
 const newName = ref('')
 const busy = ref(false)
+// How many rows the grid currently shows (its filters may hide some).
+const shown = ref(null)
 
-const visible = computed(() => {
-  const q = search.value.trim().toLowerCase()
-  if (!q) return people.value
-  return people.value.filter(
-    (person) =>
-      person.name.toLowerCase().includes(q) || (person.aliases || []).some((alias) => alias.toLowerCase().includes(q))
-  )
-})
+// The globally registered router-link, handed to the grid so its name cells keep
+// internal navigation inside the SPA (and so tests can stub it by name).
+const routerLink = resolveComponent('RouterLink')
+
+// The grid rows: each person with the aliases line the grid displays.
+const rows = computed(() =>
+  people.value.map((person) => ({
+    ...person,
+    aliases_line: (person.aliases || []).map(aliasLabel).join(' · '),
+    raw: person
+  }))
+)
 
 async function load() {
   loading.value = true
@@ -50,14 +55,10 @@ onMounted(load)
 </script>
 
 <template>
-  <div>
+  <div class="page-fill">
     <div class="row" style="justify-content: space-between; align-items: baseline; margin-bottom: 12px">
       <h1>People</h1>
-      <span class="faint">{{ visible.length }} of {{ people.length }}</span>
-    </div>
-
-    <div class="row" style="margin-bottom: 12px">
-      <input v-model="search" class="input grow" placeholder="Search name or alias…" />
+      <span class="faint">{{ shown ?? people.length }} of {{ people.length }}</span>
     </div>
 
     <div class="row" style="gap: 8px; margin-bottom: 16px; flex-wrap: wrap">
@@ -66,21 +67,7 @@ onMounted(load)
     </div>
 
     <div v-if="loading" class="empty"><span class="spinner"></span></div>
-    <div v-else-if="!visible.length" class="empty">No people.</div>
-    <div v-else>
-      <EntityCard v-for="person in visible" :key="person.id">
-        <template #title>
-          <router-link class="title" :to="`/person/${person.id}`">{{ person.name }}</router-link>
-        </template>
-        <template #actions>
-          <span class="faint">tasks:{{ person.task_count || 0 }} items:{{ person.item_count || 0 }}</span>
-        </template>
-        <template #meta>
-          <div v-if="person.aliases?.length" class="faint">
-            {{ person.aliases.map(aliasLabel).join(' · ') }}
-          </div>
-        </template>
-      </EntityCard>
-    </div>
+    <div v-else-if="!people.length" class="empty">No people.</div>
+    <PeopleGrid v-else :rows="rows" :router-link="routerLink" @count="shown = $event" />
   </div>
 </template>

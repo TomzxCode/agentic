@@ -1,7 +1,7 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, resolveComponent } from 'vue'
 import { api } from '../api'
-import { changeCreateBody, changeStatusBadge, changesForItem } from '../changes'
+import { changeCreateBody, changesForItem } from '../changes'
 import { store, statusLabel, timeAgo } from '../store'
 import {
   itemAuthor,
@@ -11,15 +11,15 @@ import {
   parseRemote,
   personForHandle,
   repositoryRows,
-  sortItems,
-  stateBreakdown
+  sortItems
 } from '../repositories'
-import ItemCard from '../components/ItemCard.vue'
-import TaskLink from '../components/TaskLink.vue'
+import RepositoryItemsGrid from '../components/RepositoryItemsGrid.vue'
 
 const props = defineProps({ id: { type: String, required: true } })
 
-const TASK_STATUS_ORDER = ['open', 'in_progress', 'blocked', 'done', 'archived']
+// The globally registered router-link, handed to the grid so its cells keep
+// internal navigation inside the SPA (and so tests can stub it by name).
+const routerLink = resolveComponent('RouterLink')
 
 const loading = ref(true)
 const error = ref(false)
@@ -31,20 +31,12 @@ const ghxFailed = ref([])
 const ghxError = ref('')
 const refreshingAll = ref(false)
 const refreshingLinked = ref(false)
-const query = ref('')
 // Every change record, so a PR row can show the changes that reference it.
 const changes = ref([])
 // The PR whose change is being recorded, so its button shows a spinner.
 const recordingId = ref('')
 // The row whose task is being created, so its button shows a spinner.
 const creatingId = ref('')
-// Kind filter: '' shows both sections, otherwise 'issue' or 'pr'.
-const kindFilter = ref('')
-// State filter: '' shows every state, otherwise a value from STATE_ORDER.
-const stateFilter = ref('')
-// Task status filter: '' shows every item, otherwise a task status. An item
-// matches when any of the tasks it is linked to has that status.
-const statusFilter = ref('')
 
 const repository = computed(() => store.repositories.find((r) => r.id === props.id) || null)
 const tasksById = computed(() => Object.fromEntries(store.tasks.map((task) => [task.id, task])))
@@ -60,57 +52,46 @@ const rows = computed(() => repositoryRows(ghxItems.value, linkedItems.value))
 // The repository has a GitHub remote worth listing.
 const canListGithub = computed(() => !!parseRemote(repository.value?.remote_url))
 
-// Filter-control counts cover the whole repository (like the Items page), so a
-// button's number does not move while the search or the other filter narrows
-// the list.
-const kindCounts = computed(() => {
-  const counts = { issue: 0, pr: 0 }
-  for (const row of rows.value) if (counts[row.kind] !== undefined) counts[row.kind] += 1
-  return counts
-})
+// Every issue and PR the repository has, newest number first. Filtering and
+// sorting are done in the grid, at the column level.
+const sortedRows = computed(() => sortItems(rows.value))
 
-// The states present among the repository's rows, in a stable order.
-const stateOptions = computed(() => stateBreakdown(rows.value))
-
-// The kind toggle only earns its place when both kinds are present.
-const showKindFilter = computed(() => kindCounts.value.issue > 0 && kindCounts.value.pr > 0)
-
-// The task statuses present among the rows' tasks, in a stable order. Each
-// count is the number of rows carrying at least one task in that status, so a
-// row with two tasks of the same status counts once.
-const statusOptions = computed(() => {
-  const counts = {}
-  for (const row of rows.value) {
-    const seen = new Set()
-    for (const task of tasksFor(row)) {
-      if (seen.has(task.status)) continue
-      seen.add(task.status)
-      counts[task.status] = (counts[task.status] || 0) + 1
+// The rows handed to the grid: the repository's items enriched with everything a
+// cell needs (state badge, author link, task chips, change lines, actions), so
+// the grid's cell renderers stay presentation-only.
+const tableRows = computed(() =>
+  sortedRows.value.map((row) => {
+    const status = itemStatus(row)
+    const author = itemAuthor(row)
+    const person = personForHandle(store.people, author)
+    return {
+      key: `${row.kind}:${row.number || row.id}`,
+      kind: row.kind,
+      number: row.number || '',
+      title: row.title || '',
+      url: row.url || '',
+      stateLabel: status?.label || '',
+      stateClass: status?.className || '',
+      authorLabel: author ? `@${author}` : '',
+      personId: person?.id || '',
+      tasks: tasksFor(row),
+      // The distinct statuses of the row's linked tasks, in first-seen order,
+      // for the Task status column.
+      statuses: [...new Set(tasksFor(row).map((task) => task.status))].map((status) => ({
+        status,
+        label: statusLabel(status)
+      })),
+      // Change records are shown on pull request rows only, as the card layout
+      // did: a change lands in a PR, so a change naming an issue is not shown.
+      changes: row.kind === 'pr' ? changesFor(row) : [],
+      canCreate: !row.linked && !!row.url,
+      canRecord: canRecordChange(row),
+      busy: (!!row.url && creatingId.value === row.url) || (!!row.id && recordingId.value === row.id),
+      fetched: row.fetched_at ? `fetched ${timeAgo(row.fetched_at)}` : '',
+      raw: row
     }
-  }
-  return TASK_STATUS_ORDER.filter((status) => counts[status]).map((status) => ({
-    value: status,
-    label: statusLabel(status),
-    count: counts[status]
-  }))
-})
-
-const filtered = computed(() => {
-  const q = query.value.trim().toLowerCase()
-  return sortItems(rows.value).filter((row) => {
-    if (kindFilter.value && row.kind !== kindFilter.value) return false
-    if (stateFilter.value && itemState(row) !== stateFilter.value) return false
-    if (statusFilter.value && !tasksFor(row).some((task) => task.status === statusFilter.value)) return false
-    if (!q) return true
-    return (
-      String(row.title || '')
-        .toLowerCase()
-        .includes(q) || String(row.number || '').includes(q)
-    )
   })
-})
-const issues = computed(() => filtered.value.filter((row) => row.kind === 'issue'))
-const pulls = computed(() => filtered.value.filter((row) => row.kind === 'pr'))
+)
 
 function tasksFor(row) {
   return (row.task_ids || []).map((id) => tasksById.value[id]).filter(Boolean)
@@ -182,12 +163,6 @@ async function recordChange(row) {
   } finally {
     recordingId.value = ''
   }
-}
-
-// The directory person behind a row's GitHub author, when one carries the
-// login as an alias; null leaves the author unlinked.
-function authorPerson(row) {
-  return personForHandle(store.people, itemAuthor(row))
 }
 
 // Turn an issue or PR the repository has into a task. The backend imports the
@@ -320,7 +295,7 @@ onMounted(load)
 </script>
 
 <template>
-  <div>
+  <div class="page-fill">
     <div v-if="error" class="panel">
       <p style="margin-top: 0; color: var(--danger)">Could not load this repository's items.</p>
       <button class="btn" @click="load">Retry</button>
@@ -374,14 +349,9 @@ onMounted(load)
         Could not load the {{ ghxFailed.join(' or the ') }} from GitHub. Showing the rest of the repository.
       </p>
 
-      <!-- While the GitHub listing loads, the wait shows where the rows will
-           land: one spinner under each section heading. -->
-      <template v-if="loading">
-        <h2 class="group-head">Issues</h2>
-        <div class="empty"><span class="spinner" aria-hidden="true"></span></div>
-        <h2 class="group-head">Pull requests</h2>
-        <div class="empty"><span class="spinner" aria-hidden="true"></span></div>
-      </template>
+      <!-- While the GitHub listing loads, the wait shows where the grid will
+           land, instead of flashing a partial page. -->
+      <div v-if="loading" class="empty"><span class="spinner" aria-hidden="true"></span></div>
 
       <template v-else>
         <div v-if="!rows.length" class="panel" style="margin-top: 14px">
@@ -391,211 +361,13 @@ onMounted(load)
           </p>
         </div>
 
-        <template v-else>
-          <div class="panel" style="margin-top: 14px">
-            <input v-model="query" class="input" placeholder="Filter by title or number…" aria-label="Filter items" />
-
-            <div v-if="showKindFilter" class="row" style="gap: 6px; margin-top: 12px">
-              <span class="filter-label">Kind</span>
-              <div class="row" style="gap: 6px" role="group" aria-label="Filter by kind">
-                <button
-                  class="btn sm"
-                  :class="{ primary: !kindFilter }"
-                  :aria-pressed="!kindFilter"
-                  @click="kindFilter = ''"
-                >
-                  All {{ rows.length }}
-                </button>
-                <button
-                  class="btn sm"
-                  :class="{ primary: kindFilter === 'issue' }"
-                  :aria-pressed="kindFilter === 'issue'"
-                  @click="kindFilter = 'issue'"
-                >
-                  Issues {{ kindCounts.issue }}
-                </button>
-                <button
-                  class="btn sm"
-                  :class="{ primary: kindFilter === 'pr' }"
-                  :aria-pressed="kindFilter === 'pr'"
-                  @click="kindFilter = 'pr'"
-                >
-                  Pull requests {{ kindCounts.pr }}
-                </button>
-              </div>
-            </div>
-
-            <div v-if="stateOptions.length" class="row" style="gap: 6px; margin-top: 12px">
-              <span class="filter-label">State</span>
-              <div class="row" style="gap: 6px" role="group" aria-label="Filter by state">
-                <button
-                  class="btn sm"
-                  :class="{ primary: !stateFilter }"
-                  :aria-pressed="!stateFilter"
-                  @click="stateFilter = ''"
-                >
-                  Any state
-                </button>
-                <button
-                  v-for="state in stateOptions"
-                  :key="state.value"
-                  class="btn sm"
-                  :class="{ primary: stateFilter === state.value }"
-                  :aria-pressed="stateFilter === state.value"
-                  @click="stateFilter = state.value"
-                >
-                  {{ state.label }} {{ state.count }}
-                </button>
-              </div>
-            </div>
-
-            <div v-if="statusOptions.length" class="row" style="gap: 6px; margin-top: 12px">
-              <span class="filter-label">Task status</span>
-              <div class="row" style="gap: 6px" role="group" aria-label="Filter by task status">
-                <button
-                  class="btn sm"
-                  :class="{ primary: !statusFilter }"
-                  :aria-pressed="!statusFilter"
-                  @click="statusFilter = ''"
-                >
-                  Any task status
-                </button>
-                <button
-                  v-for="status in statusOptions"
-                  :key="status.value"
-                  class="btn sm"
-                  :class="{ primary: statusFilter === status.value }"
-                  :aria-pressed="statusFilter === status.value"
-                  @click="statusFilter = status.value"
-                >
-                  {{ status.label }} {{ status.count }}
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <template v-if="!filtered.length">
-            <p class="muted">No issues or PRs match the filters.</p>
-          </template>
-
-          <template v-else>
-            <template v-if="issues.length">
-              <h2 class="group-head">
-                Issues <span class="faint">{{ issues.length }}</span>
-              </h2>
-              <ItemCard
-                v-for="row in issues"
-                :key="`issue-${row.number || row.id}`"
-                :item="row"
-                :show-source="false"
-                :show-status="false"
-                :show-content="false"
-                :show-times="false"
-              >
-                <template #lead>
-                  <span class="badge">issue</span>
-                  <span v-if="itemStatus(row)" class="badge" :class="itemStatus(row).className">
-                    {{ itemStatus(row).label }}
-                  </span>
-                  <span v-if="row.number" class="faint">#{{ row.number }}</span>
-                </template>
-                <template #actions>
-                  <span v-if="itemAuthor(row)" class="faint">
-                    <router-link v-if="authorPerson(row)" :to="`/person/${authorPerson(row).id}`">
-                      @{{ itemAuthor(row) }}
-                    </router-link>
-                    <span v-else>@{{ itemAuthor(row) }}</span>
-                  </span>
-                  <button
-                    v-if="!row.linked && row.url"
-                    class="btn sm"
-                    :disabled="creatingId === row.url"
-                    title="Create a task from this issue"
-                    @click="createTaskFrom(row)"
-                  >
-                    <span v-if="creatingId === row.url" class="spinner" aria-hidden="true"></span>
-                    New task
-                  </button>
-                </template>
-                <div v-if="tasksFor(row).length" class="row" style="margin-top: 8px; gap: 6px">
-                  <TaskLink v-for="task in tasksFor(row)" :key="task.id" :task="task" />
-                </div>
-                <template #meta>
-                  <div v-if="row.fetched_at" class="faint" style="margin-top: 6px">
-                    fetched {{ timeAgo(row.fetched_at) }}
-                  </div>
-                </template>
-              </ItemCard>
-            </template>
-
-            <template v-if="pulls.length">
-              <h2 class="group-head">
-                Pull requests <span class="faint">{{ pulls.length }}</span>
-              </h2>
-              <ItemCard
-                v-for="row in pulls"
-                :key="`pr-${row.number || row.id}`"
-                :item="row"
-                :show-source="false"
-                :show-status="false"
-                :show-content="false"
-                :show-times="false"
-              >
-                <template #lead>
-                  <span class="badge">PR</span>
-                  <span v-if="itemStatus(row)" class="badge" :class="itemStatus(row).className">
-                    {{ itemStatus(row).label }}
-                  </span>
-                  <span v-if="row.number" class="faint">#{{ row.number }}</span>
-                </template>
-                <template #actions>
-                  <span v-if="itemAuthor(row)" class="faint">
-                    <router-link v-if="authorPerson(row)" :to="`/person/${authorPerson(row).id}`">
-                      @{{ itemAuthor(row) }}
-                    </router-link>
-                    <span v-else>@{{ itemAuthor(row) }}</span>
-                  </span>
-                  <button
-                    v-if="!row.linked && row.url"
-                    class="btn sm"
-                    :disabled="creatingId === row.url"
-                    title="Create a task from this pull request"
-                    @click="createTaskFrom(row)"
-                  >
-                    <span v-if="creatingId === row.url" class="spinner" aria-hidden="true"></span>
-                    New task
-                  </button>
-                  <button
-                    v-if="canRecordChange(row)"
-                    class="btn sm"
-                    :disabled="recordingId === row.id"
-                    title="Record a change for this PR"
-                    @click="recordChange(row)"
-                  >
-                    <span v-if="recordingId === row.id" class="spinner" aria-hidden="true"></span>
-                    Record change
-                  </button>
-                </template>
-                <div v-if="tasksFor(row).length" class="row" style="margin-top: 8px; gap: 6px">
-                  <TaskLink v-for="task in tasksFor(row)" :key="task.id" :task="task" />
-                </div>
-                <div v-if="changesFor(row).length" class="change-lines">
-                  <div v-for="change in changesFor(row)" :key="change.id" class="change-line">
-                    <span :class="changeStatusBadge(change.status)">{{ change.status }}</span>
-                    <router-link :to="`/task/${change.task_id}`">{{ change.title || change.id }}</router-link>
-                    <span class="faint">{{ change.change_class }}</span>
-                    <span class="faint">· {{ timeAgo(change.opened_at) }}</span>
-                  </div>
-                </div>
-                <template #meta>
-                  <div v-if="row.fetched_at" class="faint" style="margin-top: 6px">
-                    fetched {{ timeAgo(row.fetched_at) }}
-                  </div>
-                </template>
-              </ItemCard>
-            </template>
-          </template>
-        </template>
+        <RepositoryItemsGrid
+          v-else
+          :rows="tableRows"
+          :router-link="routerLink"
+          @new-task="createTaskFrom"
+          @record-change="recordChange"
+        />
       </template>
     </template>
   </div>

@@ -1,52 +1,25 @@
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref, resolveComponent } from 'vue'
 import { api } from '../api'
-import { store } from '../store'
-import {
-  filterRepositories,
-  groupItemsByRepository,
-  parseRemote,
-  REPOSITORY_SORT_DIRECTIONS,
-  REPOSITORY_SORTS,
-  sortRepositories
-} from '../repositories'
+import { store, timeAgo } from '../store'
+import { groupItemsByRepository } from '../repositories'
 import DirectoryPicker from '../components/DirectoryPicker.vue'
-import EntityCard from '../components/EntityCard.vue'
+import RepositoriesGrid from '../components/RepositoriesGrid.vue'
 
 const loading = ref(true)
 const error = ref(false)
 const path = ref('')
 const showPicker = ref(false)
-// Filter and sort controls for the list below.
-const query = ref('')
-const remoteFilter = ref('')
-const sortBy = ref('name')
-const sortDesc = ref(REPOSITORY_SORT_DIRECTIONS.name === 'desc')
+// How many rows the grid currently shows (its filters may hide some).
+const shown = ref(null)
 
-// Switching the order returns to that order's natural direction.
-watch(sortBy, (value) => {
-  sortDesc.value = REPOSITORY_SORT_DIRECTIONS[value] === 'desc'
-})
+// The globally registered router-link, handed to the grid so its name cells keep
+// internal navigation inside the SPA (and so tests can stub it by name).
+const routerLink = resolveComponent('RouterLink')
 
 // One summary per registered repository, with the GitHub issues and PRs that
 // are associated to tasks and match the repository's remote.
 const summaries = computed(() => groupItemsByRepository(store.repositories, store.items))
-
-// Filter-control counts cover the whole list, so a button's number does not
-// move while the search narrows it.
-const remoteCounts = computed(() => {
-  let github = 0
-  for (const repo of summaries.value) if (parseRemote(repo.remote_url)) github += 1
-  return { github, other: summaries.value.length - github }
-})
-
-const visible = computed(() =>
-  sortRepositories(
-    filterRepositories(summaries.value, { query: query.value, remote: remoteFilter.value }),
-    sortBy.value,
-    sortDesc.value ? 'desc' : 'asc'
-  )
-)
 
 // A repository's associated items by state, e.g. "3 open · 1 merged", or ''
 // when no item carries a stored state.
@@ -54,11 +27,23 @@ function stateLine(repo) {
   return (repo.states || []).map((state) => `${state.count} ${state.value}`).join(' · ')
 }
 
+// The grid rows: each summary with the display fields the grid needs. `raw` is
+// the summary itself, so a row action works on the repository.
+const rows = computed(() =>
+  summaries.value.map((repo) => ({
+    ...repo,
+    states_line: stateLine(repo),
+    added: repo.created_at ? `added ${timeAgo(repo.created_at)}` : '',
+    added_at: repo.created_at ? new Date(repo.created_at).getTime() : null,
+    raw: repo
+  }))
+)
+
+// Totals cover the whole list; the grid's own filters narrow what is shown.
 const totals = computed(() => ({
-  shown: visible.value.length,
   all: summaries.value.length,
-  issues: visible.value.reduce((n, repo) => n + repo.issue_count, 0),
-  pulls: visible.value.reduce((n, repo) => n + repo.pull_count, 0)
+  issues: summaries.value.reduce((n, repo) => n + repo.issue_count, 0),
+  pulls: summaries.value.reduce((n, repo) => n + repo.pull_count, 0)
 }))
 
 async function load() {
@@ -116,11 +101,11 @@ onMounted(load)
 </script>
 
 <template>
-  <div>
+  <div class="page-fill">
     <div class="row" style="justify-content: space-between">
       <h1>Repositories</h1>
       <span v-if="!loading && !error" class="faint">
-        {{ totals.shown }} of {{ totals.all }} repositories · {{ totals.issues }} issues · {{ totals.pulls }} PRs
+        {{ shown ?? totals.all }} of {{ totals.all }} repositories · {{ totals.issues }} issues · {{ totals.pulls }} PRs
       </span>
     </div>
 
@@ -151,95 +136,13 @@ onMounted(load)
       </p>
     </div>
 
-    <template v-else>
-      <div class="panel" style="margin-bottom: 14px">
-        <input
-          v-model="query"
-          class="input"
-          placeholder="Filter by name, path, or remote…"
-          aria-label="Filter repositories"
-        />
-
-        <div class="row" style="gap: 6px; margin-top: 12px; flex-wrap: wrap">
-          <span class="filter-label">Remote</span>
-          <div class="row" style="gap: 6px" role="group" aria-label="Filter by remote">
-            <button
-              class="btn sm"
-              :class="{ primary: !remoteFilter }"
-              :aria-pressed="!remoteFilter"
-              @click="remoteFilter = ''"
-            >
-              All {{ summaries.length }}
-            </button>
-            <button
-              v-if="remoteCounts.github"
-              class="btn sm"
-              :class="{ primary: remoteFilter === 'github' }"
-              :aria-pressed="remoteFilter === 'github'"
-              @click="remoteFilter = 'github'"
-            >
-              GitHub {{ remoteCounts.github }}
-            </button>
-            <button
-              v-if="remoteCounts.other"
-              class="btn sm"
-              :class="{ primary: remoteFilter === 'other' }"
-              :aria-pressed="remoteFilter === 'other'"
-              @click="remoteFilter = 'other'"
-            >
-              Other {{ remoteCounts.other }}
-            </button>
-          </div>
-
-          <span class="filter-label" style="margin-left: auto">Sort</span>
-          <select v-model="sortBy" class="select" style="width: auto" aria-label="Sort repositories">
-            <option v-for="option in REPOSITORY_SORTS" :key="option.value" :value="option.value">
-              {{ option.label }}
-            </option>
-          </select>
-          <button
-            class="btn sm"
-            :aria-pressed="sortDesc"
-            aria-label="Toggle sort direction"
-            :title="sortDesc ? 'Descending, click for ascending' : 'Ascending, click for descending'"
-            @click="sortDesc = !sortDesc"
-          >
-            {{ sortDesc ? '↓ Desc' : '↑ Asc' }}
-          </button>
-        </div>
-      </div>
-
-      <div v-if="!visible.length" class="panel">
-        <p class="muted" style="margin: 0">No repositories match the filters.</p>
-      </div>
-
-      <EntityCard v-for="repo in visible" :key="repo.id">
-        <template #title>
-          <router-link :to="`/repositories/${repo.id}`" class="title">{{ repo.name }}</router-link>
-        </template>
-        <template #actions>
-          <span class="row" style="gap: 6px">
-            <span v-if="repo.default_branch" class="badge">{{ repo.default_branch }}</span>
-            <span class="badge">{{ repo.issue_count }} issues</span>
-            <span class="badge">{{ repo.pull_count }} PRs</span>
-            <button
-              class="btn sm danger"
-              :aria-label="`Remove repository ${repo.name}`"
-              @click="removeRepository(repo)"
-            >
-              Remove
-            </button>
-          </span>
-        </template>
-        <div class="faint mono" style="margin-top: 6px">{{ repo.path }}</div>
-        <div v-if="repo.remote_url" class="faint">{{ repo.remote_url }}</div>
-        <template #meta>
-          <div v-if="repo.states.length" class="faint" style="margin-top: 6px">
-            {{ stateLine(repo) }}
-          </div>
-        </template>
-      </EntityCard>
-    </template>
+    <RepositoriesGrid
+      v-else
+      :rows="rows"
+      :router-link="routerLink"
+      @remove="removeRepository"
+      @count="shown = $event"
+    />
 
     <DirectoryPicker
       v-if="showPicker"

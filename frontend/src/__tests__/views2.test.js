@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
+import { AgGridVue } from 'ag-grid-vue3'
 
 enableAutoUnmount(afterEach)
 
@@ -722,86 +723,74 @@ describe('RepositoryDetailView', () => {
       global: { stubs: { RouterLink: RouterLinkStub, StatusIcon: true } }
     })
 
-  it('shows the header right away and a spinner per section until the listing arrives', async () => {
+  // AG Grid applies a changed rowData asynchronously, so a test that narrows
+  // the rows (a filter or a search) lets the grid settle before asserting.
+  const settleGrid = async () => {
+    await flushPromises()
+    await new Promise((resolve) => setTimeout(resolve, 20))
+  }
+
+  // The grid renders rows and their cells asynchronously; mount through these
+  // helpers so a test asserts only once the grid has settled.
+  const mountRepoView = async () => {
+    const wrapper = mountView()
+    await settleGrid()
+    return wrapper
+  }
+  const mountRepoLinked = async () => {
+    const wrapper = mountLinked()
+    await settleGrid()
+    return wrapper
+  }
+
+  it('shows the header right away and a spinner until the listing arrives', async () => {
     // The listing is the slow part; hold it pending to see the loading state.
     mocks.githubRepository.mockReturnValue(new Promise(() => {}))
-    const wrapper = mountView()
+    const wrapper = await mountRepoView()
     await flushPromises()
 
     // The top section is up while the listing loads.
     expect(wrapper.find('h1').text()).toBe('api')
     expect(wrapper.find('[aria-label="Refresh all issues and pull requests"]').exists()).toBe(true)
-    // One spinner under each of the two section headings, and nothing else yet.
-    expect(wrapper.findAll('.spinner')).toHaveLength(2)
-    expect(wrapper.get('h2.group-head').text()).toBe('Issues')
-    // A half-loaded page (no listing yet) does not flash the empty state or the
-    // filters.
+    // One spinner where the grid will land, and no grid yet.
+    expect(wrapper.findAll('.spinner')).toHaveLength(1)
+    expect(wrapper.find('.repo-grid').exists()).toBe(false)
+    // A half-loaded page (no listing yet) does not flash the empty state.
     expect(wrapper.text()).not.toContain('No issues or pull requests')
-    expect(wrapper.find('input[aria-label="Filter items"]').exists()).toBe(false)
     wrapper.unmount()
   })
 
-  it('lists issues and PRs and filters them by kind', async () => {
-    const wrapper = mountView()
+  it('lists issues and PRs in the grid', async () => {
+    const wrapper = await mountRepoView()
     await flushPromises()
 
     expect(wrapper.text()).toContain('Open issue')
     expect(wrapper.text()).toContain('Merged PR')
-
-    // Each filter group is named by an inline label, like the repositories list.
-    expect(wrapper.findAll('.filter-label').map((l) => l.text())).toEqual(['Kind', 'State', 'Task status'])
-
-    const kindRow = wrapper.get('[aria-label="Filter by kind"]')
-    await kindRow
-      .findAll('.btn')
-      .find((b) => b.text().startsWith('Issues'))
-      .trigger('click')
-
-    expect(wrapper.text()).toContain('Open issue')
-    expect(wrapper.text()).not.toContain('Merged PR')
-    expect(kindRow.find('.btn.primary').text()).toContain('Issues')
-  })
-
-  it('filters by stored state with counts', async () => {
-    const wrapper = mountView()
-    await flushPromises()
-
-    const stateRow = wrapper.get('[aria-label="Filter by state"]')
-    expect(stateRow.findAll('.btn').map((b) => b.text())).toEqual([
-      'Any state',
-      'Open 2',
-      'Draft 1',
-      'Merged 1',
-      'Closed 1'
-    ])
-
-    await stateRow
-      .findAll('.btn')
-      .find((b) => b.text().startsWith('Merged'))
-      .trigger('click')
-    expect(wrapper.text()).toContain('Merged PR')
-    expect(wrapper.text()).not.toContain('Open issue')
-    expect(wrapper.text()).not.toContain('Open PR')
+    // Filtering is at the column level, opened from each header's filter button.
+    expect(wrapper.find('.ag-header-cell-filter-button').exists()).toBe(true)
+    // The rows are linked to a task, whose status the Task status column shows.
+    expect(wrapper.get('.ag-cell[col-id="taskStatus"]').text()).toContain('Open')
   })
 
   it('shows each item state as a badge', async () => {
-    const wrapper = mountView()
-    await flushPromises()
+    const wrapper = await mountRepoView()
+    await settleGrid()
 
+    // One combined table, newest number first, so issues and PRs interleave.
     const badges = wrapper.findAll('.badge.st-open, .badge.st-draft, .badge.st-merged, .badge.st-closed')
-    expect(badges.map((b) => b.text())).toEqual(['Closed', 'Open', 'Merged', 'Draft', 'Open'])
+    expect(badges.map((b) => b.text())).toEqual(['Merged', 'Draft', 'Open', 'Closed', 'Open'])
     expect(badges.map((b) => b.classes().find((c) => c.startsWith('st-')))).toEqual([
-      'st-closed',
-      'st-open',
       'st-merged',
       'st-draft',
+      'st-open',
+      'st-closed',
       'st-open'
     ])
   })
 
   it('omits the state badge when no state is stored', async () => {
     store.items = [ghItem('i1', 'issue', 1, 'Stateless issue', {})]
-    const wrapper = mountView()
+    const wrapper = await mountRepoView()
     await flushPromises()
     expect(wrapper.text()).toContain('Stateless issue')
     expect(wrapper.find('.badge.st-open').exists()).toBe(false)
@@ -812,7 +801,7 @@ describe('RepositoryDetailView', () => {
       ghItem('i1', 'issue', 1, 'Open issue', { state: 'OPEN', author: 'alice' }),
       ghItem('i2', 'pr', 2, 'Merged PR', { state: 'MERGED', author: 'bob' })
     ]
-    const wrapper = mountView()
+    const wrapper = await mountRepoView()
     await flushPromises()
     expect(wrapper.text()).toContain('@alice')
     expect(wrapper.text()).toContain('@bob')
@@ -820,7 +809,7 @@ describe('RepositoryDetailView', () => {
 
   it('omits the author when none is stored', async () => {
     store.items = [ghItem('i1', 'issue', 1, 'No author', { state: 'OPEN' })]
-    const wrapper = mountView()
+    const wrapper = await mountRepoView()
     await flushPromises()
     expect(wrapper.text()).toContain('No author')
     expect(wrapper.text()).not.toContain('@')
@@ -846,7 +835,7 @@ describe('RepositoryDetailView', () => {
       },
       { id: 'c3', task_id: 't1', status: 'proposed', change_class: 'chore', title: 'Loose change' }
     ])
-    const wrapper = mountView()
+    const wrapper = await mountRepoView()
     await flushPromises()
 
     // Only the change naming a PR appears; a change for an issue or with no ref
@@ -867,7 +856,7 @@ describe('RepositoryDetailView', () => {
         external_ref: 'https://github.com/acme/api/pull/5'
       }
     ])
-    const wrapper = mountLinked()
+    const wrapper = await mountRepoLinked()
     await flushPromises()
 
     const row = wrapper.get('.change-line')
@@ -877,13 +866,13 @@ describe('RepositoryDetailView', () => {
   })
 
   it('shows no change rows when nothing references a pull request', async () => {
-    const wrapper = mountView()
+    const wrapper = await mountRepoView()
     await flushPromises()
     expect(wrapper.find('.change-line').exists()).toBe(false)
   })
 
   it('offers to record a change for a merged PR with a single task', async () => {
-    const wrapper = mountView()
+    const wrapper = await mountRepoView()
     await flushPromises()
     // Only the merged PR (i5) gets a button; open and draft PRs and issues do not.
     expect(wrapper.findAll('button[title="Record a change for this PR"]')).toHaveLength(1)
@@ -892,7 +881,7 @@ describe('RepositoryDetailView', () => {
   it('hides the record button for a merged PR someone else authored', async () => {
     store.settings = { github_login: 'me' }
     store.items = [ghItem('i5', 'pr', 5, 'Merged PR', { state: 'MERGED', author: 'someone' })]
-    const wrapper = mountView()
+    const wrapper = await mountRepoView()
     await flushPromises()
     expect(wrapper.find('button[title="Record a change for this PR"]').exists()).toBe(false)
   })
@@ -901,7 +890,7 @@ describe('RepositoryDetailView', () => {
     store.settings = { github_login: 'me' }
     // Case-insensitive: GitHub logins differ in case.
     store.items = [ghItem('i5', 'pr', 5, 'Merged PR', { state: 'MERGED', author: 'Me' })]
-    const wrapper = mountView()
+    const wrapper = await mountRepoView()
     await flushPromises()
     expect(wrapper.find('button[title="Record a change for this PR"]').exists()).toBe(true)
   })
@@ -909,14 +898,14 @@ describe('RepositoryDetailView', () => {
   it('offers the record button when no login is known', async () => {
     store.settings = {}
     store.items = [ghItem('i5', 'pr', 5, 'Merged PR', { state: 'MERGED', author: 'someone' })]
-    const wrapper = mountView()
+    const wrapper = await mountRepoView()
     await flushPromises()
     expect(wrapper.find('button[title="Record a change for this PR"]').exists()).toBe(true)
   })
 
   it('hides the record button for an open PR', async () => {
     store.items = [ghItem('i3', 'pr', 3, 'Open PR', { state: 'OPEN' })]
-    const wrapper = mountView()
+    const wrapper = await mountRepoView()
     await flushPromises()
     expect(wrapper.find('button[title="Record a change for this PR"]').exists()).toBe(false)
   })
@@ -927,7 +916,7 @@ describe('RepositoryDetailView', () => {
       { id: 't2', title: 'Task Two', status: 'open' }
     ]
     store.items = [{ ...ghItem('i5', 'pr', 5, 'Shared PR', { state: 'MERGED' }), task_ids: ['t1', 't2'] }]
-    const wrapper = mountView()
+    const wrapper = await mountRepoView()
     await flushPromises()
     expect(wrapper.find('button[title="Record a change for this PR"]').exists()).toBe(false)
   })
@@ -944,7 +933,7 @@ describe('RepositoryDetailView', () => {
       }
     ])
     store.items = [ghItem('i5', 'pr', 5, 'Merged PR', { state: 'MERGED' })]
-    const wrapper = mountView()
+    const wrapper = await mountRepoView()
     await flushPromises()
     expect(wrapper.find('button[title="Record a change for this PR"]').exists()).toBe(false)
   })
@@ -961,7 +950,7 @@ describe('RepositoryDetailView', () => {
       }
     ])
     store.items = [{ ...ghItem('i5', 'pr', 5, 'Merged PR', { state: 'MERGED' }), external_id: 'acme/api#5' }]
-    const wrapper = mountView()
+    const wrapper = await mountRepoView()
     await flushPromises()
 
     expect(wrapper.text()).toContain('Landed change')
@@ -980,7 +969,7 @@ describe('RepositoryDetailView', () => {
       external_ref: 'https://github.com/acme/api/pull/5',
       opened_at: '2026-10-11T05:23:53Z'
     })
-    const wrapper = mountView()
+    const wrapper = await mountRepoView()
     await flushPromises()
 
     await wrapper.get('button[title="Record a change for this PR"]').trigger('click')
@@ -1009,7 +998,7 @@ describe('RepositoryDetailView', () => {
       ghItem('i5', 'pr', 5, 'Merged PR', { state: 'MERGED', merged_at: '2026-10-11T05:23:53Z' })
     )
     mocks.changesCreate.mockResolvedValue({ id: 'c9', task_id: 't1', status: 'accepted', change_class: 'feature' })
-    const wrapper = mountView()
+    const wrapper = await mountRepoView()
     await flushPromises()
 
     await wrapper.get('button[title="Record a change for this PR"]').trigger('click')
@@ -1036,7 +1025,7 @@ describe('RepositoryDetailView', () => {
   it('links the author to the person carrying the login as an alias', async () => {
     store.people = [{ id: 'p1', name: 'Alice', aliases: ['alice', 'alice@example.com'] }]
     store.items = [ghItem('i1', 'issue', 1, 'Open issue', { state: 'OPEN', author: 'alice' })]
-    const wrapper = mountLinked()
+    const wrapper = await mountRepoLinked()
     await flushPromises()
     expect(wrapper.get('a[href="/person/p1"]').text()).toBe('@alice')
   })
@@ -1044,54 +1033,10 @@ describe('RepositoryDetailView', () => {
   it('leaves the author unlinked when no person carries the login', async () => {
     store.people = [{ id: 'p1', name: 'Alice', aliases: ['alice'] }]
     store.items = [ghItem('i1', 'issue', 1, 'Open issue', { state: 'OPEN', author: 'ghost' })]
-    const wrapper = mountLinked()
+    const wrapper = await mountRepoLinked()
     await flushPromises()
     expect(wrapper.text()).toContain('@ghost')
     expect(wrapper.find('a[href^="/person/"]').exists()).toBe(false)
-  })
-
-  it('keeps the title and number search', async () => {
-    const wrapper = mountView()
-    await flushPromises()
-
-    await wrapper.get('input[aria-label="Filter items"]').setValue('closed issue')
-    expect(wrapper.text()).toContain('Closed issue')
-    expect(wrapper.text()).not.toContain('Open issue')
-    expect(wrapper.text()).not.toContain('Merged PR')
-  })
-
-  it('filters by linked task status with counts', async () => {
-    store.tasks = [
-      { id: 't1', title: 'Task One', status: 'open' },
-      { id: 't2', title: 'Task Two', status: 'done' }
-    ]
-    store.items = [
-      { ...ghItem('i1', 'issue', 1, 'Open issue', { state: 'OPEN' }), task_ids: ['t1'] },
-      { ...ghItem('i2', 'issue', 2, 'Closed issue', { state: 'CLOSED' }), task_ids: ['t2'] },
-      { ...ghItem('i3', 'pr', 3, 'Open PR', { state: 'OPEN' }), task_ids: ['t1', 't2'] }
-    ]
-    const wrapper = mountView()
-    await flushPromises()
-
-    const statusRow = wrapper.get('[aria-label="Filter by task status"]')
-    expect(statusRow.findAll('.btn').map((b) => b.text())).toEqual(['Any task status', 'Open 2', 'Done 2'])
-
-    await statusRow
-      .findAll('.btn')
-      .find((b) => b.text().startsWith('Done'))
-      .trigger('click')
-    expect(wrapper.text()).toContain('Closed issue')
-    expect(wrapper.text()).toContain('Open PR')
-    expect(wrapper.text()).not.toContain('Open issue')
-  })
-
-  it('hides the kind filter when the repository has one kind', async () => {
-    store.items = [ghItem('i1', 'issue', 1, 'Only issue', { state: 'OPEN' })]
-    const wrapper = mountView()
-    await flushPromises()
-    expect(wrapper.find('[aria-label="Filter by kind"]').exists()).toBe(false)
-    expect(wrapper.find('[aria-label="Filter by state"]').exists()).toBe(true)
-    expect(wrapper.find('[aria-label="Filter by task status"]').exists()).toBe(true)
   })
 
   it('refreshes the repository listing from GitHub', async () => {
@@ -1102,7 +1047,7 @@ describe('RepositoryDetailView', () => {
       ],
       failed: []
     })
-    const wrapper = mountView()
+    const wrapper = await mountRepoView()
     await flushPromises()
 
     // The unlinked PR appears alongside the stored, task-linked items.
@@ -1130,7 +1075,7 @@ describe('RepositoryDetailView', () => {
       ],
       failed: []
     })
-    const wrapper = mountView()
+    const wrapper = await mountRepoView()
     await flushPromises()
 
     // The unlinked PR gets the button; the stored, task-linked issue does not.
@@ -1145,7 +1090,7 @@ describe('RepositoryDetailView', () => {
       ],
       failed: []
     })
-    const wrapper = mountView()
+    const wrapper = await mountRepoView()
     await flushPromises()
 
     await wrapper.get('button[title="Create a task from this pull request"]').trigger('click')
@@ -1169,7 +1114,7 @@ describe('RepositoryDetailView', () => {
       failed: []
     })
     mocks.tasksCreate.mockRejectedValue(new Error('ghx down'))
-    const wrapper = mountView()
+    const wrapper = await mountRepoView()
     await flushPromises()
 
     await wrapper.get('button[title="Create a task from this pull request"]').trigger('click')
@@ -1187,7 +1132,7 @@ describe('RepositoryDetailView', () => {
       ],
       failed: ['issues']
     })
-    const wrapper = mountView()
+    const wrapper = await mountRepoView()
     await flushPromises()
 
     expect(wrapper.text()).toContain('Unlinked PR')
@@ -1196,7 +1141,7 @@ describe('RepositoryDetailView', () => {
 
   it('refreshes only the issues and PRs associated to tasks', async () => {
     mocks.itemsRefresh.mockResolvedValue({})
-    const wrapper = mountView()
+    const wrapper = await mountRepoView()
     await flushPromises()
 
     await wrapper.get('[aria-label="Refresh issues and pull requests associated to tasks"]').trigger('click')
@@ -1213,7 +1158,7 @@ describe('RepositoryDetailView', () => {
     mocks.itemsRefresh.mockImplementation((id) =>
       id === 'i2' ? Promise.reject(new Error('ghx down')) : Promise.resolve({})
     )
-    const wrapper = mountView()
+    const wrapper = await mountRepoView()
     await flushPromises()
 
     await wrapper.get('[aria-label="Refresh issues and pull requests associated to tasks"]').trigger('click')
@@ -1226,7 +1171,7 @@ describe('RepositoryDetailView', () => {
 
   it('disables the linked refresh when nothing is associated to a task', async () => {
     store.items = []
-    const wrapper = mountView()
+    const wrapper = await mountRepoView()
     await flushPromises()
     expect(
       wrapper.get('[aria-label="Refresh issues and pull requests associated to tasks"]').attributes('disabled')
@@ -1237,14 +1182,13 @@ describe('RepositoryDetailView', () => {
 
   it('keeps the stored items when the GitHub listing fails', async () => {
     mocks.githubRepository.mockRejectedValue(new Error('ghx down'))
-    const wrapper = mountView()
+    const wrapper = await mountRepoView()
     await flushPromises()
 
     expect(wrapper.text()).toContain('Open issue')
     expect(wrapper.text()).toContain('Could not list this repository from GitHub')
   })
 })
-
 describe('RepositoriesView', () => {
   const repository = {
     id: 'r1',
@@ -1273,23 +1217,33 @@ describe('RepositoriesView', () => {
     ]
   })
 
-  const mountView = () => mount(RepositoriesView, { global: { stubs: { RouterLink: RouterLinkStub } } })
+  // AG Grid renders its rows and cells asynchronously.
+  const settle = async () => {
+    await flushPromises()
+    await new Promise((resolve) => setTimeout(resolve, 20))
+  }
+
+  const RepoLinkStub = { props: ['to'], template: '<a :href="to"><slot /></a>' }
+
+  const mountView = async () => {
+    const wrapper = mount(RepositoriesView, { global: { stubs: { RouterLink: RepoLinkStub } } })
+    await settle()
+    return wrapper
+  }
 
   it("breaks each repository's associated items down by state", async () => {
-    const wrapper = mountView()
-    await flushPromises()
+    const wrapper = await mountView()
     expect(wrapper.text()).toContain('1 open · 1 draft · 1 merged')
   })
 
   it('omits the state line when no item carries a state', async () => {
     store.items = [ghItem('i1', 'issue', 1, {})]
-    const wrapper = mountView()
-    await flushPromises()
+    const wrapper = await mountView()
     expect(wrapper.text()).toContain('api')
     expect(wrapper.text()).not.toContain('open')
   })
 
-  it('filters by search and remote, and reports how much is shown', async () => {
+  it('lists the repositories in the grid and links each name', async () => {
     store.repositories = [
       {
         id: 'r1',
@@ -1300,96 +1254,30 @@ describe('RepositoriesView', () => {
       },
       { id: 'r2', name: 'tools', remote_url: null, path: '/src/tools' }
     ]
-    const wrapper = mountView()
-    await flushPromises()
+    const wrapper = await mountView()
 
-    const paths = () => wrapper.findAll('.mono').map((d) => d.text())
-    expect(paths()).toEqual(['/src/api', '/src/tools'])
+    expect(wrapper.text()).toContain('/src/api')
+    expect(wrapper.text()).toContain('/src/tools')
+    expect(wrapper.get('a[href="/repositories/r1"]').text()).toBe('api')
+  })
 
-    await wrapper.get('input[aria-label="Filter repositories"]').setValue('tools')
-    expect(paths()).toEqual(['/src/tools'])
+  it('filters the rows through the grid, and reports how much is shown', async () => {
+    store.repositories = [
+      { id: 'r1', name: 'api', remote_url: 'https://github.com/acme/api.git', path: '/src/api' },
+      { id: 'r2', name: 'tools', remote_url: null, path: '/src/tools' }
+    ]
+    const wrapper = await mountView()
+
+    expect(wrapper.text()).toContain('/src/api')
+    expect(wrapper.text()).toContain('/src/tools')
+    expect(wrapper.text()).toContain('2 of 2 repositories')
+
+    const api = wrapper.getComponent(AgGridVue).vm.api
+    await api.setFilterModel({ name: { filterType: 'text', type: 'contains', filter: 'tools' } })
+    await settle()
+
+    expect(wrapper.text()).toContain('/src/tools')
+    expect(wrapper.text()).not.toContain('/src/api')
     expect(wrapper.text()).toContain('1 of 2 repositories')
-
-    // The GitHub/Other buttons carry whole-list counts that do not move, and
-    // each control group is named by an inline label.
-    const toolbar = wrapper.get('.panel input ~ .row')
-    expect(toolbar.findAll('.filter-label').map((l) => l.text())).toEqual(['Remote', 'Sort'])
-    const remoteRow = toolbar.get('[aria-label="Filter by remote"]')
-    expect(remoteRow.findAll('.btn').map((b) => b.text())).toEqual(['All 2', 'GitHub 1', 'Other 1'])
-
-    await remoteRow
-      .findAll('.btn')
-      .find((b) => b.text().startsWith('Other'))
-      .trigger('click')
-    await wrapper.get('input[aria-label="Filter repositories"]').setValue('')
-    expect(paths()).toEqual(['/src/tools'])
-  })
-
-  it('re-sorts the list from the select', async () => {
-    store.repositories = [
-      {
-        id: 'r1',
-        name: 'api',
-        remote_url: 'https://github.com/acme/api.git',
-        path: '/src/api',
-        created_at: '2026-01-01T00:00:00Z'
-      },
-      { id: 'r2', name: 'tools', remote_url: null, path: '/src/tools', created_at: '2026-01-02T00:00:00Z' }
-    ]
-    const wrapper = mountView()
-    await flushPromises()
-
-    const paths = () => wrapper.findAll('.mono').map((d) => d.text())
-    // Name is the default order, and the sort keys are direction-neutral (the
-    // toggle carries ascending/descending, not the option names).
-    expect(paths()).toEqual(['/src/api', '/src/tools'])
-    expect(wrapper.findAll('select[aria-label="Sort repositories"] option').map((o) => o.text())).toEqual([
-      'Name',
-      'Item count',
-      'Date added'
-    ])
-
-    await wrapper.get('select[aria-label="Sort repositories"]').setValue('newest')
-    expect(paths()).toEqual(['/src/tools', '/src/api'])
-  })
-
-  it('toggles the sort direction, resetting it when the order changes', async () => {
-    store.repositories = [
-      {
-        id: 'r1',
-        name: 'api',
-        remote_url: 'https://github.com/acme/api.git',
-        path: '/src/api',
-        created_at: '2026-01-01T00:00:00Z'
-      },
-      { id: 'r2', name: 'tools', remote_url: null, path: '/src/tools', created_at: '2026-01-02T00:00:00Z' }
-    ]
-    const wrapper = mountView()
-    await flushPromises()
-
-    const paths = () => wrapper.findAll('.mono').map((d) => d.text())
-    const toggle = () => wrapper.get('button[aria-label="Toggle sort direction"]')
-
-    // Name defaults to ascending.
-    expect(toggle().text()).toContain('Asc')
-    await toggle().trigger('click')
-    expect(paths()).toEqual(['/src/tools', '/src/api'])
-
-    // Item count defaults to descending, so the toggle reset on the switch.
-    await wrapper.get('select[aria-label="Sort repositories"]').setValue('items')
-    expect(toggle().text()).toContain('Desc')
-    expect(paths()).toEqual(['/src/api', '/src/tools'])
-
-    // Ascending puts the item-less repository first.
-    await toggle().trigger('click')
-    expect(paths()).toEqual(['/src/tools', '/src/api'])
-  })
-
-  it('says so when nothing matches the filters', async () => {
-    const wrapper = mountView()
-    await flushPromises()
-    await wrapper.get('input[aria-label="Filter repositories"]').setValue('nothing')
-    expect(wrapper.text()).toContain('No repositories match the filters')
-    expect(wrapper.find('.mono').exists()).toBe(false)
   })
 })

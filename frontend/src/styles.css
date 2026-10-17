@@ -2212,6 +2212,76 @@ button.gantt-marker::after {
   font-size: 13px;
 }
 
+/* The repository detail view's issues and PRs grid (AG Grid). Bordered and
+   flexed to fill the height left below the page's other content, down to the
+   bottom of the viewport, so it scrolls internally rather than growing the page.
+   The hosting page sets `page-fill`. */
+.page-fill {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+/* The page's other content keeps its own height; the grid absorbs the rest. */
+.page-fill > * {
+  flex-shrink: 0;
+}
+.repo-grid {
+  display: block;
+  width: 100%;
+  flex: 1;
+  min-height: 220px;
+  margin-top: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.repo-title-cell .title {
+  font-weight: 500;
+}
+.repo-chips,
+.repo-statuses,
+.repo-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  /* Fill the row so the content centers: AG Grid sizes a cell to the row. */
+  height: 100%;
+}
+.repo-statuses .badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+/* AG Grid gives every cell a line-height equal to the row's content height so
+   plain text centers in the row. Buttons and badges inherit it and grow taller
+   than the row, so give them their own line-height. */
+.repo-grid .btn,
+.repo-grid .badge {
+  line-height: 1.5;
+}
+
+/* The multi-select value filter shown in a column's filter popup. */
+.value-filter {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 180px;
+  max-height: 260px;
+  overflow: auto;
+  line-height: 1.5;
+}
+.value-filter-search {
+  margin-bottom: 4px;
+}
+.value-filter-option {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
 /* Desktop: the sidebar can be hidden entirely, leaving the page the full width.
    The toggle floats at the page's left edge, on the title's line, so it reads as
    a leading icon of the title: the title makes room for it and the rest of the

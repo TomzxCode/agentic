@@ -186,21 +186,33 @@ describe('PeopleView', () => {
     store.people = [{ id: 'p1', name: 'Ada', aliases: ['ada', 'ada@example.com'], task_count: 1, item_count: 1 }]
   })
 
-  it('lists people, each linking to their detail page', async () => {
-    const wrapper = mount(PeopleView, stub)
+  // AG Grid renders its rows and cells asynchronously.
+  const settle = async () => {
     await flushPromises()
+    await new Promise((resolve) => setTimeout(resolve, 20))
+  }
+
+  const mountPeople = async () => {
+    const wrapper = mount(PeopleView, stub)
+    await settle()
+    return wrapper
+  }
+
+  it('lists people, each linking to their detail page', async () => {
+    const wrapper = await mountPeople()
     expect(wrapper.text()).toContain('Ada')
     expect(wrapper.text()).toContain('@ada')
     expect(wrapper.text()).toContain('ada@example.com')
-    expect(wrapper.text()).toContain('tasks:1 items:1')
+    // The counts are their own columns.
+    expect(wrapper.get('.ag-cell[col-id="tasks"]').text()).toBe('1')
+    expect(wrapper.get('.ag-cell[col-id="items"]').text()).toBe('1')
     expect(wrapper.get('a.title').attributes('href')).toBe('/person/p1')
   })
 
   it('creates a person', async () => {
     mocks.peopleCreate.mockResolvedValue({ id: 'p2', name: 'Grace', task_count: 0, item_count: 0 })
-    const wrapper = mount(PeopleView, stub)
-    await flushPromises()
-    await wrapper.findAll('input.input')[1].setValue('Grace')
+    const wrapper = await mountPeople()
+    await wrapper.get('input[placeholder="Add a person by name…"]').setValue('Grace')
     await wrapper.get('.btn.primary').trigger('click')
     await flushPromises()
     expect(mocks.peopleCreate).toHaveBeenCalledWith({ name: 'Grace' })
