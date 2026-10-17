@@ -93,7 +93,7 @@ describe('TasksView', () => {
     await flushPromises()
 
     const badges = wrapper.findAll('.status-badge')
-    expect(badges.map((b) => b.text())).toEqual(['Open 1', 'In progress 0', 'Blocked 1', 'Done 1'])
+    expect(badges.map((b) => b.text())).toEqual(['Open 1', 'In progress 0', 'Blocked 1', 'Done 1', 'Archived 0'])
 
     // Clicking "Blocked" narrows the list to blocked tasks and reads as active.
     await badges[2].trigger('click')

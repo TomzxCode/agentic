@@ -608,6 +608,9 @@ h3 {
 /* The status badges on the tasks page double as filters. */
 button.status-badge {
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
 }
 button.status-badge:hover {
   border-color: var(--muted);

@@ -2,6 +2,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { store, statusLabel, taskHasPerson, taskHasTag } from '../store'
 import { api } from '../api'
+import StatusIcon from '../components/StatusIcon.vue'
 import TagInput from '../components/TagInput.vue'
 import TaskCard from '../components/TaskCard.vue'
 
@@ -61,7 +62,8 @@ const STATUS_BADGES = [
   { value: 'open', tone: '' },
   { value: 'in_progress', tone: 'run' },
   { value: 'blocked', tone: 'warn' },
-  { value: 'done', tone: 'ok' }
+  { value: 'done', tone: 'ok' },
+  { value: 'archived', tone: '' }
 ]
 
 // Change a task's status straight from its row.
@@ -215,6 +217,7 @@ onMounted(() => {
         "
         @click="store.toggleStatusFilter(badge.value)"
       >
+        <StatusIcon :status="badge.value" :label="statusLabel(badge.value)" />
         {{ statusLabel(badge.value) }} {{ counts[badge.value] }}
       </button>
     </div>
