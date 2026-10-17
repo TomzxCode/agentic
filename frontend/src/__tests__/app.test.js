@@ -67,6 +67,7 @@ beforeEach(() => {
   store.tasks = []
   store.tags = []
   store.people = []
+  store.items = []
   store.tagFilter = ''
   store.repositories = []
   store.groups = []
@@ -78,6 +79,7 @@ beforeEach(() => {
   vi.spyOn(store, 'loadGroups').mockResolvedValue()
   vi.spyOn(store, 'loadRepositories').mockResolvedValue()
   vi.spyOn(store, 'loadPeople').mockResolvedValue()
+  vi.spyOn(store, 'loadItems').mockResolvedValue()
   vi.spyOn(store, 'loadSettings').mockResolvedValue()
 })
 
@@ -396,6 +398,117 @@ describe('App', () => {
     await personItem.trigger('click')
     await flushPromises()
     expect(mocks.push).toHaveBeenCalledWith('/person/p1')
+  })
+
+  it('offers items in the command palette and opens the picked one', async () => {
+    store.items = [
+      {
+        id: 'i1',
+        source: 'github',
+        kind: 'issue',
+        title: 'Fix login bug',
+        url: 'https://github.com/acme/api/issues/1'
+      },
+      { id: 'i2', source: 'slack', kind: 'thread', title: 'Deploy thread', url: 'https://x.slack.com/archives/C1/p1' }
+    ]
+    const wrapper = mountAppWithPalette()
+    await flushPromises()
+
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true }))
+    await nextTick()
+    await wrapper.get('.palette-input').setValue('deploy')
+
+    const item = wrapper.findAll('.palette-item').find((i) => i.text().includes('Deploy thread'))
+    expect(item).toBeTruthy()
+    expect(item.text()).toContain('Slack')
+    await item.trigger('click')
+    await flushPromises()
+    expect(mocks.push).toHaveBeenCalledWith('/items/i2')
+  })
+
+  it('finds items by their source through the palette keywords', async () => {
+    store.items = [
+      {
+        id: 'i1',
+        source: 'github',
+        kind: 'issue',
+        title: 'Fix login bug',
+        url: 'https://github.com/acme/api/issues/1'
+      }
+    ]
+    const wrapper = mountAppWithPalette()
+    await flushPromises()
+
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true }))
+    await nextTick()
+    await wrapper.get('.palette-input').setValue('github')
+
+    const item = wrapper.findAll('.palette-item').find((i) => i.text().includes('Fix login bug'))
+    expect(item).toBeTruthy()
+  })
+
+  it('offers repositories in the command palette and opens the picked one', async () => {
+    store.repositories = [
+      { id: 'r1', name: 'agents', path: '/home/tomzx/src/agents', remote_url: 'git@github.com:tomzx/agents.git' },
+      { id: 'r2', name: 'scratch', path: '/home/tomzx/src/scratch', remote_url: null }
+    ]
+    const wrapper = mountAppWithPalette()
+    await flushPromises()
+
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true }))
+    await nextTick()
+    await wrapper.get('.palette-input').setValue('agents')
+
+    const repository = wrapper.findAll('.palette-item').find((i) => i.text().includes('agents'))
+    expect(repository).toBeTruthy()
+    expect(repository.text()).toContain('/home/tomzx/src/agents')
+    await repository.trigger('click')
+    await flushPromises()
+    expect(mocks.push).toHaveBeenCalledWith('/repositories/r1')
+  })
+
+  it('offers every settings section in the command palette and opens the picked one', async () => {
+    const wrapper = mountAppWithPalette()
+    await flushPromises()
+
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true }))
+    await nextTick()
+    await wrapper.get('.palette-input').setValue('settings')
+
+    const labels = wrapper.findAll('.palette-item').map((item) => item.text())
+    for (const section of [
+      'Session links',
+      'Identity',
+      'Agent harnesses',
+      'Agent prompts',
+      'Refresh',
+      'Repository groups'
+    ]) {
+      expect(labels).toContain(section)
+    }
+
+    await wrapper.get('.palette-input').setValue('agent prompts')
+    const section = wrapper.findAll('.palette-item').find((item) => item.text() === 'Agent prompts')
+    expect(section).toBeTruthy()
+    await section.trigger('click')
+    await flushPromises()
+    expect(mocks.push).toHaveBeenCalledWith({ path: '/settings', query: { section: 'prompts' } })
+  })
+
+  it('shows an icon on every command palette item', async () => {
+    store.tags = [{ name: 'bug', count: 1 }]
+    store.tasks = [{ id: 't1', title: 'Task A', status: 'open', updated_at: null, next_steps: [], tags: ['bug'] }]
+    const wrapper = mountAppWithPalette()
+    await flushPromises()
+
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true }))
+    await nextTick()
+
+    const items = wrapper.findAll('.palette-item')
+    expect(items.length).toBeGreaterThan(0)
+    for (const item of items) {
+      expect(item.find('svg.palette-icon').exists()).toBe(true)
+    }
   })
 
   it('enters focus-hint mode with f and focuses a control by letter', async () => {

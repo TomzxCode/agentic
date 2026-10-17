@@ -2,13 +2,15 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { api } from './api'
-import { store, timeAgo, aliasLabel } from './store'
+import { SETTINGS_SECTIONS } from './settings'
+import { store, timeAgo, aliasLabel, sourceLabel } from './store'
 import SearchSelect from './components/SearchSelect.vue'
 import RepositorySelect from './components/RepositorySelect.vue'
 import TagInput from './components/TagInput.vue'
 import DeadlinePicker from './components/DeadlinePicker.vue'
 import StatusIcon from './components/StatusIcon.vue'
 import PriorityIcon from './components/PriorityIcon.vue'
+import Icon from './components/Icon.vue'
 import CommandPalette from './components/CommandPalette.vue'
 
 const route = useRoute()
@@ -103,36 +105,76 @@ const sidebarTasks = computed(() => store.tasks.filter((p) => p.status !== 'done
 const taskFieldItems = computed(() =>
   route.name === 'task'
     ? [
-        { id: 'field-title', label: 'Edit title', group: 'This task', run: () => store.focusField?.('title') },
+        {
+          id: 'field-title',
+          label: 'Edit title',
+          group: 'This task',
+          icon: 'title',
+          run: () => store.focusField?.('title')
+        },
         {
           id: 'field-description',
           label: 'Edit description',
           group: 'This task',
+          icon: 'description',
           run: () => store.focusField?.('description')
         },
-        { id: 'field-status', label: 'Set status', group: 'This task', run: () => store.focusField?.('status') },
-        { id: 'field-priority', label: 'Set priority', group: 'This task', run: () => store.focusField?.('priority') },
-        { id: 'field-deadline', label: 'Set deadline', group: 'This task', run: () => store.focusField?.('deadline') },
+        {
+          id: 'field-status',
+          label: 'Set status',
+          group: 'This task',
+          icon: 'status',
+          run: () => store.focusField?.('status')
+        },
+        {
+          id: 'field-priority',
+          label: 'Set priority',
+          group: 'This task',
+          icon: 'priority',
+          run: () => store.focusField?.('priority')
+        },
+        {
+          id: 'field-deadline',
+          label: 'Set deadline',
+          group: 'This task',
+          icon: 'deadline',
+          run: () => store.focusField?.('deadline')
+        },
         {
           id: 'field-repository',
           label: 'Add repository',
           group: 'This task',
+          icon: 'repositories',
           run: () => store.focusField?.('repository')
         },
-        { id: 'field-people', label: 'Link a person', group: 'This task', run: () => store.focusField?.('people') },
+        {
+          id: 'field-people',
+          label: 'Link a person',
+          group: 'This task',
+          icon: 'personPlus',
+          run: () => store.focusField?.('people')
+        },
         {
           id: 'field-requesters',
           label: 'Link a requester',
           group: 'This task',
+          icon: 'personCheck',
           run: () => store.focusField?.('requesters')
         },
         {
           id: 'field-dependencies',
           label: 'Link a dependency',
           group: 'This task',
+          icon: 'link',
           run: () => store.focusField?.('dependencies')
         },
-        { id: 'field-tags', label: 'Set tags', group: 'This task', run: () => store.focusField?.('tags') }
+        {
+          id: 'field-tags',
+          label: 'Set tags',
+          group: 'This task',
+          icon: 'tag',
+          run: () => store.focusField?.('tags')
+        }
       ]
     : []
 )
@@ -143,6 +185,7 @@ const tagItems = computed(() =>
     id: `tag-${tag.name}`,
     label: `Filter by tag: ${tag.name}`,
     group: 'Tags',
+    icon: 'tag',
     hint: store.tagFilter === tag.name ? 'active' : String(tag.count),
     keywords: tag.name,
     run: () => {
@@ -159,20 +202,72 @@ const personItems = computed(() =>
     id: `person-${person.id}`,
     label: person.name,
     group: 'People',
+    icon: 'people',
     hint: (person.aliases || []).map(aliasLabel).join(' · ') || undefined,
     keywords: (person.aliases || []).join(' '),
     run: () => router.push(`/person/${person.id}`)
   }))
 )
 
+// One palette entry per resource: pick it to open that item's page. The source
+// is shown as the hint and is searchable, so "github" or "slack" narrows the
+// list.
+const itemItems = computed(() =>
+  store.items.map((item) => ({
+    id: `item-${item.id}`,
+    label: item.title || item.url || 'Untitled item',
+    group: 'Items',
+    icon: 'items',
+    hint: sourceLabel(item.source),
+    keywords: [item.source, item.kind, item.url].filter(Boolean).join(' '),
+    run: () => router.push(`/items/${item.id}`)
+  }))
+)
+
+// One palette entry per repository: pick it to open that repository's page. Its
+// path and remote are searchable, so a directory or "github" narrows the list.
+const repositoryItems = computed(() =>
+  store.repositories.map((repository) => ({
+    id: `repository-${repository.id}`,
+    label: repository.name || repository.path,
+    group: 'Repositories',
+    icon: 'repositories',
+    hint: repository.path,
+    keywords: [repository.path, repository.remote_url].filter(Boolean).join(' '),
+    run: () => router.push(`/repositories/${repository.id}`)
+  }))
+)
+
+// One palette entry per Settings section: pick it to open that section. The
+// group header names Settings, and "settings" is searchable, so the whole list
+// appears under that one word.
+const settingsItems = computed(() =>
+  SETTINGS_SECTIONS.map((section) => ({
+    id: `settings-${section.id}`,
+    label: section.label,
+    group: 'Settings',
+    icon: 'settings',
+    keywords: `settings ${section.id}`,
+    run: () => router.push({ path: '/settings', query: { section: section.id } })
+  }))
+)
+
 const paletteItems = computed(() => [
-  { id: 'new-task', label: 'New task', hint: '⌘N', group: 'Actions', run: () => (showNew.value = true) },
-  { id: 'focus-hints', label: 'Show focus hints', hint: 'f', group: 'Actions', run: () => (store.hintMode = true) },
+  { id: 'new-task', label: 'New task', hint: '⌘N', group: 'Actions', icon: 'plus', run: () => (showNew.value = true) },
+  {
+    id: 'focus-hints',
+    label: 'Show focus hints',
+    hint: 'f',
+    group: 'Actions',
+    icon: 'keyboard',
+    run: () => (store.hintMode = true)
+  },
   {
     id: 'toggle-sidebar',
     label: sidebarHidden.value ? 'Show task list' : 'Hide task list',
     hint: '⌘B',
     group: 'Actions',
+    icon: 'panel',
     keywords: 'sidebar panel collapse',
     run: toggleSidebar
   },
@@ -182,30 +277,59 @@ const paletteItems = computed(() => [
           id: 'clear-tag-filter',
           label: `Clear tag filter: ${store.tagFilter}`,
           group: 'Actions',
+          icon: 'close',
           run: () => (store.tagFilter = '')
         }
       ]
     : []),
   ...taskFieldItems.value,
-  { id: 'go-tasks', label: 'Go to tasks', group: 'Navigation', run: () => router.push('/') },
-  { id: 'go-inbox', label: 'Go to inbox', group: 'Navigation', run: () => router.push('/inbox') },
-  { id: 'go-stack', label: 'Go to stack', group: 'Navigation', run: () => router.push('/stack') },
-  { id: 'go-gantt', label: 'Go to gantt', group: 'Navigation', run: () => router.push('/gantt') },
-  { id: 'go-graph', label: 'Go to graph', group: 'Navigation', run: () => router.push('/graph') },
-  { id: 'go-metrics', label: 'Go to metrics', group: 'Navigation', run: () => router.push('/metrics') },
-  { id: 'go-items', label: 'Go to resources', group: 'Navigation', run: () => router.push('/items') },
-  { id: 'go-people', label: 'Go to people', group: 'Navigation', run: () => router.push('/people') },
-  { id: 'go-repositories', label: 'Go to repositories', group: 'Navigation', run: () => router.push('/repositories') },
-  { id: 'go-settings', label: 'Go to settings', group: 'Navigation', run: () => router.push('/settings') },
+  { id: 'go-tasks', label: 'Go to tasks', group: 'Navigation', icon: 'tasks', run: () => router.push('/') },
+  { id: 'go-inbox', label: 'Go to inbox', group: 'Navigation', icon: 'inbox', run: () => router.push('/inbox') },
+  { id: 'go-stack', label: 'Go to stack', group: 'Navigation', icon: 'stack', run: () => router.push('/stack') },
+  { id: 'go-gantt', label: 'Go to gantt', group: 'Navigation', icon: 'gantt', run: () => router.push('/gantt') },
+  { id: 'go-graph', label: 'Go to graph', group: 'Navigation', icon: 'graph', run: () => router.push('/graph') },
+  {
+    id: 'go-metrics',
+    label: 'Go to metrics',
+    group: 'Navigation',
+    icon: 'metrics',
+    run: () => router.push('/metrics')
+  },
+  {
+    id: 'go-items',
+    label: 'Go to resources',
+    group: 'Navigation',
+    icon: 'items',
+    run: () => router.push('/items')
+  },
+  { id: 'go-people', label: 'Go to people', group: 'Navigation', icon: 'people', run: () => router.push('/people') },
+  {
+    id: 'go-repositories',
+    label: 'Go to repositories',
+    group: 'Navigation',
+    icon: 'repositories',
+    run: () => router.push('/repositories')
+  },
+  {
+    id: 'go-settings',
+    label: 'Go to settings',
+    group: 'Navigation',
+    icon: 'settings',
+    run: () => router.push('/settings')
+  },
   ...tagItems.value,
   ...store.tasks.map((task) => ({
     id: `task-${task.id}`,
     label: task.title,
     group: 'Tasks',
+    icon: 'tasks',
     hint: [task.status.replace('_', ' '), ...(task.tags || []).map((tag) => `#${tag}`)].join(' '),
     keywords: (task.tags || []).join(' '),
     run: () => router.push(`/task/${task.id}`)
   })),
+  ...itemItems.value,
+  ...repositoryItems.value,
+  ...settingsItems.value,
   ...personItems.value
 ])
 
@@ -768,6 +892,7 @@ onMounted(async () => {
   await store.loadGroups().catch(() => {})
   await store.loadRepositories().catch(() => {})
   await store.loadPeople().catch(() => {})
+  await store.loadItems().catch(() => {})
   await store.loadSettings().catch(() => {})
 })
 onUnmounted(() => {
@@ -879,20 +1004,7 @@ onUnmounted(() => {
             aria-label="Tasks"
             @click="sidebarOpen = false"
           >
-            <svg
-              viewBox="0 0 24 24"
-              width="18"
-              height="18"
-              aria-hidden="true"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <path d="M9 6h11M9 12h11M9 18h11" />
-              <path d="M4 6l1 1 2-2M4 12l1 1 2-2M4 18l1 1 2-2" />
-            </svg>
+            <Icon name="tasks" />
           </router-link>
           <router-link
             to="/inbox"
@@ -902,20 +1014,7 @@ onUnmounted(() => {
             aria-label="Inbox"
             @click="sidebarOpen = false"
           >
-            <svg
-              viewBox="0 0 24 24"
-              width="18"
-              height="18"
-              aria-hidden="true"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <rect x="4" y="5.5" width="16" height="13" rx="2" />
-              <path d="M4.5 7.5l7.5 6 7.5-6" />
-            </svg>
+            <Icon name="inbox" />
             <span v-if="store.inboxCount" class="nav-badge" aria-hidden="true">{{ store.inboxCount }}</span>
           </router-link>
           <router-link
@@ -926,21 +1025,7 @@ onUnmounted(() => {
             aria-label="Stack"
             @click="sidebarOpen = false"
           >
-            <svg
-              viewBox="0 0 24 24"
-              width="18"
-              height="18"
-              aria-hidden="true"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <rect x="4" y="3.5" width="16" height="5" rx="1.5" />
-              <rect x="4" y="9.5" width="16" height="5" rx="1.5" />
-              <rect x="4" y="15.5" width="16" height="5" rx="1.5" />
-            </svg>
+            <Icon name="stack" />
           </router-link>
           <router-link
             to="/gantt"
@@ -950,18 +1035,7 @@ onUnmounted(() => {
             aria-label="Gantt"
             @click="sidebarOpen = false"
           >
-            <svg
-              viewBox="0 0 24 24"
-              width="18"
-              height="18"
-              aria-hidden="true"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-            >
-              <path d="M4 6h9M4 12h13M4 18h6" />
-            </svg>
+            <Icon name="gantt" />
           </router-link>
           <router-link
             to="/graph"
@@ -971,22 +1045,7 @@ onUnmounted(() => {
             aria-label="Graph"
             @click="sidebarOpen = false"
           >
-            <svg
-              viewBox="0 0 24 24"
-              width="18"
-              height="18"
-              aria-hidden="true"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <circle cx="6" cy="6" r="2.4" />
-              <circle cx="6" cy="18" r="2.4" />
-              <circle cx="18" cy="12" r="2.4" />
-              <path d="M8.2 7.2 15.8 11M8.2 16.8 15.8 13" />
-            </svg>
+            <Icon name="graph" />
           </router-link>
           <router-link
             to="/metrics"
@@ -996,18 +1055,7 @@ onUnmounted(() => {
             aria-label="Metrics"
             @click="sidebarOpen = false"
           >
-            <svg
-              viewBox="0 0 24 24"
-              width="18"
-              height="18"
-              aria-hidden="true"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-            >
-              <path d="M5 20V11M12 20V5M19 20v-6" />
-            </svg>
+            <Icon name="metrics" />
           </router-link>
           <router-link
             to="/items"
@@ -1017,20 +1065,7 @@ onUnmounted(() => {
             aria-label="Items"
             @click="sidebarOpen = false"
           >
-            <svg
-              viewBox="0 0 24 24"
-              width="18"
-              height="18"
-              aria-hidden="true"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <path d="M4 13l2-7h12l2 7v5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z" />
-              <path d="M4 13h4l1.5 2h5L16 13h4" />
-            </svg>
+            <Icon name="items" />
           </router-link>
           <router-link
             to="/people"
@@ -1040,21 +1075,7 @@ onUnmounted(() => {
             aria-label="People"
             @click="sidebarOpen = false"
           >
-            <svg
-              viewBox="0 0 24 24"
-              width="18"
-              height="18"
-              aria-hidden="true"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <circle cx="9" cy="8" r="3" />
-              <path d="M3 20c0-3 2.5-5 6-5s6 2 6 5" />
-              <path d="M16 5.5a3 3 0 0 1 0 5.5M18 15c2 .6 3 1.9 3 4" />
-            </svg>
+            <Icon name="people" />
           </router-link>
           <router-link
             to="/repositories"
@@ -1064,20 +1085,7 @@ onUnmounted(() => {
             aria-label="Repositories"
             @click="sidebarOpen = false"
           >
-            <svg
-              viewBox="0 0 24 24"
-              width="18"
-              height="18"
-              aria-hidden="true"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <path d="M12 3l9 5-9 5-9-5 9-5z" />
-              <path d="M3 13l9 5 9-5" />
-            </svg>
+            <Icon name="repositories" />
           </router-link>
           <router-link
             to="/settings"
@@ -1087,22 +1095,7 @@ onUnmounted(() => {
             aria-label="Settings"
             @click="sidebarOpen = false"
           >
-            <svg
-              viewBox="0 0 24 24"
-              width="18"
-              height="18"
-              aria-hidden="true"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <path
-                d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"
-              />
-              <circle cx="12" cy="12" r="3" />
-            </svg>
+            <Icon name="settings" />
           </router-link>
         </div>
       </nav>

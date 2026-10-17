@@ -1753,6 +1753,11 @@ button.tag-chip.active {
 .palette-item.active {
   background: var(--bg-3);
 }
+/* Page icons on palette rows mirror the sidebar nav's muted glyph. */
+.palette-item .palette-icon {
+  flex: none;
+  color: var(--muted);
+}
 .palette-empty {
   padding: 14px;
   text-align: center;

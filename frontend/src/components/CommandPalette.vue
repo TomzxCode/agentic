@@ -1,10 +1,21 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import Icon from './Icon.vue'
 
 const props = defineProps({ items: { type: Array, required: true } })
 const emit = defineEmits(['close', 'select'])
 
-const GROUP_ORDER = ['Actions', 'This task', 'Navigation', 'Tags', 'Tasks', 'People']
+const GROUP_ORDER = [
+  'Actions',
+  'This task',
+  'Navigation',
+  'Settings',
+  'Tags',
+  'Tasks',
+  'Items',
+  'Repositories',
+  'People'
+]
 
 const query = ref('')
 const highlighted = ref(0)
@@ -134,6 +145,7 @@ onBeforeUnmount(() => {
             @mouseenter="highlighted = entry.index"
             @click="choose(entry.item)"
           >
+            <Icon v-if="entry.item.icon" class="palette-icon" :name="entry.item.icon" :size="16" />
             <span class="grow">{{ entry.item.label }}</span>
             <span v-if="entry.item.hint" class="faint">{{ entry.item.hint }}</span>
           </button>

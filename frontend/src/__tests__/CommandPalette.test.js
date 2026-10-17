@@ -102,6 +102,24 @@ describe('CommandPalette', () => {
     expect(wrapper.emitted('select')).toEqual([[items[2]]])
   })
 
+  it('renders a page icon on items that carry one', () => {
+    const wrapper = mount(CommandPalette, {
+      props: {
+        items: [
+          { id: 'nav', label: 'Go to tasks', group: 'Navigation', icon: 'tasks' },
+          { id: 'act', label: 'New task', group: 'Actions' }
+        ]
+      },
+      attachTo: document.body
+    })
+    const items = wrapper.findAll('.palette-item')
+    const nav = items.find((i) => i.text().includes('Go to tasks'))
+    const action = items.find((i) => i.text().includes('New task'))
+    expect(nav.find('svg.palette-icon').exists()).toBe(true)
+    expect(nav.findAll('.palette-icon path').length).toBeGreaterThan(0)
+    expect(action.find('.palette-icon').exists()).toBe(false)
+  })
+
   it('closes on Escape', async () => {
     const wrapper = mountPalette()
     await wrapper.get('.palette-input').trigger('keydown', { key: 'Escape' })

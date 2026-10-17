@@ -3,6 +3,7 @@ import { onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { api } from '../api'
 import { DEFAULT_AGENT_PROMPTS, PROMPT_KINDS, parseAgentPrompts } from '../prompts'
+import { SETTINGS_SECTIONS } from '../settings'
 import { store, timeAgo } from '../store'
 import EntityCard from '../components/EntityCard.vue'
 import RepositoryGroupsPanel from '../components/RepositoryGroupsPanel.vue'
@@ -10,14 +11,7 @@ import RepositoryGroupsPanel from '../components/RepositoryGroupsPanel.vue'
 const route = useRoute()
 const router = useRouter()
 
-const SECTIONS = [
-  { id: 'sessions', label: 'Session links' },
-  { id: 'identity', label: 'Identity' },
-  { id: 'harnesses', label: 'Agent harnesses' },
-  { id: 'prompts', label: 'Agent prompts' },
-  { id: 'refresh', label: 'Refresh' },
-  { id: 'groups', label: 'Repository groups' }
-]
+const SECTIONS = SETTINGS_SECTIONS
 const active = ref(SECTIONS.some((s) => s.id === route.query.section) ? route.query.section : SECTIONS[0].id)
 
 function select(id) {
