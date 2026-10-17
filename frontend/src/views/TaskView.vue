@@ -27,7 +27,21 @@ const emit = defineEmits(['changed'])
 const task = ref(null)
 const loading = ref(true)
 const notFound = ref(false)
+// Picking a repository is only needed when the task does not name exactly one.
+const showCreateIssue = ref(false)
+const creatingIssue = ref(false)
 let closeStream = null
+
+// Creating a GitHub issue needs a registered repository with a GitHub remote.
+const githubRepos = computed(() => store.repositories.filter((r) => (r.remote_url || '').includes('github.com')))
+// The task's own GitHub repositories, in the order the task lists them.
+const taskGithubRepos = computed(() =>
+  (task.value?.repository_ids || []).map((id) => githubRepos.value.find((r) => r.id === id)).filter(Boolean)
+)
+// What the picker offers: the task's own repositories when it has any, else all
+// registered GitHub repositories.
+const issueRepos = computed(() => (taskGithubRepos.value.length ? taskGithubRepos.value : githubRepos.value))
+const issueRepoOptions = computed(() => issueRepos.value.map((r) => ({ value: r.id, label: r.name })))
 
 // Template refs so the command palette can jump straight to a field.
 const titleRef = ref(null)
@@ -127,6 +141,39 @@ async function removeTask() {
   location.reload()
 }
 
+// Create the issue in a named repository, using the task's title and
+// description, then link it back so it shows in the task's Items panel.
+async function createIssue(repositoryId) {
+  if (creatingIssue.value) return
+  creatingIssue.value = true
+  try {
+    const issue = await api.github.createIssue({
+      repository_id: repositoryId,
+      title: task.value.title,
+      body: task.value.description || ''
+    })
+    showCreateIssue.value = false
+    store.notify(`Created GitHub issue #${issue.number}`)
+    await api.tasks.associate(props.id, { item: { url: issue.url } })
+    await load()
+    store.loadItems().catch(() => {})
+    emit('changed')
+  } catch (e) {
+    store.notify(e.message, true)
+  } finally {
+    creatingIssue.value = false
+  }
+}
+
+// One linked repository creates straight away; zero or several ask which one.
+function startCreateIssue() {
+  if (taskGithubRepos.value.length === 1) {
+    createIssue(taskGithubRepos.value[0].id)
+    return
+  }
+  showCreateIssue.value = true
+}
+
 function onChanged() {
   load()
   // Auto-populated people may have joined the directory; keep the panel's picker fresh.
@@ -203,9 +250,31 @@ watch(
       </div>
       <div class="row task-actions">
         <SessionLinks v-if="latestLinks.length" :links="latestLinks" compact />
+        <button
+          v-if="githubRepos.length"
+          class="btn sm ghost"
+          :disabled="creatingIssue"
+          title="Create a GitHub issue from this task's title and description"
+          @click="startCreateIssue"
+        >
+          <span v-if="creatingIssue" class="spinner"></span>
+          {{ creatingIssue ? 'Creating…' : 'Create GitHub issue' }}
+        </button>
         <button class="btn sm ghost" :title="`Copy task id: ${task.id}`" @click="copyId">⧉ Copy ID</button>
         <button class="btn sm danger" @click="removeTask">Delete</button>
       </div>
+    </div>
+
+    <div v-if="showCreateIssue" class="row create-issue-pick">
+      <span class="faint">Create the issue in</span>
+      <SearchSelect
+        variant="inline"
+        :model-value="''"
+        :options="issueRepoOptions"
+        placeholder="+ choose a repository"
+        @update:model-value="createIssue"
+      />
+      <button class="btn sm ghost" @click="showCreateIssue = false">Cancel</button>
     </div>
 
     <!-- The description is Markdown (a task imported from a GitHub issue keeps

@@ -183,6 +183,7 @@ export const api = {
       return request(`/github/issues?${qs.toString()}`)
     },
     issue: (url) => request(`/github/issue?${new URLSearchParams({ url }).toString()}`),
+    createIssue: (body) => request('/github/issues', { method: 'POST', body }),
     repository: ({ repository_id, owner, repo, state = 'all', limit = 1000, refresh = false } = {}) => {
       const qs = new URLSearchParams()
       if (repository_id) qs.set('repository_id', repository_id)

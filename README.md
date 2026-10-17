@@ -165,6 +165,9 @@ only expose this on a trusted network.
    repositories (**Repository groups**) so a task can point the agent at
    them. A task can also be associated with 0..n repositories directly (the
    `repositories:` chips on its header). Then create a **worktree** for the task.
+   A task's **Create GitHub issue** button files its title and description as an
+   issue: it uses the task's only repository directly, or asks which repository
+   when none or several are linked, then links the new issue back to the task.
 4. **Refresh with agent** to generate the current summary and next steps.
 5. **Run an agent** against the task; the transcript streams live.
 
@@ -475,6 +478,7 @@ GET/PATCH           /api/settings                        (session links, refresh
 GET                 /api/fs/list                         (repository picker)
 POST                /api/repositories/bulk               (add several at once)
 GET                 /api/github/issues                   (issue picker for import)
+POST                /api/github/issues                   (create an issue)
 GET                 /api/github/issue                    (single issue by URL)
 GET/POST/PATCH/DELETE /api/groups                        (repository groups)
 GET                 /api/operations                      (provenance audit log)

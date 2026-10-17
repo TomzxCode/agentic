@@ -1,4 +1,5 @@
 import json
+import subprocess
 
 from fastapi.testclient import TestClient
 
@@ -236,6 +237,72 @@ def test_issue_endpoint(monkeypatch):
 
         monkeypatch.setattr(services, "_run_cli", lambda cmd, timeout=60: None)
         assert client.get("/api/github/issue", params={"url": "https://github.com/o/r/issues/9"}).status_code == 502
+
+
+def test_create_github_issue(monkeypatch):
+    seen: dict = {}
+
+    def fake_run(cmd, **kwargs):
+        seen["cmd"] = cmd
+        return subprocess.CompletedProcess(cmd, 0, stdout="https://github.com/o/r/issues/12\n", stderr="")
+
+    monkeypatch.setattr(services.shutil, "which", lambda name: "/usr/bin/gh")
+    monkeypatch.setattr(services.subprocess, "run", fake_run)
+
+    issue = services.create_github_issue("o", "r", "A title", "A body")
+    assert issue is not None
+    assert issue["number"] == 12
+    assert issue["url"] == "https://github.com/o/r/issues/12"
+    assert issue["state"] == "OPEN"
+    assert seen["cmd"][:2] == ["gh", "issue"]
+    assert "o/r" in seen["cmd"]
+    assert "A title" in seen["cmd"]
+    assert "A body" in seen["cmd"]
+
+
+def test_create_github_issue_none_on_failure(monkeypatch):
+    monkeypatch.setattr(services.shutil, "which", lambda name: "/usr/bin/gh")
+    monkeypatch.setattr(
+        services.subprocess,
+        "run",
+        lambda cmd, **kwargs: subprocess.CompletedProcess(cmd, 1, stdout="", stderr="nope"),
+    )
+    assert services.create_github_issue("o", "r", "T") is None
+
+    # gh missing altogether.
+    monkeypatch.setattr(services.shutil, "which", lambda name: None)
+    assert services.create_github_issue("o", "r", "T") is None
+
+
+def test_create_issue_endpoint(monkeypatch):
+    from agentic.routers import github as github_router
+
+    created: dict = {}
+
+    def fake_create(owner, repo, title, body=""):
+        created.update(owner=owner, repo=repo, title=title, body=body)
+        return {
+            "number": 4,
+            "title": title,
+            "url": "https://github.com/o/r/issues/4",
+            "state": "OPEN",
+            "body": body,
+        }
+
+    monkeypatch.setattr(github_router, "create_github_issue", fake_create)
+    with TestClient(app) as client:
+        res = client.post("/api/github/issues", json={"owner": "o", "repo": "r", "title": "T", "body": "B"})
+        assert res.status_code == 200
+        assert res.json()["number"] == 4
+        assert created == {"owner": "o", "repo": "r", "title": "T", "body": "B"}
+
+        # A title is required, and a repository must resolve to owner/repo.
+        assert client.post("/api/github/issues", json={"owner": "o", "repo": "r", "title": "   "}).status_code == 400
+        assert client.post("/api/github/issues", json={"title": "T"}).status_code == 400
+
+        # A failed `gh` call reads as a bad gateway, not a crash.
+        monkeypatch.setattr(github_router, "create_github_issue", lambda *args, **kwargs: None)
+        assert client.post("/api/github/issues", json={"owner": "o", "repo": "r", "title": "T"}).status_code == 502
 
 
 def test_create_task_from_github(monkeypatch):

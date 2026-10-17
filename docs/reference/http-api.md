@@ -107,5 +107,6 @@ There is no authentication, so expose it only on a trusted network.
 | `GET` / `PATCH` | `/api/settings` | Effective settings and overrides. |
 | `POST` | `/api/settings/refresh-policy/preview` | Preview a refresh policy's schedule. |
 | `GET` | `/api/github/issues` | Issue picker for import. |
+| `POST` | `/api/github/issues` | Create an issue from a title and body. |
 | `GET` | `/api/github/issue` | One issue by URL. |
 | `GET` | `/api/fs/list` | Server-side directory picker. |

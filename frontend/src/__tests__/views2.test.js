@@ -21,12 +21,14 @@ const mocks = vi.hoisted(() => ({
   itemsRefresh: vi.fn(),
   itemsRefreshSource: vi.fn(),
   githubRepository: vi.fn(),
+  githubCreateIssue: vi.fn(),
   tasksCreate: vi.fn(),
   changesList: vi.fn(),
   changesCreate: vi.fn(),
   tasksGet: vi.fn(),
   tasksUpdate: vi.fn(),
   tasksRemove: vi.fn(),
+  tasksAssociate: vi.fn(),
   openTaskStream: vi.fn()
 }))
 
@@ -55,9 +57,15 @@ vi.mock('../api', () => ({
       remove: mocks.repositoriesRemove
     },
     items: { refresh: mocks.itemsRefresh, refreshSource: mocks.itemsRefreshSource },
-    github: { repository: mocks.githubRepository },
+    github: { repository: mocks.githubRepository, createIssue: mocks.githubCreateIssue },
     changes: { list: mocks.changesList, create: mocks.changesCreate },
-    tasks: { get: mocks.tasksGet, update: mocks.tasksUpdate, remove: mocks.tasksRemove, create: mocks.tasksCreate }
+    tasks: {
+      get: mocks.tasksGet,
+      update: mocks.tasksUpdate,
+      remove: mocks.tasksRemove,
+      create: mocks.tasksCreate,
+      associate: mocks.tasksAssociate
+    }
   },
   openTaskStream: mocks.openTaskStream
 }))
@@ -579,6 +587,94 @@ describe('TaskView', () => {
     expect(typeof store.focusField).toBe('function')
     wrapper.unmount()
     expect(store.focusField).toBeNull()
+  })
+
+  const githubRepo = { id: 'r1', name: 'api', remote_url: 'https://github.com/acme/api.git' }
+
+  it('creates a GitHub issue straight away when the task names one repository', async () => {
+    store.repositories = [githubRepo]
+    mocks.tasksGet.mockResolvedValue({ ...task, repository_ids: ['r1'] })
+    mocks.githubCreateIssue.mockResolvedValue({ number: 12, url: 'https://github.com/acme/api/issues/12' })
+    mocks.tasksAssociate.mockResolvedValue({})
+
+    const wrapper = mountView()
+    await flushPromises()
+    await wrapper
+      .findAll('button')
+      .find((b) => b.text().includes('Create GitHub issue'))
+      .trigger('click')
+    await flushPromises()
+
+    expect(mocks.githubCreateIssue).toHaveBeenCalledWith({
+      repository_id: 'r1',
+      title: 'My task',
+      body: 'desc'
+    })
+    expect(mocks.tasksAssociate).toHaveBeenCalledWith('t1', {
+      item: { url: 'https://github.com/acme/api/issues/12' }
+    })
+    expect(store.toast.message).toBe('Created GitHub issue #12')
+  })
+
+  it('asks which repository to use when none is linked', async () => {
+    store.repositories = [githubRepo, { id: 'r2', name: 'tools', remote_url: 'https://github.com/acme/tools.git' }]
+    mocks.githubCreateIssue.mockResolvedValue({ number: 3, url: 'https://github.com/acme/tools/issues/3' })
+    mocks.tasksAssociate.mockResolvedValue({})
+
+    // The real picker, so the choice can be made through the same dropdown the
+    // repository property uses.
+    const wrapper = mount(TaskView, {
+      props: { id: 't1' },
+      global: { stubs: { ...stubs, SearchSelect: false } }
+    })
+    await flushPromises()
+    await wrapper
+      .findAll('button')
+      .find((b) => b.text().includes('Create GitHub issue'))
+      .trigger('click')
+    await flushPromises()
+
+    // Nothing is created until a repository is chosen.
+    expect(mocks.githubCreateIssue).not.toHaveBeenCalled()
+    const pick = wrapper.get('.create-issue-pick')
+    await pick.get('.ss-trigger').trigger('click')
+    await flushPromises()
+    await pick
+      .findAll('.ss-option')
+      .find((o) => o.text() === 'tools')
+      .trigger('click')
+    await flushPromises()
+
+    expect(mocks.githubCreateIssue).toHaveBeenCalledWith({
+      repository_id: 'r2',
+      title: 'My task',
+      body: 'desc'
+    })
+  })
+
+  it('offers only the task repositories when it links several', async () => {
+    store.repositories = [
+      githubRepo,
+      { id: 'r2', name: 'tools', remote_url: 'https://github.com/acme/tools.git' },
+      { id: 'r3', name: 'other', remote_url: 'https://github.com/acme/other.git' }
+    ]
+    mocks.tasksGet.mockResolvedValue({ ...task, repository_ids: ['r1', 'r2'] })
+
+    const wrapper = mount(TaskView, {
+      props: { id: 't1' },
+      global: { stubs: { ...stubs, SearchSelect: false } }
+    })
+    await flushPromises()
+    await wrapper
+      .findAll('button')
+      .find((b) => b.text().includes('Create GitHub issue'))
+      .trigger('click')
+    await flushPromises()
+
+    const pick = wrapper.get('.create-issue-pick')
+    await pick.get('.ss-trigger').trigger('click')
+    await flushPromises()
+    expect(pick.findAll('.ss-option-label').map((o) => o.text())).toEqual(['api', 'tools'])
   })
 })
 

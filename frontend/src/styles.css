@@ -682,6 +682,14 @@ button.status-badge.active {
   color: var(--accent);
 }
 
+/* Asking which repository a new GitHub issue goes to, inline under the task head. */
+.create-issue-pick {
+  margin-bottom: 14px;
+  padding: 8px 10px;
+  background: var(--bg-2);
+  border-radius: var(--radius);
+}
+
 /* Deadlines: an inline picker plus a state badge. */
 .deadline {
   display: inline-flex;

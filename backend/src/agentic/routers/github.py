@@ -7,8 +7,9 @@ from sqlmodel import Session
 
 from ..db import get_session
 from ..models import Repository
-from ..schemas import GithubIssue, GithubRepoListing
+from ..schemas import GithubIssue, GithubIssueCreate, GithubRepoListing
 from ..services import (
+    create_github_issue,
     fetch_github_issue,
     github_owner_repo,
     list_github_issues,
@@ -53,6 +54,21 @@ def _resolve_owner_repo(
     if not owner or not repo:
         raise HTTPException(status_code=400, detail="Provide repository_id, or owner and repo")
     return owner, repo
+
+
+@router.post("/issues", response_model=GithubIssue)
+def create_issue(payload: GithubIssueCreate, session: Session = Depends(get_session)) -> GithubIssue:
+    """Create an issue from a task's title/description (gh)."""
+    if not payload.title.strip():
+        raise HTTPException(status_code=400, detail="A title is required")
+    owner, repo = _resolve_owner_repo(session, payload.repository_id, payload.owner, payload.repo)
+    issue = create_github_issue(owner, repo, payload.title.strip(), payload.body or "")
+    if issue is None:
+        raise HTTPException(
+            status_code=502,
+            detail="Could not create the issue (is `gh` installed and authenticated?)",
+        )
+    return GithubIssue.model_validate(issue)
 
 
 @router.get("/issues", response_model=list[GithubIssue])

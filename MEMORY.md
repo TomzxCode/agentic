@@ -1,5 +1,11 @@
 # Memory
 
+## 2026-10-17: creating a GitHub issue goes through `gh`, not ghx
+
+- `ghx` has no issue-create command (only comment, list, view), so `POST /api/github/issues` and `services.create_github_issue` shell out to `gh issue create --repo owner/repo --title T --body B` and read the new issue's URL from stdout. This is the one GitHub write that bypasses ghx; every read still uses ghx.
+- The task view's "Create GitHub issue" button creates from the task's title/description without a dialog: exactly one task-linked GitHub repository creates immediately, zero or several reveal an inline picker (the same `SearchSelect` variant the repository property uses), and the new issue is then associated to the task as an item.
+- A task's `repository_ids` may include non-GitHub repositories; only those whose `remote_url` contains `github.com` are offered or used.
+
 ## 2026-10-15: the CLI reads no env vars; only its flags work
 
 - `AGENTIC_API_URL`, `AGENTIC_FORMAT`, and `AGENTIC_TIMEOUT` are read into `CONTEXT` at import, but `app.meta.default` in `cli.py` declares `api_url`/`format`/`timeout` with hardcoded defaults and calls `CONTEXT.update(...)`, which overwrites them, so all three env vars are ignored. The docstring, `client.py`, and the README claim otherwise; pass `--api-url`/`--format`/`--timeout` explicitly.

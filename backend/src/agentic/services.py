@@ -435,6 +435,41 @@ def fetch_github_issue(owner: str, repo: str, number: object, kind: str = "issue
     }
 
 
+def create_github_issue(owner: str, repo: str, title: str, body: str = "") -> dict[str, Any] | None:
+    """Create an issue in a repository with `gh`. None on failure.
+
+    ghx has no issue-create command, so creating one is the single GitHub write
+    that goes through `gh` instead. `gh issue create` prints the new issue's URL.
+    """
+    if shutil.which("gh") is None:
+        return None
+    try:
+        result = subprocess.run(
+            ["gh", "issue", "create", "--repo", f"{owner}/{repo}", "--title", title, "--body", body],
+            capture_output=True,
+            text=True,
+            timeout=60,
+            check=False,
+        )
+    except (subprocess.TimeoutExpired, OSError) as exc:
+        log.info("github issue create failed", error=str(exc))
+        return None
+    if result.returncode != 0:
+        log.info("github issue create failed", error=result.stderr.strip())
+        return None
+    url = result.stdout.strip().splitlines()[-1] if result.stdout.strip() else ""
+    parsed = parse_github(url)
+    if not parsed:
+        return None
+    return {
+        "number": int(parsed["number"]),
+        "title": title,
+        "url": url,
+        "state": "OPEN",
+        "body": body,
+    }
+
+
 def github_people(data: dict[str, Any]) -> list[dict[str, Any]]:
     """The people named by a ghx issue/PR payload: author, assignees, commenters.
 

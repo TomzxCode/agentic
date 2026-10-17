@@ -145,6 +145,16 @@ class GithubIssue(BaseModel):
     body: str = ""
 
 
+class GithubIssueCreate(BaseModel):
+    """The title/body for a new issue, in a registered repository or an explicit one."""
+
+    repository_id: str | None = None
+    owner: str | None = None
+    repo: str | None = None
+    title: str
+    body: str = ""
+
+
 class GithubRepoItem(BaseModel):
     """An issue or pull request of a repository, as listed for browsing.
 
@@ -879,6 +889,7 @@ __all__ = [
     "FsListing",
     "GanttTask",
     "GithubIssue",
+    "GithubIssueCreate",
     "GithubRepoItem",
     "GithubRepoListing",
     "Harness",
