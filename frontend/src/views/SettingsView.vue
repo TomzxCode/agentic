@@ -215,6 +215,14 @@ async function loadHarnesses() {
   }
 }
 
+// What a run uses while the field is blank: the model the harness's own config
+// file names (the server reads it), or the example when none is known.
+function modelPlaceholder(harness) {
+  return harness.default_model
+    ? `${harness.default_model} (harness default)`
+    : 'model, e.g. provider/model (empty uses the harness default)'
+}
+
 async function loadSettings() {
   const data = await api.settings.get()
   linkDefaults.value = data.defaults
@@ -471,11 +479,7 @@ onMounted(load)
               <button v-if="!h.is_default" class="btn sm" @click="setDefault(h.id)">Set default</button>
             </div>
             <div class="row" style="margin-top: 8px">
-              <input
-                v-model="modelDrafts[h.id]"
-                class="input grow mono"
-                placeholder="model, e.g. zai-coding-plan/glm-5.3 (empty uses the harness default)"
-              />
+              <input v-model="modelDrafts[h.id]" class="input grow mono" :placeholder="modelPlaceholder(h)" />
               <button class="btn sm" @click="saveModel(h.id)">Save</button>
             </div>
           </EntityCard>

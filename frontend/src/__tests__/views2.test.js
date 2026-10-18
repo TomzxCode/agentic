@@ -291,7 +291,7 @@ describe('SettingsView', () => {
     const wrapper = mountView()
     await flushPromises()
     await wrapper
-      .get('input[placeholder="model, e.g. zai-coding-plan/glm-5.3 (empty uses the harness default)"]')
+      .get('input[placeholder="model, e.g. provider/model (empty uses the harness default)"]')
       .setValue('zai-coding-plan/glm-5.3')
     await wrapper
       .findAll('button')
@@ -300,6 +300,22 @@ describe('SettingsView', () => {
     await flushPromises()
     expect(mocks.harnessesUpdate).toHaveBeenCalledWith('opencode', { model: 'zai-coding-plan/glm-5.3' })
     expect(store.toast.message).toBe('Model saved')
+  })
+
+  it('shows the model the harness config file names while the field is blank', async () => {
+    mocks.harnessesFull.mockResolvedValue([
+      {
+        id: 'opencode2',
+        name: 'OpenCode v2',
+        command: 'opencode2',
+        model: null,
+        default_model: 'zai-coding-plan/glm-5.3-flash'
+      }
+    ])
+    const wrapper = mountView()
+    await flushPromises()
+    const input = wrapper.get('input[placeholder="zai-coding-plan/glm-5.3-flash (harness default)"]')
+    expect(input.element.value).toBe('')
   })
 
   it('adds a harness with a model', async () => {

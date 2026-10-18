@@ -27,17 +27,23 @@ const liveCwd = computed(() => {
   return active?.path || '(task repository)'
 })
 
+// The model a harness answers with when a run selects none: the model set on
+// the harness, else the default its own config file names.
+function harnessModel(harness) {
+  return harness.model || harness.default_model || ''
+}
+
 const defaultHarnessLabel = computed(() => {
   const harness = props.harnesses.find((h) => h.is_default)
   if (!harness) return 'Default harness'
-  const model = harness.model ? ` · ${harness.model}` : ''
-  return `Default harness (${harness.name}${model}${harness.available === false ? ', unavailable' : ''})`
+  const model = harnessModel(harness)
+  return `Default harness (${harness.name}${model ? ` · ${model}` : ''}${harness.available === false ? ', unavailable' : ''})`
 })
 const harnessOptions = computed(() => [
   { value: '', label: defaultHarnessLabel.value },
   ...props.harnesses.map((h) => ({
     value: h.id,
-    label: `${h.name}${h.model ? ` · ${h.model}` : ''}${h.available ? '' : ' (unavailable)'}`
+    label: `${h.name}${harnessModel(h) ? ` · ${harnessModel(h)}` : ''}${h.available ? '' : ' (unavailable)'}`
   }))
 ])
 const worktreeOptions = computed(() => [

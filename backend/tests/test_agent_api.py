@@ -32,6 +32,30 @@ def test_list_harnesses_reports_availability_and_a_single_default():
         assert any(harness["command"] for harness in full)
 
 
+def test_harness_reports_the_default_model_its_config_file_names(tmp_path):
+    config = tmp_path / "opencode.json"
+    config.write_text('{"model": "zai-coding-plan/glm-5.3-flash"}')
+    with TestClient(app) as client:
+        created = client.post(
+            "/api/harnesses",
+            json={"name": "Config", "command": "config-acp", "default_model_source": f"{config}#model"},
+        ).json()
+        harness_id = created["id"]
+        assert created["default_model"] == "zai-coding-plan/glm-5.3-flash"
+
+        full = {harness["id"]: harness for harness in client.get("/api/harnesses/full").json()}
+        assert full[harness_id]["default_model"] == "zai-coding-plan/glm-5.3-flash"
+        statuses = {status["id"]: status for status in client.get("/api/harnesses").json()}
+        assert statuses[harness_id]["default_model"] == "zai-coding-plan/glm-5.3-flash"
+
+        # An override on the harness wins; the detected default stays readable.
+        updated = client.patch(f"/api/harnesses/{harness_id}", json={"model": "openai/gpt-5"}).json()
+        assert updated["model"] == "openai/gpt-5"
+        assert updated["default_model"] == "zai-coding-plan/glm-5.3-flash"
+
+        assert client.delete(f"/api/harnesses/{harness_id}").status_code == 204
+
+
 def test_setting_a_default_harness_demotes_the_others():
     with TestClient(app) as client:
         before = client.get("/api/harnesses").json()

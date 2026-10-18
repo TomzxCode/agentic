@@ -23,6 +23,7 @@ from agentic.agents import (
     get_harness,
     harness_available,
     persist_event,
+    resolve_default_model,
     seed_harnesses,
 )
 from agentic.config import settings
@@ -59,6 +60,44 @@ def _dispose_fresh_engines():
 
 async def _noop(_event: dict) -> None:
     return None
+
+
+def test_resolve_default_model_reads_a_plain_key(tmp_path):
+    config = tmp_path / "opencode.json"
+    config.write_text('{"model": "zai-coding-plan/glm-5.3-flash"}')
+    harness = Harness(name="h", command="h", default_model_source=f"{config}#model")
+    assert resolve_default_model(harness) == "zai-coding-plan/glm-5.3-flash"
+
+
+def test_resolve_default_model_reads_an_object_model_and_a_template(tmp_path):
+    opencode = tmp_path / "opencode.json"
+    opencode.write_text('{"model": {"providerID": "zai-coding-plan", "model": "glm-5.3-flash"}}')
+    as_object = Harness(name="h", command="h", default_model_source=f"{opencode}#model")
+    assert resolve_default_model(as_object) == "zai-coding-plan/glm-5.3-flash"
+
+    pi = tmp_path / "settings.json"
+    pi.write_text('{"defaultProvider": "opencode-go", "defaultModel": "deepseek-v4.1-flash"}')
+    as_template = Harness(name="h", command="h", default_model_source=f"{pi}#{{defaultProvider}}/{{defaultModel}}")
+    assert resolve_default_model(as_template) == "opencode-go/deepseek-v4.1-flash"
+
+
+def test_resolve_default_model_is_none_when_the_source_cannot_answer(tmp_path):
+    no_model = tmp_path / "settings.json"
+    no_model.write_text('{"theme": "dark"}')
+    cases = [
+        # No source configured.
+        Harness(name="h", command="h"),
+        # The file is not there.
+        Harness(name="h", command="h", default_model_source=f"{tmp_path / 'absent.json'}#model"),
+        # The key is not there.
+        Harness(name="h", command="h", default_model_source=f"{no_model}#model"),
+        # One template placeholder is missing.
+        Harness(name="h", command="h", default_model_source=f"{no_model}#{{defaultModel}}"),
+        # Not a "<file>#<template>" source.
+        Harness(name="h", command="h", default_model_source="model"),
+    ]
+    for harness in cases:
+        assert resolve_default_model(harness) is None
 
 
 def _create_task_and_run() -> tuple[str, str]:

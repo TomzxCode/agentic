@@ -13,7 +13,7 @@ from sqlalchemy import update as sa_update
 from sqlmodel import Session, col, select
 from sse_starlette.sse import EventSourceResponse
 
-from ..agents import get_harness, harness_available, seed_harnesses
+from ..agents import get_harness, harness_available, resolve_default_model, seed_harnesses
 from ..config import settings
 from ..crud import add_timeline, get_task_or_404
 from ..db import engine, get_session
@@ -54,6 +54,13 @@ router = APIRouter(prefix="/api", tags=["agents"])
 
 
 # --- harnesses ------------------------------------------------------------
+def _harness_read(harness: Harness) -> HarnessRead:
+    """A harness with its config file's default model resolved for display."""
+    read = HarnessRead.model_validate(harness)
+    read.default_model = resolve_default_model(harness)
+    return read
+
+
 @router.get("/harnesses", response_model=list[HarnessStatus])
 def list_harnesses(session: Session = Depends(get_session)) -> list[HarnessStatus]:
     seed_harnesses(session)
@@ -68,30 +75,31 @@ def list_harnesses(session: Session = Depends(get_session)) -> list[HarnessStatu
                 detail=detail,
                 is_default=harness.is_default,
                 model=harness.model,
+                default_model=resolve_default_model(harness),
             )
         )
     return statuses
 
 
 @router.get("/harnesses/full", response_model=list[HarnessRead])
-def list_harnesses_full(session: Session = Depends(get_session)) -> list[Harness]:
+def list_harnesses_full(session: Session = Depends(get_session)) -> list[HarnessRead]:
     seed_harnesses(session)
-    return list(session.exec(select(Harness)).all())
+    return [_harness_read(harness) for harness in session.exec(select(Harness)).all()]
 
 
 @router.post("/harnesses", response_model=HarnessRead, status_code=201)
-def create_harness(payload: HarnessCreate, session: Session = Depends(get_session)) -> Harness:
+def create_harness(payload: HarnessCreate, session: Session = Depends(get_session)) -> HarnessRead:
     harness = Harness(**payload.model_dump())
     if harness.is_default:
         session.exec(sa_update(Harness).where(col(Harness.id) != harness.id).values(is_default=False))
     session.add(harness)
     session.commit()
     session.refresh(harness)
-    return harness
+    return _harness_read(harness)
 
 
 @router.patch("/harnesses/{harness_id}", response_model=HarnessRead)
-def update_harness(harness_id: str, payload: HarnessUpdate, session: Session = Depends(get_session)) -> Harness:
+def update_harness(harness_id: str, payload: HarnessUpdate, session: Session = Depends(get_session)) -> HarnessRead:
     harness = session.get(Harness, harness_id)
     if harness is None:
         raise HTTPException(status_code=404, detail="Harness not found")
@@ -104,7 +112,7 @@ def update_harness(harness_id: str, payload: HarnessUpdate, session: Session = D
     session.add(harness)
     session.commit()
     session.refresh(harness)
-    return harness
+    return _harness_read(harness)
 
 
 @router.delete("/harnesses/{harness_id}", status_code=204)

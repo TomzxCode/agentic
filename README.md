@@ -90,7 +90,11 @@ The default harness runs when a task does not pick one; change it under
 Settings → Agent harnesses (the default is marked with a badge). Each harness can
 also carry a **model**: set it under Settings → Agent harnesses, and the runner
 selects it over ACP (`session/set_config_option`) after the session is created. A
-blank model uses the harness's own default.
+blank model uses the harness's own default, which the settings page shows as the
+field's placeholder: the server reads it from the harness's config file
+(`default_model_source`, for example `~/.config/opencode/opencode.json#model` for
+OpenCode and `~/.pi/agent/settings.json#{defaultProvider}/{defaultModel}` for
+`pi`) instead of spawning the harness to ask.
 
 ## Quickstart
 

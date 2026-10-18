@@ -1157,6 +1157,7 @@ def harness_create(
     description: str = "",
     resume_command: str | None = None,
     model: str | None = None,
+    default_model_source: str | None = None,
 ) -> str:
     """Add an ACP harness."""
     with _client() as client:
@@ -1167,6 +1168,7 @@ def harness_create(
             description=description,
             resume_command=resume_command,
             model=model,
+            default_model_source=default_model_source,
         )
     return emit(harness, f"created harness {harness['id']}  {harness['command']}")
 
@@ -1180,11 +1182,18 @@ def harness_update(
     args: list[str] | None = None,
     resume_command: str | None = None,
     model: str | None = None,
+    default_model_source: str | None = None,
 ) -> str:
     """Update a harness."""
     with _client() as client:
         harness = client.update_harness(
-            harness_id, name=name, command=command, args=args, resume_command=resume_command, model=model
+            harness_id,
+            name=name,
+            command=command,
+            args=args,
+            resume_command=resume_command,
+            model=model,
+            default_model_source=default_model_source,
         )
     return emit(harness, f"updated harness {harness['id']}")
 

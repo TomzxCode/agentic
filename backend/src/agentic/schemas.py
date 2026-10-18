@@ -237,6 +237,7 @@ class HarnessCreate(BaseModel):
     args: list[str] = []
     env: dict[str, str] = {}
     model: str | None = None
+    default_model_source: str | None = None
     resume_command: str | None = None
     is_default: bool = False
 
@@ -248,6 +249,7 @@ class HarnessUpdate(BaseModel):
     args: list[str] | None = None
     env: dict[str, str] | None = None
     model: str | None = None
+    default_model_source: str | None = None
     resume_command: str | None = None
     is_default: bool | None = None
 
@@ -260,6 +262,9 @@ class HarnessRead(ORMModel):
     args: list[str]
     env: dict[str, str]
     model: str | None = None
+    default_model_source: str | None = None
+    # The model the harness config file names, resolved for display. Read only.
+    default_model: str | None = None
     resume_command: str | None = None
     is_default: bool
 
@@ -271,6 +276,7 @@ class HarnessStatus(BaseModel):
     detail: str = ""
     is_default: bool = False
     model: str | None = None
+    default_model: str | None = None
 
 
 # --- SourceItem ------------------------------------------------------------

@@ -59,8 +59,9 @@
 ## 2026-10-13: harness model is selected over ACP, never via a CLI flag
 
 - A harness's `model` is applied with ACP `session/set_config_option(config_id="model", ...)` right after the session is created or resumed (`_apply_model` in `agents.py`). `opencode acp`/`opencode2 acp` reject `--model` as an unknown flag and the process fails to start, so the old "append `--model` to args" wiring was broken. `new_session` returns the model list and current value under `configOptions` (id `model`), and `set_config_option` changes it.
-- A harness that lacks a model config option (pi) or rejects the value logs a warning and emits a `warning` transcript event, then runs with its own default; the setting never fails a run.
+- A harness that lacks a model config option or rejects the value logs a warning and emits a `warning` transcript event, then runs with its own default; the setting never fails a run. pi (1.3.0) does expose the option now, so the "pi has none" case is about other harnesses.
 - `Harness.model` is editable per harness in Settings → Agent harnesses and shown in the run harness picker; blank means the harness default. The CLI `harness create/update --model` was already wired.
+- `Harness.default_model_source` (`<json file>#<template>`) is how the harness's own default is shown without spawning it (about 1.7 s over ACP): opencode reads `~/.config/opencode/opencode.json#model`, pi reads `~/.pi/agent/settings.json#{defaultProvider}/{defaultModel}`. The read is user-level only: a project config in the run's cwd, or an agent that resolves a fallback the file does not name, is not visible from it.
 
 ## 2026-10-12: opencode ACP defaults to its own model, not the CLI's
 

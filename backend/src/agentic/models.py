@@ -328,6 +328,11 @@ class Harness(SQLModel, table=True):
     args: list[str] = Field(default_factory=list, sa_column=Column(JSON))
     env: dict[str, str] = Field(default_factory=dict, sa_column=Column(JSON))
     model: str | None = None
+    # Where the harness's own default model can be read from its config file,
+    # written "<json file>#<template>". Read only, for display: a run that
+    # selects no model gets whatever the harness resolves on its own, which this
+    # reports without spawning the harness. Empty means no known source.
+    default_model_source: str | None = None
     # Template for resuming a session in a terminal, e.g.
     # "opencode --session {session}". Placeholders: {session} {cwd} {harness}.
     resume_command: str | None = None

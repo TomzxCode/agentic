@@ -10,8 +10,11 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import json
+import re
 import shutil
 from collections.abc import Awaitable, Callable
+from pathlib import Path
 from typing import Any
 
 import structlog
@@ -50,6 +53,7 @@ HARNESS_PRESETS: list[dict[str, Any]] = [
         "command": "opencode",
         "args": ["acp"],
         "resume_command": "opencode --session {session}",
+        "default_model_source": "~/.config/opencode/opencode.json#model",
     },
     {
         "id": "opencode2",
@@ -58,6 +62,7 @@ HARNESS_PRESETS: list[dict[str, Any]] = [
         "command": "opencode2",
         "args": ["acp"],
         "resume_command": "opencode2 --session {session}",
+        "default_model_source": "~/.config/opencode/opencode.json#model",
     },
     {
         "id": "pi",
@@ -66,6 +71,7 @@ HARNESS_PRESETS: list[dict[str, Any]] = [
         "command": "pi-acp",
         "args": [],
         "resume_command": "pi --session {session}",
+        "default_model_source": "~/.pi/agent/settings.json#{defaultProvider}/{defaultModel}",
     },
 ]
 
@@ -73,6 +79,12 @@ RESUME_DEFAULTS = {
     "opencode": "opencode --session {session}",
     "opencode2": "opencode2 --session {session}",
     "pi": "pi --session {session}",
+}
+
+# Default model sources for harnesses created before the column existed, keyed
+# the same way as RESUME_DEFAULTS.
+MODEL_SOURCE_DEFAULTS = {
+    preset["id"]: preset["default_model_source"] for preset in HARNESS_PRESETS if preset.get("default_model_source")
 }
 
 # OpenCode v2 is seeded as the default when its binary is installed. The seeded
@@ -108,6 +120,7 @@ def seed_harnesses(session: Session) -> None:
                 command=preset["command"],
                 args=preset["args"],
                 resume_command=preset.get("resume_command"),
+                default_model_source=preset.get("default_model_source"),
                 is_default=False,
             )
         )
@@ -122,6 +135,12 @@ def seed_harnesses(session: Session) -> None:
             fallback = RESUME_DEFAULTS.get(harness.id) or RESUME_DEFAULTS.get(harness.name.lower())
             if fallback:
                 harness.resume_command = fallback
+                session.add(harness)
+                changed = True
+        if not harness.default_model_source:
+            source = MODEL_SOURCE_DEFAULTS.get(harness.id)
+            if source:
+                harness.default_model_source = source
                 session.add(harness)
                 changed = True
     if changed:
@@ -179,6 +198,80 @@ def harness_available(harness: Harness) -> tuple[bool, str]:
     if not path:
         return False, f"`{harness.command}` not found on PATH"
     return True, path
+
+
+# A config file bigger than this is not a config file; refuse rather than read
+# it, so a mistaken source cannot pull a large file into memory.
+MAX_MODEL_SOURCE_BYTES = 1_000_000
+
+
+def _lookup(data: Any, path: str) -> Any:
+    """Follow a dotted path into the parsed config, or None when it is absent."""
+    for part in path.split("."):
+        if not isinstance(data, dict) or part not in data:
+            return None
+        data = data[part]
+    return data
+
+
+def _as_model_name(value: Any) -> str | None:
+    """Render a model setting: a plain id, or an object naming provider and model.
+
+    OpenCode accepts ``"model": "provider/model"`` and
+    ``"model": {"providerID": ..., "model": ...}``; both read as "provider/model".
+    """
+    if isinstance(value, str):
+        return value.strip() or None
+    if isinstance(value, dict):
+        provider = value.get("providerID") or value.get("provider")
+        name = value.get("model") or value.get("id") or value.get("name")
+        if provider and name:
+            return f"{provider}/{name}"
+    return None
+
+
+def resolve_default_model(harness: Harness) -> str | None:
+    """The model a harness uses on its own, read from its config file.
+
+    A run that selects no model gets whatever the harness resolves; reading the
+    harness's own config file says what that is without spawning it (about 1.7 s
+    over ACP). ``default_model_source`` is ``<json file>#<template>``: the
+    template's ``{dotted.path}`` placeholders are filled from the file's top
+    level, and a template without braces is one path. Anything unreadable, absent
+    or of the wrong shape resolves to None, so the display says nothing rather
+    than guessing.
+
+    The value is the user-level default. A project config in the run's cwd, and
+    the harness's own fallback when the file names no model, are not visible from
+    here.
+    """
+    source = (harness.default_model_source or "").strip()
+    path, separator, template = source.partition("#")
+    if not separator or not path.strip() or not template.strip():
+        return None
+    try:
+        file = Path(path.strip()).expanduser()
+        if file.stat().st_size > MAX_MODEL_SOURCE_BYTES:
+            return None
+        data = json.loads(file.read_text())
+    except (OSError, ValueError):
+        return None
+    if not isinstance(data, dict):
+        return None
+    if "{" not in template:
+        return _as_model_name(_lookup(data, template.strip()))
+    missing = False
+
+    def fill(match: re.Match[str]) -> str:
+        nonlocal missing
+        value = _lookup(data, match.group(1).strip())
+        if not isinstance(value, (str, int, float)) or str(value) == "":
+            missing = True
+            return ""
+        return str(value)
+
+    filled = re.sub(r"\{([^{}]+)\}", fill, template)
+    return None if missing else filled
 
 
 def _content_text(content: Any) -> str:

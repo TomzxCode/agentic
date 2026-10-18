@@ -117,6 +117,9 @@ def _ensure_columns() -> None:
         if "resume_command" not in harness_columns:
             with engine.begin() as connection:
                 connection.execute(text("ALTER TABLE harness ADD COLUMN resume_command VARCHAR"))
+        if "default_model_source" not in harness_columns:
+            with engine.begin() as connection:
+                connection.execute(text("ALTER TABLE harness ADD COLUMN default_model_source VARCHAR"))
     if "agentrun" in inspector.get_table_names():
         run_columns = {column["name"] for column in inspector.get_columns("agentrun")}
         if "model" not in run_columns:

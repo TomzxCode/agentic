@@ -204,6 +204,27 @@ describe('AgentPanel', () => {
     expect(wrapper.get('.ss-label').text()).toContain('zai/glm')
   })
 
+  it('falls back to the model the harness config file names', async () => {
+    const wrapper = mount(AgentPanel, {
+      props: {
+        task,
+        harnesses: [
+          {
+            id: 'opencode2',
+            name: 'OpenCode v2',
+            available: true,
+            is_default: true,
+            model: null,
+            default_model: 'zai-coding-plan/glm-5.3-flash'
+          }
+        ]
+      },
+      global: { stubs: { SessionLinks: true } }
+    })
+    await flushPromises()
+    expect(wrapper.get('.ss-label').text()).toContain('zai-coding-plan/glm-5.3-flash')
+  })
+
   it('starts a run, streams events into blocks, and finishes', async () => {
     let onEvent
     mocks.runsCreate.mockResolvedValue({ id: 'r1', status: 'running', kind: 'chat', links: [] })
