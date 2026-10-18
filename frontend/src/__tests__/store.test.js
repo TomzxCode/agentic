@@ -252,3 +252,30 @@ describe('store.notify', () => {
     expect(store.toast).toBeNull()
   })
 })
+
+describe('store.setGroupBy', () => {
+  afterEach(() => {
+    store.groupBy = ''
+    localStorage.clear()
+  })
+
+  it('sets the tasks-page grouping and remembers it per device', () => {
+    store.setGroupBy('repository')
+    expect(store.groupBy).toBe('repository')
+    expect(localStorage.getItem('agentic.taskGroup')).toBe('repository')
+
+    // Choosing None again clears the stored choice.
+    store.setGroupBy('')
+    expect(store.groupBy).toBe('')
+    expect(localStorage.getItem('agentic.taskGroup')).toBe('')
+  })
+
+  it('still applies the choice when storage is unavailable', () => {
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new Error('blocked')
+    })
+    expect(() => store.setGroupBy('tag')).not.toThrow()
+    expect(store.groupBy).toBe('tag')
+    vi.restoreAllMocks()
+  })
+})

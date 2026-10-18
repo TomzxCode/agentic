@@ -39,8 +39,11 @@ beforeEach(() => {
   store.tagFilter = ''
   store.personFilter = ''
   store.statusFilter = ''
+  store.groupBy = ''
   store.tags = []
   store.people = []
+  store.repositories = []
+  localStorage.clear()
   mocks.peopleList.mockResolvedValue([])
 })
 
@@ -423,5 +426,61 @@ describe('TasksView', () => {
     await section.get('select').setValue(30)
     await flushPromises()
     expect(wrapper.get('.deadline-panel').text()).toContain('DueLater')
+  })
+
+  it("groups the list by the task's main repository and returns to the flat list", async () => {
+    store.repositories = [
+      { id: 'r1', name: 'alpha' },
+      { id: 'r2', name: 'beta' }
+    ]
+    store.tasks = [
+      { id: 't1', status: 'open', title: 'Alpha task', repository_ids: ['r1', 'r2'], next_steps: [], updated_at: null },
+      { id: 't2', status: 'open', title: 'Beta task', repository_ids: ['r2'], next_steps: [], updated_at: null },
+      { id: 't3', status: 'open', title: 'Loose task', repository_ids: [], next_steps: [], updated_at: null }
+    ]
+    const wrapper = mount(TasksView, stub)
+    await flushPromises()
+
+    // The default is one flat section with no headings.
+    expect(wrapper.findAll('section.panel')).toHaveLength(1)
+    expect(wrapper.find('section.panel h2').exists()).toBe(false)
+
+    await wrapper.get('.group-select').setValue('repository')
+    expect(store.groupBy).toBe('repository')
+    // The choice is remembered per device.
+    expect(localStorage.getItem('agentic.taskGroup')).toBe('repository')
+
+    const groups = wrapper.findAll('section.panel').map((s) => ({
+      head: s.get('h2').text(),
+      count: s.get('.panel-head .faint').text(),
+      titles: s.findAll('.title').map((t) => t.text())
+    }))
+    // alpha leads with r2 on Alpha task, so it groups under beta, not alpha.
+    expect(groups).toEqual([
+      { head: 'alpha', count: '1', titles: ['Alpha task'] },
+      { head: 'beta', count: '1', titles: ['Beta task'] },
+      { head: 'No repository', count: '1', titles: ['Loose task'] }
+    ])
+
+    // Choosing None again collapses back to the flat list.
+    await wrapper.get('.group-select').setValue('')
+    expect(wrapper.findAll('section.panel h2')).toHaveLength(0)
+    expect(wrapper.findAll('.select-item')).toHaveLength(3)
+  })
+
+  it('keeps every shown task selectable while grouped', async () => {
+    store.groupBy = 'status'
+    store.tasks = [
+      { id: 't1', status: 'open', title: 'One', next_steps: [], updated_at: null },
+      { id: 't2', status: 'blocked', title: 'Two', next_steps: [], updated_at: null }
+    ]
+    const wrapper = mount(TasksView, stub)
+    await flushPromises()
+
+    expect(wrapper.findAll('section.panel h2').map((h) => h.text())).toEqual(['Open', 'Blocked'])
+
+    await wrapper.findAll('.select-item .row-check')[0].setValue(true)
+    await wrapper.find('input[aria-label="Select every shown task"]').setValue(true)
+    expect(wrapper.text()).toContain('2 selected')
   })
 })

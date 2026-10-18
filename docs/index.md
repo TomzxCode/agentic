@@ -22,7 +22,7 @@ The web app is organized into these pages:
 
 | Page | What it shows |
 | --- | --- |
-| Tasks (`/`) | The task list, with status filters, upcoming deadlines, and the people in flight. |
+| Tasks (`/`) | The task list, with status filters, grouping, upcoming deadlines, and the people in flight. |
 | Inbox (`/inbox`) | Suggested next actions, recomputed on every read. |
 | Stack (`/stack`) | The focus queue, with the current task on top. |
 | Task (`/task/:id`) | One task: context, items, people, dependencies, worktrees, runs, and changes. |

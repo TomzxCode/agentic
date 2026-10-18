@@ -2,6 +2,19 @@ import { reactive } from 'vue'
 import { api } from './api'
 import { itemStatus } from './repositories/parse'
 
+// The grouping chosen on the tasks page is a per-device view preference, so it
+// is remembered in localStorage rather than on the server.
+const GROUP_BY_KEY = 'agentic.taskGroup'
+
+function readStoredGroupBy() {
+  try {
+    return localStorage.getItem(GROUP_BY_KEY) || ''
+  } catch {
+    // Storage can be blocked (private mode); fall back to no grouping.
+    return ''
+  }
+}
+
 export const store = reactive({
   tasks: [],
   tags: [],
@@ -21,6 +34,8 @@ export const store = reactive({
   personFilter: '',
   // Status filter applied to the tasks page ("" means the in-flight default).
   statusFilter: '',
+  // Grouping applied to the tasks page ("" means one flat list).
+  groupBy: readStoredGroupBy(),
   // Set by the active task page so the palette can jump to its fields.
   focusField: null,
   // Focus-hint mode: press f to reveal a letter over each control.
@@ -68,6 +83,15 @@ export const store = reactive({
   },
   toggleStatusFilter(status) {
     this.statusFilter = this.statusFilter === status ? '' : status
+  },
+  // Set the tasks page grouping and remember it for the next visit.
+  setGroupBy(value) {
+    this.groupBy = value
+    try {
+      localStorage.setItem(GROUP_BY_KEY, value)
+    } catch {
+      // Not fatal: the choice still applies for this session.
+    }
   },
   notify(message, isError = false) {
     this.toast = { message, isError }

@@ -21,6 +21,16 @@
   width: auto;
   min-width: 130px;
 }
+/* The "Group by" control above the tasks list: a label with a compact select. */
+.group-by {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.group-select {
+  width: auto;
+  min-width: 130px;
+}
 .bulk-bar .tag-input {
   flex: 1 1 160px;
   min-width: 140px;

@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
 import { store, statusLabel, taskHasPerson, taskHasTag } from '../store'
+import { TASK_GROUPINGS, groupTasks } from '../taskGroups'
 import { api } from '../api'
 import StatusIcon from '../components/StatusIcon.vue'
 import TagInput from '../components/TagInput.vue'
@@ -25,6 +26,15 @@ const visible = computed(() => {
     store.statusFilter ? p.status === store.statusFilter : p.status !== 'done' && p.status !== 'archived'
   return store.tasks.filter(byStatus).filter(matchesFilter)
 })
+
+// The list split into sections for the chosen grouping, or a single unlabeled
+// section (the flat list) when no grouping is set. Grouping is presentational:
+// it does not change which tasks are visible.
+const sections = computed(() =>
+  store.groupBy
+    ? groupTasks(visible.value, store.groupBy, { people: store.people, repositories: store.repositories })
+    : [{ key: '', label: null, tasks: visible.value }]
+)
 
 // People linked to at least one in-flight task, with how many each has. Each
 // button narrows the page to the tasks linked to that person.
@@ -222,6 +232,22 @@ onMounted(() => {
       </button>
     </div>
 
+    <div class="row group-bar" style="gap: 10px; margin-bottom: 20px">
+      <label class="faint group-by">
+        Group by
+        <select
+          :value="store.groupBy"
+          class="select group-select"
+          aria-label="Group tasks by"
+          @change="store.setGroupBy($event.target.value)"
+        >
+          <option v-for="option in TASK_GROUPINGS" :key="option.value" :value="option.value">
+            {{ option.label }}
+          </option>
+        </select>
+      </label>
+    </div>
+
     <section
       v-if="upcomingDeadlines.length && !store.statusFilter"
       class="panel deadline-panel"
@@ -281,19 +307,25 @@ onMounted(() => {
       </div>
     </div>
 
-    <section v-if="visible.length" class="panel">
-      <TaskCard
-        v-for="p in visible"
-        :key="p.id"
-        :task="p"
-        :people="store.people"
-        selectable
-        :selected="selectedSet.has(p.id)"
-        @toggle="toggle"
-        @change-status="changeStatus"
-        @change-priority="changePriority"
-      />
-    </section>
+    <template v-if="visible.length">
+      <section v-for="group in sections" :key="group.key" class="panel">
+        <div v-if="group.label" class="panel-head">
+          <h2>{{ group.label }}</h2>
+          <span class="faint">{{ group.tasks.length }}</span>
+        </div>
+        <TaskCard
+          v-for="p in group.tasks"
+          :key="p.id"
+          :task="p"
+          :people="store.people"
+          selectable
+          :selected="selectedSet.has(p.id)"
+          @toggle="toggle"
+          @change-status="changeStatus"
+          @change-priority="changePriority"
+        />
+      </section>
+    </template>
 
     <section v-else class="panel">
       <template v-if="store.statusFilter">

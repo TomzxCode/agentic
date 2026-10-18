@@ -198,7 +198,10 @@ in-flight work, so you can narrow the list (and its status counts and upcoming
 deadlines) to a single person's tasks. The status badges at the top (Open,
 In progress, Blocked, Done) are filters: click one to show only the tasks in
 that status, including Done, which the in-flight list otherwise hides; click it
-again to go back.
+again to go back. The **Group by** control splits the list into sections by
+status, priority, person, tag, or repository; repository groups by the first
+repository linked to a task (its main repository), and a task with none falls
+into a "No repository" group. The choice is remembered per device.
 
 The **Items** page lists every resource the app tracks (Slack threads, GitHub
 issues/PRs, Drive docs, URLs, notes) with per-source filters, search, and links
