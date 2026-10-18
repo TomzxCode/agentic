@@ -25,6 +25,8 @@ import { parseRemote, personForHandle } from '../repositories/parse'
 const queue = ref({ root: null, prs: [], counts: {} })
 const loading = ref(true)
 const error = ref(false)
+// The PR whose task is being created, so its button shows a spinner.
+const creatingKey = ref('')
 
 // The report open in the viewer: its PR, its relative store path, and content.
 const openPr = ref(null)
@@ -40,16 +42,53 @@ async function load(refresh = false) {
   loading.value = true
   error.value = false
   try {
-    // The people directory resolves a GitHub login to a person page, and the
-    // registered repositories resolve a store repository to its page.
+    // The people directory resolves a GitHub login to a person page, the
+    // registered repositories resolve a store repository to its page, and the
+    // tasks resolve a PR's association to its task link.
     await store.loadPeople().catch(() => {})
     await store.loadRepositories().catch(() => {})
+    await store.loadTasks().catch(() => {})
     queue.value = await api.reviews.queue({ refresh })
   } catch (e) {
     error.value = true
     store.notify(e.message, true)
   } finally {
     loading.value = false
+  }
+}
+
+// A PR's row key, used to mark which row is creating a task.
+function prKey(pr) {
+  return `${pr.repository}#${pr.number}`
+}
+
+const tasksById = computed(() => Object.fromEntries(store.tasks.map((task) => [task.id, task])))
+
+// The task a PR's tracked item is associated to, or null when there is none.
+// The queue carries the task ids; the task itself comes from the store, like
+// the repository view resolves its item chips.
+function taskFor(pr) {
+  const id = (pr.task_ids || [])[0]
+  if (!id) return null
+  return tasksById.value[id] || { id, title: 'Linked task', status: 'open' }
+}
+
+// Turn a PR into a task by importing it, the same way the repository view's
+// "New task" does: the backend fetches the PR, fills the task, and links it as
+// an item. The row then shows its task link in place of the button.
+async function createTaskFrom(pr) {
+  if (!pr.url || creatingKey.value) return
+  creatingKey.value = prKey(pr)
+  try {
+    const task = await api.tasks.create({ github_url: pr.url })
+    await store.loadTasks()
+    await store.loadItems().catch(() => {})
+    pr.task_ids = [task.id]
+    store.notify('Task created')
+  } catch (e) {
+    store.notify(e.message, true)
+  } finally {
+    creatingKey.value = ''
   }
 }
 
@@ -179,6 +218,25 @@ onMounted(load)
             <tbody>
               <tr v-for="pr in group.prs" :key="`${pr.repository}#${pr.number}`">
                 <td class="review-pr-cell">
+                  <router-link
+                    v-if="taskFor(pr)"
+                    class="review-task-link"
+                    :to="`/task/${taskFor(pr).id}`"
+                    :title="`Task: ${taskFor(pr).title}`"
+                    :aria-label="`Task: ${taskFor(pr).title}`"
+                    >📝</router-link
+                  >
+                  <button
+                    v-else
+                    class="review-task-new"
+                    :disabled="creatingKey === prKey(pr)"
+                    :title="`Create a task from PR #${pr.number}`"
+                    :aria-label="`Create a task from PR #${pr.number}`"
+                    @click="createTaskFrom(pr)"
+                  >
+                    <span v-if="creatingKey === prKey(pr)" class="spinner" aria-hidden="true"></span>
+                    <span v-else aria-hidden="true">➕</span>
+                  </button>
                   <a
                     class="review-pr-link"
                     :href="pr.url"

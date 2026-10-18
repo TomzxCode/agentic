@@ -127,6 +127,10 @@ class ReviewPrRead(BaseModel):
     readiness: str = "yellow"
     status: str = "needs-review"
     item_id: str | None = None
+    # The tasks the PR's tracked item is associated to (empty when it is
+    # untracked or not yet linked), so the queue can link a PR to its task
+    # instead of offering to import one.
+    task_ids: list[str] = []
 
 
 class ReviewQueueRead(BaseModel):

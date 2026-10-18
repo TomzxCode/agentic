@@ -250,6 +250,9 @@ verdict blocks approval. The page mirrors the `review_requested_prs` script's
 table: the review-step state comes from the store, each PR's own fields (title,
 state, author, age) come from `ghx`, and fields that would need a read it does
 not make (the diff size, the approvers, the PRs an open PR blocks) are left out.
+A **📝** before each PR's readiness light links to the task its item is
+associated to; when no task is linked, a **➕** imports the PR into a new task,
+the same way the repository view's "New task" does.
 **Refresh** re-reads the store and bypasses the short cache of those `ghx`
 lookups.
 

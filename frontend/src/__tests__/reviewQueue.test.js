@@ -5,11 +5,15 @@ enableAutoUnmount(afterEach)
 
 const mocks = vi.hoisted(() => ({
   queue: vi.fn(),
-  report: vi.fn()
+  report: vi.fn(),
+  createTask: vi.fn()
 }))
 
 vi.mock('../api', () => ({
-  api: { reviews: { queue: mocks.queue, report: mocks.report } }
+  api: {
+    reviews: { queue: mocks.queue, report: mocks.report },
+    tasks: { create: mocks.createTask }
+  }
 }))
 
 import ReviewsView from '../views/ReviewsView.vue'
@@ -59,6 +63,7 @@ function pr(overrides = {}) {
     readiness: 'yellow',
     status: 'needs-review',
     item_id: null,
+    task_ids: [],
     ...overrides
   }
 }
@@ -68,8 +73,11 @@ beforeEach(() => {
   store.toast = null
   store.people = []
   store.repositories = []
+  store.tasks = []
   vi.spyOn(store, 'loadPeople').mockResolvedValue()
   vi.spyOn(store, 'loadRepositories').mockResolvedValue()
+  vi.spyOn(store, 'loadTasks').mockResolvedValue()
+  vi.spyOn(store, 'loadItems').mockResolvedValue()
 })
 
 afterEach(() => {
@@ -156,5 +164,41 @@ describe('ReviewsView', () => {
     expect(wrapper.get('.review-content').text()).toContain('Looks good')
     // The marker comment is stripped from the rendered report.
     expect(wrapper.html()).not.toContain('step&quot;:&quot;review-pr')
+  })
+
+  it('emojis a link to a PR task before the readiness light', async () => {
+    store.tasks = [{ id: 't1', title: 'Land the PR', status: 'in_progress' }]
+    mocks.queue.mockResolvedValue({ root: null, counts: { total: 1 }, prs: [pr({ task_ids: ['t1'] })] })
+
+    const wrapper = mount(ReviewsView, stub)
+    await flushPromises()
+
+    const link = wrapper.get('a[href="/task/t1"]')
+    expect(link.text()).toBe('📝')
+    expect(link.attributes('aria-label')).toBe('Task: Land the PR')
+    expect(wrapper.find('.review-task-new').exists()).toBe(false)
+    // The task link comes first in the PR cell, before the readiness light.
+    expect(wrapper.get('.review-pr-cell').element.firstElementChild.getAttribute('href')).toBe('/task/t1')
+  })
+
+  it('offers a "+" before the readiness light that imports the PR into a task when none is linked', async () => {
+    mocks.queue.mockResolvedValue({ root: null, counts: { total: 1 }, prs: [pr()] })
+    mocks.createTask.mockResolvedValue({ id: 't2', title: 'Imported task', status: 'open' })
+    vi.spyOn(store, 'loadTasks').mockImplementation(async () => {
+      store.tasks = [{ id: 't2', title: 'Imported task', status: 'open' }]
+    })
+
+    const wrapper = mount(ReviewsView, stub)
+    await flushPromises()
+
+    const add = wrapper.get('.review-task-new')
+    expect(add.attributes('title')).toBe('Create a task from PR #42')
+    expect(wrapper.get('.review-pr-cell').element.firstElementChild).toBe(add.element)
+    await add.trigger('click')
+    await flushPromises()
+
+    expect(mocks.createTask).toHaveBeenCalledWith({ github_url: 'https://github.com/TomzxCode/agentic/pull/42' })
+    expect(wrapper.get('a[href="/task/t2"]').text()).toBe('📝')
+    expect(wrapper.find('.review-task-new').exists()).toBe(false)
   })
 })

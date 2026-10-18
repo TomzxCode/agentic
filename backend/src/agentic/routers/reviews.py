@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlmodel import Session, select
+from sqlmodel import Session, col, select
 
 from ..config import settings
 from ..db import get_session
 from ..models.base import utcnow
-from ..models.items import SourceItem
+from ..models.items import Association, SourceItem
 from ..review_queue import collect_review_prs, enrich_from_github
 from ..reviews import read_report
 from ..schemas.items import ItemReviewContent, ReviewPrRead, ReviewQueueRead, ReviewStepRead
@@ -35,16 +35,33 @@ def _tracked_pull_requests(session: Session) -> dict[tuple[str, str, int], Sourc
     return items
 
 
-def _merge_item(pr: dict, item: SourceItem | None) -> dict:
+def _task_ids_for_items(session: Session, item_ids: list[str]) -> dict[str, list[str]]:
+    """The tasks each tracked item is associated to, keyed by item id.
+
+    An item links to tasks through an ``Association``; the queue shows the link
+    so a PR that already has a task is not offered an import it does not need.
+    """
+    if not item_ids:
+        return {}
+    by_item: dict[str, list[str]] = {}
+    rows = session.exec(select(Association).where(col(Association.item_id).in_(item_ids))).all()
+    for assoc in rows:
+        by_item.setdefault(assoc.item_id, []).append(assoc.task_id)
+    return by_item
+
+
+def _merge_item(pr: dict, item: SourceItem | None, task_ids: list[str]) -> dict:
     """Fill a store row from its tracked item, when one exists.
 
     The item wins where it has a value: the app refreshes it, so its state and
-    draft flag are newer than the store's review-time snapshot.
+    draft flag are newer than the store's review-time snapshot. The tasks the
+    item is associated to ride along, so the queue can link them.
     """
     if item is None:
         return pr
     metadata = item.metadata_json or {}
     pr["item_id"] = item.id
+    pr["task_ids"] = task_ids
     if item.title:
         pr["title"] = item.title
     if item.url:
@@ -70,9 +87,11 @@ def list_review_queue(
     GitHub.
     """
     items = _tracked_pull_requests(session)
+    task_ids = _task_ids_for_items(session, [item.id for item in items.values()])
     rows = collect_review_prs()
     for pr in rows:
-        _merge_item(pr, items.get((pr["owner"].lower(), pr["name"].lower(), pr["number"])))
+        item = items.get((pr["owner"].lower(), pr["name"].lower(), pr["number"]))
+        _merge_item(pr, item, task_ids.get(item.id, []) if item else [])
     enrich_from_github(rows, refresh=refresh)
 
     prs: list[ReviewPrRead] = []

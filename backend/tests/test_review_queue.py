@@ -2,10 +2,13 @@
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlmodel import Session
 
 from agentic import review_queue
 from agentic.config import settings
+from agentic.db import engine
 from agentic.main import app
+from agentic.models.items import Association
 from agentic.review_queue import collect_review_prs, determine_stale_steps, readiness_signal
 
 
@@ -193,6 +196,44 @@ def test_review_queue_endpoint_merges_a_tracked_item(tmp_path, monkeypatch):
         pr = client.get("/api/reviews").json()["prs"][0]
         assert pr["item_id"] == item["id"]
         assert pr["state"] == "MERGED" and pr["author"] == "carol"
+        client.delete(f"/api/items/{item['id']}")
+
+
+def test_review_queue_reports_the_tasks_a_tracked_pr_is_associated_to(tmp_path, monkeypatch):
+    monkeypatch.setattr(settings, "sdlc_dir", tmp_path)
+    _write_pr(tmp_path, "TomzxCode", "agentic", 42, sha="abc1234", steps={"review-pr": "pass"}, view=False)
+
+    with TestClient(app) as client:
+        item = client.post(
+            "/api/items",
+            json={"url": "https://github.com/TomzxCode/agentic/pull/42", "fetch": False},
+        ).json()
+        task = client.post("/api/tasks", json={"title": "Land the PR"}).json()
+        # Link the item to the task directly: the associate endpoint would fetch
+        # the item from GitHub, which a unit test must not do.
+        with Session(engine) as session:
+            session.add(Association(task_id=task["id"], item_id=item["id"], note=""))
+            session.commit()
+
+        pr = client.get("/api/reviews").json()["prs"][0]
+        assert pr["task_ids"] == [task["id"]]
+
+        client.delete(f"/api/tasks/{task['id']}")
+        client.delete(f"/api/items/{item['id']}")
+
+
+def test_review_queue_pr_with_no_task_reports_no_task_ids(tmp_path, monkeypatch):
+    monkeypatch.setattr(settings, "sdlc_dir", tmp_path)
+    _write_pr(tmp_path, "TomzxCode", "agentic", 42, sha="abc1234", steps={"review-pr": "pass"}, view=False)
+
+    with TestClient(app) as client:
+        item = client.post(
+            "/api/items",
+            json={"url": "https://github.com/TomzxCode/agentic/pull/42", "fetch": False},
+        ).json()
+        pr = client.get("/api/reviews").json()["prs"][0]
+        assert pr["item_id"] == item["id"]
+        assert pr["task_ids"] == []
         client.delete(f"/api/items/{item['id']}")
 
 

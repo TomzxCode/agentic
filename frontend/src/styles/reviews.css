@@ -28,8 +28,9 @@
   border-collapse: collapse;
 }
 /* One width per column, shared by every table. The order matches the header:
-   PR (the number and its title), Author, Age, Last comment, Reviewed, then the
-   six review steps (Behavior, Risk, Coverage, Validate, Verify, Review). */
+   PR (its task marker, readiness light, number and title), Author, Age, Last
+   comment, Reviewed, then the six review steps (Behavior, Risk, Coverage,
+   Validate, Verify, Review). */
 .review-table th:nth-child(1) {
   width: 33.5%;
 }
@@ -105,6 +106,29 @@
 /* The draft badge sits after the number, with a little air. */
 .review-pr-cell .badge {
   flex: none;
+}
+/* The PR's task marker, before the readiness light: an emoji link to the task
+   its item is associated to, or a "➕" that imports the PR into a new task. */
+.review-task-link {
+  flex: none;
+  font-size: 14px;
+  line-height: 1;
+  text-decoration: none;
+}
+.review-task-new {
+  flex: none;
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+.review-task-new:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 /* The PR title follows its number on the same line, truncating when the column
    cannot hold it; the tooltip carries the full title. */
