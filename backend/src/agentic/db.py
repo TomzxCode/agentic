@@ -147,6 +147,12 @@ def _ensure_columns() -> None:
             with engine.begin() as connection:
                 # Pre-existing items read as auto-titled; DEFAULT backfills them.
                 connection.execute(text("ALTER TABLE sourceitem ADD COLUMN title_custom BOOLEAN NOT NULL DEFAULT 0"))
+    if "scheduledtask" in inspector.get_table_names():
+        schedule_columns = {column["name"] for column in inspector.get_columns("scheduledtask")}
+        if "timezone" not in schedule_columns:
+            with engine.begin() as connection:
+                # NULL means the task follows the server's timezone.
+                connection.execute(text("ALTER TABLE scheduledtask ADD COLUMN timezone VARCHAR"))
 
 
 def get_session() -> Iterator[Session]:

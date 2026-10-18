@@ -17,6 +17,8 @@ dependencies = [
     "cyclopts>=5.2.0",
     "saq[sqlite]",
     "scalar-fastapi>=1.9.1",
+    "croniter>=6.2.4",
+    "tzlocal>=5.4.4",
 ]
 
 [project.scripts]

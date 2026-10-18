@@ -22,7 +22,9 @@ import json
 import os
 import sys
 import time
+from datetime import UTC, datetime
 from typing import Annotated, Any, Literal
+from zoneinfo import ZoneInfo
 
 from cyclopts import App, Parameter
 from rich.console import Console
@@ -1381,6 +1383,213 @@ def stack_remove(entry_id: str) -> str:
     with _client() as client:
         client.remove_stack_entry(entry_id)
     return emit({"removed": entry_id}, f"removed {entry_id}")
+
+
+# --- scheduled shell tasks ------------------------------------------------
+def _schedule_line(task: dict) -> str:
+    state = "on " if task.get("enabled") else "off"
+    nxt = _format_in_zone(task.get("next_run_at"), task.get("timezone"))
+    last = task.get("last_status") or "-"
+    zone = task.get("timezone") or "-"
+    return f"{task['id']}  {state}  {task['schedule']:<15} {zone:<20} next {nxt:<16} last {last:<9} {task['name']}"
+
+
+def _format_in_zone(iso: str | None, timezone: str | None) -> str:
+    """Show an instant as wall-clock time in a task's zone ('-' when unset)."""
+    if not iso:
+        return "-"
+    try:
+        moment = datetime.fromisoformat(iso.replace("Z", "+00:00"))
+        if moment.tzinfo is None:
+            moment = moment.replace(tzinfo=UTC)
+        if timezone:
+            moment = moment.astimezone(ZoneInfo(timezone))
+    except (ValueError, KeyError):
+        return iso[:16].replace("T", " ")
+    return moment.strftime("%Y-%m-%d %H:%M")
+
+
+def _schedule_text(task: dict) -> str:
+    lines = [_schedule_line(task), f"  command: {task['command']}"]
+    if task.get("cwd"):
+        lines.append(f"  cwd: {task['cwd']}")
+    return "\n".join(lines)
+
+
+def _schedule_run_line(run: dict) -> str:
+    started = str(run.get("started_at") or "")[:19].replace("T", " ")
+    code = "" if run.get("exit_code") is None else f"  exit {run['exit_code']}"
+    return f"{started}  {run['status']:<9}{code}  {run['id']}"
+
+
+def _schedule_run_text(run: dict) -> str:
+    line = _schedule_run_line(run)
+    if run.get("task_name"):
+        line = f"{run['task_name']}  {line}"
+    lines = [line]
+    if run.get("output"):
+        lines.append(run["output"].rstrip())
+    return "\n".join(lines)
+
+
+schedule_app = App(name="schedule", help="Create and manage scheduled shell tasks.")
+app.command(schedule_app)
+
+
+@schedule_app.command(name="list")
+@safe
+def schedule_list() -> str:
+    """List scheduled tasks, soonest next run first."""
+    with _client() as client:
+        tasks = client.list_schedules()
+    return emit(tasks, _join(tasks, _schedule_line))
+
+
+@schedule_app.command(name="get")
+@safe
+def schedule_get(schedule_id: str) -> str:
+    """Show one scheduled task.
+
+    Parameters
+    ----------
+    schedule_id
+        The task id, as shown by ``schedule list``.
+    """
+    with _client() as client:
+        task = client.get_schedule(schedule_id)
+    return emit(task, _schedule_text(task))
+
+
+@schedule_app.command(name="create")
+@safe
+def schedule_create(
+    name: str,
+    command: str,
+    schedule: str,
+    cwd: str | None = None,
+    timezone: str | None = None,
+    disabled: bool = False,
+) -> str:
+    """Create a scheduled task. SCHEDULE is a 5-field cron expression.
+
+    Parameters
+    ----------
+    name
+        A label for the task.
+    command
+        The shell command to run.
+    schedule
+        A 5-field cron expression, ``minute hour day-of-month month day-of-week``.
+    cwd
+        Directory to run the command in. Defaults to the server's own directory.
+    timezone
+        IANA zone the cron is read in, for example ``Europe/Paris``. Defaults to the server's zone.
+    disabled
+        Create the task paused instead of enabled.
+    """
+    with _client() as client:
+        task = client.create_schedule(name, command, schedule, cwd=cwd, timezone=timezone, enabled=not disabled)
+    return emit(task, f"created {_schedule_line(task)}")
+
+
+@schedule_app.command(name="update")
+@safe
+def schedule_update(
+    schedule_id: str,
+    *,
+    name: str | None = None,
+    command: str | None = None,
+    schedule: str | None = None,
+    cwd: str | None = None,
+    timezone: str | None = None,
+    enable: bool = False,
+    disable: bool = False,
+) -> str:
+    """Update a scheduled task's fields, or enable/disable it.
+
+    Parameters
+    ----------
+    schedule_id
+        The task id, as shown by ``schedule list``.
+    name
+        New label.
+    command
+        New shell command.
+    schedule
+        New 5-field cron expression.
+    cwd
+        New working directory.
+    timezone
+        New IANA zone the cron is read in.
+    enable
+        Turn the task's schedule on.
+    disable
+        Turn the task's schedule off.
+    """
+    fields: dict[str, Any] = {
+        "name": name,
+        "command": command,
+        "schedule": schedule,
+        "cwd": cwd,
+        "timezone": timezone,
+    }
+    if enable:
+        fields["enabled"] = True
+    if disable:
+        fields["enabled"] = False
+    with _client() as client:
+        task = client.update_schedule(schedule_id, **fields)
+    return emit(task, _schedule_text(task))
+
+
+@schedule_app.command(name="delete")
+@safe
+def schedule_delete(schedule_id: str) -> str:
+    """Delete a scheduled task and its run history.
+
+    Parameters
+    ----------
+    schedule_id
+        The task id, as shown by ``schedule list``.
+    """
+    with _client() as client:
+        client.delete_schedule(schedule_id)
+    return emit({"deleted": schedule_id}, f"deleted {schedule_id}")
+
+
+@schedule_app.command(name="run")
+@safe
+def schedule_run(schedule_id: str) -> str:
+    """Run a scheduled task now, in the background.
+
+    Parameters
+    ----------
+    schedule_id
+        The task id, as shown by ``schedule list``.
+    """
+    with _client() as client:
+        run = client.run_schedule(schedule_id)
+    return emit(run, f"started run {run['id']}")
+
+
+@schedule_app.command(name="runs")
+@safe
+def schedule_runs(schedule_id: str | None = None, limit: int = 20) -> str:
+    """Show run history: one task's, or every task's when no id is given.
+
+    Parameters
+    ----------
+    schedule_id
+        Limit the history to this task. Omit it for every task's runs, newest first.
+    limit
+        Maximum number of runs to show.
+    """
+    with _client() as client:
+        if schedule_id:
+            runs = client.schedule_runs(schedule_id, limit=limit)
+        else:
+            runs = client.schedule_executions(limit=limit)
+    return emit(runs, _join(runs, _schedule_run_text))
 
 
 # --- operations (provenance audit log) ------------------------------------

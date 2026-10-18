@@ -82,6 +82,18 @@ There is no authentication, so expose it only on a trusted network.
 | `GET` | `/api/reviews` | Every pull request with review reports in the store, with its review-step state (`?refresh=true` re-reads each PR's GitHub fields). |
 | `GET` | `/api/reviews/report/{number}/{name}` | Read one review report, by `repository` (`owner/name`) and its path. |
 
+## Scheduled tasks
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| `GET` / `POST` | `/api/schedules` | List and create cron-scheduled shell tasks. Each has a `timezone` (IANA name); omitted means the server's zone. |
+| `GET` / `PATCH` / `DELETE` | `/api/schedules/{id}` | Read, update, and delete one scheduled task. |
+| `POST` | `/api/schedules/{id}/run` | Run one now, ignoring its schedule. |
+| `GET` | `/api/schedules/{id}/runs` | The task's run history, newest first. |
+| `GET` | `/api/schedules/runs` | Every task's executions, newest first. |
+| `GET` | `/api/schedules/runs/{id}` | One run, with its exit code and output. |
+| `GET` | `/api/schedules/preview` | The next runs of a cron expression in a timezone (query `schedule`, optional `timezone`), plus the zone used. |
+
 ## Graph, Gantt, inbox, and operations
 
 | Method | Path | Purpose |

@@ -117,6 +117,14 @@ describe('formatDateTime', () => {
     const local = new Date(2026, 9, 16, 2, 43)
     expect(formatDateTime(local.toISOString())).toBe('2026-10-16 02:43')
   })
+
+  it('formats in a chosen timezone', () => {
+    expect(formatDateTime('2026-10-18T09:00:00Z', 'Europe/Paris')).toBe('2026-10-18 11:00')
+  })
+
+  it('falls back when the timezone is unknown to the browser', () => {
+    expect(() => formatDateTime('2026-10-18T09:00:00Z', 'Not/AZone')).not.toThrow()
+  })
 })
 
 describe('formatDuration', () => {

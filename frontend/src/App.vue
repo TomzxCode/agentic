@@ -318,6 +318,13 @@ const paletteItems = computed(() => [
     run: () => router.push('/repositories')
   },
   {
+    id: 'go-schedules',
+    label: 'Go to scheduled tasks',
+    group: 'Navigation',
+    icon: 'schedule',
+    run: () => router.push('/schedules')
+  },
+  {
     id: 'go-settings',
     label: 'Go to settings',
     group: 'Navigation',
@@ -1103,6 +1110,16 @@ onUnmounted(() => {
             @click="sidebarOpen = false"
           >
             <Icon name="repositories" />
+          </router-link>
+          <router-link
+            to="/schedules"
+            class="nav-link"
+            :class="{ active: route.name === 'schedules' }"
+            title="Scheduled tasks"
+            aria-label="Scheduled tasks"
+            @click="sidebarOpen = false"
+          >
+            <Icon name="schedule" />
           </router-link>
           <router-link
             to="/settings"

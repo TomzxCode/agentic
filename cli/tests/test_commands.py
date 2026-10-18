@@ -417,6 +417,61 @@ class FakeClient:
     def remove_stack_entry(self, entry_id):
         return None
 
+    def list_schedules(self):
+        return [
+            {
+                "id": "s1",
+                "name": "N",
+                "command": "echo hi",
+                "schedule": "0 9 * * *",
+                "cwd": None,
+                "timezone": "Europe/Paris",
+                "enabled": True,
+                "next_run_at": "2026-01-02T09:00:00Z",
+                "last_status": "succeeded",
+            }
+        ]
+
+    def get_schedule(self, schedule_id):
+        return self.list_schedules()[0]
+
+    def create_schedule(self, name, command, schedule, cwd=None, timezone=None, enabled=None):
+        return {
+            **self.list_schedules()[0],
+            "id": "s2",
+            "name": name,
+            "command": command,
+            "schedule": schedule,
+            "timezone": timezone or self.list_schedules()[0]["timezone"],
+        }
+
+    def update_schedule(self, schedule_id, **fields):
+        # Mirror the real client, which drops None so the API keeps its defaults.
+        fields = {key: value for key, value in fields.items() if value is not None}
+        return {**self.list_schedules()[0], **fields}
+
+    def delete_schedule(self, schedule_id):
+        return None
+
+    def run_schedule(self, schedule_id):
+        return {"id": "r1", "scheduled_task_id": schedule_id, "status": "running"}
+
+    def schedule_runs(self, schedule_id, limit=20):
+        return [
+            {
+                "id": "r1",
+                "scheduled_task_id": schedule_id,
+                "status": "succeeded",
+                "exit_code": 0,
+                "output": "hi\n",
+                "started_at": "2026-01-02T09:00:00",
+            }
+        ]
+
+    def schedule_executions(self, limit=100):
+        run = self.schedule_runs("s1")[0]
+        return [{**run, "task_name": "Nightly", "task_command": "echo hi"}]
+
 
 @pytest.fixture
 def fake_client(monkeypatch):
@@ -729,3 +784,44 @@ def test_stack_commands(text_format, fake_client, capsys):
     assert "* 0" in cli.stack_reorder("s1", 0)
     assert "T" in cli.stack_edit("s1", title="T")
     assert "removed s1" in cli.stack_remove("s1")
+
+
+def test_schedule_renderers():
+    task = {
+        "id": "s1",
+        "name": "Nightly",
+        "command": "echo hi",
+        "schedule": "0 9 * * *",
+        "cwd": "/w",
+        "timezone": "Europe/Paris",
+        "enabled": True,
+        "next_run_at": "2026-01-02T09:00:00Z",
+        "last_status": "succeeded",
+    }
+    assert cli._schedule_line(task).startswith("s1  on   0 9 * * *")
+    assert "Europe/Paris" in cli._schedule_line(task)
+    assert "next 2026-01-02 10:00" in cli._schedule_line(task)
+    text = cli._schedule_text(task)
+    assert "command: echo hi" in text and "cwd: /w" in text
+    paused = {**task, "enabled": False, "next_run_at": None, "last_status": None}
+    assert cli._schedule_line(paused).startswith("s1  off")
+
+    run = {"id": "r1", "status": "succeeded", "exit_code": 0, "started_at": "2026-01-02T09:00:00", "output": "hi\n"}
+    assert cli._schedule_run_line(run) == "2026-01-02 09:00:00  succeeded  exit 0  r1"
+    assert "hi" in cli._schedule_run_text(run)
+    named = {**run, "task_name": "Nightly"}
+    assert cli._schedule_run_text(named).startswith("Nightly  ")
+
+
+def test_schedule_commands(text_format, fake_client):
+    assert "s1" in cli.schedule_list()
+    assert "command: echo hi" in cli.schedule_get("s1")
+    assert "created" in cli.schedule_create("N", "echo hi", "0 9 * * *")
+    assert "UTC" in cli.schedule_create("N", "echo hi", "0 9 * * *", timezone="UTC")
+    assert "N" in cli.schedule_update("s1", name="N", enable=True)
+    assert "deleted s1" in cli.schedule_delete("s1")
+    assert "started run r1" in cli.schedule_run("s1")
+    runs = cli.schedule_runs("s1")
+    assert "succeeded" in runs and "hi" in runs
+    all_runs = cli.schedule_runs(limit=5)
+    assert "Nightly" in all_runs and "succeeded" in all_runs

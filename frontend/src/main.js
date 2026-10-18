@@ -14,6 +14,7 @@ import DependencyGraphView from './views/DependencyGraphView.vue'
 import MetricsView from './views/MetricsView.vue'
 import InboxView from './views/InboxView.vue'
 import ReviewsView from './views/ReviewsView.vue'
+import SchedulesView from './views/SchedulesView.vue'
 import StackView from './views/StackView.vue'
 import SettingsView from './views/SettingsView.vue'
 import './styles.css'
@@ -29,6 +30,7 @@ const router = createRouter({
     { path: '/gantt', name: 'gantt', component: GanttView },
     { path: '/graph', name: 'graph', component: DependencyGraphView },
     { path: '/metrics', name: 'metrics', component: MetricsView },
+    { path: '/schedules', name: 'schedules', component: SchedulesView },
     { path: '/items', name: 'items', component: ItemsView },
     { path: '/items/:id', name: 'item', component: ItemDetailView, props: true },
     { path: '/people', name: 'people', component: PeopleView },

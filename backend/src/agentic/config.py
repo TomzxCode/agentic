@@ -80,6 +80,12 @@ class Settings(BaseSettings):
     # permission requests are surfaced to the UI and the run waits.
     auto_approve_permissions: bool = True
 
+    # Scheduled shell tasks. How often (seconds) the API checks for due
+    # scheduled tasks; 0 disables the scheduler. A task's command is killed
+    # after scheduled_task_timeout seconds; 0 means no timeout.
+    scheduled_task_tick: int = 30
+    scheduled_task_timeout: int = 3600
+
     @property
     def db_path(self) -> Path:
         return self.data_dir / "agentic.db"

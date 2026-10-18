@@ -173,11 +173,30 @@ export function timeAgo(iso) {
 // An absolute timestamp in the local zone as "YYYY-MM-DD HH:MM" (24-hour), for a
 // value that should read as a date rather than an interval. Returns '' for a
 // missing or unparseable value.
-export function formatDateTime(iso) {
+export function formatDateTime(iso, timeZone) {
   if (!iso) return ''
   const date = new Date(iso)
   if (Number.isNaN(date.getTime())) return ''
   const pad = (n) => String(n).padStart(2, '0')
+  if (timeZone) {
+    // Render the wall clock in a chosen zone (such as a schedule's), instead of
+    // the browser's, so a cron expression and the times it produces agree.
+    try {
+      const parts = new Intl.DateTimeFormat('en-CA', {
+        timeZone,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        hourCycle: 'h23'
+      }).formatToParts(date)
+      const part = (type) => parts.find((p) => p.type === type)?.value || ''
+      return `${part('year')}-${part('month')}-${part('day')} ${part('hour')}:${part('minute')}`
+    } catch {
+      // An unknown zone to this browser: fall back to the browser's own.
+    }
+  }
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`
 }
 

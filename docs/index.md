@@ -13,6 +13,7 @@ The goal is that resuming a task takes under a minute: the context you need sits
 - Keeps a focus stack: an ordered queue of in-flight tasks with the current one on top.
 - Creates git worktrees per task and runs any ACP harness against them.
 - Streams the agent transcript, then stores a summary and next steps on the task.
+- Runs user-defined shell scripts on a cron schedule, with a run history.
 - Records changes, so it can report autonomy rate and yield.
 
 ## The app
@@ -32,6 +33,7 @@ The web app is organized into these pages:
 | Item (`/items/:id`) | One resource, laid out for its type, with its linked tasks and people. |
 | People (`/people`) | The people directory and what each is attached to. |
 | Repositories (`/repositories`) | Registered checkouts and their issues and pull requests. |
+| Schedules (`/schedules`) | Cron-scheduled shell tasks, with run history and output. |
 | Settings (`/settings`) | Harnesses, repository groups, refresh policies, and link templates. |
 
 ## Documentation

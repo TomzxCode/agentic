@@ -35,6 +35,7 @@ from .routers import (
     people,
     repositories,
     reviews,
+    schedules,
     sessions,
     stack,
     tasks,
@@ -42,6 +43,7 @@ from .routers import (
 )
 from .routers import settings as settings_router
 from .routers import tags as tags_router
+from .schedules import reconcile_scheduled_runs, scheduler_loop
 
 log = structlog.get_logger(__name__)
 
@@ -88,13 +90,21 @@ async def lifespan(app: FastAPI):
     # Connect the run queue and fail any run left behind by a previous process.
     await get_queue()
     await reconcile_runs()
+    # A scheduled run executes in this process, so any left running by a
+    # previous process is gone.
+    reconcile_scheduled_runs()
     # Re-fetch Slack/GitHub items on the configured schedule.
     refresh_task = asyncio.create_task(_refresh_due_forever())
+    # Fire the user-defined scheduled tasks whose time has come.
+    schedule_task = asyncio.create_task(scheduler_loop())
     log.info("agentic ready", data_dir=str(settings.data_dir))
     yield
     refresh_task.cancel()
+    schedule_task.cancel()
     with suppress(asyncio.CancelledError):
         await refresh_task
+    with suppress(asyncio.CancelledError):
+        await schedule_task
     await close_queue()
 
 
@@ -142,6 +152,7 @@ for module in (
     people,
     stack,
     reviews,
+    schedules,
 ):
     app.include_router(module.router)
 

@@ -122,6 +122,16 @@ agentic person list                  # people with task and item counts
 agentic operation list --actor agent # audit log: what changed, from where, by whom
 ```
 
+### Scheduled tasks
+
+```bash
+agentic schedule list                # scheduled shell tasks, with last status
+agentic schedule create --name backup --schedule "0 3 * * *" --command "make backup" --timezone "Europe/Paris"
+agentic schedule run <schedule>      # run one now
+agentic schedule runs <schedule>     # one task's run history
+agentic schedule runs                # every task's executions, newest first
+```
+
 ### Settings
 
 ```bash
@@ -139,4 +149,4 @@ agentic-server info             # data dir, database, queue, harness availabilit
 
 ## Resources
 
-`agentic` exposes these top-level resources: `task`, `tag`, `stack`, `item`, `link`, `person`, `repository`, `worktree`, `run`, `session`, `context`, `harness`, `settings`, `change`, `metrics`, `operation`, `graph`, and `health`.
+`agentic` exposes these top-level resources: `task`, `tag`, `stack`, `item`, `link`, `person`, `repository`, `worktree`, `run`, `session`, `context`, `harness`, `settings`, `change`, `metrics`, `operation`, `schedule`, `graph`, and `health`.

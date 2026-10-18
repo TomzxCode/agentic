@@ -101,6 +101,22 @@ export const api = {
     get: () => request('/inbox')
   },
 
+  schedules: {
+    list: () => request('/schedules'),
+    get: (id) => request(`/schedules/${id}`),
+    create: (body) => request('/schedules', { method: 'POST', body }),
+    update: (id, body) => request(`/schedules/${id}`, { method: 'PATCH', body }),
+    remove: (id) => request(`/schedules/${id}`, { method: 'DELETE' }),
+    run: (id) => request(`/schedules/${id}/run`, { method: 'POST' }),
+    runs: (id, limit = 20) => request(`/schedules/${id}/runs?limit=${limit}`),
+    executions: (limit = 100) => request(`/schedules/runs?limit=${limit}`),
+    preview: (schedule, timezone = '', count = 5) => {
+      const params = new URLSearchParams({ schedule, count: String(count) })
+      if (timezone) params.set('timezone', timezone)
+      return request(`/schedules/preview?${params.toString()}`)
+    }
+  },
+
   reviews: {
     // Every PR with review reports in the user-global store, with its step state.
     // refresh re-reads each PR's GitHub fields instead of the short ghx cache.

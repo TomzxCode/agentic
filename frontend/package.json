@@ -20,6 +20,7 @@
   },
   "dependencies": {
     "ag-grid-vue3": "^36.2.0",
+    "croner": "^10.0.1",
     "dompurify": "^3.4.17",
     "markdown-it": "^15.0.2",
     "vue": "^3.5.13",

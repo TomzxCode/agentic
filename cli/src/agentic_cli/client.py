@@ -423,6 +423,54 @@ class AgenticClient:
     def remove_stack_entry(self, entry_id: str) -> None:
         self._request("DELETE", f"/api/stack/{entry_id}")
 
+    # --- scheduled shell tasks --------------------------------------------
+    def list_schedules(self) -> list[dict]:
+        return self._request("GET", "/api/schedules")
+
+    def get_schedule(self, schedule_id: str) -> dict:
+        return self._request("GET", f"/api/schedules/{schedule_id}")
+
+    def create_schedule(
+        self,
+        name: str,
+        command: str,
+        schedule: str,
+        cwd: str | None = None,
+        timezone: str | None = None,
+        enabled: bool | None = None,
+    ) -> dict:
+        return self._request(
+            "POST",
+            "/api/schedules",
+            json=_compact(
+                {
+                    "name": name,
+                    "command": command,
+                    "schedule": schedule,
+                    "cwd": cwd,
+                    "timezone": timezone,
+                    "enabled": enabled,
+                }
+            ),
+        )
+
+    def update_schedule(self, schedule_id: str, **fields: Any) -> dict:
+        return self._request("PATCH", f"/api/schedules/{schedule_id}", json=_compact(fields))
+
+    def delete_schedule(self, schedule_id: str) -> None:
+        self._request("DELETE", f"/api/schedules/{schedule_id}")
+
+    def run_schedule(self, schedule_id: str) -> dict:
+        """Start a scheduled task now; returns the run row (initially running)."""
+        return self._request("POST", f"/api/schedules/{schedule_id}/run")
+
+    def schedule_runs(self, schedule_id: str, limit: int = 20) -> list[dict]:
+        return self._request("GET", f"/api/schedules/{schedule_id}/runs", params={"limit": limit})
+
+    def schedule_executions(self, limit: int = 100) -> list[dict]:
+        """Every scheduled task's runs, newest first."""
+        return self._request("GET", "/api/schedules/runs", params={"limit": limit})
+
     # --- operations (provenance audit log) --------------------------------
     def list_operations(
         self,

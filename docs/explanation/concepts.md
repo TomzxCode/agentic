@@ -16,6 +16,7 @@ This page explains the parts and how they relate.
 | **Agent run** | One prompt sent to a harness in a working directory, delivered to the worker through the run queue. Events stream live to the UI. |
 | **Agent session** | An agent session recorded against a task: its session id, harness, working directory, and a label. A run records the session it produced; this records one you attach by hand, for example one you opened in OpenChamber. Both build the links that reopen it. |
 | **Context refresh** | A special agent run that reads the task and its items and writes the `summary` and `next_steps`. |
+| **Scheduled task** | A user-defined shell script the API runs on a cron schedule, with a recorded history of runs. |
 | **Change** | A unit of factory output recorded against a task: a class, a lifecycle, a start and end time, and a human-intervened flag. Autonomy rate and yield are computed from changes. |
 | **Stack entry** | A task's place on the focus stack: its position (0 is current), whether it is current, and a soft-delete timestamp. |
 | **Task session** | A stretch of time a stack entry spent as the current task. Execution count and duration are derived from these. |

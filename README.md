@@ -45,6 +45,7 @@ one virtualenv.
 | **Agent run** | One prompt sent to a harness in a working directory, delivered to the worker through the run queue. Events stream live to the UI. |
 | **Agent session** | An agent session recorded against a task: its session id, harness, working directory, and a label. A run records the session it produced; this records one you attach by hand (for example one opened in OpenChamber), and both build the links that reopen it. |
 | **Context refresh** | A special agent run that reads the task + its items and writes the `summary` and `next_steps`. |
+| **Scheduled task** | A user-defined shell script the API runs on a cron schedule, with a recorded history of runs. |
 | **Change** | A unit of factory output recorded against a task: a class, a lifecycle, a start/end time, and a human-intervened flag. Autonomy rate and yield are computed from changes. |
 | **Stack entry** | A task's place on the focus stack: its position (0 is current), whether it is current, and a soft-delete timestamp. |
 | **Task session** | A stretch of time a stack entry spent as the current task; execution count and duration are derived from these. |
@@ -249,6 +250,7 @@ not make (the diff size, the approvers, the PRs an open PR blocks) are left out.
 **Refresh** re-reads the store and bypasses the short cache of those `ghx`
 lookups.
 
+
 The task header also links **dependencies**, next to the repository and people
 selectors: add the tasks that must come first (**before**) and the tasks that
 follow (**after**). The links form a DAG (the API refuses a link that would close
@@ -352,6 +354,8 @@ Environment variables (prefix `AGENTIC_`) or `backend/.env`:
 | `AGENTIC_SLACK_REFRESH_POLICY` | (empty) | When to re-fetch Slack threads, e.g. `1d=1h,7d=6h,30d=1d,*=7d`. Empty disables it. |
 | `AGENTIC_GITHUB_REFRESH_POLICY` | (empty) | When to re-fetch GitHub issues/PRs, same format. Empty disables it. |
 | `AGENTIC_ITEM_REFRESH_TICK` | `300` | Seconds between checks for due items (0 disables the loop). |
+| `AGENTIC_SCHEDULED_TASK_TICK` | `30` | Seconds between checks for scheduled shell tasks that are due (0 disables the loop). |
+| `AGENTIC_SCHEDULED_TASK_TIMEOUT` | `3600` | Seconds a scheduled shell task may run before it is stopped and marked failed. |
 | `AGENTIC_QUEUE_URL` | `sqlite:///<data_dir>/queue.db` | Agent-run queue. Use a `redis://` or `postgres://` URL to share the queue. |
 | `AGENTIC_WORKER_CONCURRENCY` | `4` | Agent runs a worker processes concurrently. |
 | `AGENTIC_WORKER_SWEEP` | `60` | Seconds between sweeps for stuck jobs (a dead worker's run). |
@@ -455,6 +459,11 @@ agentic person create --name "Ada Lovelace" --handle ada
 agentic person link <person> --task <task>   # also: --item <item>
 agentic person link <person> --requested-by <task>  # they asked for the task
 agentic person list                  # people with task and item counts
+agentic schedule list                # scheduled shell tasks, with last status
+agentic schedule create --name backup --schedule "0 3 * * *" --command "make backup" --timezone "Europe/Paris"
+agentic schedule run <schedule>      # run one now
+agentic schedule runs <schedule>     # one task's run history
+agentic schedule runs                # every task's executions, newest first
 ```
 
 Commands return data. Output is JSON when piped (or with `--format json`) and
@@ -466,7 +475,7 @@ AGENTIC_API_URL=http://box:8600 agentic task list | jq '.[].id'
 ```
 
 Resources: `task`, `tag`, `stack`, `item`, `link`, `person`, `repository`, `worktree`, `run`,
-`session`, `context`, `harness`, `settings`, `change`, `metrics`, `operation`, `graph`, plus `health`.
+`session`, `context`, `harness`, `settings`, `change`, `metrics`, `operation`, `schedule`, `graph`, plus `health`.
 
 ### Backend
 
@@ -518,6 +527,13 @@ GET/PUT/DELETE      /api/metrics/baselines/{metric}
 GET                 /api/inbox                           (suggested next actions)
 GET                 /api/reviews                         (PR review queue from the local store)
 GET                 /api/reviews/report/{number}/{name}  (one review report)
+GET/POST            /api/schedules                      (cron-scheduled shell tasks)
+GET/PATCH/DELETE    /api/schedules/{id}
+POST                /api/schedules/{id}/run            (run now)
+GET                 /api/schedules/{id}/runs           (run history)
+GET                 /api/schedules/runs                (every task's executions)
+GET                 /api/schedules/runs/{id}           (one run)
+GET                 /api/schedules/preview             (next runs for a cron expression)
 ```
 
 ## Development
