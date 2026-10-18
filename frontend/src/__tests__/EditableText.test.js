@@ -86,10 +86,10 @@ describe('EditableText', () => {
     expect(wrapper.find('textarea').exists()).toBe(false)
   })
 
-  it('opens the editor from an edit button, leaving the content its own clicks', async () => {
+  it('opens the editor from an edit button in the field, leaving the content its own clicks', async () => {
     const raw = '<details><summary>More</summary>body</details>'
     const wrapper = mount(EditableText, {
-      props: { value: raw, markdown: true, editButton: true, as: 'div', multiline: true }
+      props: { value: raw, markdown: true, editTrigger: 'field', as: 'div', multiline: true }
     })
     // The click belongs to the collapsible section, not to the field.
     await wrapper.get('summary').trigger('click')
@@ -105,9 +105,42 @@ describe('EditableText', () => {
 
   it('keeps the placeholder clickable when an edit button field is empty', async () => {
     const wrapper = mount(EditableText, {
-      props: { markdown: true, editButton: true, as: 'div', multiline: true, placeholder: 'Add one…' }
+      props: { markdown: true, editTrigger: 'field', as: 'div', multiline: true, placeholder: 'Add one…' }
     })
     await wrapper.trigger('click')
     expect(wrapper.find('textarea').exists()).toBe(true)
+  })
+
+  it('opens a multiline editor at the height the value occupied on screen', async () => {
+    const wrapper = mount(EditableText, {
+      props: { value: 'A **short** note', markdown: true, multiline: true, as: 'div' }
+    })
+    // jsdom does no layout, so stand in for the rendered height of the value.
+    Object.defineProperty(wrapper.get('.inline-edit').element, 'offsetHeight', { configurable: true, value: 240 })
+
+    await wrapper.get('.inline-edit').trigger('click')
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.get('textarea').element.style.height).toBe('240px')
+  })
+
+  it('opens from an external action, protecting the content and reporting its editing state', async () => {
+    const raw = '<details><summary>More</summary>body</details>'
+    const wrapper = mount(EditableText, {
+      props: { value: raw, markdown: true, editTrigger: 'external', as: 'div', multiline: true }
+    })
+    // No button lives inside the field; the parent renders it.
+    expect(wrapper.find('.inline-edit-btn').exists()).toBe(false)
+    // The collapsible section keeps its click.
+    await wrapper.get('summary').trigger('click')
+    expect(wrapper.find('textarea').exists()).toBe(false)
+    expect(wrapper.emitted('editing')).toBeUndefined()
+
+    await wrapper.vm.activate()
+    expect(wrapper.find('textarea').exists()).toBe(true)
+    expect(wrapper.emitted('editing')).toEqual([[true]])
+
+    await wrapper.get('textarea').trigger('blur')
+    expect(wrapper.emitted('editing')).toEqual([[true], [false]])
   })
 })

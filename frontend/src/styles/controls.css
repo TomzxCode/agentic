@@ -124,8 +124,20 @@
 .grid-2 > * {
   min-width: 0;
 }
+/* Two equal columns, for a pair of panels that carry the same weight (the
+   task's description beside its context). */
+.grid-even {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  align-items: start;
+}
+.grid-even > * {
+  min-width: 0;
+}
 @media (max-width: 1000px) {
-  .grid-2 {
+  .grid-2,
+  .grid-even {
     grid-template-columns: 1fr;
   }
   .app {

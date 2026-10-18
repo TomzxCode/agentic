@@ -27,6 +27,9 @@ const emit = defineEmits(['changed'])
 const task = ref(null)
 const loading = ref(true)
 const notFound = ref(false)
+// The description's edit action lives in its panel head, so the head hides it
+// while the field is open (a second click would reopen and drop the draft).
+const editingDescription = ref(false)
 // Picking a repository is only needed when the task does not name exactly one.
 const showCreateIssue = ref(false)
 const creatingIssue = ref(false)
@@ -183,6 +186,12 @@ function onChanged() {
   emit('changed')
 }
 
+// The description's head action: the field itself keeps its own clicks, so this
+// is the way into the editor (as with the palette's Description entry).
+function editDescription() {
+  descriptionRef.value?.activate?.()
+}
+
 // Escape blurs the focused field so its own blur handler runs (committing an
 // inline edit, adding a typed tag, …) and the field leaves edit mode.
 function blurField() {
@@ -277,23 +286,6 @@ watch(
       <button class="btn sm ghost" @click="showCreateIssue = false">Cancel</button>
     </div>
 
-    <!-- The description is Markdown (a task imported from a GitHub issue keeps
-         its body), rendered with the shared renderer like notes and next steps.
-         `as="div"`: the renderer emits block elements, which a <p> cannot hold.
-         `edit-button`: the body may carry its own controls (a collapsible
-         <details> section), which a click on the field would otherwise steal. -->
-    <EditableText
-      ref="descriptionRef"
-      class="muted task-description"
-      as="div"
-      multiline
-      markdown
-      edit-button
-      :value="task.description"
-      placeholder="Add a description…"
-      @save="(value) => update('description', value)"
-    />
-
     <section class="panel properties" aria-label="Task properties">
       <div class="prop">
         <span class="prop-label">Status</span>
@@ -366,9 +358,45 @@ watch(
       <DependenciesSelect ref="dependenciesRef" :task="task" link-to-detail @changed="onChanged" />
     </section>
 
+    <!-- The description and the context gathered for it sit side by side: the
+         two things to read first when opening a task. -->
+    <div class="grid-even">
+      <!-- The description is Markdown (a task imported from a GitHub issue keeps
+           its body), rendered with the shared renderer like notes and next steps.
+           `as="div"`: the renderer emits block elements, which a <p> cannot hold.
+           `edit-trigger="external"`: the body may carry its own controls (a
+           collapsible <details> section), which a click on the field would
+           otherwise steal; the panel head's button opens the editor instead. -->
+      <section class="panel">
+        <div class="panel-head">
+          <h2>Description</h2>
+          <button
+            v-if="!editingDescription"
+            class="btn sm ghost"
+            aria-label="Edit the description"
+            @click="editDescription"
+          >
+            ✎ Edit
+          </button>
+        </div>
+        <EditableText
+          ref="descriptionRef"
+          class="muted task-description"
+          as="div"
+          multiline
+          markdown
+          edit-trigger="external"
+          :value="task.description"
+          placeholder="Add a description…"
+          @editing="editingDescription = $event"
+          @save="(value) => update('description', value)"
+        />
+      </section>
+      <ContextPanel :task="task" @changed="onChanged" />
+    </div>
+
     <div class="grid-2">
       <div>
-        <ContextPanel :task="task" @changed="onChanged" />
         <NotesPanel :task="task" @changed="onChanged" />
         <AgentPanel :task="task" :harnesses="store.harnesses" @changed="onChanged" />
         <SessionsPanel :task="task" @changed="onChanged" />

@@ -121,8 +121,8 @@
   display: block;
   white-space: pre-wrap;
 }
-/* A field with an edit button is not click-to-edit, so the hover highlight that
-   promises it is gone; the button is the affordance. */
+/* A field whose content is not click-to-edit (an edit action sits under it or
+   in its panel head) loses the hover highlight that promises click-to-edit. */
 .inline-edit.with-edit-btn {
   cursor: default;
 }
@@ -161,16 +161,17 @@
 .page-head {
   margin-bottom: 16px;
 }
-/* Task header: title and actions, with the description and a compact labelled
-   properties strip below. */
+/* Task header: title and actions, with the labelled properties strip and the
+   description/context pair below. */
 .task-head {
   align-items: flex-start;
 }
 .task-title {
   margin-bottom: 4px;
 }
+/* In its own panel, so the panel frame and head supply the spacing. */
 .task-description {
-  margin: 0 0 12px;
+  margin: 0;
 }
 /* Task properties: a wrapping strip of labelled fields, so every value says
    what it is without a stacked label doubling the height of each field. */

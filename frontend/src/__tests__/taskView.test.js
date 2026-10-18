@@ -227,7 +227,7 @@ describe('TaskView', () => {
     expect(labels).toEqual(['Status', 'Priority', 'Deadline', 'Tags', 'People', 'Requested by', 'Repositories'])
   })
 
-  it('puts the Notes section directly under Context', async () => {
+  it('puts the description and its context side by side above the panels', async () => {
     const wrapper = mount(TaskView, {
       props: { id: 't1' },
       global: {
@@ -239,7 +239,22 @@ describe('TaskView', () => {
       }
     })
     await flushPromises()
-    expect(wrapper.get('.context').element.nextElementSibling.classList.contains('notes')).toBe(true)
+    const band = wrapper.get('.grid-even')
+    expect(band.element.children).toHaveLength(2)
+    expect(band.findAll('.et')).toHaveLength(1)
+    expect(band.get('.context').exists()).toBe(true)
+    // Notes opens the left column of the panels below the band.
+    expect(wrapper.get('.grid-2').element.children[0].firstElementChild.classList.contains('notes')).toBe(true)
+  })
+
+  it('puts the properties strip above the description and the description band above the panels', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+    const properties = wrapper.get('.properties').element
+    const band = wrapper.get('.grid-even').element
+    const panels = wrapper.get('.grid-2').element
+    expect(properties.nextElementSibling).toBe(band)
+    expect(band.nextElementSibling).toBe(panels)
   })
 
   it('blurs the focused field on Escape', async () => {
@@ -302,11 +317,14 @@ describe('TaskView', () => {
     expect(description.text()).not.toContain('**bold**')
 
     // The content is not an edit target (its own controls need the click); the
-    // edit button opens the editor on the raw Markdown.
+    // panel head's button opens the editor on the raw Markdown.
     await description.trigger('click')
     expect(description.find('textarea').exists()).toBe(false)
 
-    await description.get('.inline-edit-btn').trigger('click')
+    const editButton = wrapper.get('button[aria-label="Edit the description"]')
+    await editButton.trigger('click')
+    // The head hides its action while the field is open.
+    expect(wrapper.find('button[aria-label="Edit the description"]').exists()).toBe(false)
     // The editor replaces the field, so re-query from the view.
     const textarea = wrapper.get('textarea')
     expect(textarea.element.value).toBe('A **bold** claim with [a link](https://example.com/x)')
