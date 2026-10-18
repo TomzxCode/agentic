@@ -2,7 +2,7 @@ from sqlmodel import Session
 
 from agentic.db import create_db_and_tables, engine
 from agentic.links import build_session_links
-from agentic.models import Harness
+from agentic.models.agents import Harness
 from agentic.settings_store import update_settings
 
 

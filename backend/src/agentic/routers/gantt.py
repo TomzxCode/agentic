@@ -10,8 +10,10 @@ from fastapi import APIRouter, Depends
 from sqlmodel import Session, col, select
 
 from ..db import get_session
-from ..models import Task, TaskStatus, TimelineEvent
-from ..schemas import GanttTask, TimelineRead
+from ..models.base import TaskStatus
+from ..models.tasks import Task, TimelineEvent
+from ..schemas.gantt import GanttTask
+from ..schemas.tasks import TimelineRead
 
 router = APIRouter(prefix="/api/gantt", tags=["gantt"])
 

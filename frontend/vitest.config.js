@@ -9,6 +9,9 @@ export default defineConfig({
   },
   test: {
     environment: 'jsdom',
+    // Reuse one jsdom environment per worker instead of one per test file; the
+    // default pool rebuilds it for all 50 files, which is half the suite's time.
+    pool: 'vmThreads',
     globals: true,
     include: ['src/**/*.{test,spec}.js'],
     restoreMocks: true,

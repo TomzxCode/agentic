@@ -6,7 +6,7 @@ from sqlmodel import Session
 
 from agentic.crud import field_label, get_task_or_404, jsonable
 from agentic.db import create_db_and_tables, engine
-from agentic.models import TaskStatus
+from agentic.models.base import TaskStatus
 
 
 def test_jsonable_and_field_label():

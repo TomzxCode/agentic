@@ -1,0 +1,198 @@
+/* Items styles. */
+
+/* Items */
+.item {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  background: var(--bg-2);
+}
+.item-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.item-top .title {
+  font-weight: 600;
+  flex: 1 1 140px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* A task title together with the people linked to it, so the chips sit right
+   after the title instead of being pushed to the row's trailing metadata. */
+.item-top .title-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1 1 140px;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+.item-top .title-group .title {
+  flex: 0 1 auto;
+}
+.item .content {
+  color: var(--muted);
+  font-size: 12px;
+  margin-top: 6px;
+  max-height: 160px;
+  overflow: auto;
+  white-space: pre-wrap;
+}
+.item .content.clamp {
+  max-height: 66px;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(#000 60%, transparent);
+}
+.item .mono {
+  overflow-wrap: anywhere;
+}
+/* The fetched body of an item, on its detail page: a Slack transcript, a note,
+   or a page's extracted text. Plain text, so its newlines are kept. */
+.item-body {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+/* A Slack thread keeps its own lines and reads better with a little air. */
+.slack-thread {
+  border-left: 2px solid var(--border);
+  padding-left: 12px;
+}
+/* The PR review reports panel: the directory, one tab per report, and the
+   selected report rendered as Markdown. */
+.review-path {
+  margin: 0 0 8px;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+}
+.review-group + .review-group {
+  margin-top: 12px;
+}
+.review-group-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 6px;
+  font-size: 12px;
+}
+.review-commit {
+  color: var(--text);
+}
+.review-tabs {
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 0;
+}
+/* Rendered Markdown, shared by an item's GitHub description and a PR review
+   report: headings, lists, code, tables, quotes, and links. The container
+   supplies its own spacing and framing. */
+.md {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+.md > :first-child {
+  margin-top: 0;
+}
+.md > :last-child {
+  margin-bottom: 0;
+}
+.md h1,
+.md h2,
+.md h3,
+.md h4 {
+  color: var(--text);
+  margin: 16px 0 8px;
+  line-height: 1.3;
+}
+.md h1 {
+  font-size: 18px;
+}
+.md h2 {
+  font-size: 16px;
+}
+.md h3 {
+  font-size: 14px;
+}
+.md p {
+  margin: 8px 0;
+}
+.md ul,
+.md ol {
+  margin: 8px 0;
+  padding-left: 22px;
+}
+.md li {
+  margin: 2px 0;
+}
+.md code {
+  font-family: var(--mono);
+  font-size: 12px;
+  background: var(--bg-3);
+  padding: 1px 4px;
+  border-radius: 4px;
+}
+.md pre {
+  background: var(--bg-2);
+  padding: 10px 12px;
+  border-radius: 8px;
+  overflow: auto;
+}
+.md pre code {
+  background: none;
+  padding: 0;
+}
+.md table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 10px 0;
+  font-size: 12px;
+}
+.md th,
+.md td {
+  border: 1px solid var(--border);
+  padding: 5px 8px;
+  text-align: left;
+}
+.md th {
+  background: var(--bg-2);
+  color: var(--text);
+}
+.md blockquote {
+  margin: 8px 0;
+  padding-left: 12px;
+  border-left: 2px solid var(--border);
+  color: var(--faint);
+}
+.md hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 12px 0;
+}
+.md img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 6px;
+}
+.md a {
+  color: var(--accent);
+}
+/* The selected review report: rendered Markdown in its own framed, scrollable
+   box. */
+.review-content {
+  margin: 12px 0 0;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-1);
+  max-height: 70vh;
+  overflow: auto;
+}

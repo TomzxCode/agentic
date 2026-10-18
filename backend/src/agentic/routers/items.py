@@ -9,7 +9,8 @@ from sqlalchemy import delete as sa_delete
 from sqlmodel import Session, col, select
 
 from ..db import get_session
-from ..models import Association, ItemPerson, SourceItem, utcnow
+from ..models.base import utcnow
+from ..models.items import Association, ItemPerson, SourceItem
 from ..refresh import (
     REFRESHABLE_SOURCES,
     PolicyError,
@@ -20,18 +21,12 @@ from ..refresh import (
     policies_from_settings,
 )
 from ..reviews import list_report_files, read_report, review_dir
-from ..schemas import (
-    ItemCreate,
-    ItemRead,
-    ItemReviewContent,
-    ItemReviewFile,
-    ItemReviews,
-    ItemUpdate,
-    RefreshDueReport,
-)
-from ..services import fetch_source, infer_item_source, looks_like_url, parse_github
+from ..schemas.items import ItemCreate, ItemRead, ItemReviewContent, ItemReviewFile, ItemReviews, ItemUpdate
+from ..schemas.settings import RefreshDueReport
+from ..services.parsing import looks_like_url, parse_github
+from ..services.sources import fetch_source, infer_item_source
 from ..settings_store import get_settings, record_refresh_run
-from .people import item_person_ids, link_people_to_item
+from .people_service import item_person_ids, link_people_to_item
 
 router = APIRouter(prefix="/api/items", tags=["items"])
 

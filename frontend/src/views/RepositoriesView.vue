@@ -2,7 +2,7 @@
 import { computed, onMounted, ref, resolveComponent, shallowRef } from 'vue'
 import { api } from '../api'
 import { store, timeAgo } from '../store'
-import { groupItemsByRepository } from '../repositories'
+import { groupItemsByRepository } from '../repositories/rows'
 import DirectoryPicker from '../components/DirectoryPicker.vue'
 import GridColumnChooser from '../components/GridColumnChooser.vue'
 import RepositoriesGrid from '../components/RepositoriesGrid.vue'

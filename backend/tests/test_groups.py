@@ -3,7 +3,7 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 from agentic.main import app
-from agentic.services import build_context_prompt
+from agentic.services.prompts import build_context_prompt
 
 
 def _repo(client: TestClient, path: Path) -> dict:

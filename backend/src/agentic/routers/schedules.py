@@ -13,8 +13,9 @@ from sqlmodel import Session, col, select
 
 from .. import schedules
 from ..db import get_session
-from ..models import ScheduledTask, ScheduledTaskRun, utcnow
-from ..schemas import (
+from ..models.base import utcnow
+from ..models.schedules import ScheduledTask, ScheduledTaskRun
+from ..schemas.schedules import (
     ScheduledTaskCreate,
     ScheduledTaskExecutionRead,
     ScheduledTaskPreviewRead,

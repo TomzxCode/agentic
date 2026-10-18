@@ -52,13 +52,10 @@ python-version = "3.12"
 
 [tool.pytest.ini_options]
 testpaths = ["backend/tests", "cli/tests"]
-# Always report coverage for the backend and CLI packages so `pytest` (and
-# `make test`) show what the suite exercises without extra flags.
-addopts = [
-    "--cov=agentic",
-    "--cov=agentic_cli",
-    "--cov-report=term-missing",
-]
+# Coverage is off by default so `pytest` and `make test-backend` are fast. Turn it
+# on with the coverage flags, or `make coverage-backend` (which also writes XML):
+#   uv run pytest --cov=agentic --cov=agentic_cli --cov-report=term-missing
+#   make test-backend COV="--cov=agentic --cov=agentic_cli --cov-report=term-missing"
 
 [tool.coverage.run]
 branch = true

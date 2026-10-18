@@ -111,7 +111,7 @@ def test_deleting_a_task_removes_its_sessions():
         client.delete(f"/api/tasks/{task['id']}")
         assert client.get(f"/api/tasks/{task['id']}/sessions/{session['id']}").status_code == 404
 
-    from agentic.models import AgentSession
+    from agentic.models.agents import AgentSession
 
     with Session(engine) as db:
         assert db.get(AgentSession, session["id"]) is None

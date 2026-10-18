@@ -25,9 +25,25 @@ def _set_sqlite_pragmas(dbapi_connection, _connection_record) -> None:
     cursor.close()
 
 
+_initialized = False
+
+
 def create_db_and_tables() -> None:
-    # Import models so they are registered on SQLModel.metadata before create_all.
-    from . import models  # noqa: F401
+    global _initialized
+    if _initialized:
+        return
+    # Import every model module so its tables are registered on SQLModel.metadata
+    # before create_all.
+    from .models import (  # noqa: F401
+        agents,
+        base,
+        changes,
+        items,
+        repositories,
+        schedules,
+        system,
+        tasks,
+    )
 
     settings.data_dir.mkdir(parents=True, exist_ok=True)
     settings.worktree_root.mkdir(parents=True, exist_ok=True)
@@ -36,6 +52,7 @@ def create_db_and_tables() -> None:
     _migrate_task_repositories()
     _migrate_person_aliases()
     _ensure_columns()
+    _initialized = True
 
 
 def _migrate_task_repositories() -> None:

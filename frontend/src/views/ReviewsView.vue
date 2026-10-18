@@ -15,7 +15,7 @@ import {
   verdictTone
 } from '../reviews'
 import { store, timeAgo } from '../store'
-import { parseRemote, personForHandle } from '../repositories'
+import { parseRemote, personForHandle } from '../repositories/parse'
 
 // The review queue: every pull request with review reports in the user-global
 // store the review skills write to, one row per PR with a column per review

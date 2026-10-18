@@ -12,8 +12,8 @@ from fastapi import APIRouter, Depends
 from sqlmodel import Session, col, select
 
 from ..db import get_session
-from ..models import Operation
-from ..schemas import OperationRead
+from ..models.system import Operation
+from ..schemas.operations import OperationRead
 
 router = APIRouter(prefix="/api/operations", tags=["operations"])
 

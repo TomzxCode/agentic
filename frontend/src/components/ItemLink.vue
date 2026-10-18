@@ -1,6 +1,6 @@
 <script setup>
 import { computed } from 'vue'
-import { itemStatus } from '../repositories'
+import { itemStatus } from '../repositories/parse'
 import { sourceLabel } from '../store'
 
 // A reference to a SourceItem, rendered as a chip that opens the item's view.

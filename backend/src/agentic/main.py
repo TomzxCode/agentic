@@ -15,19 +15,20 @@ from scalar_fastapi import Theme, add_scalar_reference
 from sqlmodel import Session
 from starlette.types import ASGIApp, Receive, Scope, Send
 
-from .agents import seed_harnesses
+from .agents.harnesses import seed_harnesses
 from .config import settings
 from .db import create_db_and_tables, engine
 from .jobs import close_queue, get_queue, reconcile_runs
 from .provenance import ProvenanceMiddleware
 from .routers import (
-    agents,
+    agent_runs,
     changes,
     fs,
     gantt,
     github,
     graph,
     groups,
+    harnesses,
     inbox,
     items,
     metrics,
@@ -38,6 +39,8 @@ from .routers import (
     schedules,
     sessions,
     stack,
+    task_dependencies,
+    task_items,
     tasks,
     worktrees,
 )
@@ -136,8 +139,11 @@ for module in (
     groups,
     items,
     tasks,
+    task_items,
+    task_dependencies,
     worktrees,
-    agents,
+    harnesses,
+    agent_runs,
     sessions,
     changes,
     inbox,

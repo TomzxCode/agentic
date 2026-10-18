@@ -11,8 +11,8 @@ from fastapi import APIRouter, Depends
 from sqlmodel import Session, select
 
 from ..db import get_session
-from ..models import Task
-from ..schemas import TagRead
+from ..models.tasks import Task
+from ..schemas.people import TagRead
 
 router = APIRouter(prefix="/api/tags", tags=["tags"])
 

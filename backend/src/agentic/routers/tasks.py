@@ -14,56 +14,33 @@ from sqlmodel import Session, col, select
 
 from ..crud import add_timeline, field_label, get_task_or_404, jsonable, normalize_tags
 from ..db import get_session
-from ..dependencies import dependencies, edge_exists, would_cycle
 from ..events import bus
 from ..links import run_read, session_read
-from ..models import (
-    AgentEvent,
-    AgentRun,
-    AgentSession,
-    Association,
-    Change,
-    ChangeIntervention,
-    DependencyRelation,
-    Harness,
-    Person,
-    Repository,
-    RepositoryGroup,
-    SourceItem,
-    StackEntry,
-    Task,
-    TaskDependency,
-    TaskPerson,
-    TaskRepository,
-    TaskRequester,
-    TaskSession,
-    TaskStatus,
-    TimelineEvent,
-    Worktree,
-    WorktreeStatus,
-    utcnow,
-)
-from ..schemas import (
-    AssociateRequest,
-    AssociationDetail,
-    ChangeRead,
-    DependencyCreate,
-    ItemCreate,
-    ItemRead,
+from ..models.agents import AgentEvent, AgentRun, AgentSession, Harness
+from ..models.base import TaskStatus, WorktreeStatus, utcnow
+from ..models.changes import Change, ChangeIntervention
+from ..models.items import Association, Person, SourceItem, TaskPerson, TaskRequester
+from ..models.repositories import Repository, RepositoryGroup, TaskRepository, Worktree
+from ..models.tasks import StackEntry, Task, TaskDependency, TaskSession, TimelineEvent
+from ..schemas.changes import ChangeRead
+from ..schemas.items import AssociationDetail, ItemCreate, ItemRead
+from ..schemas.tasks import (
     TaskBulkResult,
     TaskBulkUpdate,
     TaskCreate,
-    TaskDependencies,
     TaskDetail,
     TaskRead,
     TaskUpdate,
     TimelineRead,
     WorktreeRead,
 )
-from ..services import SLACK_PLACEHOLDER_TITLE, fetch_source, github_owner_repo, remove_worktree
-from .agents import start_slack_summary
+from ..services.git import remove_worktree
+from ..services.github import github_owner_repo
+from ..services.prompts import SLACK_PLACEHOLDER_TITLE
+from ..services.sources import fetch_source
+from .agent_runs import start_slack_summary
 from .items import _upsert_item
-from .people import (
+from .people_service import (
     _person_read,
     item_person_ids,
     link_item_people_to_task,
@@ -524,52 +501,6 @@ async def delete_task(task_id: str, session: Session = Depends(get_session)) -> 
     await bus.publish("tasks", {"kind": "task", "action": "deleted", "id": task_id})
 
 
-@router.post("/{task_id}/items", response_model=AssociationDetail, status_code=201)
-async def associate_item(
-    task_id: str, payload: AssociateRequest, session: Session = Depends(get_session)
-) -> AssociationDetail:
-    get_task_or_404(session, task_id)
-    if payload.item is not None:
-        # Fetching (network/CLI) happens here; keep it off the event loop.
-        item = await anyio.to_thread.run_sync(_upsert_item, session, payload.item)
-    elif payload.item_id is not None:
-        item = session.get(SourceItem, payload.item_id)
-        if item is None:
-            raise HTTPException(status_code=404, detail="Item not found")
-    else:
-        raise HTTPException(status_code=400, detail="Provide item_id or item")
-
-    # An item that never fetched (or failed to) still names its author via
-    # GitHub; fetch it off the event loop so the task gets the person.
-    await anyio.to_thread.run_sync(_populate_item_people, session, item)
-
-    assoc = _link_item(session, task_id, item, payload.note)
-    add_timeline(
-        session,
-        task_id,
-        "item_added",
-        f"Associated [{item.source}] {item.title or item.url or item.id}",
-        {"item_id": item.id},
-    )
-    await bus.publish(f"task:{task_id}", {"kind": "task", "action": "items_changed"})
-    return AssociationDetail(
-        id=assoc.id, note=assoc.note, created_at=assoc.created_at, item=ItemRead.model_validate(item)
-    )
-
-
-@router.delete("/{task_id}/items/{item_id}", status_code=204)
-async def unassociate_item(task_id: str, item_id: str, session: Session = Depends(get_session)) -> None:
-    assoc = session.exec(
-        select(Association).where(Association.task_id == task_id, Association.item_id == item_id)
-    ).first()
-    if assoc is None:
-        raise HTTPException(status_code=404, detail="Association not found")
-    session.delete(assoc)
-    session.commit()
-    add_timeline(session, task_id, "item_removed", "Item unassociated", {"item_id": item_id})
-    await bus.publish(f"task:{task_id}", {"kind": "task", "action": "items_changed"})
-
-
 @router.get("/{task_id}/timeline", response_model=list[TimelineRead])
 def get_timeline(task_id: str, session: Session = Depends(get_session)) -> list[TimelineEvent]:
     get_task_or_404(session, task_id)
@@ -578,99 +509,6 @@ def get_timeline(task_id: str, session: Session = Depends(get_session)) -> list[
             select(TimelineEvent).where(TimelineEvent.task_id == task_id).order_by(col(TimelineEvent.created_at).desc())
         ).all()
     )
-
-
-def _dependency_read(session: Session, task_id: str) -> TaskDependencies:
-    before_ids, after_ids = dependencies(session, task_id)
-    return TaskDependencies(
-        task_id=task_id,
-        before=[_task_read(session, task) for task in (session.get(Task, i) for i in before_ids) if task],
-        after=[_task_read(session, task) for task in (session.get(Task, i) for i in after_ids) if task],
-    )
-
-
-@router.get("/{task_id}/dependencies", response_model=TaskDependencies)
-def get_dependencies(task_id: str, session: Session = Depends(get_session)) -> TaskDependencies:
-    """The tasks that come before and after this one in the dependency graph."""
-    get_task_or_404(session, task_id)
-    return _dependency_read(session, task_id)
-
-
-@router.post("/{task_id}/dependencies", response_model=TaskDependencies, status_code=201)
-async def add_dependency(
-    task_id: str, payload: DependencyCreate, session: Session = Depends(get_session)
-) -> TaskDependencies:
-    """Link a related task before or after this one.
-
-    ``relation="before"`` means the related task must be done first; ``"after"``
-    means it follows this one. A link that would close a cycle is refused.
-    """
-    task = get_task_or_404(session, task_id)
-    related = session.get(Task, payload.related_id)
-    if related is None:
-        raise HTTPException(status_code=404, detail="Related task not found")
-    if related.id == task.id:
-        raise HTTPException(status_code=400, detail="A task cannot be linked to itself")
-
-    before, after = (related, task) if payload.relation == DependencyRelation.before else (task, related)
-    if would_cycle(session, before.id, after.id):
-        raise HTTPException(status_code=400, detail="That link would create a cycle")
-    if not edge_exists(session, before.id, after.id):
-        session.add(TaskDependency(before_id=before.id, after_id=after.id))
-        session.commit()
-        add_timeline(
-            session,
-            before.id,
-            "dependency_added",
-            f"Precedes: {after.title}",
-            {"before_id": before.id, "after_id": after.id, "after_title": after.title},
-        )
-        add_timeline(
-            session,
-            after.id,
-            "dependency_added",
-            f"Follows: {before.title}",
-            {"before_id": before.id, "after_id": after.id, "before_title": before.title},
-        )
-        await bus.publish(f"task:{task_id}", {"kind": "task", "action": "dependencies_changed"})
-        await bus.publish(f"task:{related.id}", {"kind": "task", "action": "dependencies_changed"})
-    return _dependency_read(session, task_id)
-
-
-@router.delete("/{task_id}/dependencies/{related_id}", status_code=204)
-async def remove_dependency(task_id: str, related_id: str, session: Session = Depends(get_session)) -> None:
-    """Remove the before/after link between this task and a related one."""
-    get_task_or_404(session, task_id)
-    edge = session.exec(
-        select(TaskDependency).where(
-            ((TaskDependency.before_id == task_id) & (TaskDependency.after_id == related_id))
-            | ((TaskDependency.before_id == related_id) & (TaskDependency.after_id == task_id))
-        )
-    ).first()
-    if edge is None:
-        raise HTTPException(status_code=404, detail="Dependency not found")
-
-    before = session.get(Task, edge.before_id)
-    after = session.get(Task, edge.after_id)
-    session.delete(edge)
-    session.commit()
-    if before is not None and after is not None:
-        add_timeline(
-            session,
-            before.id,
-            "dependency_removed",
-            f"No longer precedes: {after.title}",
-            {"before_id": before.id, "after_id": after.id, "after_title": after.title},
-        )
-        add_timeline(
-            session,
-            after.id,
-            "dependency_removed",
-            f"No longer follows: {before.title}",
-            {"before_id": before.id, "after_id": after.id, "before_title": before.title},
-        )
-    await bus.publish(f"task:{task_id}", {"kind": "task", "action": "dependencies_changed"})
-    await bus.publish(f"task:{related_id}", {"kind": "task", "action": "dependencies_changed"})
 
 
 __all__ = ["router", "_detail"]

@@ -8,8 +8,9 @@ from sqlalchemy import update as sa_update
 from sqlmodel import Session, col, select
 
 from ..db import get_session
-from ..models import Repository, RepositoryGroup, RepositoryGroupMember, Task
-from ..schemas import RepositoryGroupCreate, RepositoryGroupRead, RepositoryGroupUpdate
+from ..models.repositories import Repository, RepositoryGroup, RepositoryGroupMember
+from ..models.tasks import Task
+from ..schemas.repositories import RepositoryGroupCreate, RepositoryGroupRead, RepositoryGroupUpdate
 
 router = APIRouter(prefix="/api/groups", tags=["groups"])
 

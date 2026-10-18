@@ -10,9 +10,12 @@ from sqlmodel import Session, col, select
 from ..crud import add_timeline, get_task_or_404
 from ..db import get_session
 from ..events import bus
-from ..models import Repository, TaskRepository, Worktree, WorktreeStatus, utcnow
-from ..schemas import WorktreeCreate, WorktreeRead
-from ..services import create_worktree, random_branch_name, remove_worktree, worktree_path
+from ..models.base import WorktreeStatus, utcnow
+from ..models.repositories import Repository, TaskRepository, Worktree
+from ..schemas.tasks import WorktreeRead
+from ..schemas.worktrees import WorktreeCreate
+from ..services.git import create_worktree, remove_worktree
+from ..services.names import random_branch_name, worktree_path
 
 router = APIRouter(prefix="/api/tasks", tags=["worktrees"])
 

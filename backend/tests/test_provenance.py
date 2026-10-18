@@ -1,9 +1,10 @@
 from fastapi.testclient import TestClient
 
 from agentic import provenance
-from agentic.agents import harness_env
+from agentic.agents.runner import harness_env
 from agentic.main import app
-from agentic.models import Harness, OperationActor, OperationClient
+from agentic.models.agents import Harness
+from agentic.models.base import OperationActor, OperationClient
 
 
 def test_resolve_maps_declared_values_and_falls_back():

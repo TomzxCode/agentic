@@ -7,7 +7,7 @@ from sqlmodel import Session
 
 from ..db import get_session
 from ..refresh import POLICY_SETTING_KEYS, PolicyError, describe_policy, parse_policy
-from ..schemas import (
+from ..schemas.settings import (
     RefreshPolicyPreview,
     RefreshPolicyPreviewRequest,
     RefreshStatusRead,

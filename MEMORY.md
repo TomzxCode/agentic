@@ -1,8 +1,29 @@
 # Memory
 
+## 2026-10-18: the backend packages have no re-export barrels
+
+- `agentic.models`, `agentic.schemas`, `agentic.services`, and `agentic.agents` are packages whose `__init__.py` holds only a docstring. Import the defining submodule directly (`from agentic.models.tasks import Task`, `from agentic.services.prompts import build_context_prompt`); never re-export the whole surface from an `__init__.py`.
+- Because nothing imports the model modules for their side effects, `create_db_and_tables` imports every model submodule itself so the tables register on `SQLModel.metadata` before `create_all`. Add a new model module to that import list, or its table is silently never created.
+- Monkeypatching must target the module that defines the function, not the package: `services.shell` for `_run_cli`/`_git`/`_cli_available`, `services.github`/`services.slack`/`services.sources` for the fetchers, `agents.runner` for `execute_run`/`run_agent`, `agents.harnesses` for seeding. A patch on the retired package attribute silently does nothing and a test then drives the real code path.
+- The CLI mirrors this: `cli.py` composes the command modules from `agentic_cli.commands` explicitly, and tests import the command module they exercise rather than reaching through `agentic_cli.cli`.
+
+## 2026-10-18: the frontend suite runs in a reused jsdom (pool vmThreads)
+
+- `frontend/vitest.config.js` sets `pool: 'vmThreads'`. The default pool builds a fresh jsdom environment for each of the 50 test files (about half the suite's time); reusing one environment per worker roughly halves the run (~31s to ~12s).
+- Under `vmThreads` the VM realm makes `globalThis.location` non-configurable, so `vi.stubGlobal('location', ...)` throws `Cannot redefine property: location`. Do not stub `location`; `taskView.test.js` relies on jsdom's no-op `location.reload()` and jsdom prints one `Not implemented: navigation to another Document` line.
+- `make test-frontend` runs `npm test` (Vitest, no coverage); `make coverage-frontend` / CI run `npm run coverage`.
+
+## 2026-10-18: the suite runs under pytest-xdist
+
+- `make test-backend` / `make coverage-backend` run `pytest -n auto`; a bare `uv run pytest` is serial. Both pass (407 tests; ~18s serial, ~9s parallel on this machine).
+- Coverage is off by default (no `--cov` in pytest `addopts`); turn it on with `make coverage-backend`, or `make test-backend COV="--cov=agentic --cov=agentic_cli --cov-report=term-missing"`.
+- `backend/tests/conftest.py` assigns `AGENTIC_DATA_DIR` to a fresh `tempfile.mkdtemp()` unconditionally (not `setdefault`), because xdist workers inherit the controller's environment and would otherwise share one SQLite file (`table harness already exists`). Every test process must therefore get its own data dir.
+- `create_db_and_tables` memoizes after its first call in a process, which is safe for the shared engine (tests delete rows, never tables) and keeps the per-test app lifespan cheap.
+
+
 ## 2026-10-17: creating a GitHub issue goes through `gh`, not ghx
 
-- `ghx` has no issue-create command (only comment, list, view), so `POST /api/github/issues` and `services.create_github_issue` shell out to `gh issue create --repo owner/repo --title T --body B` and read the new issue's URL from stdout. This is the one GitHub write that bypasses ghx; every read still uses ghx.
+- `ghx` has no issue-create command (only comment, list, view), so `POST /api/github/issues` and `services.create_github_issue` shell out to `gh issue create --repo owner/repo --title T --body B` and read the new issue's URL from stdout. `POST /api/github/issues` and `services.github.create_github_issue` are the one GitHub write that bypasses ghx; every read still uses ghx.
 - The task view's "Create GitHub issue" button creates from the task's title/description without a dialog: exactly one task-linked GitHub repository creates immediately, zero or several reveal an inline picker (the same `SearchSelect` variant the repository property uses), and the new issue is then associated to the task as an item.
 - A task's `repository_ids` may include non-GitHub repositories; only those whose `remote_url` contains `github.com` are offered or used.
 

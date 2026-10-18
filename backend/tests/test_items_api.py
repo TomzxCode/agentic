@@ -2,9 +2,9 @@
 
 from fastapi.testclient import TestClient
 
-from agentic import services
 from agentic.main import app
 from agentic.routers import items as items_router
+from agentic.services import shell
 
 
 def test_create_item_dedupes_by_external_id_and_merges():
@@ -152,7 +152,7 @@ def test_patch_and_refresh_item(monkeypatch):
 
 def test_create_item_reports_a_failed_fetch(monkeypatch):
     # A slackx that cannot run must surface, not read as a successful create.
-    monkeypatch.setattr(services, "_cli_available", lambda name: False)
+    monkeypatch.setattr(shell, "_cli_available", lambda name: False)
     with TestClient(app) as client:
         item = client.post(
             "/api/items",
@@ -163,7 +163,7 @@ def test_create_item_reports_a_failed_fetch(monkeypatch):
 
 
 def test_refresh_item_surfaces_a_failed_fetch(monkeypatch):
-    monkeypatch.setattr(services, "_cli_available", lambda name: False)
+    monkeypatch.setattr(shell, "_cli_available", lambda name: False)
     with TestClient(app) as client:
         item = client.post(
             "/api/items",
@@ -182,10 +182,10 @@ def test_refresh_due_records_a_failed_fetch(monkeypatch):
     from sqlmodel import Session
 
     from agentic.db import engine
-    from agentic.models import Setting
+    from agentic.models.system import Setting
     from agentic.settings_store import refresh_status_key
 
-    monkeypatch.setattr(services, "_cli_available", lambda name: False)
+    monkeypatch.setattr(shell, "_cli_available", lambda name: False)
     with TestClient(app) as client:
         client.patch("/api/settings", json={"slack_refresh_policy": "1d=1h,*=7d"})
         item = client.post(
@@ -273,7 +273,7 @@ def test_force_refresh_source_ignores_the_policy(monkeypatch):
     from sqlmodel import Session
 
     from agentic.db import engine
-    from agentic.models import Setting
+    from agentic.models.system import Setting
 
     def fake_fetch(source, url, external_id, title):
         # Only touch the item this test created; leave any other item alone.

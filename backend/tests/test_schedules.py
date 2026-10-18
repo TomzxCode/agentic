@@ -13,7 +13,8 @@ from sqlmodel import Session, col, select
 from agentic import schedules
 from agentic.db import create_db_and_tables, engine
 from agentic.main import app
-from agentic.models import ScheduledRunStatus, ScheduledTask, ScheduledTaskRun, utcnow
+from agentic.models.base import ScheduledRunStatus, utcnow
+from agentic.models.schedules import ScheduledTask, ScheduledTaskRun
 
 
 def _clear() -> None:

@@ -1,0 +1,345 @@
+/* Chips styles. */
+
+/* Chips / badges */
+.badge {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--bg-3);
+  color: var(--muted);
+  border: 1px solid var(--border);
+}
+.badge.ok {
+  color: var(--ok);
+  border-color: #1f4d3a;
+}
+.badge.run {
+  color: var(--accent-2);
+  border-color: #1e3a5f;
+}
+.badge.warn {
+  color: var(--warn);
+  border-color: #5b4a1a;
+}
+.badge.danger {
+  color: var(--danger);
+  border-color: #5b2a2a;
+}
+/* GitHub issue/PR status on an item */
+.badge.st-open {
+  color: var(--ok);
+  border-color: #1f4d3a;
+}
+.badge.st-draft {
+  color: var(--muted);
+}
+.badge.st-merged {
+  color: #b794f6;
+  border-color: #4c3a6b;
+}
+.badge.st-closed {
+  color: var(--danger);
+  border-color: #5b2a2a;
+}
+/* The status badges on the tasks page double as filters. */
+button.status-badge {
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+button.status-badge:hover {
+  border-color: var(--muted);
+  color: var(--text);
+}
+button.status-badge.active {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.chip-source {
+  text-transform: uppercase;
+  font-size: 10px;
+  letter-spacing: 0.05em;
+}
+/* A Slack item's speech emoji, standing in for a source badge in item links. */
+.item-emoji {
+  font-size: 12px;
+  line-height: 1;
+}
+.src-slack {
+  color: #e8a33d;
+}
+.src-github {
+  color: #a0aec0;
+}
+.src-gdrive {
+  color: #4ade80;
+}
+.src-note {
+  color: #c084fc;
+}
+.src-url {
+  color: #60a5fa;
+}
+.src-commit {
+  color: #f472b6;
+}
+
+/* Chips (removable pills, e.g. task repositories) */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 3px 8px;
+  font-size: 11px;
+  color: var(--text);
+}
+.chip-x {
+  background: transparent;
+  border: none;
+  padding: 0;
+  color: var(--faint);
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1;
+}
+.chip-x:hover {
+  color: var(--danger);
+}
+.chip-add {
+  cursor: pointer;
+  font-family: inherit;
+}
+.chip-add:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* Asking which repository a new GitHub issue goes to, inline under the task head. */
+.create-issue-pick {
+  margin-bottom: 14px;
+  padding: 8px 10px;
+  background: var(--bg-2);
+  border-radius: var(--radius);
+}
+
+/* Deadlines: an inline picker plus a state badge. */
+.deadline {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.deadline-btn {
+  background: transparent;
+  border: none;
+  padding: 2px 6px;
+  margin: -2px -6px;
+  border-radius: 8px;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+.deadline-btn:hover {
+  background: var(--bg-2);
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+.deadline-btn.is-empty {
+  color: var(--faint);
+}
+.deadline-input {
+  width: auto;
+}
+.deadline-window {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+.deadline-window-select {
+  width: auto;
+}
+
+/* Tags: removable chips plus an inline entry field, and read-only pills. */
+.tag-input {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.tag-entry {
+  flex: 1 1 90px;
+  min-width: 70px;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text);
+  font-size: 13px;
+  padding: 3px 2px;
+}
+.tag-entry::placeholder {
+  color: var(--faint);
+}
+.tag-chip {
+  display: inline-flex;
+  align-items: center;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 1px 7px;
+  font-size: 10px;
+  color: var(--muted);
+  white-space: nowrap;
+  font-family: inherit;
+}
+button.tag-chip {
+  cursor: pointer;
+}
+button.tag-chip:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+button.tag-chip.active {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+/* A person linked to a task, shown after its title on the tasks dashboard. */
+.person-chip {
+  display: inline-flex;
+  align-items: center;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 1px 7px;
+  font-size: 10px;
+  color: var(--muted);
+  white-space: nowrap;
+  font-family: inherit;
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+.person-chip:hover,
+.person-chip.active {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+/* A row of clickable tag filters on the tasks dashboard. */
+.tag-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+.tag-filter {
+  flex: 0 0 auto;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 2px 9px;
+  font-size: 11px;
+  color: var(--muted);
+  cursor: pointer;
+  font-family: inherit;
+}
+.tag-filter:hover {
+  border-color: var(--muted);
+  color: var(--text);
+}
+.tag-filter.active {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.tag-filter .count {
+  color: var(--faint);
+  margin-left: 2px;
+}
+
+/* Repository and people selectors: selected chips plus an inline "add" search
+   select. */
+.repo-select,
+.people-select {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+/* Before/after links: two labelled chip groups that sit inline in the strip. */
+.dep-select {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 20px;
+  min-width: 0;
+}
+.dep-group {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+.dep-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.dep-label {
+  flex: none;
+  font-size: 10px;
+  color: var(--faint);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+/* A task on a person's page, tagged with how the person is attached to it
+   (people, requested by, or both). */
+.task-role {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.role-label {
+  font-size: 10px;
+  color: var(--faint);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+/* Focus hints (press f, then the letter over a control) */
+.hint-badge {
+  position: fixed;
+  z-index: 90;
+  pointer-events: none;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--accent-2);
+  color: #05121f;
+  font-size: 10px;
+  font-weight: 700;
+  border-radius: 4px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+  transform: translate(-50%, -50%);
+}
+.hint-badge.dimmed {
+  opacity: 0.25;
+}
+.hint-banner {
+  position: fixed;
+  bottom: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--bg-3);
+  border: 1px solid var(--accent-2);
+  color: var(--text);
+  border-radius: 10px;
+  padding: 8px 14px;
+  z-index: 100;
+  font-size: 13px;
+}

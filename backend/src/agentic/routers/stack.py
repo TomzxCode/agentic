@@ -8,8 +8,9 @@ from sqlmodel import Session
 from .. import stack as service
 from ..crud import get_task_or_404
 from ..db import get_session
-from ..models import StackEntry, Task
-from ..schemas import StackEntryRead, StackEntryUpdate, StackPush, StackReorder, TaskRead
+from ..models.tasks import StackEntry, Task
+from ..schemas.stack import StackEntryRead, StackEntryUpdate, StackPush, StackReorder
+from ..schemas.tasks import TaskRead
 
 router = APIRouter(prefix="/api/stack", tags=["stack"])
 

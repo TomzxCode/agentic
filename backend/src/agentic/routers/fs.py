@@ -12,7 +12,7 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException
 
 from ..config import settings
-from ..schemas import FsEntry, FsListing
+from ..schemas.filesystem import FsEntry, FsListing
 
 router = APIRouter(prefix="/api/fs", tags=["filesystem"])
 

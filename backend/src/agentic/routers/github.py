@@ -6,17 +6,17 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session
 
 from ..db import get_session
-from ..models import Repository
-from ..schemas import GithubIssue, GithubIssueCreate, GithubRepoListing
-from ..services import (
+from ..models.repositories import Repository
+from ..schemas.github import GithubIssue, GithubIssueCreate, GithubRepoListing
+from ..services.github import (
     create_github_issue,
     fetch_github_issue,
     github_owner_repo,
     list_github_issues,
     list_github_repo_items,
-    parse_github,
     refresh_github_cache,
 )
+from ..services.parsing import parse_github
 
 router = APIRouter(prefix="/api/github", tags=["github"])
 

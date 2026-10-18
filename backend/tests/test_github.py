@@ -3,17 +3,17 @@ import subprocess
 
 from fastapi.testclient import TestClient
 
-from agentic import services
 from agentic.main import app
-from agentic.models import SourceItem
+from agentic.models.items import SourceItem
+from agentic.services import github, shell
 
 
 def test_github_owner_repo():
-    assert services.github_owner_repo("https://github.com/psf/requests/issues/1") == ("psf", "requests")
-    assert services.github_owner_repo("https://github.com/psf/requests") == ("psf", "requests")
-    assert services.github_owner_repo("git@github.com:psf/requests.git") == ("psf", "requests")
-    assert services.github_owner_repo("https://gitlab.com/x/y") is None
-    assert services.github_owner_repo(None) is None
+    assert github.github_owner_repo("https://github.com/psf/requests/issues/1") == ("psf", "requests")
+    assert github.github_owner_repo("https://github.com/psf/requests") == ("psf", "requests")
+    assert github.github_owner_repo("git@github.com:psf/requests.git") == ("psf", "requests")
+    assert github.github_owner_repo("https://gitlab.com/x/y") is None
+    assert github.github_owner_repo(None) is None
 
 
 def test_list_github_issues_parses(monkeypatch):
@@ -30,8 +30,8 @@ def test_list_github_issues_parses(monkeypatch):
             }
         ]
     )
-    monkeypatch.setattr(services, "_run_cli", lambda cmd, timeout=60: payload)
-    issues = services.list_github_issues("o", "r")
+    monkeypatch.setattr(shell, "_run_cli", lambda cmd, timeout=60: payload)
+    issues = github.list_github_issues("o", "r")
     assert issues is not None
     assert issues[0]["number"] == 1
     assert issues[0]["author"] == "tom"
@@ -40,7 +40,7 @@ def test_list_github_issues_parses(monkeypatch):
 
 def test_issues_endpoint(monkeypatch):
     payload = json.dumps([{"number": 5, "title": "Bug", "url": "http://x", "author": {"login": "a"}, "body": ""}])
-    monkeypatch.setattr(services, "_run_cli", lambda cmd, timeout=60: payload)
+    monkeypatch.setattr(shell, "_run_cli", lambda cmd, timeout=60: payload)
     with TestClient(app) as client:
         assert client.get("/api/github/issues", params={"owner": "o", "repo": "r"}).json()[0]["number"] == 5
         # needs a repository or owner/repo
@@ -65,14 +65,14 @@ def test_fetch_github_issue(monkeypatch):
         seen["cmd"] = cmd
         return payload
 
-    monkeypatch.setattr(services, "_run_cli", fake)
-    issue = services.fetch_github_issue("o", "r", 7)
+    monkeypatch.setattr(shell, "_run_cli", fake)
+    issue = github.fetch_github_issue("o", "r", 7)
     assert issue is not None
     assert issue["title"] == "Bug"
     assert issue["labels"] == ["bug"]
     assert seen["cmd"][0] == "ghx" and seen["cmd"][1] == "issue"
 
-    services.fetch_github_issue("o", "r", 7, kind="pull_request")
+    github.fetch_github_issue("o", "r", 7, kind="pull_request")
     assert seen["cmd"][1] == "pr"
 
 
@@ -90,9 +90,9 @@ def test_fetch_github_pull_request_carries_draft_and_state(monkeypatch):
             "body": "wip",
         }
     )
-    monkeypatch.setattr(services, "_run_cli", lambda cmd, timeout=60: payload)
+    monkeypatch.setattr(shell, "_run_cli", lambda cmd, timeout=60: payload)
 
-    issue = services.fetch_github_issue("o", "r", 7, kind="pull_request")
+    issue = github.fetch_github_issue("o", "r", 7, kind="pull_request")
     assert issue is not None
     assert issue["state"] == "MERGED"
     assert issue["is_draft"] is False
@@ -101,7 +101,7 @@ def test_fetch_github_pull_request_carries_draft_and_state(monkeypatch):
     # The fetched metadata carries the state, draft flag, merge time, and author
     # through to the item.
     result = {"metadata": {}, "content": "", "title": "", "people": []}
-    services._fetch_github("https://github.com/o/r/pull/7", result)
+    github._fetch_github("https://github.com/o/r/pull/7", result)
     assert result["metadata"]["kind"] == "pull_request"
     assert result["metadata"]["state"] == "MERGED"
     assert result["metadata"]["is_draft"] is False
@@ -131,8 +131,8 @@ def test_list_github_pulls_parses(monkeypatch):
         seen["cmd"] = cmd
         return payload
 
-    monkeypatch.setattr(services, "_run_cli", fake)
-    pulls = services.list_github_pulls("o", "r", state="all")
+    monkeypatch.setattr(shell, "_run_cli", fake)
+    pulls = github.list_github_pulls("o", "r", state="all")
     assert pulls is not None
     assert pulls[0]["kind"] == "pr"
     assert pulls[0]["state"] == "CLOSED"
@@ -143,8 +143,8 @@ def test_list_github_pulls_parses(monkeypatch):
 
 
 def test_list_github_pulls_returns_none_when_cli_fails(monkeypatch):
-    monkeypatch.setattr(services, "_run_cli", lambda cmd, timeout=60: None)
-    assert services.list_github_pulls("o", "r") is None
+    monkeypatch.setattr(shell, "_run_cli", lambda cmd, timeout=60: None)
+    assert github.list_github_pulls("o", "r") is None
 
 
 def test_list_github_repo_items_combines_issues_and_pulls(monkeypatch):
@@ -154,8 +154,8 @@ def test_list_github_repo_items_combines_issues_and_pulls(monkeypatch):
     def fake(cmd, timeout=60):
         return issue if cmd[1] == "issue" else pull
 
-    monkeypatch.setattr(services, "_run_cli", fake)
-    listing = services.list_github_repo_items("o", "r")
+    monkeypatch.setattr(shell, "_run_cli", fake)
+    listing = github.list_github_repo_items("o", "r")
     assert listing is not None
     assert listing["failed"] == []
     assert [item["kind"] for item in listing["items"]] == ["issue", "pr"]
@@ -164,8 +164,8 @@ def test_list_github_repo_items_combines_issues_and_pulls(monkeypatch):
 
 
 def test_list_github_repo_items_returns_none_when_both_fail(monkeypatch):
-    monkeypatch.setattr(services, "_run_cli", lambda cmd, timeout=60: None)
-    assert services.list_github_repo_items("o", "r") is None
+    monkeypatch.setattr(shell, "_run_cli", lambda cmd, timeout=60: None)
+    assert github.list_github_repo_items("o", "r") is None
 
 
 def test_list_github_repo_items_reports_a_one_kind_failure(monkeypatch):
@@ -174,8 +174,8 @@ def test_list_github_repo_items_reports_a_one_kind_failure(monkeypatch):
     def fake(cmd, timeout=60):
         return None if cmd[1] == "issue" else pull
 
-    monkeypatch.setattr(services, "_run_cli", fake)
-    listing = services.list_github_repo_items("o", "r")
+    monkeypatch.setattr(shell, "_run_cli", fake)
+    listing = github.list_github_repo_items("o", "r")
     assert listing is not None
     assert listing["failed"] == ["issues"]
     assert [item["kind"] for item in listing["items"]] == ["pr"]
@@ -188,19 +188,19 @@ def test_refresh_github_cache(monkeypatch):
         seen["cmd"] = cmd
         return "cached"
 
-    monkeypatch.setattr(services, "_run_cli", fake)
-    assert services.refresh_github_cache("o", "r") is True
+    monkeypatch.setattr(shell, "_run_cli", fake)
+    assert github.refresh_github_cache("o", "r") is True
     assert seen["cmd"][:2] == ["ghx", "cache"]
     assert "--force" in seen["cmd"]
 
-    monkeypatch.setattr(services, "_run_cli", lambda cmd, timeout=60: None)
-    assert services.refresh_github_cache("o", "r") is False
+    monkeypatch.setattr(shell, "_run_cli", lambda cmd, timeout=60: None)
+    assert github.refresh_github_cache("o", "r") is False
 
 
 def test_repository_endpoint(monkeypatch):
     issue = json.dumps([{"number": 1, "title": "Bug", "url": "http://i/1", "state": "OPEN", "body": "b"}])
     pull = json.dumps([{"number": 2, "title": "Fix", "url": "http://p/2", "state": "MERGED", "isDraft": False}])
-    monkeypatch.setattr(services, "_run_cli", lambda cmd, timeout=60: issue if cmd[1] == "issue" else pull)
+    monkeypatch.setattr(shell, "_run_cli", lambda cmd, timeout=60: issue if cmd[1] == "issue" else pull)
     with TestClient(app) as client:
         body = client.get("/api/github/repository", params={"owner": "o", "repo": "r"}).json()
         assert [(row["kind"], row["number"]) for row in body["items"]] == [("issue", 1), ("pr", 2)]
@@ -208,7 +208,7 @@ def test_repository_endpoint(monkeypatch):
         # needs a repository or owner/repo
         assert client.get("/api/github/repository").status_code == 400
 
-        monkeypatch.setattr(services, "_run_cli", lambda cmd, timeout=60: None)
+        monkeypatch.setattr(shell, "_run_cli", lambda cmd, timeout=60: None)
         assert client.get("/api/github/repository", params={"owner": "o", "repo": "r"}).status_code == 502
 
 
@@ -219,7 +219,7 @@ def test_repository_endpoint_forces_a_refresh(monkeypatch):
         seen.append(cmd)
         return "[]"
 
-    monkeypatch.setattr(services, "_run_cli", fake)
+    monkeypatch.setattr(shell, "_run_cli", fake)
     with TestClient(app) as client:
         client.get("/api/github/repository", params={"owner": "o", "repo": "r", "refresh": "true"})
     assert seen and seen[0][:2] == ["ghx", "cache"]
@@ -227,7 +227,7 @@ def test_repository_endpoint_forces_a_refresh(monkeypatch):
 
 def test_issue_endpoint(monkeypatch):
     payload = json.dumps({"number": 9, "title": "Single", "url": "http://x", "author": {"login": "a"}, "body": "b"})
-    monkeypatch.setattr(services, "_run_cli", lambda cmd, timeout=60: payload)
+    monkeypatch.setattr(shell, "_run_cli", lambda cmd, timeout=60: payload)
     with TestClient(app) as client:
         issue = client.get("/api/github/issue", params={"url": "https://github.com/o/r/issues/9"})
         assert issue.status_code == 200
@@ -235,7 +235,7 @@ def test_issue_endpoint(monkeypatch):
         # not a GitHub issue URL
         assert client.get("/api/github/issue", params={"url": "https://example.com/x"}).status_code == 400
 
-        monkeypatch.setattr(services, "_run_cli", lambda cmd, timeout=60: None)
+        monkeypatch.setattr(shell, "_run_cli", lambda cmd, timeout=60: None)
         assert client.get("/api/github/issue", params={"url": "https://github.com/o/r/issues/9"}).status_code == 502
 
 
@@ -246,10 +246,10 @@ def test_create_github_issue(monkeypatch):
         seen["cmd"] = cmd
         return subprocess.CompletedProcess(cmd, 0, stdout="https://github.com/o/r/issues/12\n", stderr="")
 
-    monkeypatch.setattr(services.shutil, "which", lambda name: "/usr/bin/gh")
-    monkeypatch.setattr(services.subprocess, "run", fake_run)
+    monkeypatch.setattr(shell.shutil, "which", lambda name: "/usr/bin/gh")
+    monkeypatch.setattr(shell.subprocess, "run", fake_run)
 
-    issue = services.create_github_issue("o", "r", "A title", "A body")
+    issue = github.create_github_issue("o", "r", "A title", "A body")
     assert issue is not None
     assert issue["number"] == 12
     assert issue["url"] == "https://github.com/o/r/issues/12"
@@ -261,17 +261,17 @@ def test_create_github_issue(monkeypatch):
 
 
 def test_create_github_issue_none_on_failure(monkeypatch):
-    monkeypatch.setattr(services.shutil, "which", lambda name: "/usr/bin/gh")
+    monkeypatch.setattr(shell.shutil, "which", lambda name: "/usr/bin/gh")
     monkeypatch.setattr(
-        services.subprocess,
+        shell.subprocess,
         "run",
         lambda cmd, **kwargs: subprocess.CompletedProcess(cmd, 1, stdout="", stderr="nope"),
     )
-    assert services.create_github_issue("o", "r", "T") is None
+    assert github.create_github_issue("o", "r", "T") is None
 
     # gh missing altogether.
-    monkeypatch.setattr(services.shutil, "which", lambda name: None)
-    assert services.create_github_issue("o", "r", "T") is None
+    monkeypatch.setattr(shell.shutil, "which", lambda name: None)
+    assert github.create_github_issue("o", "r", "T") is None
 
 
 def test_create_issue_endpoint(monkeypatch):

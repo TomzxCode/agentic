@@ -20,8 +20,10 @@ from ..metrics import (
     compute_metrics,
     direction,
 )
-from ..models import Change, ChangeClass, MetricBaseline, utcnow
-from ..schemas import BaselineRead, BaselineSet, MetricCounts, MetricResult, MetricsReport
+from ..models.base import ChangeClass, utcnow
+from ..models.changes import Change
+from ..models.system import MetricBaseline
+from ..schemas.metrics import BaselineRead, BaselineSet, MetricCounts, MetricResult, MetricsReport
 
 router = APIRouter(prefix="/api/metrics", tags=["metrics"])
 

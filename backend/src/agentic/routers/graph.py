@@ -11,8 +11,9 @@ from sqlmodel import Session, col, select
 
 from ..db import get_session
 from ..dependencies import all_edges
-from ..models import Task, TaskStatus
-from ..schemas import DependencyGraph, GraphEdge, GraphNode
+from ..models.base import TaskStatus
+from ..models.tasks import Task
+from ..schemas.tasks import DependencyGraph, GraphEdge, GraphNode
 
 router = APIRouter(prefix="/api/graph", tags=["graph"])
 

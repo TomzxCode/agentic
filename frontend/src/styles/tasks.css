@@ -1,0 +1,376 @@
+/* Tasks styles. */
+
+/* Bulk select on the tasks dashboard */
+.bulk-bar {
+  background: var(--bg-2);
+}
+.bulk-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  color: var(--muted);
+}
+.bulk-count input,
+.row-check {
+  accent-color: var(--accent);
+  width: 16px;
+  height: 16px;
+}
+.bulk-status {
+  width: auto;
+  min-width: 130px;
+}
+.bulk-bar .tag-input {
+  flex: 1 1 160px;
+  min-width: 140px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 5px 8px;
+  background: var(--bg);
+}
+.select-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+.select-item.selected {
+  border-color: var(--accent);
+}
+.select-item .row-check {
+  margin-top: 3px;
+  flex: 0 0 auto;
+}
+.item-body {
+  flex: 1;
+  min-width: 0;
+}
+.select-item .title:hover {
+  text-decoration: underline;
+}
+/* The add-note field: the Add button sits in a reserved bottom band so the typed
+   text keeps the full width. A textarea lays its text out in its own content box,
+   so CSS cannot make it flow around the button; reserving a band along the bottom
+   edge costs no width, unlike reserving the right edge. */
+.note-add {
+  position: relative;
+}
+.note-add .textarea {
+  display: block;
+  padding-bottom: 38px;
+}
+.note-add .btn {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+}
+@media (max-width: 760px) {
+  /* The touch-sized button is taller, so the band grows with it. */
+  .note-add .textarea {
+    padding-bottom: 48px;
+  }
+}
+/* GitHub-style task list: no bullet, checkbox before the text. */
+.md li.task-list-item {
+  list-style: none;
+}
+.md .task-list-item-checkbox {
+  margin-right: 6px;
+  vertical-align: middle;
+  accent-color: var(--accent);
+}
+.md .task-list-item-checkbox:not([disabled]) {
+  cursor: pointer;
+}
+
+/* Next steps are edited as one multiline text field (EditableText), so the list
+   markup and the empty-state callout are gone; the header badge still flags a
+   task with no next steps. */
+.summary {
+  white-space: pre-wrap;
+  color: var(--text);
+}
+.muted {
+  color: var(--muted);
+}
+.faint {
+  color: var(--faint);
+  font-size: 12px;
+}
+
+/* Inline editing */
+.inline-edit {
+  border-radius: 8px;
+  padding: 2px 6px;
+  margin: -2px -6px;
+  cursor: text;
+  transition: background 0.12s;
+}
+.inline-edit:hover {
+  background: var(--bg-2);
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+.inline-edit:focus-visible {
+  background: var(--bg-2);
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+.inline-edit.inline-empty {
+  color: var(--faint);
+}
+.inline-edit.multiline {
+  display: block;
+  white-space: pre-wrap;
+}
+/* A field with an edit button is not click-to-edit, so the hover highlight that
+   promises it is gone; the button is the affordance. */
+.inline-edit.with-edit-btn {
+  cursor: default;
+}
+.inline-edit.with-edit-btn:hover {
+  background: none;
+  box-shadow: none;
+}
+/* Sits under the field's content, faint until reached for, so the field still
+   reads as text first. */
+.inline-edit-btn {
+  display: block;
+  margin-top: 6px;
+  border-color: transparent;
+  color: var(--faint);
+}
+.inline-edit-btn:hover {
+  color: var(--text);
+  border-color: var(--border);
+}
+.inline-input {
+  width: 100%;
+  background: var(--bg);
+  border: 1px solid var(--accent-2);
+  border-radius: 8px;
+  padding: 2px 6px;
+  margin: -3px -7px;
+  font: inherit;
+  color: inherit;
+  outline: none;
+  resize: vertical;
+}
+.page-head .inline-input {
+  font-size: 20px;
+  font-weight: 600;
+}
+.page-head {
+  margin-bottom: 16px;
+}
+/* Task header: title and actions, with the description and a compact labelled
+   properties strip below. */
+.task-head {
+  align-items: flex-start;
+}
+.task-title {
+  margin-bottom: 4px;
+}
+.task-description {
+  margin: 0 0 12px;
+}
+/* Task properties: a wrapping strip of labelled fields, so every value says
+   what it is without a stacked label doubling the height of each field. */
+.properties {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 20px;
+  padding: 10px 16px;
+}
+.prop {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+  max-width: 100%;
+}
+/* Let chip groups shrink and wrap rather than overflow the strip. */
+.prop > :not(.prop-label) {
+  min-width: 0;
+}
+.prop-label {
+  flex: none;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--faint);
+}
+/* Header actions match the metadata shape instead of the ghost-button look. */
+.task-actions .session-links.compact .btn {
+  background: var(--bg-2);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 11px;
+  padding: 3px 8px;
+}
+.task-actions .session-links.compact .btn:hover {
+  background: var(--bg-3);
+  border-color: var(--muted);
+  color: var(--text);
+}
+
+/* Transcript */
+.transcript {
+  background: #0b0e13;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px;
+  max-height: 460px;
+  overflow: auto;
+  font-family: var(--mono);
+  font-size: 12.5px;
+}
+.ev {
+  margin-bottom: 8px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.ev .who {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-right: 6px;
+}
+.ev.message .who {
+  color: var(--accent);
+}
+.ev.thought {
+  color: var(--muted);
+  font-style: italic;
+}
+.ev.thought .who {
+  color: var(--faint);
+}
+.ev.tool .who {
+  color: var(--accent-2);
+}
+.ev.tool .body {
+  color: var(--muted);
+}
+.ev.error {
+  color: var(--danger);
+}
+.ev.permission {
+  color: var(--warn);
+}
+.ev.warning {
+  color: var(--warn);
+}
+.ev.plan {
+  color: #c084fc;
+}
+.ev.usage .who {
+  color: var(--faint);
+}
+
+/* Session open links */
+.session-links {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+.session-links .cmd {
+  display: block;
+  width: 100%;
+  background: #0b0e13;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px 9px;
+  color: var(--muted);
+  overflow-x: auto;
+  white-space: nowrap;
+}
+.session-links.compact {
+  margin-top: 0;
+}
+
+/* Timeline */
+.status-spans {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  margin: 4px 0 12px;
+  font-size: 12px;
+}
+.status-spans-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.status-span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.status-span-time {
+  color: var(--muted);
+  white-space: nowrap;
+}
+.timeline {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.timeline li {
+  display: flex;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+.timeline li:last-child {
+  border-bottom: none;
+}
+.timeline li.highlight {
+  background: var(--bg-2);
+  border-radius: 6px;
+  box-shadow: inset 3px 0 0 var(--accent-2);
+}
+.timeline .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent-2);
+  margin-top: 6px;
+  flex: none;
+}
+.timeline .when {
+  color: var(--faint);
+  font-size: 11px;
+  white-space: nowrap;
+}
+.timeline .changes {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-top: 5px;
+}
+.timeline .change {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 12px;
+  flex-wrap: wrap;
+}
+.timeline .change .field {
+  color: var(--muted);
+  min-width: 84px;
+}
+.timeline .change .from {
+  color: var(--muted);
+  text-decoration: line-through;
+  opacity: 0.75;
+}
+.timeline .change .arrow {
+  color: var(--faint);
+}
+.timeline .change .to {
+  color: var(--accent);
+}

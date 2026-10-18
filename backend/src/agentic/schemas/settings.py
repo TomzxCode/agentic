@@ -1,0 +1,82 @@
+"""Pydantic request/response models."""
+
+from __future__ import annotations
+
+from datetime import datetime
+
+from pydantic import BaseModel
+
+
+class SettingsRead(BaseModel):
+    effective: dict[str, str]
+    overrides: dict[str, str]
+    defaults: dict[str, str]
+
+
+class SettingsUpdate(BaseModel):
+    github_login: str | None = None
+    openchamber_url: str | None = None
+    openchamber_session_path: str | None = None
+    terminal_url_template: str | None = None
+    editor_url_template: str | None = None
+    slack_refresh_policy: str | None = None
+    github_refresh_policy: str | None = None
+    # A JSON list of user-defined agent prompts (kind, label, template).
+    agent_prompts: str | None = None
+
+
+class RefreshTierRead(BaseModel):
+    """One band of a refresh policy: an age bound and its refresh interval."""
+
+    max_age_seconds: float
+    interval_seconds: float | None = None
+
+
+class RefreshPolicyPreview(BaseModel):
+    """A refresh policy parsed for display, or the error that stopped it."""
+
+    valid: bool = True
+    error: str | None = None
+    enabled: bool = False
+    tiers: list[RefreshTierRead] = []
+    fallback_seconds: float | None = None
+
+
+class RefreshPolicyPreviewRequest(BaseModel):
+    value: str = ""
+
+
+class RefreshDueItem(BaseModel):
+    """One item the refresh runner considered."""
+
+    item_id: str
+    source: str
+    title: str
+    refreshed: bool = False
+    error: str | None = None
+
+
+class RefreshDueReport(BaseModel):
+    """The outcome of a run over the items the refresh policy says are due."""
+
+    checked: int = 0
+    due: int = 0
+    refreshed: int = 0
+    failed: int = 0
+    items: list[RefreshDueItem] = []
+
+
+class RefreshSourceStatus(BaseModel):
+    """When a source was last refreshed, how it went, and what triggered it."""
+
+    last_run_at: datetime | None = None
+    refreshed: int = 0
+    failed: int = 0
+    error: str | None = None
+    origin: str | None = None
+
+
+class RefreshStatusRead(BaseModel):
+    """Per-source background refresh status, keyed by source."""
+
+    sources: dict[str, RefreshSourceStatus] = {}

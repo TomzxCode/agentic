@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from sqlmodel import Session, col, select
 
-from .models import TaskDependency
+from .models.tasks import TaskDependency
 
 
 def edge_exists(session: Session, before_id: str, after_id: str) -> bool:

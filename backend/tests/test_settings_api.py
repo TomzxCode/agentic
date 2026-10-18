@@ -60,7 +60,7 @@ def test_agent_prompts_default_and_validation():
     from sqlmodel import Session
 
     from agentic.db import engine
-    from agentic.models import Setting
+    from agentic.models.system import Setting
 
     with TestClient(app) as client:
         initial = client.get("/api/settings").json()
@@ -123,7 +123,7 @@ def test_refresh_status_reports_the_last_run():
     from sqlmodel import Session
 
     from agentic.db import engine
-    from agentic.models import Setting
+    from agentic.models.system import Setting
     from agentic.settings_store import record_refresh_run
 
     with TestClient(app) as client:
@@ -158,7 +158,7 @@ def test_background_run_records_status_per_source(monkeypatch):
 
     from agentic import main
     from agentic.db import engine
-    from agentic.models import Setting
+    from agentic.models.system import Setting
     from agentic.routers import items as items_router
 
     monkeypatch.setattr(items_router, "fetch_source", lambda *args, **kwargs: {"title": "x", "content": "y"})
@@ -190,7 +190,7 @@ def test_background_run_records_failures(monkeypatch):
 
     from agentic import main
     from agentic.db import engine
-    from agentic.models import Setting
+    from agentic.models.system import Setting
     from agentic.routers import items as items_router
 
     def boom(*args, **kwargs):

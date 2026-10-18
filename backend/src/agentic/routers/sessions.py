@@ -16,8 +16,9 @@ from ..crud import add_timeline, get_task_or_404
 from ..db import get_session
 from ..events import bus
 from ..links import session_read
-from ..models import AgentSession, Harness, Task
-from ..schemas import SessionCreate, SessionRead, SessionUpdate
+from ..models.agents import AgentSession, Harness
+from ..models.tasks import Task
+from ..schemas.runs import SessionCreate, SessionRead, SessionUpdate
 
 router = APIRouter(prefix="/api/tasks", tags=["sessions"])
 

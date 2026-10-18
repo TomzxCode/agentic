@@ -1,8 +1,11 @@
 import re
 import subprocess
 
-from agentic import services
-from agentic.services import extract_context_json, infer_item_source, looks_like_url, random_branch_name, random_name
+from agentic.services import names, shell
+from agentic.services.names import random_branch_name, random_name
+from agentic.services.parsing import looks_like_url
+from agentic.services.prompts import extract_context_json
+from agentic.services.sources import infer_item_source
 
 VALID = (
     '{"summary": "Do the thing.", "next_steps": '
@@ -87,7 +90,7 @@ def test_random_name_is_two_words():
 def test_random_branch_name_prefixes_agentic(tmp_path):
     branch = random_branch_name(str(tmp_path))
     assert branch.startswith("agentic/")
-    assert branch.removeprefix("agentic/") in {f"{a}-{n}" for a in services._ADJECTIVES for n in services._NOUNS}
+    assert branch.removeprefix("agentic/") in {f"{a}-{n}" for a in names._ADJECTIVES for n in names._NOUNS}
 
 
 def test_random_branch_name_retries_when_branch_exists(tmp_path, monkeypatch):
@@ -98,8 +101,8 @@ def test_random_branch_name_retries_when_branch_exists(tmp_path, monkeypatch):
         # The first candidate appears to already exist, the next one is free.
         return subprocess.CompletedProcess(args, 0 if calls["n"] == 1 else 1, "", "")
 
-    monkeypatch.setattr(services, "_git", fake_git)
-    monkeypatch.setattr(services, "random_name", lambda: "silly-goose")
+    monkeypatch.setattr(shell, "_git", fake_git)
+    monkeypatch.setattr(names, "random_name", lambda: "silly-goose")
 
     assert random_branch_name(str(tmp_path)) == "agentic/silly-goose"
     assert calls["n"] == 2

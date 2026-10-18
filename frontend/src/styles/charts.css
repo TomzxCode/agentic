@@ -1,0 +1,476 @@
+/* Charts styles. */
+
+/* Gantt */
+.gantt-range {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.gantt-range-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.gantt-range-field .input {
+  width: auto;
+  padding: 5px 8px;
+  font-size: 12px;
+  background: var(--bg-2);
+}
+.gantt-range-error {
+  margin: 0 0 12px;
+  font-size: 12px;
+  color: var(--danger);
+}
+.gantt-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--muted);
+  cursor: pointer;
+}
+.gantt-toggle input {
+  accent-color: var(--accent-2);
+}
+.gantt-scroll {
+  overflow-x: auto;
+  margin: 0 -4px;
+  padding: 0 4px;
+}
+.gantt {
+  min-width: 100%;
+  padding: 0 10px;
+}
+/* A single-row chart on the task page drops the label column and fits its
+   panel instead of scrolling like the full-page Gantt view. */
+.gantt.compact {
+  min-width: 0;
+}
+.gantt.compact .gantt-row {
+  grid-template-columns: 1fr;
+}
+.gantt.compact .gantt-track {
+  min-height: 30px;
+}
+.timeline-gantt {
+  margin: 4px 0 12px;
+}
+.gantt-row {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  align-items: stretch;
+  border-bottom: 1px solid var(--border);
+}
+.gantt-row:last-child {
+  border-bottom: none;
+}
+.gantt-link:hover {
+  background: var(--bg-2);
+  text-decoration: none;
+}
+.gantt-label {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 12px 9px 0;
+}
+.gantt-label .badge {
+  flex: none;
+  text-transform: capitalize;
+}
+.gantt-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.gantt-track {
+  position: relative;
+  min-height: 38px;
+  overflow: hidden;
+}
+.gantt-axis .gantt-track {
+  min-height: 22px;
+}
+.gantt-axis .gantt-label {
+  padding: 0;
+}
+.gantt-tick {
+  position: absolute;
+  top: 3px;
+  font-size: 11px;
+  color: var(--faint);
+  white-space: nowrap;
+}
+.gantt-tick.start {
+  transform: none;
+}
+.gantt-tick.center {
+  transform: translateX(-50%);
+}
+.gantt-tick.end {
+  transform: translateX(-100%);
+}
+.gantt-gridline {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--border);
+  opacity: 0.45;
+}
+.gantt-now {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--accent);
+  opacity: 0.55;
+}
+.gantt-bar {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 14px;
+  border-radius: 5px;
+  opacity: 0.5;
+}
+.gantt-bar.st-open {
+  background: var(--muted);
+}
+.gantt-bar.st-in_progress {
+  background: var(--accent-2);
+}
+.gantt-bar.st-blocked {
+  background: var(--warn);
+}
+.gantt-bar.st-done {
+  background: var(--ok);
+}
+.gantt-bar.st-archived {
+  background: var(--faint);
+}
+.gantt-marker {
+  position: absolute;
+  top: 50%;
+  width: 9px;
+  height: 9px;
+  transform: translate(-50%, -50%) rotate(45deg);
+  border: 1px solid var(--bg-1);
+  cursor: help;
+}
+button.gantt-marker {
+  padding: 0;
+  cursor: pointer;
+}
+/* A larger hit area for the small marker, so it is tappable on a phone. */
+button.gantt-marker::after {
+  content: '';
+  position: absolute;
+  inset: -7px;
+}
+.gantt-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  margin-top: 14px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.legend-dot {
+  width: 9px;
+  height: 9px;
+  transform: rotate(45deg);
+  flex: none;
+}
+.legend-line {
+  width: 1px;
+  height: 12px;
+  background: var(--accent);
+  opacity: 0.55;
+}
+.mk-accent {
+  background: var(--accent);
+}
+.mk-blue {
+  background: var(--accent-2);
+}
+.mk-ok {
+  background: var(--ok);
+}
+.mk-warn {
+  background: var(--warn);
+}
+.mk-danger {
+  background: var(--danger);
+}
+.mk-violet {
+  background: #c084fc;
+}
+.mk-muted {
+  background: var(--muted);
+}
+
+/* Dependency graph */
+.dep-scroll {
+  overflow-x: auto;
+  margin: 0 -4px;
+  padding: 0 4px;
+}
+.dep-svg {
+  display: block;
+}
+.dep-edge {
+  fill: none;
+  stroke: var(--border);
+  stroke-width: 1.5;
+}
+.dep-arrowhead {
+  fill: var(--muted);
+}
+.dep-node-link {
+  cursor: pointer;
+}
+.dep-node {
+  fill: var(--bg-2);
+  stroke: var(--muted);
+  stroke-width: 1.5;
+}
+.dep-node-link:hover .dep-node {
+  fill: var(--bg-3);
+}
+.dep-node.st-open {
+  stroke: var(--muted);
+}
+.dep-node.st-in_progress {
+  stroke: var(--accent-2);
+}
+.dep-node.st-blocked {
+  stroke: var(--warn);
+}
+.dep-node.st-done {
+  stroke: var(--ok);
+}
+.dep-node.st-archived {
+  stroke: var(--faint);
+}
+.dep-node-text {
+  fill: var(--text);
+  font-size: 12px;
+  pointer-events: none;
+}
+.dep-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  margin-top: 14px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.dep-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex: none;
+}
+.dep-dot.st-open {
+  background: var(--muted);
+}
+.dep-dot.st-in_progress {
+  background: var(--accent-2);
+}
+.dep-dot.st-blocked {
+  background: var(--warn);
+}
+.dep-dot.st-done {
+  background: var(--ok);
+}
+.dep-dot.st-archived {
+  background: var(--faint);
+}
+
+/* Metrics */
+.metric-window {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.metric-window .input {
+  width: 72px;
+  padding: 5px 8px;
+  font-size: 12px;
+  background: var(--bg-2);
+}
+.metric-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px;
+}
+.metric-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+.metric-card h2 {
+  margin: 0;
+  font-size: 14px;
+}
+.metric-value {
+  margin: 0;
+  font-size: 30px;
+  font-weight: 650;
+}
+.metric-counts {
+  margin: 14px 0 0;
+  font-size: 12px;
+}
+.metric-form {
+  flex-wrap: wrap;
+}
+.change-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+.change-row:last-child {
+  border-bottom: none;
+}
+
+/* The change records shown under a pull request in the repository detail view. */
+.change-lines {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.change-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  font-size: 13px;
+}
+
+/* The repository detail view's issues and PRs grid (AG Grid). Bordered and
+   flexed to fill the height left below the page's other content, down to the
+   bottom of the viewport, so it scrolls internally rather than growing the page.
+   The hosting page sets `page-fill`. */
+.page-fill {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+/* The page's other content keeps its own height; the grid absorbs the rest. */
+.page-fill > * {
+  flex-shrink: 0;
+}
+.repo-grid {
+  display: block;
+  width: 100%;
+  flex: 1;
+  min-height: 220px;
+  margin-top: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.repo-title-cell .title {
+  font-weight: 500;
+}
+.repo-chips,
+.repo-statuses,
+.repo-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  /* Fill the row so the content centers: AG Grid sizes a cell to the row. */
+  height: 100%;
+}
+.repo-statuses .badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+/* AG Grid gives every cell a line-height equal to the row's content height so
+   plain text centers in the row. Buttons and badges inherit it and grow taller
+   than the row, so give them their own line-height. */
+.repo-grid .btn,
+.repo-grid .badge {
+  line-height: 1.5;
+}
+
+/* The multi-select value filter shown in a column's filter popup. */
+.value-filter {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 180px;
+  max-height: 260px;
+  overflow: auto;
+  line-height: 1.5;
+}
+.value-filter-search {
+  margin-bottom: 4px;
+}
+.value-filter-option {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+/* The column chooser: a button in the page header with a checkbox per column,
+   the Community stand-in for AG Grid's Enterprise Columns tool panel. */
+.col-chooser {
+  position: relative;
+  display: inline-block;
+}
+.col-chooser-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 180px;
+  max-height: 300px;
+  overflow: auto;
+  padding: 8px;
+  text-align: left;
+  background: var(--bg-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 25%);
+}
+.col-chooser-option {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.col-chooser-reset {
+  justify-content: center;
+  margin-top: 2px;
+}

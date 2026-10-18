@@ -8,9 +8,10 @@ from datetime import datetime
 from sqlmodel import Session, select
 
 from .config import settings
-from .models import Setting, utcnow
+from .models.base import utcnow
+from .models.system import Setting
 from .refresh import REFRESHABLE_SOURCES
-from .services import detect_github_login
+from .services.github import detect_github_login
 
 # Keys the Settings page can override. Values are strings (URLs, templates, and
 # JSON-encoded lists such as ``agent_prompts``).

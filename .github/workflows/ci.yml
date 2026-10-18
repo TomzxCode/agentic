@@ -37,7 +37,7 @@ jobs:
         run: uv run --frozen ty check
 
       - name: Test
-        run: uv run --frozen pytest -q -n auto --cov-report=xml:coverage.xml
+        run: uv run --frozen pytest -q -n auto --cov=agentic --cov=agentic_cli --cov-report=xml:coverage.xml
 
       - name: Upload backend coverage
         if: always()
@@ -73,7 +73,7 @@ jobs:
 
       - name: Test
         working-directory: frontend
-        run: npm test
+        run: npm run coverage
 
       - name: Upload frontend coverage
         if: always()

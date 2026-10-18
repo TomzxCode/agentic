@@ -13,8 +13,12 @@ from sqlmodel import Session, col, select
 
 from ..db import get_session
 from ..inbox import build_suggestions
-from ..models import Association, Change, SourceItem, Task, Worktree, utcnow
-from ..schemas import InboxReport
+from ..models.base import utcnow
+from ..models.changes import Change
+from ..models.items import Association, SourceItem
+from ..models.repositories import Worktree
+from ..models.tasks import Task
+from ..schemas.inbox import InboxReport
 from ..settings_store import resolve_github_login
 
 router = APIRouter(prefix="/api/inbox", tags=["inbox"])

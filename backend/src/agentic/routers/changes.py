@@ -19,17 +19,10 @@ from sqlmodel import Session, col, select
 from ..crud import add_timeline, get_task_or_404, jsonable
 from ..db import get_session
 from ..events import bus
-from ..models import (
-    Change,
-    ChangeClass,
-    ChangeIntervention,
-    ChangeStatus,
-    InterventionKind,
-    Repository,
-    Worktree,
-    utcnow,
-)
-from ..schemas import (
+from ..models.base import ChangeClass, ChangeStatus, InterventionKind, utcnow
+from ..models.changes import Change, ChangeIntervention
+from ..models.repositories import Repository, Worktree
+from ..schemas.changes import (
     ChangeCreate,
     ChangeDetail,
     ChangeRead,

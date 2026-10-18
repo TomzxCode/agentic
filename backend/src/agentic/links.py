@@ -17,8 +17,8 @@ from __future__ import annotations
 
 from sqlmodel import Session
 
-from .models import AgentRun, AgentSession, Harness
-from .schemas import RunRead, SessionLink, SessionRead
+from .models.agents import AgentRun, AgentSession, Harness
+from .schemas.runs import RunRead, SessionLink, SessionRead
 from .settings_store import get_settings
 
 

@@ -6,12 +6,14 @@ import time
 from fastapi.testclient import TestClient
 from sqlmodel import Session
 
-from agentic.agents import persist_event
+from agentic.agents.runner import persist_event
 from agentic.config import settings
 from agentic.db import create_db_and_tables, engine
 from agentic.main import app
-from agentic.models import AgentRun, RunStatus, Task, utcnow
-from agentic.routers import agents as agents_router
+from agentic.models.agents import AgentRun
+from agentic.models.base import RunStatus, utcnow
+from agentic.models.tasks import Task
+from agentic.routers import agent_runs as agents_router
 from agentic.routers import worktrees as worktrees_router
 
 

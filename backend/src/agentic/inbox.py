@@ -14,8 +14,12 @@ import re
 from collections.abc import Sequence
 from typing import Any
 
-from .models import Change, SourceItem, Task, TaskStatus, Worktree, WorktreeStatus
-from .services import parse_github
+from .models.base import TaskStatus, WorktreeStatus
+from .models.changes import Change
+from .models.items import SourceItem
+from .models.repositories import Worktree
+from .models.tasks import Task
+from .services.parsing import parse_github
 
 # Suggestion kinds. The rank drives the display order, so a finished task is
 # offered for closing before its bookkeeping (a change record) or its cleanup

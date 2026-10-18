@@ -79,8 +79,8 @@ def _slack_generate_title(task_id: str) -> bool:
     from sqlmodel import Session
 
     from .db import engine
-    from .models import Task
-    from .services import SLACK_PLACEHOLDER_TITLE
+    from .models.tasks import Task
+    from .services.prompts import SLACK_PLACEHOLDER_TITLE
 
     with Session(engine) as session:
         task = session.get(Task, task_id)
@@ -99,9 +99,10 @@ async def process_run(ctx: dict[str, Any], run_id: str) -> None:
     """SAQ entrypoint: execute one AgentRun to completion."""
     from sqlmodel import Session
 
-    from .agents import execute_context_refresh, execute_run, execute_slack_summary
+    from .agents import runner
     from .db import engine
-    from .models import AgentRun, RunStatus, utcnow
+    from .models.agents import AgentRun
+    from .models.base import RunStatus, utcnow
 
     with Session(engine) as session:
         run = session.get(AgentRun, run_id)
@@ -123,7 +124,7 @@ async def process_run(ctx: dict[str, Any], run_id: str) -> None:
     heartbeat = asyncio.create_task(_heartbeat(job)) if job is not None and settings.job_heartbeat else None
     try:
         if kind == "refresh_context":
-            await execute_context_refresh(
+            await runner.execute_context_refresh(
                 run_id=run_id,
                 task_id=task_id,
                 harness_id=harness_id,
@@ -132,7 +133,7 @@ async def process_run(ctx: dict[str, Any], run_id: str) -> None:
                 cancel_event=cancel_event,
             )
         elif kind == "summarize_slack":
-            await execute_slack_summary(
+            await runner.execute_slack_summary(
                 run_id=run_id,
                 task_id=task_id,
                 harness_id=harness_id,
@@ -142,7 +143,9 @@ async def process_run(ctx: dict[str, Any], run_id: str) -> None:
                 generate_title=_slack_generate_title(task_id),
             )
         else:
-            await execute_run(run_id=run_id, harness_id=harness_id, cwd=cwd, prompt=prompt, cancel_event=cancel_event)
+            await runner.execute_run(
+                run_id=run_id, harness_id=harness_id, cwd=cwd, prompt=prompt, cancel_event=cancel_event
+            )
     finally:
         # A CancelledError is left to propagate: SAQ either marks the job aborted
         # (a user cancel, which the API already recorded on the run) or retries it
@@ -160,7 +163,8 @@ async def reconcile_runs() -> int:
     from sqlmodel import Session, col, select
 
     from .db import engine
-    from .models import AgentRun, RunStatus, utcnow
+    from .models.agents import AgentRun
+    from .models.base import RunStatus, utcnow
 
     queue = await get_queue()
     recovered = 0
@@ -200,7 +204,7 @@ async def run_worker(concurrency: int | None = None) -> None:
     """Prepare the database and run a worker until interrupted."""
     from sqlmodel import Session
 
-    from .agents import seed_harnesses
+    from .agents.harnesses import seed_harnesses
     from .db import create_db_and_tables, engine
 
     create_db_and_tables()

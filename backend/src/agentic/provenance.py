@@ -22,7 +22,8 @@ import structlog
 from sqlmodel import Session
 
 from .db import engine
-from .models import Operation, OperationActor, OperationClient
+from .models.base import OperationActor, OperationClient
+from .models.system import Operation
 
 log = structlog.get_logger(__name__)
 

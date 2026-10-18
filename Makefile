@@ -1,14 +1,18 @@
 .PHONY: help install dev-backend dev-worker dev-frontend dev-tray test test-frontend test-backend coverage-backend coverage-frontend lint lint-frontend typecheck build docs docs-serve run run-dev
 
+# Extra pytest args for the test target, e.g.
+#   make test-backend COV="--cov=agentic --cov=agentic_cli --cov-report=term-missing"
+COV ?=
+
 help:
 	@echo "install             install backend + CLI (workspace) and frontend deps"
 	@echo "dev-backend         run the API with reload on 0.0.0.0:8600"
 	@echo "dev-worker          run the agent-run worker"
 	@echo "dev-frontend        run the Vite dev server on 0.0.0.0:5173"
 	@echo "dev-tray            run the menu-bar/tray companion (global hotkey + Mark Done)"
-	@echo "test                run backend + CLI tests with coverage"
-	@echo "test-backend        run backend + CLI tests with coverage (parallel)"
-	@echo "test-frontend       run frontend (Vitest) tests with coverage"
+	@echo "test                run backend + CLI and frontend tests (fast, no coverage)"
+	@echo "test-backend        run backend + CLI tests (parallel, no coverage)"
+	@echo "test-frontend       run frontend (Vitest) tests (no coverage)"
 	@echo "coverage-backend    backend + CLI tests, write coverage.xml (parallel)"
 	@echo "coverage-frontend   frontend tests, write frontend/coverage/"
 	@echo "lint                ruff format + check"
@@ -39,13 +43,13 @@ dev-tray:
 test: test-backend test-frontend
 
 test-backend:
-	uv run pytest -q -n auto
+	uv run pytest -q -n auto $(COV)
 
 test-frontend:
 	cd frontend && npm test
 
 coverage-backend:
-	uv run pytest -q -n auto --cov-report=xml:coverage.xml
+	uv run pytest -q -n auto --cov=agentic --cov=agentic_cli --cov-report=term-missing --cov-report=xml:coverage.xml
 
 coverage-frontend:
 	cd frontend && npm run coverage

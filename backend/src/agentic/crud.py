@@ -11,7 +11,8 @@ from fastapi import HTTPException
 from sqlmodel import Session
 
 from . import provenance
-from .models import OperationActor, OperationClient, Task, TimelineEvent
+from .models.base import OperationActor, OperationClient
+from .models.tasks import Task, TimelineEvent
 
 
 def jsonable(value: Any) -> Any:

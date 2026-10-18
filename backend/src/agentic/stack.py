@@ -20,7 +20,8 @@ from typing import TypedDict, overload
 from sqlmodel import Session, col, select
 
 from .crud import add_timeline
-from .models import StackEntry, Task, TaskSession, TaskStatus, utcnow
+from .models.base import TaskStatus, utcnow
+from .models.tasks import StackEntry, Task, TaskSession
 
 # The statuses that belong on the stack. A task in any other status (done or
 # archived) is not in flight and does not belong on it.

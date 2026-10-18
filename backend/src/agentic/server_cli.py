@@ -14,10 +14,10 @@ from __future__ import annotations
 from cyclopts import App
 from sqlmodel import Session, select
 
-from .agents import get_harness, harness_available, seed_harnesses
+from .agents.harnesses import get_harness, harness_available, seed_harnesses
 from .config import settings
 from .db import create_db_and_tables, engine
-from .models import Harness
+from .models.agents import Harness
 
 
 def serve(host: str = "127.0.0.1", port: int = 8600, reload: bool = False) -> None:

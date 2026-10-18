@@ -4,13 +4,13 @@ import json
 
 from fastapi.testclient import TestClient
 
-from agentic import services
 from agentic.main import app
+from agentic.services import shell
 
 
 def test_issues_endpoint_by_repository(monkeypatch, tmp_path):
     payload = json.dumps([{"number": 1, "title": "T", "url": "u", "author": {"login": "a"}, "body": ""}])
-    monkeypatch.setattr(services, "_run_cli", lambda cmd, timeout=60: payload)
+    monkeypatch.setattr(shell, "_run_cli", lambda cmd, timeout=60: payload)
     with TestClient(app) as client:
         repo_dir = tmp_path / "repo"
         (repo_dir / ".git").mkdir(parents=True)
@@ -30,7 +30,7 @@ def test_issues_endpoint_by_repository(monkeypatch, tmp_path):
         assert client.get("/api/github/issues", params={"repository_id": other["id"]}).status_code == 400
 
         # ghx unavailable.
-        monkeypatch.setattr(services, "_run_cli", lambda cmd, timeout=60: None)
+        monkeypatch.setattr(shell, "_run_cli", lambda cmd, timeout=60: None)
         assert client.get("/api/github/issues", params={"owner": "o", "repo": "r"}).status_code == 502
 
         client.delete(f"/api/repositories/{repo['id']}")

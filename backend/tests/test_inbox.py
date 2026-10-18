@@ -9,7 +9,11 @@ from agentic.inbox import (
     is_pull_request,
 )
 from agentic.main import app
-from agentic.models import Change, SourceItem, Task, TaskStatus, Worktree, WorktreeStatus
+from agentic.models.base import TaskStatus, WorktreeStatus
+from agentic.models.changes import Change
+from agentic.models.items import SourceItem
+from agentic.models.repositories import Worktree
+from agentic.models.tasks import Task
 
 MERGED_AT = "2026-01-01T00:00:00+00:00"
 

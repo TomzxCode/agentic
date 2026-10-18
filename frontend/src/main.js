@@ -17,7 +17,16 @@ import ReviewsView from './views/ReviewsView.vue'
 import SchedulesView from './views/SchedulesView.vue'
 import StackView from './views/StackView.vue'
 import SettingsView from './views/SettingsView.vue'
-import './styles.css'
+import './styles/base.css'
+import './styles/layout.css'
+import './styles/controls.css'
+import './styles/chips.css'
+import './styles/items.css'
+import './styles/reviews.css'
+import './styles/tasks.css'
+import './styles/overlays.css'
+import './styles/charts.css'
+import './styles/responsive.css'
 
 const router = createRouter({
   history: createWebHistory(),

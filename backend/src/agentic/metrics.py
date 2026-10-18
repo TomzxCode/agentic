@@ -20,7 +20,8 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 
-from .models import Change, ChangeStatus
+from .models.base import ChangeStatus
+from .models.changes import Change
 
 DEFAULT_WINDOW_DAYS = 30
 DEFAULT_OBSERVATION_DAYS = 14

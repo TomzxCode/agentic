@@ -539,9 +539,9 @@ GET                 /api/schedules/preview             (next runs for a cron exp
 ## Development
 
 ```bash
-make test              # backend + CLI and frontend tests, with coverage
-make test-backend      # backend + CLI (pytest) tests, with coverage
-make test-frontend     # frontend (Vitest) tests, with coverage
+make test              # backend + CLI and frontend tests (no coverage)
+make test-backend      # backend + CLI (pytest) tests, parallel
+make test-frontend     # frontend (Vitest) tests
 make coverage-backend  # backend + CLI tests, write coverage.xml
 make coverage-frontend # frontend tests, write frontend/coverage/
 make lint              # ruff format + check
@@ -554,6 +554,8 @@ make dev-tray          # run the tray/global-hotkey companion on its own
 make run               # start the API (:8600), worker, frontend dev server (:5173), and tray
 make run-dev           # same as run, with the API reloading on changes
 ```
+
+Tests run without coverage by default; use `make coverage-backend` / `make coverage-frontend` (or pass `COV="--cov=agentic --cov=agentic_cli --cov-report=term-missing"` to `make test-backend`) when you want it.
 
 `make test-backend` runs pytest across all cores with pytest-xdist; pass `-n0` to `uv run pytest` to run it serially when debugging a single test.
 

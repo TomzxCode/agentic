@@ -10,7 +10,8 @@ from agentic.metrics import (
     compute_yield,
     direction,
 )
-from agentic.models import Change, ChangeStatus, utcnow
+from agentic.models.base import ChangeStatus, utcnow
+from agentic.models.changes import Change
 
 
 def _change(**fields) -> Change:

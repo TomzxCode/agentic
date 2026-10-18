@@ -3,16 +3,8 @@ import { computed, onMounted, ref, resolveComponent, shallowRef } from 'vue'
 import { api } from '../api'
 import { changeCreateBody, changesForItem } from '../changes'
 import { store, statusLabel, timeAgo } from '../store'
-import {
-  itemAuthor,
-  itemState,
-  itemStatus,
-  itemsForRepository,
-  parseRemote,
-  personForHandle,
-  repositoryRows,
-  sortItems
-} from '../repositories'
+import { itemAuthor, itemState, itemStatus, parseRemote, personForHandle } from '../repositories/parse'
+import { itemsForRepository, repositoryRows, sortItems } from '../repositories/rows'
 import GridColumnChooser from '../components/GridColumnChooser.vue'
 import RepositoryItemsGrid from '../components/RepositoryItemsGrid.vue'
 

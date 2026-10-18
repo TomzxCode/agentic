@@ -3,11 +3,11 @@
 from fastapi.testclient import TestClient
 from sqlmodel import select
 
-from agentic import services
 from agentic.main import app
-from agentic.models import SourceItem
-from agentic.routers import agents as agents_router
+from agentic.models.items import SourceItem
+from agentic.routers import agent_runs as agents_router
 from agentic.routers import tasks as tasks_router
+from agentic.services import prompts
 
 SLACK_URL = "https://acme.slack.com/archives/C123/p1700000000000000"
 EXTERNAL_ID = "C123:1700000000000000"
@@ -27,22 +27,22 @@ def _recorder(sink: list) -> object:
 
 
 def test_extract_summary_json_reads_title_and_summary():
-    data = services.extract_summary_json('{"title": "Fix ingest", "summary": "They discussed it."}')
+    data = prompts.extract_summary_json('{"title": "Fix ingest", "summary": "They discussed it."}')
     assert data == {"title": "Fix ingest", "summary": "They discussed it."}
 
-    fenced = services.extract_summary_json('Here you go:\n```json\n{"title": "T", "summary": "S"}\n```')
+    fenced = prompts.extract_summary_json('Here you go:\n```json\n{"title": "T", "summary": "S"}\n```')
     assert fenced == {"title": "T", "summary": "S"}
 
     # Either key is enough: a summary-only reply still earns its summary.
-    assert services.extract_summary_json('{"summary": "only"}') == {"title": "", "summary": "only"}
+    assert prompts.extract_summary_json('{"summary": "only"}') == {"title": "", "summary": "only"}
 
     # Nothing usable at all.
-    assert services.extract_summary_json('{"title": "", "summary": "  "}') is None
-    assert services.extract_summary_json("no json here") is None
+    assert prompts.extract_summary_json('{"title": "", "summary": "  "}') is None
+    assert prompts.extract_summary_json("no json here") is None
 
 
 def test_build_summary_prompt_includes_the_thread():
-    prompt = services.build_summary_prompt("Ada: should we ship?\nBob: yes")
+    prompt = prompts.build_summary_prompt("Ada: should we ship?\nBob: yes")
     assert "Ada: should we ship?" in prompt
     assert "title" in prompt and "summary" in prompt
 

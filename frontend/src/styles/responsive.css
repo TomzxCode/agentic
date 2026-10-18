@@ -1,0 +1,404 @@
+/* Responsive styles. */
+
+/* Desktop: the sidebar can be hidden entirely, leaving the page the full width.
+   The toggle floats at the page's left edge, on the title's line, so it reads as
+   a leading icon of the title: the title makes room for it and the rest of the
+   page keeps flowing at the page's left edge. */
+@media (min-width: 761px) {
+  /* A single column: with the sidebar gone, a `0 1fr` track pair would drop
+     .main into the 0-width first track. */
+  .app.sidebar-hidden {
+    grid-template-columns: 1fr;
+  }
+  .app.sidebar-hidden .sidebar {
+    display: none;
+  }
+  .main > .menu-btn {
+    display: inline-flex;
+    float: left;
+    width: 22px;
+    height: 30px;
+    margin: 0 10px 0 0;
+    padding: 0;
+    justify-content: center;
+    align-items: center;
+    border: none;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--muted);
+  }
+  .main > .menu-btn:hover {
+    background: var(--bg-2);
+    color: var(--text);
+  }
+}
+
+/* Mobile */
+@media (max-width: 760px) {
+  .app {
+    grid-template-columns: 1fr;
+  }
+
+  /* Sized by the drawer, not by the handle. */
+  .sidebar-resizer {
+    display: none;
+  }
+
+  /* Sidebar becomes an off-canvas drawer. */
+  .sidebar {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 40;
+    width: 100%;
+    transform: translateX(-102%);
+    transition: transform 0.22s ease;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+    padding-right: max(12px, env(safe-area-inset-right));
+    padding-bottom: calc(12px + env(safe-area-inset-bottom));
+  }
+  .app.sidebar-open .sidebar {
+    transform: none;
+  }
+  /* While a finger drags the drawer, the transform follows it directly. */
+  .app.sidebar-dragging .sidebar {
+    transition: none;
+  }
+  /* The drawer covers the menu button and the backdrop, so it carries its own close. */
+  .side-brand .sidebar-close {
+    display: inline-flex;
+    padding: 0;
+    width: 42px;
+    justify-content: center;
+  }
+  .sidebar-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 39;
+  }
+  .main > .menu-btn {
+    display: inline-flex;
+    position: fixed;
+    z-index: 30;
+    top: calc(env(safe-area-inset-top) + 10px);
+    left: calc(env(safe-area-inset-left) + 12px);
+    width: 42px;
+    height: 42px;
+    padding: 0;
+    justify-content: center;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+  }
+
+  .main {
+    padding: calc(64px + env(safe-area-inset-top)) 14px calc(72px + env(safe-area-inset-bottom));
+  }
+  .grid-2 {
+    grid-template-columns: 1fr;
+  }
+  .gantt {
+    min-width: 560px;
+  }
+  .gantt-row {
+    grid-template-columns: 150px 1fr;
+  }
+  .gantt-range-field .input {
+    font-size: 16px;
+    padding: 8px 10px;
+  }
+  .panel {
+    padding: 14px;
+    border-radius: 12px;
+  }
+  .panel-head {
+    flex-wrap: wrap;
+  }
+
+  .metric-grid {
+    grid-template-columns: 1fr;
+  }
+  .metric-window .input {
+    font-size: 16px;
+    padding: 8px 10px;
+  }
+  .change-row {
+    align-items: flex-start;
+  }
+
+  /* Settings nav wraps into chips above the content. */
+  .settings-layout {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  .settings-nav {
+    flex-direction: row;
+    flex-wrap: wrap;
+    position: static;
+  }
+  .settings-nav-item {
+    border-color: var(--border);
+  }
+
+  /* Touch targets and iOS-friendly form sizing (avoids zoom-on-focus). */
+  .btn {
+    min-height: 40px;
+    padding: 9px 14px;
+  }
+  .btn.sm {
+    min-height: 36px;
+    padding: 7px 11px;
+    font-size: 13px;
+  }
+  .btn.primary {
+    padding: 9px 14px;
+  }
+  .input,
+  .select,
+  .textarea {
+    font-size: 16px;
+    padding: 10px 12px;
+  }
+  .w-170,
+  .w-150 {
+    width: 100%;
+  }
+
+  /* Sidebar footer controls keep comfortable touch targets. */
+  .sidebar-nav .palette-trigger,
+  .sidebar-nav .nav-link {
+    min-height: 42px;
+    align-items: center;
+  }
+
+  /* Keep long content from forcing horizontal scroll. */
+  .transcript {
+    max-height: 62vh;
+  }
+  .timeline .when {
+    white-space: nowrap;
+  }
+  h1 {
+    font-size: 19px;
+  }
+  .kbd-hint {
+    display: none;
+  }
+
+  /* Header actions stack under the title instead of squeezing it. */
+  .page-head {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .page-head .row {
+    justify-content: flex-start;
+  }
+
+  .modal-backdrop {
+    padding: 12px;
+    padding-top: max(4vh, env(safe-area-inset-top));
+    overflow-y: auto;
+    align-items: flex-start;
+  }
+  .modal {
+    width: 100%;
+    max-height: calc(100vh - max(4vh, env(safe-area-inset-top)) - 24px);
+  }
+  /* Own the full padded width on a phone; the desktop rule is a share of the
+     viewport, which would overflow next to the backdrop's padding. */
+  .modal.review-modal {
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar {
+    transition: none;
+  }
+  .spinner {
+    animation-duration: 1.6s;
+  }
+}
+
+/* Section heading inside a page (for example the Issues / Pull requests groups
+   on a repository's detail view). */
+.group-head {
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  margin: 16px 0 2px;
+}
+/* A group heading that links somewhere (a repository's GitHub page) keeps the
+   heading's own tone and reads as a link on hover. */
+.group-head a {
+  color: inherit;
+}
+.group-head a:hover {
+  color: var(--accent);
+}
+
+/* Stack: a compact, keyboard-driven focus queue. */
+.stack-panel {
+  padding: 12px;
+}
+/* The page is focusable only so the row shortcuts work after a click; it is
+   not a control, so it carries no focus ring. */
+.stack-page:focus,
+.stack-page:focus-visible {
+  outline: none;
+}
+.stack-add {
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.stack-filter-note {
+  margin: 0 0 8px;
+}
+.link-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--accent);
+  cursor: pointer;
+}
+.link-btn:hover {
+  text-decoration: underline;
+}
+.stack-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.stack-table td {
+  padding: 6px 8px;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+/* Every cell but the title shrinks to its content, so the columns line up
+   across rows and the title absorbs the remaining width. */
+.stack-handle-cell,
+.stack-index,
+.stack-open-cell,
+.stack-indicator,
+.stack-status-cell,
+.stack-deadline-cell,
+.stack-col,
+.stack-actions-cell {
+  width: 1%;
+}
+.stack-row {
+  cursor: default;
+}
+.stack-row + .stack-row td {
+  border-top: 1px solid var(--border);
+}
+.stack-row:hover td {
+  background: var(--bg-2);
+}
+.stack-row.selected td {
+  background: var(--bg-3);
+}
+.stack-row.current td {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+.stack-row.current .stack-title {
+  font-weight: 600;
+}
+.stack-index {
+  text-align: right;
+  color: var(--faint);
+}
+.stack-indicator {
+  text-align: center;
+}
+/* max-width: 0 is what lets a table cell shrink below its content; the title
+   takes the slack and truncates. */
+.stack-title-cell {
+  width: 100%;
+  max-width: 0;
+  overflow: hidden;
+}
+.stack-title {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text);
+  /* Neutralize the shared inline-edit padding so the title fills the cell. */
+  padding: 0;
+  margin: 0;
+}
+.stack-col {
+  text-align: right;
+  font-size: 12px;
+}
+.stack-actions {
+  display: inline-flex;
+  gap: 4px;
+}
+.stack-actions-cell {
+  text-align: right;
+}
+.stack-actions .btn {
+  padding: 2px 8px;
+}
+/* The open link is an anchor; keep it looking like the action buttons. */
+.stack-open-cell .btn {
+  padding: 2px 8px;
+  color: inherit;
+}
+.stack-desc-row td {
+  padding: 4px 8px 12px;
+  background: var(--bg-2);
+}
+.stack-desc-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+.stack-desc {
+  margin: 0;
+}
+.history-table .stack-row td {
+  opacity: 0.75;
+}
+.stack-handle {
+  cursor: grab;
+  color: var(--faint);
+  padding: 0 2px;
+  touch-action: none;
+  user-select: none;
+}
+.stack-row.dragging td {
+  opacity: 0.55;
+}
+body.row-dragging {
+  user-select: none;
+  cursor: grabbing;
+}
+body.row-dragging .stack-handle {
+  cursor: grabbing;
+}
+.stack-help-grid {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 6px 16px;
+  margin: 8px 0 0;
+}
+.stack-help-grid dt {
+  font-family: var(--mono);
+  color: var(--muted);
+}
+.stack-help-grid dd {
+  margin: 0;
+}
+
+@media (max-width: 760px) {
+  /* The stat columns are noise on a phone; keep the index, status, title, and actions. */
+  .stack-col {
+    display: none;
+  }
+}

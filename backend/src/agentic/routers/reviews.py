@@ -7,11 +7,12 @@ from sqlmodel import Session, select
 
 from ..config import settings
 from ..db import get_session
-from ..models import SourceItem, utcnow
+from ..models.base import utcnow
+from ..models.items import SourceItem
 from ..review_queue import collect_review_prs, enrich_from_github
 from ..reviews import read_report
-from ..schemas import ItemReviewContent, ReviewPrRead, ReviewQueueRead, ReviewStepRead
-from ..services import parse_github
+from ..schemas.items import ItemReviewContent, ReviewPrRead, ReviewQueueRead, ReviewStepRead
+from ..services.parsing import parse_github
 
 router = APIRouter(prefix="/api/reviews", tags=["reviews"])
 

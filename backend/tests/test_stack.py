@@ -5,20 +5,11 @@ from sqlmodel import Session
 
 from agentic.db import create_db_and_tables, engine
 from agentic.main import app
-from agentic.models import (
-    AgentEvent,
-    AgentRun,
-    Association,
-    Change,
-    ChangeIntervention,
-    StackEntry,
-    Task,
-    TaskPerson,
-    TaskRepository,
-    TaskSession,
-    TimelineEvent,
-    Worktree,
-)
+from agentic.models.agents import AgentEvent, AgentRun
+from agentic.models.changes import Change, ChangeIntervention
+from agentic.models.items import Association, TaskPerson
+from agentic.models.repositories import TaskRepository, Worktree
+from agentic.models.tasks import StackEntry, Task, TaskSession, TimelineEvent
 
 
 def _clear(session: Session) -> None:

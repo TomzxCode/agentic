@@ -27,7 +27,7 @@ def test_run_read_attaches_openchamber_and_resume_links():
         from sqlmodel import Session
 
         from agentic.db import engine
-        from agentic.models import AgentRun
+        from agentic.models.agents import AgentRun
 
         with Session(engine) as session:
             run = AgentRun(task_id=task["id"], harness_id=harness["id"], cwd="/w", session_id="ses")

@@ -29,7 +29,8 @@ from tzlocal import get_localzone
 
 from .config import settings
 from .db import engine
-from .models import ScheduledRunStatus, ScheduledTask, ScheduledTaskRun, utcnow
+from .models.base import ScheduledRunStatus, utcnow
+from .models.schedules import ScheduledTask, ScheduledTaskRun
 
 log = structlog.get_logger(__name__)
 

@@ -1,6 +1,6 @@
 import { reactive } from 'vue'
 import { api } from './api'
-import { itemStatus } from './repositories'
+import { itemStatus } from './repositories/parse'
 
 export const store = reactive({
   tasks: [],

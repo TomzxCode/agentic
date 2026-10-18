@@ -7,10 +7,12 @@ from saq import Status
 from sqlalchemy import delete as sa_delete
 from sqlmodel import Session, col, select
 
-from agentic import agents as agents_mod
 from agentic import jobs
+from agentic.agents import runner
 from agentic.db import create_db_and_tables, engine
-from agentic.models import AgentEvent, AgentRun, RunStatus, Task, TimelineEvent, utcnow
+from agentic.models.agents import AgentEvent, AgentRun
+from agentic.models.base import RunStatus, utcnow
+from agentic.models.tasks import Task, TimelineEvent
 
 
 def _make_run(
@@ -98,7 +100,7 @@ async def test_process_run_executes_the_agent(monkeypatch):
             session.add(run)
             session.commit()
 
-    monkeypatch.setattr(agents_mod, "execute_run", fake_execute_run)
+    monkeypatch.setattr(runner, "execute_run", fake_execute_run)
     try:
         await jobs.process_run({}, run_id)
         assert calls == [(run_id, "/tmp/opencode", "do it")]
@@ -114,7 +116,7 @@ async def test_process_run_summarizes_a_slack_run(monkeypatch):
     async def fake_summary(*, run_id, task_id, harness_id, cwd, prompt, cancel_event, generate_title):
         seen["generate_title"] = generate_title
 
-    monkeypatch.setattr(agents_mod, "execute_slack_summary", fake_summary)
+    monkeypatch.setattr(runner, "execute_slack_summary", fake_summary)
     try:
         # The task is titled "queue test" (not the placeholder), so no rename.
         await jobs.process_run({}, run_id)
@@ -131,7 +133,7 @@ async def test_process_run_refreshes_context(monkeypatch):
     async def fake_refresh(*, run_id, task_id, harness_id, cwd, prompt, cancel_event):
         seen["task_id"] = task_id
 
-    monkeypatch.setattr(agents_mod, "execute_context_refresh", fake_refresh)
+    monkeypatch.setattr(runner, "execute_context_refresh", fake_refresh)
     try:
         await jobs.process_run({}, run_id)
         assert seen == {"task_id": task_id}
@@ -148,7 +150,7 @@ async def test_process_run_leaves_status_on_cancellation(monkeypatch):
     async def cancelled(*, run_id, harness_id, cwd, prompt, cancel_event):
         raise asyncio.CancelledError
 
-    monkeypatch.setattr(agents_mod, "execute_run", cancelled)
+    monkeypatch.setattr(runner, "execute_run", cancelled)
     try:
         with pytest.raises(asyncio.CancelledError):
             await jobs.process_run({}, run_id)
@@ -172,7 +174,7 @@ async def test_worker_processes_an_enqueued_run(monkeypatch):
             session.add(run)
             session.commit()
 
-    monkeypatch.setattr(agents_mod, "execute_run", fake_execute_run)
+    monkeypatch.setattr(runner, "execute_run", fake_execute_run)
     queue = await jobs.get_queue()
     await jobs.enqueue_run(run_id)
     worker = jobs.create_worker(queue, concurrency=1)

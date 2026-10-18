@@ -12,14 +12,11 @@ from sqlalchemy import update as sa_update
 from sqlmodel import Session, col, select
 
 from ..db import get_session
-from ..models import Change, Repository, RepositoryGroupMember, TaskRepository, Worktree
-from ..schemas import (
-    RepositoryBulkCreate,
-    RepositoryBulkResult,
-    RepositoryCreate,
-    RepositoryRead,
-)
-from ..services import detect_default_branch, detect_remote_url, github_owner_repo, remove_worktree
+from ..models.changes import Change
+from ..models.repositories import Repository, RepositoryGroupMember, TaskRepository, Worktree
+from ..schemas.repositories import RepositoryBulkCreate, RepositoryBulkResult, RepositoryCreate, RepositoryRead
+from ..services.git import detect_default_branch, detect_remote_url, remove_worktree
+from ..services.github import github_owner_repo
 
 router = APIRouter(prefix="/api/repositories", tags=["repositories"])
 
