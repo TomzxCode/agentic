@@ -2,7 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { api } from '../api'
-import { aliasLabel, SOURCE_ORDER, sourceLabel, store } from '../store'
+import { aliasLabel, formatDateTime, SOURCE_ORDER, sourceLabel, store } from '../store'
 import EditableText from '../components/EditableText.vue'
 import ItemLink from '../components/ItemLink.vue'
 import SearchSelect from '../components/SearchSelect.vue'
@@ -167,7 +167,7 @@ onMounted(async () => {
       <router-link to="/people">Back to people</router-link>
     </div>
     <template v-else>
-      <div class="row" style="justify-content: space-between; align-items: baseline; margin-bottom: 12px">
+      <div class="row" style="justify-content: space-between; align-items: baseline; margin-bottom: 4px">
         <h1 style="margin: 0">
           <EditableText
             class="title"
@@ -177,6 +177,9 @@ onMounted(async () => {
           />
         </h1>
         <button class="btn sm danger" title="Delete" @click="remove">Delete</button>
+      </div>
+      <div v-if="person.created_at" class="faint" style="margin-bottom: 12px">
+        Created {{ formatDateTime(person.created_at) }}
       </div>
 
       <section class="panel">

@@ -13,7 +13,7 @@ const props = defineProps({
   // to a person inside the SPA.
   routerLink: { type: [Object, Function], required: true }
 })
-const emit = defineEmits(['count'])
+const emit = defineEmits(['count', 'ready'])
 
 const components = { name: NameCell }
 
@@ -42,6 +42,13 @@ const columnDefs = [
     valueGetter: (p) => p.data.item_count,
     width: 100,
     filter: 'agNumberColumnFilter'
+  },
+  {
+    headerName: 'Created',
+    colId: 'created',
+    valueGetter: (p) => p.data.created_line,
+    width: 150,
+    cellClass: 'faint'
   }
 ]
 
@@ -57,6 +64,8 @@ const gridApi = shallowRef(null)
 
 function onGridReady(event) {
   gridApi.value = event.api
+  // The hosting view's column chooser needs the api to read and hide columns.
+  emit('ready', event.api)
 }
 
 // How many rows the grid currently shows, so the view's header can report it.

@@ -1,5 +1,6 @@
 import {
   ClientSideRowModelModule,
+  ColumnApiModule,
   CustomFilterModule,
   ModuleRegistry,
   NumberFilterModule,
@@ -13,7 +14,14 @@ import {
 //
 // The client-side row model, the per-column text and number filters, and the
 // custom multi-select value filter (the Set Filter itself is Enterprise).
-ModuleRegistry.registerModules([ClientSideRowModelModule, TextFilterModule, NumberFilterModule, CustomFilterModule])
+// `ColumnApiModule` carries the read/hide column API the column chooser uses.
+ModuleRegistry.registerModules([
+  ClientSideRowModelModule,
+  ColumnApiModule,
+  TextFilterModule,
+  NumberFilterModule,
+  CustomFilterModule
+])
 
 // The grid theme, mapped to the app's design tokens (styles.css :root) so the
 // grid matches the rest of the SPA.

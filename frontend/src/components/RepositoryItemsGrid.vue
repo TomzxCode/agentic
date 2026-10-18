@@ -26,7 +26,7 @@ const props = defineProps({
   // keep internal navigation inside the SPA.
   routerLink: { type: [Object, Function], required: true }
 })
-const emit = defineEmits(['new-task', 'record-change'])
+const emit = defineEmits(['new-task', 'record-change', 'ready'])
 
 const theme = gridTheme
 
@@ -128,7 +128,7 @@ const columnDefs = [
     ...valuesFilter((data) => data.statuses.map((entry) => entry.status), statusLabel)
   },
   { headerName: 'Changes', width: 200, sortable: false, filter: false, cellRenderer: 'changes' },
-  { headerName: 'Actions', width: 220, sortable: false, filter: false, cellRenderer: 'actions' }
+  { headerName: 'Actions', width: 220, sortable: false, filter: false, lockVisible: true, cellRenderer: 'actions' }
 ]
 
 function getRowId(params) {
@@ -141,6 +141,8 @@ const gridApi = shallowRef(null)
 
 function onGridReady(event) {
   gridApi.value = event.api
+  // The hosting view's column chooser needs the api to read and hide columns.
+  emit('ready', event.api)
 }
 
 watch(

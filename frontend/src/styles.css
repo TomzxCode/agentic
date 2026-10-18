@@ -2282,6 +2282,42 @@ button.gantt-marker::after {
   cursor: pointer;
 }
 
+/* The column chooser: a button in the page header with a checkbox per column,
+   the Community stand-in for AG Grid's Enterprise Columns tool panel. */
+.col-chooser {
+  position: relative;
+  display: inline-block;
+}
+.col-chooser-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 180px;
+  max-height: 300px;
+  overflow: auto;
+  padding: 8px;
+  text-align: left;
+  background: var(--bg-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 25%);
+}
+.col-chooser-option {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.col-chooser-reset {
+  justify-content: center;
+  margin-top: 2px;
+}
+
 /* Desktop: the sidebar can be hidden entirely, leaving the page the full width.
    The toggle floats at the page's left edge, on the title's line, so it reads as
    a leading icon of the title: the title makes room for it and the rest of the

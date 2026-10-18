@@ -1,9 +1,10 @@
 <script setup>
-import { computed, onMounted, ref, resolveComponent } from 'vue'
+import { computed, onMounted, ref, resolveComponent, shallowRef } from 'vue'
 import { api } from '../api'
 import { store, timeAgo } from '../store'
 import { groupItemsByRepository } from '../repositories'
 import DirectoryPicker from '../components/DirectoryPicker.vue'
+import GridColumnChooser from '../components/GridColumnChooser.vue'
 import RepositoriesGrid from '../components/RepositoriesGrid.vue'
 
 const loading = ref(true)
@@ -12,6 +13,9 @@ const path = ref('')
 const showPicker = ref(false)
 // How many rows the grid currently shows (its filters may hide some).
 const shown = ref(null)
+// The grid's api, once it reports ready, so the column chooser can read the
+// columns and show or hide them.
+const gridApi = shallowRef(null)
 
 // The globally registered router-link, handed to the grid so its name cells keep
 // internal navigation inside the SPA (and so tests can stub it by name).
@@ -104,8 +108,12 @@ onMounted(load)
   <div class="page-fill">
     <div class="row" style="justify-content: space-between">
       <h1>Repositories</h1>
-      <span v-if="!loading && !error" class="faint">
-        {{ shown ?? totals.all }} of {{ totals.all }} repositories · {{ totals.issues }} issues · {{ totals.pulls }} PRs
+      <span class="row" style="gap: 8px; align-items: center; flex-wrap: wrap; justify-content: flex-end">
+        <span v-if="!loading && !error" class="faint">
+          {{ shown ?? totals.all }} of {{ totals.all }} repositories · {{ totals.issues }} issues ·
+          {{ totals.pulls }} PRs
+        </span>
+        <GridColumnChooser :api="gridApi" storage-key="repositories" />
       </span>
     </div>
 
@@ -142,6 +150,7 @@ onMounted(load)
       :router-link="routerLink"
       @remove="removeRepository"
       @count="shown = $event"
+      @ready="gridApi = $event"
     />
 
     <DirectoryPicker

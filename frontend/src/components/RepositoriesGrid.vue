@@ -15,7 +15,7 @@ const props = defineProps({
   // to a repository inside the SPA.
   routerLink: { type: [Object, Function], required: true }
 })
-const emit = defineEmits(['remove', 'count'])
+const emit = defineEmits(['remove', 'count', 'ready'])
 
 const components = {
   valuesFilter: ValuesFilter,
@@ -77,7 +77,7 @@ const columnDefs = [
     width: 130,
     filter: false
   },
-  { headerName: 'Actions', width: 130, sortable: false, filter: false, cellRenderer: 'actions' }
+  { headerName: 'Actions', width: 130, sortable: false, filter: false, lockVisible: true, cellRenderer: 'actions' }
 ]
 
 function getRowId(params) {
@@ -90,6 +90,8 @@ const gridApi = shallowRef(null)
 
 function onGridReady(event) {
   gridApi.value = event.api
+  // The hosting view's column chooser needs the api to read and hide columns.
+  emit('ready', event.api)
 }
 
 // How many rows the grid currently shows, so the view's header can report it.

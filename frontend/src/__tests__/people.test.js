@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
+import { AgGridVue } from 'ag-grid-vue3'
 
 enableAutoUnmount(afterEach)
 
@@ -49,7 +50,7 @@ import PeopleView from '../views/PeopleView.vue'
 import PersonView from '../views/PersonView.vue'
 import SearchSelect from '../components/SearchSelect.vue'
 import EditableText from '../components/EditableText.vue'
-import { store } from '../store'
+import { formatDateTime, store } from '../store'
 
 const RouterLinkStub = {
   props: ['to'],
@@ -60,6 +61,7 @@ const stub = { global: { stubs: { RouterLink: RouterLinkStub } } }
 
 beforeEach(() => {
   vi.clearAllMocks()
+  localStorage.clear()
   store.toast = null
   store.tasks = []
   store.people = []
@@ -183,7 +185,16 @@ describe('PeopleSelect', () => {
 
 describe('PeopleView', () => {
   beforeEach(() => {
-    store.people = [{ id: 'p1', name: 'Ada', aliases: ['ada', 'ada@example.com'], task_count: 1, item_count: 1 }]
+    store.people = [
+      {
+        id: 'p1',
+        name: 'Ada',
+        aliases: ['ada', 'ada@example.com'],
+        task_count: 1,
+        item_count: 1,
+        created_at: '2026-01-01T00:00:00Z'
+      }
+    ]
   })
 
   // AG Grid renders its rows and cells asynchronously.
@@ -209,6 +220,31 @@ describe('PeopleView', () => {
     expect(wrapper.get('a.title').attributes('href')).toBe('/person/p1')
   })
 
+  it('shows when each person was created', async () => {
+    const wrapper = await mountPeople()
+    expect(wrapper.get('.ag-cell[col-id="created"]').text()).toBe(formatDateTime('2026-01-01T00:00:00Z'))
+  })
+
+  it('hides a column through the chooser and remembers the choice', async () => {
+    const wrapper = await mountPeople()
+    const api = wrapper.getComponent(AgGridVue).vm.api
+    expect(api.getColumn('created').isVisible()).toBe(true)
+
+    await wrapper.get('.col-chooser > .btn').trigger('click')
+    const option = wrapper.findAll('.col-chooser-option').find((entry) => entry.text() === 'Created')
+    await option.get('input').setValue(false)
+    await settle()
+
+    expect(api.getColumn('created').isVisible()).toBe(false)
+    expect(localStorage.getItem('agentic.gridColumns.people')).toContain('"created":false')
+  })
+
+  it('restores a saved column choice onto the grid', async () => {
+    localStorage.setItem('agentic.gridColumns.people', JSON.stringify({ created: false }))
+    const wrapper = await mountPeople()
+    expect(wrapper.getComponent(AgGridVue).vm.api.getColumn('created').isVisible()).toBe(false)
+  })
+
   it('creates a person', async () => {
     mocks.peopleCreate.mockResolvedValue({ id: 'p2', name: 'Grace', task_count: 0, item_count: 0 })
     const wrapper = await mountPeople()
@@ -231,11 +267,18 @@ describe('PersonView', () => {
       name: 'Ada',
       aliases: ['ada', 'ada@example.com'],
       notes: '',
+      created_at: '2026-01-02T03:04:00Z',
       task_ids: ['t1'],
       involved_task_ids: ['t1'],
       requester_task_ids: [],
       item_ids: ['i1', 'i2']
     })
+  })
+
+  it('shows when the person was created', async () => {
+    const wrapper = mount(PersonView, { props: { id: 'p1' }, ...stub })
+    await flushPromises()
+    expect(wrapper.text()).toContain(`Created ${formatDateTime('2026-01-02T03:04:00Z')}`)
   })
 
   it('shows the aliases and relationships of a person', async () => {

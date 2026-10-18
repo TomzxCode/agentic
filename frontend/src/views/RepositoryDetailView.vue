@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref, resolveComponent } from 'vue'
+import { computed, onMounted, ref, resolveComponent, shallowRef } from 'vue'
 import { api } from '../api'
 import { changeCreateBody, changesForItem } from '../changes'
 import { store, statusLabel, timeAgo } from '../store'
@@ -13,6 +13,7 @@ import {
   repositoryRows,
   sortItems
 } from '../repositories'
+import GridColumnChooser from '../components/GridColumnChooser.vue'
 import RepositoryItemsGrid from '../components/RepositoryItemsGrid.vue'
 
 const props = defineProps({ id: { type: String, required: true } })
@@ -37,6 +38,9 @@ const changes = ref([])
 const recordingId = ref('')
 // The row whose task is being created, so its button shows a spinner.
 const creatingId = ref('')
+// The grid's api, once it reports ready, so the column chooser can read the
+// columns and show or hide them.
+const gridApi = shallowRef(null)
 
 const repository = computed(() => store.repositories.find((r) => r.id === props.id) || null)
 const tasksById = computed(() => Object.fromEntries(store.tasks.map((task) => [task.id, task])))
@@ -339,6 +343,7 @@ onMounted(load)
             <span v-else>↻</span>
             {{ refreshingLinked ? 'Refreshing…' : 'Refresh linked' }}
           </button>
+          <GridColumnChooser :api="gridApi" storage-key="repository-items" />
         </span>
       </div>
 
@@ -367,6 +372,7 @@ onMounted(load)
           :router-link="routerLink"
           @new-task="createTaskFrom"
           @record-change="recordChange"
+          @ready="gridApi = $event"
         />
       </template>
     </template>

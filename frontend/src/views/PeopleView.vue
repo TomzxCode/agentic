@@ -1,6 +1,7 @@
 <script setup>
-import { computed, onMounted, ref, resolveComponent } from 'vue'
-import { aliasLabel, store } from '../store'
+import { computed, onMounted, ref, resolveComponent, shallowRef } from 'vue'
+import { aliasLabel, formatDateTime, store } from '../store'
+import GridColumnChooser from '../components/GridColumnChooser.vue'
 import PeopleGrid from '../components/PeopleGrid.vue'
 
 const people = ref([])
@@ -9,6 +10,9 @@ const newName = ref('')
 const busy = ref(false)
 // How many rows the grid currently shows (its filters may hide some).
 const shown = ref(null)
+// The grid's api, once it reports ready, so the column chooser can read the
+// columns and show or hide them.
+const gridApi = shallowRef(null)
 
 // The globally registered router-link, handed to the grid so its name cells keep
 // internal navigation inside the SPA (and so tests can stub it by name).
@@ -19,6 +23,7 @@ const rows = computed(() =>
   people.value.map((person) => ({
     ...person,
     aliases_line: (person.aliases || []).map(aliasLabel).join(' · '),
+    created_line: formatDateTime(person.created_at),
     raw: person
   }))
 )
@@ -58,7 +63,10 @@ onMounted(load)
   <div class="page-fill">
     <div class="row" style="justify-content: space-between; align-items: baseline; margin-bottom: 12px">
       <h1>People</h1>
-      <span class="faint">{{ shown ?? people.length }} of {{ people.length }}</span>
+      <span class="row" style="gap: 8px; align-items: center; flex-wrap: wrap; justify-content: flex-end">
+        <span class="faint">{{ shown ?? people.length }} of {{ people.length }}</span>
+        <GridColumnChooser :api="gridApi" storage-key="people" />
+      </span>
     </div>
 
     <div class="row" style="gap: 8px; margin-bottom: 16px; flex-wrap: wrap">
@@ -68,6 +76,6 @@ onMounted(load)
 
     <div v-if="loading" class="empty"><span class="spinner"></span></div>
     <div v-else-if="!people.length" class="empty">No people.</div>
-    <PeopleGrid v-else :rows="rows" :router-link="routerLink" @count="shown = $event" />
+    <PeopleGrid v-else :rows="rows" :router-link="routerLink" @count="shown = $event" @ready="gridApi = $event" />
   </div>
 </template>

@@ -743,6 +743,11 @@ describe('RepositoryDetailView', () => {
     return wrapper
   }
 
+  it('offers the column chooser once the grid is ready', async () => {
+    const wrapper = await mountRepoView()
+    expect(wrapper.find('.col-chooser').exists()).toBe(true)
+  })
+
   it('shows the header right away and a spinner until the listing arrives', async () => {
     // The listing is the slow part; hold it pending to see the loading state.
     mocks.githubRepository.mockReturnValue(new Promise(() => {}))
@@ -1241,6 +1246,11 @@ describe('RepositoriesView', () => {
     const wrapper = await mountView()
     expect(wrapper.text()).toContain('api')
     expect(wrapper.text()).not.toContain('open')
+  })
+
+  it('offers the column chooser once the grid is ready', async () => {
+    const wrapper = await mountView()
+    expect(wrapper.find('.col-chooser').exists()).toBe(true)
   })
 
   it('lists the repositories in the grid and links each name', async () => {
