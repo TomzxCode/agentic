@@ -1104,6 +1104,190 @@ button.tag-chip.active {
   max-height: 70vh;
   overflow: auto;
 }
+/* The review queue page: one table per repository, from the local report store. */
+.review-root {
+  margin: 0 0 12px;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+}
+/* The repository's PR count that follows the heading, kept off its name. */
+.review-count {
+  margin-left: 6px;
+}
+.review-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-1);
+}
+.review-table {
+  width: 100%;
+  /* A floor keeps every column legible (and the title column readable);
+     narrower viewports scroll instead. */
+  min-width: 1080px;
+  /* Fixed layout gives every repository table the same column widths, so the
+     columns line up down the page instead of each table sizing to its own
+     content. */
+  table-layout: fixed;
+  border-collapse: collapse;
+}
+/* One width per column, shared by every table. The order matches the header:
+   PR (the number and its title), Author, Age, Last comment, Reviewed, then the
+   six review steps (Behavior, Risk, Coverage, Validate, Verify, Review). */
+.review-table th:nth-child(1) {
+  width: 33.5%;
+}
+.review-table th:nth-child(2) {
+  width: 7%;
+}
+.review-table th:nth-child(3) {
+  width: 7.5%;
+}
+.review-table th:nth-child(4) {
+  width: 9%;
+}
+.review-table th:nth-child(5) {
+  width: 6%;
+}
+.review-table th:nth-child(6) {
+  width: 6%;
+}
+.review-table th:nth-child(7) {
+  width: 8%;
+}
+.review-table th:nth-child(8) {
+  width: 7%;
+}
+.review-table th:nth-child(9) {
+  width: 6%;
+}
+.review-table th:nth-child(10),
+.review-table th:nth-child(11) {
+  width: 5%;
+}
+.review-table th {
+  text-align: left;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--faint);
+  padding: 8px 8px;
+  white-space: nowrap;
+  border-bottom: 1px solid var(--border);
+}
+.review-table td {
+  padding: 7px 8px;
+  vertical-align: middle;
+  border-top: 1px solid var(--border);
+}
+.review-table tbody tr:hover td {
+  background: var(--bg-2);
+}
+/* The review-step columns (Behavior -> Review) center their header and cell so
+   the verdict marks line up down the column. The header rule carries the table
+   class so it beats the generic left-aligned `.review-table th`. */
+.review-col-step {
+  text-align: center;
+}
+/* The step headers run a touch smaller than the rest, so a column is sized by
+   its verdicts (a mark, or a short word) rather than by its label. */
+.review-table th.review-col-step {
+  text-align: center;
+  font-size: 9px;
+}
+.review-pr-cell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.review-pr-cell a {
+  color: var(--accent);
+  white-space: nowrap;
+  flex: none;
+}
+/* The draft badge sits after the number, with a little air. */
+.review-pr-cell .badge {
+  flex: none;
+}
+/* The PR title follows its number on the same line, truncating when the column
+   cannot hold it; the tooltip carries the full title. */
+.review-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted);
+  font-size: 12px;
+}
+/* A review step cell is a button so the report opens on click; when the step
+   has no report it reads as plain text. */
+.review-step {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  max-width: 100%;
+  padding: 2px 4px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.review-step:hover {
+  border-color: var(--border);
+  background: var(--bg-2);
+}
+/* A verdict word longer than its narrow column ("inconclusive") truncates; the
+   button's tooltip still carries the full value. */
+.review-verdict {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* A report whose reviewed commit is not the newest reviewed one. */
+.review-stale {
+  color: var(--danger);
+  font-family: var(--mono);
+  font-size: 11px;
+}
+/* The "by <login>" that follows a last-comment time; the time is monospace, so
+   the two need a little air between them. */
+.review-by {
+  margin-left: 5px;
+  font-size: 12px;
+}
+.review-risk {
+  font-weight: 600;
+}
+.tone-ok {
+  color: var(--ok);
+}
+.tone-warn {
+  color: var(--warn);
+}
+.tone-danger {
+  color: var(--danger);
+}
+.tone-info {
+  color: var(--accent-2);
+}
+/* The report viewer is a wide reading surface; the doubled class beats the
+   generic `.modal` width regardless of source order. */
+.modal.review-modal {
+  width: min(1500px, 96vw);
+}
+.review-modal-path {
+  font-size: 12px;
+  margin-left: 6px;
+}
+
 /* Bulk select on the tasks dashboard */
 .bulk-bar {
   background: var(--bg-2);
@@ -2523,6 +2707,11 @@ button.gantt-marker::after {
     width: 100%;
     max-height: calc(100vh - max(4vh, env(safe-area-inset-top)) - 24px);
   }
+  /* Own the full padded width on a phone; the desktop rule is a share of the
+     viewport, which would overflow next to the backdrop's padding. */
+  .modal.review-modal {
+    width: 100%;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -2542,6 +2731,14 @@ button.gantt-marker::after {
   letter-spacing: 0.06em;
   color: var(--muted);
   margin: 16px 0 2px;
+}
+/* A group heading that links somewhere (a repository's GitHub page) keeps the
+   heading's own tone and reads as a link on hover. */
+.group-head a {
+  color: inherit;
+}
+.group-head a:hover {
+  color: var(--accent);
 }
 
 /* Stack: a compact, keyboard-driven focus queue. */

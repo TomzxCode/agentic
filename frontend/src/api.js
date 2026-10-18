@@ -101,6 +101,18 @@ export const api = {
     get: () => request('/inbox')
   },
 
+  reviews: {
+    // Every PR with review reports in the user-global store, with its step state.
+    // refresh re-reads each PR's GitHub fields instead of the short ghx cache.
+    queue: ({ refresh = false } = {}) => request(`/reviews${refresh ? '?refresh=true' : ''}`),
+    // One PR's report, addressed by "owner/name" and its path in the store.
+    report: (repository, number, name) =>
+      request(
+        `/reviews/report/${number}/${String(name).split('/').map(encodeURIComponent).join('/')}` +
+          `?${new URLSearchParams({ repository }).toString()}`
+      )
+  },
+
   metrics: {
     get: ({ windowDays, observationDays, tolerance, taskId, changeClass } = {}) => {
       const qs = new URLSearchParams()

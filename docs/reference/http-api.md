@@ -75,6 +75,13 @@ There is no authentication, so expose it only on a trusted network.
 | `POST` | `/api/people/{id}/merge` | Merge one person into another. |
 | `GET` | `/api/tags` | Tags in use, with counts. |
 
+## Review queue
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| `GET` | `/api/reviews` | Every pull request with review reports in the store, with its review-step state (`?refresh=true` re-reads each PR's GitHub fields). |
+| `GET` | `/api/reviews/report/{number}/{name}` | Read one review report, by `repository` (`owner/name`) and its path. |
+
 ## Graph, Gantt, inbox, and operations
 
 | Method | Path | Purpose |

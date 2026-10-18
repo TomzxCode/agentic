@@ -14,6 +14,11 @@ const ICONS = {
     ['rect', { x: 4, y: 5.5, width: 16, height: 13, rx: 2 }],
     ['path', { d: 'M4.5 7.5l7.5 6 7.5-6' }]
   ],
+  reviews: [
+    ['path', { d: 'M7 3h7l4 4v14H7z' }],
+    ['path', { d: 'M14 3v4h4' }],
+    ['path', { d: 'M10 14l2 2 4-4' }]
+  ],
   stack: [
     ['rect', { x: 4, y: 3.5, width: 16, height: 5, rx: 1.5 }],
     ['rect', { x: 4, y: 9.5, width: 16, height: 5, rx: 1.5 }],

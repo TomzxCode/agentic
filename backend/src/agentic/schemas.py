@@ -347,6 +347,61 @@ class ItemReviewContent(BaseModel):
     truncated: bool = False
 
 
+class ReviewStepRead(BaseModel):
+    """One review step's newest report for a pull request."""
+
+    step: str
+    commit: str = ""
+    verdict: str = ""
+    risk: str = ""
+    confidence: str = ""
+    stale: bool = False
+    report: str | None = None
+    modified_at: datetime | None = None
+
+
+class ReviewPrRead(BaseModel):
+    """One pull request in the review queue, with its review-step state.
+
+    ``head_commit`` is the newest commit any report covered, which stands in for
+    the PR's head (the store holds no live GitHub read). ``created_at`` and
+    ``last_comment_at`` are ISO strings parsed from the store's ``gh pr view``
+    cache, so a value can be missing.
+    """
+
+    owner: str = ""
+    name: str
+    repository: str
+    number: int
+    title: str = ""
+    url: str = ""
+    author: str = ""
+    state: str = ""
+    draft: bool = False
+    head_branch: str = ""
+    base_branch: str = ""
+    labels: list[str] = []
+    created_at: str | None = None
+    last_comment_at: str | None = None
+    last_comment_by: str = ""
+    head_commit: str = ""
+    steps: dict[str, ReviewStepRead] = {}
+    stale_steps: list[str] = []
+    reviewed_steps: int = 0
+    readiness: str = "yellow"
+    status: str = "needs-review"
+    item_id: str | None = None
+
+
+class ReviewQueueRead(BaseModel):
+    """Every pull request in the store with review reports, newest first."""
+
+    root: str | None = None
+    generated_at: datetime
+    counts: dict[str, int] = {}
+    prs: list[ReviewPrRead] = []
+
+
 class AssociationRead(ORMModel):
     id: str
     task_id: str
@@ -925,6 +980,9 @@ __all__ = [
     "RefreshSourceStatus",
     "RefreshStatusRead",
     "RefreshTierRead",
+    "ReviewPrRead",
+    "ReviewQueueRead",
+    "ReviewStepRead",
     "Task",
     "TaskBulkResult",
     "TaskBulkUpdate",

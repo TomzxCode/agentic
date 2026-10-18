@@ -34,6 +34,7 @@ from .routers import (
     operations,
     people,
     repositories,
+    reviews,
     sessions,
     stack,
     tasks,
@@ -140,6 +141,7 @@ for module in (
     tags_router,
     people,
     stack,
+    reviews,
 ):
     app.include_router(module.router)
 

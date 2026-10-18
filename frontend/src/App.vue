@@ -285,6 +285,13 @@ const paletteItems = computed(() => [
   ...taskFieldItems.value,
   { id: 'go-tasks', label: 'Go to tasks', group: 'Navigation', icon: 'tasks', run: () => router.push('/') },
   { id: 'go-inbox', label: 'Go to inbox', group: 'Navigation', icon: 'inbox', run: () => router.push('/inbox') },
+  {
+    id: 'go-reviews',
+    label: 'Go to review queue',
+    group: 'Navigation',
+    icon: 'reviews',
+    run: () => router.push('/reviews')
+  },
   { id: 'go-stack', label: 'Go to stack', group: 'Navigation', icon: 'stack', run: () => router.push('/stack') },
   { id: 'go-gantt', label: 'Go to gantt', group: 'Navigation', icon: 'gantt', run: () => router.push('/gantt') },
   { id: 'go-graph', label: 'Go to graph', group: 'Navigation', icon: 'graph', run: () => router.push('/graph') },
@@ -1016,6 +1023,16 @@ onUnmounted(() => {
           >
             <Icon name="inbox" />
             <span v-if="store.inboxCount" class="nav-badge" aria-hidden="true">{{ store.inboxCount }}</span>
+          </router-link>
+          <router-link
+            to="/reviews"
+            class="nav-link"
+            :class="{ active: route.name === 'reviews' }"
+            title="Review queue"
+            aria-label="Review queue"
+            @click="sidebarOpen = false"
+          >
+            <Icon name="reviews" />
           </router-link>
           <router-link
             to="/stack"

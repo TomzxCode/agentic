@@ -230,6 +230,21 @@ account); a PR someone else wrote is not your change to record. Each suggestion
 names the task it is about and offers the action as a button that calls the
 same endpoint the rest of the app uses.
 
+The **Review queue** page (`/reviews`, the clipboard icon) reads the review
+reports the review skills write under `~/.sdlc/{owner}/{repo}/pull-requests/`
+and shows one row per pull request, grouped by repository, with a column per
+review step (Behavior, Risk, Coverage, Validate, Verify, Review). Each cell
+shows the step's verdict, in red when its report does not cover the newest
+reviewed commit, and opens the report when clicked. A merge-readiness light
+beside each PR number summarizes the signals: green when the PR could be
+approved automatically, yellow when something still needs attention, red when a
+verdict blocks approval. The page mirrors the `review_requested_prs` script's
+table: the review-step state comes from the store, each PR's own fields (title,
+state, author, age) come from `ghx`, and fields that would need a read it does
+not make (the diff size, the approvers, the PRs an open PR blocks) are left out.
+**Refresh** re-reads the store and bypasses the short cache of those `ghx`
+lookups.
+
 The task header also links **dependencies**, next to the repository and people
 selectors: add the tasks that must come first (**before**) and the tasks that
 follow (**after**). The links form a DAG (the API refuses a link that would close
@@ -497,6 +512,8 @@ POST                /api/changes/{id}/interventions      (record a human touch)
 GET                 /api/metrics                         (autonomy rate + yield)
 GET/PUT/DELETE      /api/metrics/baselines/{metric}
 GET                 /api/inbox                           (suggested next actions)
+GET                 /api/reviews                         (PR review queue from the local store)
+GET                 /api/reviews/report/{number}/{name}  (one review report)
 ```
 
 ## Development

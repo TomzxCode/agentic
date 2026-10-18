@@ -1,6 +1,16 @@
 import { describe, expect, it } from 'vitest'
 
-import { groupReviewFiles, reviewLabel, stripReportMarker } from '../reviews'
+import {
+  commitUrl,
+  groupQueueByRepository,
+  groupReviewFiles,
+  reviewLabel,
+  riskTone,
+  shortCommit,
+  stripReportMarker,
+  verdictLabel,
+  verdictTone
+} from '../reviews'
 
 const file = (over = {}) => ({ name: 'review-pr.abc1234.md', skill: 'review-pr', commit: 'abc1234', ...over })
 
@@ -61,5 +71,70 @@ describe('stripReportMarker', () => {
   it('does not remove a comment that is not at the start', () => {
     const text = '# Verdict\n\n<!-- a note -->\n'
     expect(stripReportMarker(text)).toBe(text)
+  })
+})
+
+describe('verdictLabel and verdictTone', () => {
+  it('marks a pass, a fail, and informational, and keeps any other verdict', () => {
+    expect(verdictLabel('pass')).toBe('✅')
+    expect(verdictLabel('fail')).toBe('❌')
+    expect(verdictLabel('informational')).toBe('ℹ️')
+    expect(verdictLabel('partial')).toBe('partial')
+    expect(verdictLabel('')).toBe('')
+  })
+
+  it('tones a verdict by what it asks of the reviewer', () => {
+    expect(verdictTone('pass')).toBe('ok')
+    expect(verdictTone('fail')).toBe('danger')
+    expect(verdictTone('hold')).toBe('danger')
+    expect(verdictTone('decide')).toBe('warn')
+    expect(verdictTone('informational')).toBe('info')
+    expect(verdictTone('')).toBe('')
+  })
+})
+
+describe('riskTone', () => {
+  it('tones a risk by severity', () => {
+    expect(riskTone('high')).toBe('danger')
+    expect(riskTone('medium')).toBe('warn')
+    expect(riskTone('low')).toBe('ok')
+    expect(riskTone('')).toBe('')
+  })
+})
+
+describe('groupQueueByRepository', () => {
+  it('groups the queue by repository, keeping the API order', () => {
+    const groups = groupQueueByRepository([
+      { repository: 'o/a', number: 2 },
+      { repository: 'o/a', number: 1 },
+      { repository: 'o/b', number: 3 }
+    ])
+    expect(groups.map((group) => group.repository)).toEqual(['o/a', 'o/b'])
+    expect(groups[0].prs.map((pr) => pr.number)).toEqual([2, 1])
+  })
+
+  it('returns nothing for an empty queue', () => {
+    expect(groupQueueByRepository([])).toEqual([])
+    expect(groupQueueByRepository(undefined)).toEqual([])
+  })
+})
+
+describe('shortCommit', () => {
+  it('shortens a commit to seven characters', () => {
+    expect(shortCommit('abc1234def')).toBe('abc1234')
+    expect(shortCommit('')).toBe('')
+  })
+})
+
+describe('commitUrl', () => {
+  it('points at the GitHub commit for the reviewed sha', () => {
+    expect(commitUrl({ repository: 'o/r', owner: 'o', head_commit: 'abc1234' })).toBe(
+      'https://github.com/o/r/commit/abc1234'
+    )
+  })
+
+  it('is null without a commit or an owner', () => {
+    expect(commitUrl({ repository: 'o/r', owner: 'o', head_commit: '' })).toBeNull()
+    expect(commitUrl({ repository: 'r', owner: '', head_commit: 'abc1234' })).toBeNull()
   })
 })

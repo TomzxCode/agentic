@@ -41,3 +41,80 @@ export function reviewLabel(file) {
 export function stripReportMarker(text) {
   return String(text || '').replace(/^\s*<!--[\s\S]*?-->\s*/, '')
 }
+
+// --- Review queue ----------------------------------------------------------
+// The queue view lists every PR with review reports in the store, one row per
+// PR, with a column per review step. Everything here is pure: the view hands it
+// the response the reviews endpoint returned.
+
+// The review steps the queue table shows, in display order: the two parallel
+// steps first (behavior, then risk), then the chain (coverage, validate,
+// verify, review). `label` is the column header, matching the names the
+// review_requested_prs script prints.
+export const QUEUE_STEPS = [
+  { key: 'summarize-behavior-changes', label: 'Behavior' },
+  { key: 'assess-pr-risk', label: 'Risk' },
+  { key: 'analyze-test-coverage', label: 'Coverage' },
+  { key: 'validate-pr', label: 'Validate' },
+  { key: 'verify-pr', label: 'Verify' },
+  { key: 'review-pr', label: 'Review' }
+]
+
+// The merge-readiness light shown beside each PR number: green when the PR
+// could be approved automatically, yellow when something still needs attention,
+// red when a collected signal blocks approval.
+export const READINESS_LIGHTS = { green: '🟢', yellow: '🟡', red: '🔴' }
+export const READINESS_TITLES = {
+  green: 'Could be approved automatically',
+  yellow: 'Still needs attention',
+  red: 'A signal blocks approval'
+}
+
+// A verdict rendered as its mark when it has one; a route or a "partial"
+// verdict has no mark and shows its own word.
+const VERDICT_MARKS = { pass: '✅', fail: '❌', informational: 'ℹ️' }
+
+export function verdictLabel(verdict) {
+  return VERDICT_MARKS[verdict] || verdict || ''
+}
+
+// The tone a verdict reads in, so a pass/fail looks the same everywhere.
+export function verdictTone(verdict) {
+  if (verdict === 'pass' || verdict === 'fast-track' || verdict === 'confirm') return 'ok'
+  if (verdict === 'fail' || verdict === 'block' || verdict === 'hold') return 'danger'
+  if (verdict === 'decide' || verdict === 'investigate' || verdict === 'partial') return 'warn'
+  if (verdict === 'informational') return 'info'
+  return ''
+}
+
+// The tone of an assess-pr-risk severity (low/medium/high), for the risk letter.
+export function riskTone(risk) {
+  if (risk === 'low') return 'ok'
+  if (risk === 'medium') return 'warn'
+  if (risk === 'high') return 'danger'
+  return ''
+}
+
+// The queue grouped by repository, repositories in name order and the PRs in
+// each group newest first (the API already orders them that way).
+export function groupQueueByRepository(prs) {
+  const groups = new Map()
+  for (const pr of prs || []) {
+    if (!groups.has(pr.repository)) groups.set(pr.repository, [])
+    groups.get(pr.repository).push(pr)
+  }
+  return [...groups.entries()].map(([repository, repositoryPrs]) => ({ repository, prs: repositoryPrs }))
+}
+
+// A commit as the short form the table shows.
+export function shortCommit(commit) {
+  return String(commit || '').slice(0, 7)
+}
+
+// The GitHub commit page for a PR's reviewed commit, or null when it cannot be
+// built. The store names a report by the short sha, which GitHub resolves; a
+// store keyed without an owner has no GitHub URL to point at.
+export function commitUrl(pr) {
+  if (!pr?.head_commit || !pr?.owner) return null
+  return `https://github.com/${pr.repository}/commit/${pr.head_commit}`
+}
