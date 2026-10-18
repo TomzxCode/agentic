@@ -9,7 +9,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
 
-from ..crud import add_timeline, get_task_or_404
+from ..crud import add_timeline, get_or_404, get_task_or_404
 from ..db import get_session
 from ..dependencies import dependencies, edge_exists, would_cycle
 from ..events import bus
@@ -47,9 +47,7 @@ async def add_dependency(
     means it follows this one. A link that would close a cycle is refused.
     """
     task = get_task_or_404(session, task_id)
-    related = session.get(Task, payload.related_id)
-    if related is None:
-        raise HTTPException(status_code=404, detail="Related task not found")
+    related = get_or_404(session, Task, payload.related_id, "Related task not found")
     if related.id == task.id:
         raise HTTPException(status_code=400, detail="A task cannot be linked to itself")
 

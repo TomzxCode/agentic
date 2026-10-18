@@ -16,7 +16,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import delete as sa_delete
 from sqlmodel import Session, col, select
 
-from ..crud import add_timeline, get_task_or_404, jsonable
+from ..crud import add_timeline, get_or_404, get_task_or_404, jsonable
 from ..db import get_session
 from ..events import bus
 from ..models.base import ChangeClass, ChangeStatus, InterventionKind, utcnow
@@ -54,9 +54,7 @@ def _enum_or_400[E: StrEnum](enum: type[E], value: str, label: str) -> E:
 
 
 def _get_change_or_404(session: Session, change_id: str) -> Change:
-    change = session.get(Change, change_id)
-    if change is None:
-        raise HTTPException(status_code=404, detail="Change not found")
+    change = get_or_404(session, Change, change_id, "Change not found")
     return change
 
 

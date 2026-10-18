@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import delete as sa_delete
 from sqlmodel import Session, col, select
 
+from ..crud import get_or_404
 from ..db import get_session
 from ..models.base import utcnow
 from ..models.items import Association, ItemPerson, SourceItem
@@ -146,17 +147,13 @@ def refresh_source(source: str, session: Session = Depends(get_session)) -> Refr
 
 @router.get("/{item_id}", response_model=ItemRead)
 def get_item(item_id: str, session: Session = Depends(get_session)) -> ItemRead:
-    item = session.get(SourceItem, item_id)
-    if item is None:
-        raise HTTPException(status_code=404, detail="Item not found")
+    item = get_or_404(session, SourceItem, item_id, "Item not found")
     return _item_read(session, item)
 
 
 @router.patch("/{item_id}", response_model=ItemRead)
 def update_item(item_id: str, payload: ItemUpdate, session: Session = Depends(get_session)) -> ItemRead:
-    item = session.get(SourceItem, item_id)
-    if item is None:
-        raise HTTPException(status_code=404, detail="Item not found")
+    item = get_or_404(session, SourceItem, item_id, "Item not found")
     fields = payload.model_dump(exclude_unset=True)
     reset_title = "title" in fields and not str(fields.get("title") or "").strip()
     for key, value in fields.items():
@@ -186,9 +183,7 @@ def update_item(item_id: str, payload: ItemUpdate, session: Session = Depends(ge
 
 @router.post("/{item_id}/refresh", response_model=ItemRead)
 def refresh_item(item_id: str, session: Session = Depends(get_session)) -> ItemRead:
-    item = session.get(SourceItem, item_id)
-    if item is None:
-        raise HTTPException(status_code=404, detail="Item not found")
+    item = get_or_404(session, SourceItem, item_id, "Item not found")
     fetched = fetch_source(item.source, item.url, item.external_id, item.title)
     error = _apply_fetch(item, fetched, utcnow())
     session.add(item)
@@ -215,9 +210,7 @@ def list_item_reviews(item_id: str, session: Session = Depends(get_session)) -> 
     A non-PR item (or a PR with no report directory) returns an empty list
     rather than an error, so the UI can render the section unconditionally.
     """
-    item = session.get(SourceItem, item_id)
-    if item is None:
-        raise HTTPException(status_code=404, detail="Item not found")
+    item = get_or_404(session, SourceItem, item_id, "Item not found")
     location = _pull_request_location(item)
     if location is None:
         return ItemReviews()
@@ -233,9 +226,7 @@ def list_item_reviews(item_id: str, session: Session = Depends(get_session)) -> 
 @router.get("/{item_id}/reviews/{name:path}", response_model=ItemReviewContent)
 def get_item_review(item_id: str, name: str, session: Session = Depends(get_session)) -> ItemReviewContent:
     """Read one review report for a PR item, addressed by its relative path."""
-    item = session.get(SourceItem, item_id)
-    if item is None:
-        raise HTTPException(status_code=404, detail="Item not found")
+    item = get_or_404(session, SourceItem, item_id, "Item not found")
     location = _pull_request_location(item)
     if location is None:
         raise HTTPException(status_code=404, detail="Item has no review reports")
@@ -247,9 +238,7 @@ def get_item_review(item_id: str, name: str, session: Session = Depends(get_sess
 
 @router.delete("/{item_id}", status_code=204)
 def delete_item(item_id: str, session: Session = Depends(get_session)) -> None:
-    item = session.get(SourceItem, item_id)
-    if item is None:
-        raise HTTPException(status_code=404, detail="Item not found")
+    get_or_404(session, SourceItem, item_id, "Item not found")
     session.exec(sa_delete(Association).where(col(Association.item_id) == item_id))
     session.exec(sa_delete(ItemPerson).where(col(ItemPerson.item_id) == item_id))
     session.exec(sa_delete(SourceItem).where(col(SourceItem.id) == item_id))

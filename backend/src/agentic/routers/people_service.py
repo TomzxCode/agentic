@@ -14,15 +14,13 @@ from sqlalchemy import delete as sa_delete
 from sqlalchemy import func
 from sqlmodel import Session, col, select
 
+from ..crud import get_or_404
 from ..models.items import ItemPerson, Person, PersonAlias, TaskPerson, TaskRequester
 from ..schemas.people import PersonCreate, PersonLink, PersonRead
 
 
 def get_person_or_404(session: Session, person_id: str) -> Person:
-    person = session.get(Person, person_id)
-    if person is None:
-        raise HTTPException(status_code=404, detail="Person not found")
-    return person
+    return get_or_404(session, Person, person_id, "Person not found")
 
 
 def normalize_aliases(values: list[str] | None) -> list[str]:

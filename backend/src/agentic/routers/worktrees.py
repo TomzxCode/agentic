@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import case
 from sqlmodel import Session, col, select
 
-from ..crud import add_timeline, get_task_or_404
+from ..crud import add_timeline, get_or_404, get_task_or_404
 from ..db import get_session
 from ..events import bus
 from ..models.base import WorktreeStatus, utcnow
@@ -48,9 +48,7 @@ async def create_task_worktree(
         repository_id = member.repository_id if member is not None else None
     if not repository_id:
         raise HTTPException(status_code=400, detail="No repository set; pass repository_id or set one on the task")
-    repo = session.get(Repository, repository_id)
-    if repo is None:
-        raise HTTPException(status_code=404, detail="Repository not found")
+    repo = get_or_404(session, Repository, repository_id, "Repository not found")
 
     branch = payload.branch or random_branch_name(repo.path)
     path = worktree_path(task.id, branch)

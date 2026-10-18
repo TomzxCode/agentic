@@ -2,8 +2,7 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { api } from './api'
-import { SETTINGS_SECTIONS } from './settings'
-import { store, timeAgo, aliasLabel, sourceLabel } from './store'
+import { store, timeAgo } from './store'
 import SearchSelect from './components/SearchSelect.vue'
 import RepositorySelect from './components/RepositorySelect.vue'
 import TagInput from './components/TagInput.vue'
@@ -12,12 +11,31 @@ import StatusIcon from './components/StatusIcon.vue'
 import PriorityIcon from './components/PriorityIcon.vue'
 import Icon from './components/Icon.vue'
 import CommandPalette from './components/CommandPalette.vue'
+import { useFocusHints } from './composables/useFocusHints'
+import { useSidebar } from './composables/useSidebar'
+import { buildPaletteItems } from './palette'
+
+const { hintBadges, handleHintKey, hasHintTargets, stopHints } = useFocusHints()
 
 const route = useRoute()
+const paletteItems = computed(() => buildPaletteItems({ route, router, showNew, sidebarHidden, toggleSidebar }))
 const router = useRouter()
 const showNew = ref(false)
 const sidebarOpen = ref(false)
 const paletteOpen = ref(false)
+const {
+  sidebarWidth,
+  sidebarResizing,
+  sidebarHidden,
+  sidebarDragStyle,
+  sidebarDragging,
+  toggleSidebar,
+  sidebarExpanded,
+  sidebarToggleLabel,
+  startResize,
+  onResizerKeydown,
+  resetSidebarWidth
+} = useSidebar({ sidebarOpen, showNew, paletteOpen })
 const draft = ref({
   title: '',
   description: '',
@@ -101,324 +119,12 @@ const importRepoOptions = computed(() => githubRepos.value.map((r) => ({ value: 
 // The sidebar is for work in flight: hide done and archived tasks.
 const sidebarTasks = computed(() => store.tasks.filter((p) => p.status !== 'done' && p.status !== 'archived'))
 
-// Command palette: navigate anywhere (and a couple of actions) from the keyboard.
-const taskFieldItems = computed(() =>
-  route.name === 'task'
-    ? [
-        {
-          id: 'field-title',
-          label: 'Edit title',
-          group: 'This task',
-          icon: 'title',
-          run: () => store.focusField?.('title')
-        },
-        {
-          id: 'field-description',
-          label: 'Edit description',
-          group: 'This task',
-          icon: 'description',
-          run: () => store.focusField?.('description')
-        },
-        {
-          id: 'field-status',
-          label: 'Set status',
-          group: 'This task',
-          icon: 'status',
-          run: () => store.focusField?.('status')
-        },
-        {
-          id: 'field-priority',
-          label: 'Set priority',
-          group: 'This task',
-          icon: 'priority',
-          run: () => store.focusField?.('priority')
-        },
-        {
-          id: 'field-deadline',
-          label: 'Set deadline',
-          group: 'This task',
-          icon: 'deadline',
-          run: () => store.focusField?.('deadline')
-        },
-        {
-          id: 'field-repository',
-          label: 'Add repository',
-          group: 'This task',
-          icon: 'repositories',
-          run: () => store.focusField?.('repository')
-        },
-        {
-          id: 'field-people',
-          label: 'Link a person',
-          group: 'This task',
-          icon: 'personPlus',
-          run: () => store.focusField?.('people')
-        },
-        {
-          id: 'field-requesters',
-          label: 'Link a requester',
-          group: 'This task',
-          icon: 'personCheck',
-          run: () => store.focusField?.('requesters')
-        },
-        {
-          id: 'field-dependencies',
-          label: 'Link a dependency',
-          group: 'This task',
-          icon: 'link',
-          run: () => store.focusField?.('dependencies')
-        },
-        {
-          id: 'field-tags',
-          label: 'Set tags',
-          group: 'This task',
-          icon: 'tag',
-          run: () => store.focusField?.('tags')
-        }
-      ]
-    : []
-)
-
-// One palette entry per tag in use: pick it to filter the task list by that tag.
-const tagItems = computed(() =>
-  store.tags.map((tag) => ({
-    id: `tag-${tag.name}`,
-    label: `Filter by tag: ${tag.name}`,
-    group: 'Tags',
-    icon: 'tag',
-    hint: store.tagFilter === tag.name ? 'active' : String(tag.count),
-    keywords: tag.name,
-    run: () => {
-      store.tagFilter = tag.name
-      router.push('/')
-    }
-  }))
-)
-
-// One palette entry per person: pick it to open that person's page. Aliases are
-// shown as the hint and are searchable, so a handle or email finds the person.
-const personItems = computed(() =>
-  store.people.map((person) => ({
-    id: `person-${person.id}`,
-    label: person.name,
-    group: 'People',
-    icon: 'people',
-    hint: (person.aliases || []).map(aliasLabel).join(' · ') || undefined,
-    keywords: (person.aliases || []).join(' '),
-    run: () => router.push(`/person/${person.id}`)
-  }))
-)
-
-// One palette entry per resource: pick it to open that item's page. The source
-// is shown as the hint and is searchable, so "github" or "slack" narrows the
-// list.
-const itemItems = computed(() =>
-  store.items.map((item) => ({
-    id: `item-${item.id}`,
-    label: item.title || item.url || 'Untitled item',
-    group: 'Items',
-    icon: 'items',
-    hint: sourceLabel(item.source),
-    keywords: [item.source, item.kind, item.url].filter(Boolean).join(' '),
-    run: () => router.push(`/items/${item.id}`)
-  }))
-)
-
-// One palette entry per repository: pick it to open that repository's page. Its
-// path and remote are searchable, so a directory or "github" narrows the list.
-const repositoryItems = computed(() =>
-  store.repositories.map((repository) => ({
-    id: `repository-${repository.id}`,
-    label: repository.name || repository.path,
-    group: 'Repositories',
-    icon: 'repositories',
-    hint: repository.path,
-    keywords: [repository.path, repository.remote_url].filter(Boolean).join(' '),
-    run: () => router.push(`/repositories/${repository.id}`)
-  }))
-)
-
-// One palette entry per Settings section: pick it to open that section. The
-// group header names Settings, and "settings" is searchable, so the whole list
-// appears under that one word.
-const settingsItems = computed(() =>
-  SETTINGS_SECTIONS.map((section) => ({
-    id: `settings-${section.id}`,
-    label: section.label,
-    group: 'Settings',
-    icon: 'settings',
-    keywords: `settings ${section.id}`,
-    run: () => router.push({ path: '/settings', query: { section: section.id } })
-  }))
-)
-
-const paletteItems = computed(() => [
-  { id: 'new-task', label: 'New task', hint: '⌘N', group: 'Actions', icon: 'plus', run: () => (showNew.value = true) },
-  {
-    id: 'focus-hints',
-    label: 'Show focus hints',
-    hint: 'f',
-    group: 'Actions',
-    icon: 'keyboard',
-    run: () => (store.hintMode = true)
-  },
-  {
-    id: 'toggle-sidebar',
-    label: sidebarHidden.value ? 'Show task list' : 'Hide task list',
-    hint: '⌘B',
-    group: 'Actions',
-    icon: 'panel',
-    keywords: 'sidebar panel collapse',
-    run: toggleSidebar
-  },
-  ...(store.tagFilter
-    ? [
-        {
-          id: 'clear-tag-filter',
-          label: `Clear tag filter: ${store.tagFilter}`,
-          group: 'Actions',
-          icon: 'close',
-          run: () => (store.tagFilter = '')
-        }
-      ]
-    : []),
-  ...taskFieldItems.value,
-  { id: 'go-tasks', label: 'Go to tasks', group: 'Navigation', icon: 'tasks', run: () => router.push('/') },
-  { id: 'go-inbox', label: 'Go to inbox', group: 'Navigation', icon: 'inbox', run: () => router.push('/inbox') },
-  {
-    id: 'go-reviews',
-    label: 'Go to review queue',
-    group: 'Navigation',
-    icon: 'reviews',
-    run: () => router.push('/reviews')
-  },
-  { id: 'go-stack', label: 'Go to stack', group: 'Navigation', icon: 'stack', run: () => router.push('/stack') },
-  { id: 'go-gantt', label: 'Go to gantt', group: 'Navigation', icon: 'gantt', run: () => router.push('/gantt') },
-  { id: 'go-graph', label: 'Go to graph', group: 'Navigation', icon: 'graph', run: () => router.push('/graph') },
-  {
-    id: 'go-metrics',
-    label: 'Go to metrics',
-    group: 'Navigation',
-    icon: 'metrics',
-    run: () => router.push('/metrics')
-  },
-  {
-    id: 'go-items',
-    label: 'Go to resources',
-    group: 'Navigation',
-    icon: 'items',
-    run: () => router.push('/items')
-  },
-  { id: 'go-people', label: 'Go to people', group: 'Navigation', icon: 'people', run: () => router.push('/people') },
-  {
-    id: 'go-repositories',
-    label: 'Go to repositories',
-    group: 'Navigation',
-    icon: 'repositories',
-    run: () => router.push('/repositories')
-  },
-  {
-    id: 'go-schedules',
-    label: 'Go to scheduled tasks',
-    group: 'Navigation',
-    icon: 'schedule',
-    run: () => router.push('/schedules')
-  },
-  {
-    id: 'go-settings',
-    label: 'Go to settings',
-    group: 'Navigation',
-    icon: 'settings',
-    run: () => router.push('/settings')
-  },
-  ...tagItems.value,
-  ...store.tasks.map((task) => ({
-    id: `task-${task.id}`,
-    label: task.title,
-    group: 'Tasks',
-    icon: 'tasks',
-    hint: [task.status.replace('_', ' '), ...(task.tags || []).map((tag) => `#${tag}`)].join(' '),
-    keywords: (task.tags || []).join(' '),
-    run: () => router.push(`/task/${task.id}`)
-  })),
-  ...itemItems.value,
-  ...repositoryItems.value,
-  ...settingsItems.value,
-  ...personItems.value
-])
-
 function runPaletteItem(item) {
   item.run?.()
 }
 
 function isTyping(target) {
   return !!target && (['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName) || target.isContentEditable)
-}
-
-// Focus-hint mode: press f, then the letter over a control, to focus it. The
-// targets are scanned from the page so every field/button is covered.
-const HINT_SELECTOR = 'a[href], button, input, textarea, select, [tabindex]:not([tabindex="-1"])'
-const hintBadges = ref([])
-let hintTargets = []
-let hintBuffer = ''
-let hintCleanup = null
-
-function hintLabelFor(index) {
-  const alphabet = 'abcdefghijklmnopqrstuvwxyz'
-  if (index < alphabet.length) return alphabet[index]
-  const rest = index - alphabet.length
-  return alphabet[Math.floor(rest / alphabet.length)] + alphabet[rest % alphabet.length]
-}
-
-// Dim the badges whose label does not start with what has been typed so far.
-function updateHintMatches() {
-  hintTargets.forEach((target, index) => {
-    const badge = hintBadges.value[index]
-    if (badge) badge.dimmed = hintBuffer !== '' && !target.key.startsWith(hintBuffer)
-  })
-}
-
-function focusHint(target) {
-  target.el.focus()
-  store.hintMode = false
-}
-
-function positionHints() {
-  hintTargets.forEach((target, index) => {
-    const badge = hintBadges.value[index]
-    if (!badge) return
-    const rect = target.el.getBoundingClientRect()
-    badge.left = rect.left
-    badge.top = rect.top
-    badge.hidden = rect.width === 0 && rect.height === 0
-  })
-}
-
-function stopHints() {
-  hintCleanup?.()
-  hintCleanup = null
-  hintTargets = []
-  hintBadges.value = []
-  hintBuffer = ''
-}
-
-function startHints() {
-  stopHints()
-  const container = document.querySelector('.main')
-  if (!container) return
-  const nodes = Array.from(container.querySelectorAll(HINT_SELECTOR)).filter(
-    // Skip the agent transcript and controls that opt out (the sidebar toggle).
-    (el) => !el.disabled && !el.closest('.transcript') && !el.hasAttribute('data-no-hint')
-  )
-  hintTargets = nodes.map((el, index) => ({ key: hintLabelFor(index), el }))
-  hintBadges.value = hintTargets.map(({ key }) => ({ key, left: 0, top: 0, hidden: false, dimmed: false }))
-  positionHints()
-  window.addEventListener('scroll', positionHints, true)
-  window.addEventListener('resize', positionHints)
-  hintCleanup = () => {
-    window.removeEventListener('scroll', positionHints, true)
-    window.removeEventListener('resize', positionHints)
-  }
 }
 
 function onGlobalKeydown(event) {
@@ -442,38 +148,7 @@ function onGlobalKeydown(event) {
     return
   }
 
-  if (store.hintMode) {
-    if (event.key === 'Escape') {
-      event.preventDefault()
-      store.hintMode = false
-      return
-    }
-    if (event.key === 'Enter') {
-      event.preventDefault()
-      const exact = hintTargets.find((target) => target.key === hintBuffer)
-      if (exact) focusHint(exact)
-      return
-    }
-    if (event.key === 'Backspace') {
-      event.preventDefault()
-      hintBuffer = hintBuffer.slice(0, -1)
-      updateHintMatches()
-      return
-    }
-    const char = event.key.toLowerCase()
-    if (/^[a-z]$/.test(char)) {
-      event.preventDefault()
-      const next = hintBuffer + char
-      const matches = hintTargets.filter((target) => target.key.startsWith(next))
-      if (matches.length === 1) {
-        focusHint(matches[0])
-      } else {
-        hintBuffer = matches.length === 0 ? '' : next
-        updateHintMatches()
-      }
-    }
-    return
-  }
+  if (store.hintMode && handleHintKey(event)) return
 
   if (event.key === 'Escape') {
     if (paletteOpen.value) paletteOpen.value = false
@@ -489,17 +164,12 @@ function onGlobalKeydown(event) {
     !isTyping(event.target) &&
     !paletteOpen.value &&
     !showNew.value &&
-    document.querySelector('.main')?.querySelector(`:is(${HINT_SELECTOR}):not([data-no-hint])`)
+    hasHintTargets()
   ) {
     event.preventDefault()
     store.hintMode = true
   }
 }
-
-watch(
-  () => store.hintMode,
-  (on) => (on ? startHints() : stopHints())
-)
 
 // Newest issues first (by number), with a text filter.
 const sortedIssues = computed(() => {
@@ -563,230 +233,6 @@ async function changeStatus(task, status) {
     task.status = previous
     store.notify(e.message, true)
   }
-}
-
-// --- Sidebar drawer swipe ---------------------------------------------------
-// Below 760px the sidebar is an off-canvas drawer. Swiping right opens it and
-// swiping left while it is open closes it. An opening swipe is not restricted to
-// the screen edge: Android's own back gesture owns the outer few millimetres of
-// the edge and swallows a swipe that starts there, so the gesture starts
-// anywhere the page does not already use a sideways drag. Plain touch events,
-// never preventDefault, so vertical scrolling is untouched.
-const SIDEBAR_LOCK_PX = 12 // horizontal travel that claims the gesture
-const SIDEBAR_FLICK_MS = 250 // a quick swipe this short still commits
-const SIDEBAR_FLICK_PX = 24
-// While a swipe is in flight this is how far the drawer has been dragged
-// (0 closed, 1 open). It is null the rest of the time, when CSS owns the
-// transform; dragging holds the release back one frame so the transition runs.
-const sidebarDrag = ref(null)
-const sidebarDragging = ref(false)
-const sidebarDragStyle = computed(() =>
-  sidebarDrag.value === null ? null : { transform: `translateX(${(sidebarDrag.value - 1) * 100}%)` }
-)
-let swipe = null
-let swipeSeq = 0
-
-// A sideways swipe that starts on a strip that scrolls sideways belongs to that
-// strip, and one that starts in a text field belongs to the caret. `.main` is
-// the page scroller itself, so it is never treated as a sideways strip.
-function gestureIsOwned(target) {
-  if (!(target instanceof Element)) return false
-  if (target.closest('input, textarea, [contenteditable]')) return true
-  for (let node = target; node instanceof Element; node = node.parentElement) {
-    if (node.classList.contains('main')) return false
-    if (node.scrollWidth > node.clientWidth + 1) return true
-  }
-  return false
-}
-
-function beginSwipe(event) {
-  // Only on the mobile layout, one finger, and never under a modal or palette.
-  if (window.innerWidth > 760 || event.touches.length !== 1) return
-  if (showNew.value || paletteOpen.value) return
-  const opening = !sidebarOpen.value
-  if (opening && gestureIsOwned(event.target)) return
-  const touch = event.touches[0]
-  swipe = {
-    seq: ++swipeSeq,
-    startX: touch.clientX,
-    startY: touch.clientY,
-    startTime: Date.now(),
-    width: Math.max(window.innerWidth, 1),
-    opening,
-    decided: false,
-    dx: 0,
-    progress: opening ? 0 : 1
-  }
-}
-
-function moveSwipe(event) {
-  if (!swipe || event.touches.length !== 1) return
-  const touch = event.touches[0]
-  const dx = touch.clientX - swipe.startX
-  const dy = touch.clientY - swipe.startY
-  if (!swipe.decided) {
-    // Wait until the finger has committed to a horizontal swipe in the useful
-    // direction. Touch sampling drifts sideways early on, so one sideways
-    // sample must not kill the gesture; only a drag whose sideways travel keeps
-    // up with its horizontal travel (a page scroll) is left alone.
-    const along = swipe.opening ? dx : -dx
-    if (along < SIDEBAR_LOCK_PX || Math.abs(dy) >= along) return
-    swipe.decided = true
-    sidebarDragging.value = true
-  }
-  swipe.dx = dx
-  const raw = swipe.opening ? dx / swipe.width : 1 + dx / swipe.width
-  swipe.progress = Math.min(1, Math.max(0, raw))
-  sidebarDrag.value = swipe.progress
-}
-
-function endSwipe() {
-  if (!swipe) return
-  const gesture = swipe
-  swipe = null
-  if (!gesture.decided) return
-  const flick = Date.now() - gesture.startTime < SIDEBAR_FLICK_MS && Math.abs(gesture.dx) >= SIDEBAR_FLICK_PX
-  const committed = flick || (gesture.opening ? gesture.progress > 0.5 : gesture.progress < 0.5)
-  sidebarOpen.value = gesture.opening ? committed : !committed
-  releaseDrawer(gesture.seq)
-}
-
-function cancelSwipe() {
-  if (!swipe) return
-  const seq = swipe.seq
-  swipe = null
-  releaseDrawer(seq)
-}
-
-// Let the drawer render at the released position with the transition back on,
-// then hand it back to CSS, so it eases from where the finger let go instead of
-// snapping.
-function releaseDrawer(seq) {
-  sidebarDragging.value = false
-  requestAnimationFrame(() => {
-    if (swipeSeq === seq) sidebarDrag.value = null
-  })
-}
-
-// --- Sidebar resize (desktop) ----------------------------------------------
-// On desktop the sidebar is a grid column of its own. A handle on its right
-// edge drags that column between a floor that keeps the list readable and a
-// ceiling that leaves the page usable. Width is a per-device preference, so it
-// is kept in localStorage rather than on the server.
-const SIDEBAR_DEFAULT_PX = 300
-// The floor keeps the Search / New task row and the nav icon row intact.
-const SIDEBAR_MIN_PX = 260
-const SIDEBAR_MAX_PX = 560
-const SIDEBAR_WIDTH_KEY = 'agentic.sidebarWidth'
-const SIDEBAR_HIDDEN_KEY = 'agentic.sidebarHidden'
-// Above this width the sidebar is a column; at or below it is a drawer.
-const DESKTOP_MIN_PX = 760
-const sidebarWidth = ref(readStoredWidth())
-const sidebarResizing = ref(false)
-const sidebarHidden = ref(readStoredNumber(SIDEBAR_HIDDEN_KEY) === 1)
-
-function isDesktop() {
-  return window.innerWidth > DESKTOP_MIN_PX
-}
-
-function readStoredNumber(key) {
-  try {
-    const raw = localStorage.getItem(key)
-    return raw === null ? null : Number(raw)
-  } catch {
-    // Storage can be blocked (private mode).
-    return null
-  }
-}
-
-function writeStored(key, value) {
-  try {
-    localStorage.setItem(key, value)
-  } catch {
-    // Not fatal: the choice still applies for this session.
-  }
-}
-
-function readStoredWidth() {
-  const stored = readStoredNumber(SIDEBAR_WIDTH_KEY)
-  return stored !== null && stored > 0 ? clampSidebarWidth(stored) : SIDEBAR_DEFAULT_PX
-}
-
-function clampSidebarWidth(px) {
-  return Math.round(Math.min(SIDEBAR_MAX_PX, Math.max(SIDEBAR_MIN_PX, px)))
-}
-
-function setSidebarWidth(px, persist = true) {
-  sidebarWidth.value = clampSidebarWidth(px)
-  if (!persist) return
-  writeStored(SIDEBAR_WIDTH_KEY, String(sidebarWidth.value))
-}
-
-function setSidebarHidden(hidden) {
-  sidebarHidden.value = hidden
-  writeStored(SIDEBAR_HIDDEN_KEY, hidden ? '1' : '0')
-}
-
-// The menu button toggles the drawer on mobile and reveals the column on
-// desktop, where it is only shown while the sidebar is hidden.
-function toggleSidebar() {
-  if (isDesktop()) setSidebarHidden(!sidebarHidden.value)
-  else sidebarOpen.value = !sidebarOpen.value
-}
-
-// Whether the task list is on screen, for the toggle's state and label.
-function sidebarExpanded() {
-  return isDesktop() ? !sidebarHidden.value : sidebarOpen.value
-}
-
-function sidebarToggleLabel() {
-  return sidebarExpanded() ? 'Hide the task list (⌘B)' : 'Show the task list (⌘B)'
-}
-
-let resizeFrom = null
-
-function startResize(event) {
-  // Below 760px the sidebar is an off-canvas drawer, not a column to size.
-  if (!isDesktop() || event.button > 0) return
-  resizeFrom = { x: event.clientX, width: sidebarWidth.value }
-  sidebarResizing.value = true
-  window.addEventListener('pointermove', moveResize)
-  window.addEventListener('pointerup', endResize)
-  window.addEventListener('pointercancel', endResize)
-  event.preventDefault()
-}
-
-function moveResize(event) {
-  if (!resizeFrom) return
-  // Not persisted until the drag ends, so a drag writes storage once.
-  setSidebarWidth(resizeFrom.width + (event.clientX - resizeFrom.x), false)
-}
-
-function endResize() {
-  if (!resizeFrom) return
-  resizeFrom = null
-  sidebarResizing.value = false
-  window.removeEventListener('pointermove', moveResize)
-  window.removeEventListener('pointerup', endResize)
-  window.removeEventListener('pointercancel', endResize)
-  setSidebarWidth(sidebarWidth.value)
-}
-
-function resetSidebarWidth() {
-  setSidebarWidth(SIDEBAR_DEFAULT_PX)
-}
-
-// The handle is a separator the keyboard can drive: arrows nudge it, Home/End
-// jump to the bounds, Enter restores the default.
-function onResizerKeydown(event) {
-  const step = event.shiftKey ? 40 : 10
-  if (event.key === 'ArrowLeft') setSidebarWidth(sidebarWidth.value - step)
-  else if (event.key === 'ArrowRight') setSidebarWidth(sidebarWidth.value + step)
-  else if (event.key === 'Home') setSidebarWidth(SIDEBAR_MIN_PX)
-  else if (event.key === 'End') setSidebarWidth(SIDEBAR_MAX_PX)
-  else if (event.key === 'Enter') resetSidebarWidth()
-  else return
-  event.preventDefault()
 }
 
 async function loadIssues() {
@@ -898,10 +344,6 @@ async function createTask() {
 
 onMounted(async () => {
   window.addEventListener('keydown', onGlobalKeydown)
-  window.addEventListener('touchstart', beginSwipe)
-  window.addEventListener('touchmove', moveSwipe)
-  window.addEventListener('touchend', endSwipe)
-  window.addEventListener('touchcancel', cancelSwipe)
   await refresh()
   await store.loadGroups().catch(() => {})
   await store.loadRepositories().catch(() => {})
@@ -911,13 +353,6 @@ onMounted(async () => {
 })
 onUnmounted(() => {
   window.removeEventListener('keydown', onGlobalKeydown)
-  window.removeEventListener('touchstart', beginSwipe)
-  window.removeEventListener('touchmove', moveSwipe)
-  window.removeEventListener('touchend', endSwipe)
-  window.removeEventListener('touchcancel', cancelSwipe)
-  window.removeEventListener('pointermove', moveResize)
-  window.removeEventListener('pointerup', endResize)
-  window.removeEventListener('pointercancel', endResize)
   stopHints()
 })
 </script>

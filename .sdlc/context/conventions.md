@@ -12,9 +12,9 @@
 
 ## Directory Structure
 
-- `backend/src/agentic/` — the FastAPI app: `main.py` (app wiring), `config.py`, `db.py`, `models.py`, `schemas.py`, `crud.py`, `services.py`, `agents.py`, `events.py`, `links.py`, `settings_store.py`, `server_cli.py`, and `routers/` (one module per resource).
-- `backend/tests/` — pytest tests, one file per area (`test_api.py`, `test_services.py`, and so on).
-- `cli/src/agentic_cli/` — the user CLI (`cli.py`, `client.py`) with tests in `cli/tests/`.
+- `backend/src/agentic/` — the FastAPI app. Wiring and cross-cutting modules: `main.py` (app wiring), `config.py`, `db.py`, `crud.py` (shared CRUD helpers, including `get_or_404`), `events.py`, `links.py`, `provenance.py`, `settings_store.py`, `server_cli.py`, `jobs.py`, `stack.py`, `schedules.py`, `metrics.py`, `inbox.py`, `refresh.py`, `review_store.py` + `review_queue.py`. Domain packages, each imported by its defining submodule (the `__init__.py` files are docstrings only, no re-export barrels): `models/` (SQLModel tables, by domain), `schemas/` (request/response models, by resource), `services/` (`shell`, `git`, `names`, `parsing`, `github`, `slack`, `sources`, `prompts`), `agents/` (`harnesses`, `client`, `runner`, `executions`). `routers/` holds one module per resource; a resource too large for one module keeps its sub-concern in a sibling (`task_writes`, `task_service`, `task_items`, `task_dependencies`, `items_refresh`, `agent_runs` + `agent_streams`, `people_service` + `people_links`), all mounted from `main.py`.
+- `backend/tests/` — pytest tests, one file per area or module (`test_agents_harnesses.py`, `test_services_prompts.py`, and so on); shared fixtures live in `conftest.py` and `_*_helpers.py`.
+- `cli/src/agentic_cli/` — the user CLI: `cli.py` (root app + launcher), `runtime.py` (context, output format, API client), `render.py` (plain-text renderers), `commands/` (one module per resource, each exposing `register(app)`), and `client.py` (the HTTP client), with tests in `cli/tests/`.
 - `frontend/src/` — the SPA: `App.vue`, `main.js` (router), `store.js`, `api.js`, `views/`, and `components/`.
 - `.sdlc/` — SDLC artifacts (context, features, knowledge, templates).
 

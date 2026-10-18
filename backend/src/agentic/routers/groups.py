@@ -7,6 +7,7 @@ from sqlalchemy import delete as sa_delete
 from sqlalchemy import update as sa_update
 from sqlmodel import Session, col, select
 
+from ..crud import get_or_404
 from ..db import get_session
 from ..models.repositories import Repository, RepositoryGroup, RepositoryGroupMember
 from ..models.tasks import Task
@@ -50,9 +51,7 @@ def list_groups(session: Session = Depends(get_session)) -> list[RepositoryGroup
 
 @router.get("/{group_id}", response_model=RepositoryGroupRead)
 def get_group(group_id: str, session: Session = Depends(get_session)) -> RepositoryGroupRead:
-    group = session.get(RepositoryGroup, group_id)
-    if group is None:
-        raise HTTPException(status_code=404, detail="Group not found")
+    group = get_or_404(session, RepositoryGroup, group_id, "Group not found")
     return _read(session, group)
 
 
@@ -72,9 +71,7 @@ def create_group(payload: RepositoryGroupCreate, session: Session = Depends(get_
 def update_group(
     group_id: str, payload: RepositoryGroupUpdate, session: Session = Depends(get_session)
 ) -> RepositoryGroupRead:
-    group = session.get(RepositoryGroup, group_id)
-    if group is None:
-        raise HTTPException(status_code=404, detail="Group not found")
+    group = get_or_404(session, RepositoryGroup, group_id, "Group not found")
     data = payload.model_dump(exclude_unset=True)
     if "name" in data and data["name"] is not None:
         group.name = data["name"].strip() or group.name
@@ -90,9 +87,7 @@ def update_group(
 
 @router.delete("/{group_id}", status_code=204)
 def delete_group(group_id: str, session: Session = Depends(get_session)) -> None:
-    group = session.get(RepositoryGroup, group_id)
-    if group is None:
-        raise HTTPException(status_code=404, detail="Group not found")
+    get_or_404(session, RepositoryGroup, group_id, "Group not found")
     session.exec(sa_delete(RepositoryGroupMember).where(col(RepositoryGroupMember.group_id) == group_id))
     session.exec(sa_update(Task).where(col(Task.group_id) == group_id).values(group_id=None))
     session.exec(sa_delete(RepositoryGroup).where(col(RepositoryGroup.id) == group_id))

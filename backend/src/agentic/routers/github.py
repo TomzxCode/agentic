@@ -5,6 +5,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session
 
+from ..crud import get_or_404
 from ..db import get_session
 from ..models.repositories import Repository
 from ..schemas.github import GithubIssue, GithubIssueCreate, GithubRepoListing
@@ -44,9 +45,7 @@ def _resolve_owner_repo(
 ) -> tuple[str, str]:
     """Resolve a registered repository (or an explicit owner/repo) to (owner, repo)."""
     if repository_id:
-        repository = session.get(Repository, repository_id)
-        if repository is None:
-            raise HTTPException(status_code=404, detail="Repository not found")
+        repository = get_or_404(session, Repository, repository_id, "Repository not found")
         parsed = github_owner_repo(repository.remote_url)
         if parsed is None:
             raise HTTPException(status_code=400, detail="Repository has no GitHub remote")

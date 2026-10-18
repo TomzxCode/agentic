@@ -48,13 +48,6 @@ import PeopleSelect from '../components/PeopleSelect.vue'
 import SearchSelect from '../components/SearchSelect.vue'
 import { store } from '../store'
 
-const RouterLinkStub = {
-  props: ['to'],
-  template: '<a :href="typeof to === \'string\' ? to : to.path"><slot /></a>'
-}
-
-const stub = { global: { stubs: { RouterLink: RouterLinkStub } } }
-
 beforeEach(() => {
   vi.clearAllMocks()
   localStorage.clear()

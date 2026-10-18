@@ -12,7 +12,7 @@ from sqlmodel import Session, col, select
 
 from ..agents.harnesses import get_harness
 from ..config import settings
-from ..crud import add_timeline, get_task_or_404
+from ..crud import add_timeline, get_or_404, get_task_or_404
 from ..db import get_session
 from ..events import bus
 from ..jobs import cancel_run as cancel_queued_run
@@ -226,9 +226,7 @@ async def refresh_summary(task_id: str, session: Session = Depends(get_session))
 
 @router.get("/runs/{run_id}", response_model=RunRead)
 def get_run(run_id: str, session: Session = Depends(get_session)) -> RunRead:
-    run = session.get(AgentRun, run_id)
-    if run is None:
-        raise HTTPException(status_code=404, detail="Run not found")
+    run = get_or_404(session, AgentRun, run_id, "Run not found")
     return run_read(session, run)
 
 
@@ -239,9 +237,7 @@ def get_run_events(run_id: str, session: Session = Depends(get_session)) -> list
 
 @router.post("/runs/{run_id}/cancel", response_model=RunRead)
 async def cancel_run(run_id: str, session: Session = Depends(get_session)) -> RunRead:
-    run = session.get(AgentRun, run_id)
-    if run is None:
-        raise HTTPException(status_code=404, detail="Run not found")
+    run = get_or_404(session, AgentRun, run_id, "Run not found")
     # Aborts the queued/running job; the worker cancels an active turn. A job that
     # never started is aborted here, so record the outcome on the run too.
     await cancel_queued_run(run_id)

@@ -10,7 +10,7 @@ import anyio
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
 
-from ..crud import add_timeline, get_task_or_404
+from ..crud import add_timeline, get_or_404, get_task_or_404
 from ..db import get_session
 from ..events import bus
 from ..models.items import Association, SourceItem
@@ -30,9 +30,7 @@ async def associate_item(
         # Fetching (network/CLI) happens here; keep it off the event loop.
         item = await anyio.to_thread.run_sync(_upsert_item, session, payload.item)
     elif payload.item_id is not None:
-        item = session.get(SourceItem, payload.item_id)
-        if item is None:
-            raise HTTPException(status_code=404, detail="Item not found")
+        item = get_or_404(session, SourceItem, payload.item_id, "Item not found")
     else:
         raise HTTPException(status_code=400, detail="Provide item_id or item")
 

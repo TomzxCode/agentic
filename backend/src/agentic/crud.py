@@ -45,11 +45,20 @@ def field_label(key: str) -> str:
     return FIELD_LABELS.get(key, key.replace("_", " "))
 
 
+def get_or_404[ModelT](session: Session, model: type[ModelT], row_id: str, detail: str) -> ModelT:
+    """Fetch a row by primary key or raise the 404 the caller's route expects.
+
+    ``detail`` is passed whole (e.g. ``"Person not found"``) so each router keeps
+    its own wording.
+    """
+    row = session.get(model, row_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail=detail)
+    return row
+
+
 def get_task_or_404(session: Session, task_id: str) -> Task:
-    task = session.get(Task, task_id)
-    if task is None:
-        raise HTTPException(status_code=404, detail="Task not found")
-    return task
+    return get_or_404(session, Task, task_id, "Task not found")
 
 
 def add_timeline(

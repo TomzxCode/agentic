@@ -74,8 +74,6 @@ import RepositoriesView from '../views/RepositoriesView.vue'
 import { store } from '../store'
 import { AgGridVue } from 'ag-grid-vue3'
 
-const RouterLinkStub = { props: ['to'], template: '<a><slot /></a>' }
-
 beforeEach(() => {
   vi.clearAllMocks()
   store.toast = null

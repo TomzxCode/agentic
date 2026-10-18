@@ -11,6 +11,7 @@ from sqlalchemy import delete as sa_delete
 from sqlalchemy import update as sa_update
 from sqlmodel import Session, col, select
 
+from ..crud import get_or_404
 from ..db import get_session
 from ..models.changes import Change
 from ..models.repositories import Repository, RepositoryGroupMember, TaskRepository, Worktree
@@ -84,17 +85,13 @@ def create_repositories(payload: RepositoryBulkCreate, session: Session = Depend
 
 @router.get("/{repository_id}", response_model=RepositoryRead)
 def get_repository(repository_id: str, session: Session = Depends(get_session)) -> Repository:
-    repo = session.get(Repository, repository_id)
-    if repo is None:
-        raise HTTPException(status_code=404, detail="Repository not found")
+    repo = get_or_404(session, Repository, repository_id, "Repository not found")
     return repo
 
 
 @router.delete("/{repository_id}", status_code=204)
 async def delete_repository(repository_id: str, session: Session = Depends(get_session)) -> None:
-    repo = session.get(Repository, repository_id)
-    if repo is None:
-        raise HTTPException(status_code=404, detail="Repository not found")
+    repo = get_or_404(session, Repository, repository_id, "Repository not found")
     worktrees = session.exec(select(Worktree).where(Worktree.repository_id == repo.id)).all()
     for worktree in worktrees:
         with contextlib.suppress(Exception):

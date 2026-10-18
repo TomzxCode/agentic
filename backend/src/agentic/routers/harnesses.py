@@ -5,12 +5,13 @@ Mounted under ``/api``; the run and stream endpoints live in ``agent_runs.py``.
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from sqlalchemy import delete as sa_delete
 from sqlalchemy import update as sa_update
 from sqlmodel import Session, col, select
 
 from ..agents.harnesses import harness_available, resolve_default_model, seed_harnesses
+from ..crud import get_or_404
 from ..db import get_session
 from ..models.agents import AgentRun, AgentSession, Harness
 from ..models.tasks import Task
@@ -65,9 +66,7 @@ def create_harness(payload: HarnessCreate, session: Session = Depends(get_sessio
 
 @router.patch("/harnesses/{harness_id}", response_model=HarnessRead)
 def update_harness(harness_id: str, payload: HarnessUpdate, session: Session = Depends(get_session)) -> HarnessRead:
-    harness = session.get(Harness, harness_id)
-    if harness is None:
-        raise HTTPException(status_code=404, detail="Harness not found")
+    harness = get_or_404(session, Harness, harness_id, "Harness not found")
     data = payload.model_dump(exclude_unset=True)
     # At most one default: promoting a harness demotes the others.
     if data.get("is_default"):
@@ -82,9 +81,7 @@ def update_harness(harness_id: str, payload: HarnessUpdate, session: Session = D
 
 @router.delete("/harnesses/{harness_id}", status_code=204)
 def delete_harness(harness_id: str, session: Session = Depends(get_session)) -> None:
-    harness = session.get(Harness, harness_id)
-    if harness is None:
-        raise HTTPException(status_code=404, detail="Harness not found")
+    harness = get_or_404(session, Harness, harness_id, "Harness not found")
     session.exec(sa_update(Task).where(col(Task.harness_id) == harness.id).values(harness_id=None))
     session.exec(sa_update(AgentRun).where(col(AgentRun.harness_id) == harness.id).values(harness_id=None))
     session.exec(sa_update(AgentSession).where(col(AgentSession.harness_id) == harness.id).values(harness_id=None))

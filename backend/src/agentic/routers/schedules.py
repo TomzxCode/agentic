@@ -12,6 +12,7 @@ from sqlalchemy import delete as sa_delete
 from sqlmodel import Session, col, select
 
 from .. import schedules
+from ..crud import get_or_404
 from ..db import get_session
 from ..models.base import utcnow
 from ..models.schedules import ScheduledTask, ScheduledTaskRun
@@ -158,17 +159,13 @@ def list_executions(
 
 @router.get("/runs/{run_id}", response_model=ScheduledTaskRunRead)
 def get_run(run_id: str, session: Session = Depends(get_session)) -> ScheduledTaskRun:
-    run = session.get(ScheduledTaskRun, run_id)
-    if run is None:
-        raise HTTPException(status_code=404, detail="Run not found")
+    run = get_or_404(session, ScheduledTaskRun, run_id, "Run not found")
     return run
 
 
 @router.get("/{task_id}", response_model=ScheduledTaskRead)
 def get_schedule(task_id: str, session: Session = Depends(get_session)) -> ScheduledTaskRead:
-    task = session.get(ScheduledTask, task_id)
-    if task is None:
-        raise HTTPException(status_code=404, detail="Scheduled task not found")
+    task = get_or_404(session, ScheduledTask, task_id, "Scheduled task not found")
     return _read(session, task)
 
 
@@ -176,9 +173,7 @@ def get_schedule(task_id: str, session: Session = Depends(get_session)) -> Sched
 def update_schedule(
     task_id: str, payload: ScheduledTaskUpdate, session: Session = Depends(get_session)
 ) -> ScheduledTaskRead:
-    task = session.get(ScheduledTask, task_id)
-    if task is None:
-        raise HTTPException(status_code=404, detail="Scheduled task not found")
+    task = get_or_404(session, ScheduledTask, task_id, "Scheduled task not found")
     data = payload.model_dump(exclude_unset=True)
     if data.get("name") is not None:
         task.name = data["name"].strip() or task.name
@@ -213,9 +208,7 @@ def update_schedule(
 
 @router.delete("/{task_id}", status_code=204)
 def delete_schedule(task_id: str, session: Session = Depends(get_session)) -> None:
-    task = session.get(ScheduledTask, task_id)
-    if task is None:
-        raise HTTPException(status_code=404, detail="Scheduled task not found")
+    get_or_404(session, ScheduledTask, task_id, "Scheduled task not found")
     session.exec(sa_delete(ScheduledTaskRun).where(col(ScheduledTaskRun.scheduled_task_id) == task_id))
     session.exec(sa_delete(ScheduledTask).where(col(ScheduledTask.id) == task_id))
     session.commit()
@@ -224,9 +217,7 @@ def delete_schedule(task_id: str, session: Session = Depends(get_session)) -> No
 @router.post("/{task_id}/run", response_model=ScheduledTaskRunRead, status_code=201)
 async def run_schedule_now(task_id: str, session: Session = Depends(get_session)) -> ScheduledTaskRun:
     """Start a run immediately, in the background, and return its row."""
-    task = session.get(ScheduledTask, task_id)
-    if task is None:
-        raise HTTPException(status_code=404, detail="Scheduled task not found")
+    get_or_404(session, ScheduledTask, task_id, "Scheduled task not found")
     run_id = await schedules.start_run(task_id)
     run = session.get(ScheduledTaskRun, run_id)
     if run is None:  # pragma: no cover - the row was just created
@@ -240,9 +231,7 @@ def list_runs(
     limit: int = Query(default=20, ge=1, le=200),
     session: Session = Depends(get_session),
 ) -> list[ScheduledTaskRun]:
-    task = session.get(ScheduledTask, task_id)
-    if task is None:
-        raise HTTPException(status_code=404, detail="Scheduled task not found")
+    get_or_404(session, ScheduledTask, task_id, "Scheduled task not found")
     return list(
         session.exec(
             select(ScheduledTaskRun)

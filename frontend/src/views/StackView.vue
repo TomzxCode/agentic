@@ -1,11 +1,11 @@
 <script setup>
-import { computed, onMounted, onUnmounted, ref, nextTick } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
 import { api } from '../api'
-import EditableText from '../components/EditableText.vue'
-import SearchSelect from '../components/SearchSelect.vue'
-import StatusIcon from '../components/StatusIcon.vue'
-import { formatTimestamp, moveItem, targetIndexAt } from '../stack'
-import { store, deadlineInfo, formatDeadline, statusLabel } from '../store'
+import { store } from '../store'
+import StackHeader from '../components/StackHeader.vue'
+import StackList from '../components/StackList.vue'
+import StackHistory from '../components/StackHistory.vue'
+import StackHelp from '../components/StackHelp.vue'
 
 // Ask the shell to reload tasks/tags so the sidebar stays in sync (a push adds
 // a task, a pop marks one done).
@@ -19,42 +19,17 @@ const error = ref('')
 
 // The current task's duration grows in real time. The server returns a
 // snapshot; `loadedAt` is when it arrived and `now` ticks every second, so the
-// live value is the snapshot plus the time since it was loaded.
+// live value is the snapshot plus the time since it was loaded. The list
+// component renders the values; this shell owns the clock.
 const now = ref(Date.now())
-let loadedAt = Date.now()
+const loadedAt = ref(Date.now())
 let tickId = null
 
 function setEntries(list) {
   entries.value = list
-  loadedAt = Date.now()
-  now.value = loadedAt
+  loadedAt.value = Date.now()
+  now.value = loadedAt.value
 }
-
-// A non-current task's duration is fixed; the current task's keeps counting.
-function displayDuration(entry) {
-  if (!entry.is_current) return entry.duration
-  return (entry.duration || 0) + (now.value - loadedAt) / 1000
-}
-
-// The deadline state (overdue / due soon / later) for a row, or null.
-function deadlineFor(entry) {
-  return deadlineInfo(entry.task?.deadline, now.value)
-}
-
-// The status picker reuses the same icon-only SearchSelect as the task rows, so
-// a stack row's status is editable in place.
-const STATUS_VALUES = ['open', 'in_progress', 'blocked', 'done', 'archived']
-const statusOptions = STATUS_VALUES.map((value) => ({
-  value,
-  label: statusLabel(value),
-  icon: StatusIcon,
-  iconProps: { status: value, label: statusLabel(value) }
-}))
-
-// The stack table's columns: handle, index, indicator, status, open, title,
-// deadline, exec count, started, last current, duration, actions. Used by the
-// description row's colspan.
-const COLUMN_COUNT = 12
 
 // The field at the top adds a task (Enter) and filters the list as you type.
 const draft = ref('')
@@ -77,23 +52,6 @@ function setEditorRef(id, el) {
 function focusPage() {
   nextTick(() => pageEl.value?.focus())
 }
-
-// Two units of precision, matching the desktop app: 0m 45s, 2h 05m, 3d 04h.
-function formatDuration(seconds) {
-  const total = Math.max(0, Math.floor(seconds || 0))
-  const minutes = Math.floor(total / 60)
-  const secs = total % 60
-  const hours = Math.floor(minutes / 60)
-  const mins = minutes % 60
-  const days = Math.floor(hours / 24)
-  const hrs = hours % 24
-  if (days > 0) return `${days}d ${String(hrs).padStart(2, '0')}h`
-  if (hours > 0) return `${hours}h ${String(mins).padStart(2, '0')}m`
-  return `${minutes}m ${String(secs).padStart(2, '0')}s`
-}
-
-// The reference "now" for the timestamps, refreshed by the tick.
-const nowDate = computed(() => new Date(now.value))
 
 const visible = computed(() => {
   const needle = filter.value.trim().toLowerCase()
@@ -126,6 +84,12 @@ async function loadHistory() {
   } catch (e) {
     store.notify(e.message, true)
   }
+}
+
+// Show the history panel, loading it the first time it opens.
+function toggleHistory() {
+  showHistory.value = !showHistory.value
+  if (showHistory.value) loadHistory()
 }
 
 function select(entry) {
@@ -201,22 +165,7 @@ async function removeEntry(entry) {
   }
 }
 
-// Change a task's status from its stack row. A status outside the in-flight set
-// takes the task off the stack, so reload afterwards.
-async function changeStatus(entry, status) {
-  if (!entry.task || status === entry.task.status) return
-  const previous = entry.task.status
-  entry.task.status = status
-  try {
-    await api.tasks.update(entry.task_id, { status })
-    emit('changed')
-    await refresh()
-  } catch (e) {
-    entry.task.status = previous
-    store.notify(e.message, true)
-  }
-}
-
+// Reorder the selected task one step up or down from the keyboard.
 async function reorder(entry, target) {
   const from = entries.value.findIndex((item) => item.id === entry.id)
   const to = from + target
@@ -224,30 +173,6 @@ async function reorder(entry, target) {
   try {
     setEntries(await api.stack.reorder(entry.id, to))
     selectedId.value = entry.id
-  } catch (e) {
-    store.notify(e.message, true)
-  }
-}
-
-async function saveTitle(entry, title) {
-  const next = title.trim()
-  if (!next || next === entry.task?.title) return
-  try {
-    setEntries(await api.stack.update(entry.id, { title: next }))
-    emit('changed')
-  } catch (e) {
-    store.notify(e.message, true)
-  }
-}
-
-async function saveDescription() {
-  const entry = selected.value
-  if (!entry) return
-  const next = descriptionDraft.value
-  if (next === (entry.task?.description || '')) return
-  try {
-    setEntries(await api.stack.update(entry.id, { description: next }))
-    syncDescription()
   } catch (e) {
     store.notify(e.message, true)
   }
@@ -316,81 +241,6 @@ function onKeydown(event) {
   }
 }
 
-// --- Drag and drop ---------------------------------------------------------
-// Rows can be dragged to reorder (mouse anywhere on a row, touch from the
-// handle). The list reorders live under the pointer; the move is persisted on
-// release. Dragging is disabled while filtering, since reordering a filtered
-// subset is ambiguous.
-const listEl = ref(null)
-let dragCandidate = null // { id, startY }
-let dragId = null
-let dragging = false
-
-function onRowPointerDown(event, entry) {
-  if (filter.value) return
-  const target = event.target
-  const fromHandle = !!(target.closest && target.closest('.stack-handle'))
-  if (!fromHandle) {
-    // Touch/pen only drags from the handle (so the list can still scroll);
-    // the mouse can drag anywhere on the row except its controls.
-    if (event.pointerType !== 'mouse') return
-    if (target.closest && target.closest('button, input, textarea, select')) return
-  }
-  dragCandidate = { id: entry.id, startY: event.clientY }
-  window.addEventListener('pointermove', onDragMove)
-  window.addEventListener('pointerup', onDragEnd)
-  window.addEventListener('pointercancel', onDragEnd)
-}
-
-function onDragMove(event) {
-  if (!dragCandidate) return
-  if (!dragging) {
-    if (Math.abs(event.clientY - dragCandidate.startY) < 6) return
-    dragging = true
-    dragId = dragCandidate.id
-    document.body.classList.add('row-dragging')
-  }
-  const rows = listEl.value ? Array.from(listEl.value.querySelectorAll('.stack-row')) : []
-  const midpoints = rows.map((row) => {
-    const rect = row.getBoundingClientRect()
-    return rect.top + rect.height / 2
-  })
-  const index = targetIndexAt(midpoints, event.clientY)
-  const current = entries.value.findIndex((item) => item.id === dragId)
-  if (current === -1 || index === current) return
-  entries.value = moveItem(entries.value, current, index)
-}
-
-async function onDragEnd() {
-  window.removeEventListener('pointermove', onDragMove)
-  window.removeEventListener('pointerup', onDragEnd)
-  window.removeEventListener('pointercancel', onDragEnd)
-  const wasDragging = dragging
-  const id = dragId
-  dragCandidate = null
-  dragging = false
-  dragId = null
-  document.body.classList.remove('row-dragging')
-  if (!wasDragging || !id) return
-
-  // Swallow the click that follows the drag so it does not just select the row.
-  const swallow = (event) => {
-    event.stopPropagation()
-    event.preventDefault()
-  }
-  window.addEventListener('click', swallow, { capture: true, once: true })
-  setTimeout(() => window.removeEventListener('click', swallow, { capture: true }), 300)
-
-  const index = entries.value.findIndex((item) => item.id === id)
-  if (index === -1) return
-  try {
-    setEntries(await api.stack.reorder(id, index))
-  } catch (e) {
-    store.notify(e.message, true)
-    await refresh()
-  }
-}
-
 onMounted(() => {
   refresh()
   focusPage()
@@ -398,30 +248,20 @@ onMounted(() => {
   tickId = setInterval(() => (now.value = Date.now()), 1000)
 })
 
-// Drop any in-progress drag listeners if the view unmounts mid-drag.
 onUnmounted(() => {
   if (tickId !== null) clearInterval(tickId)
-  window.removeEventListener('pointermove', onDragMove)
-  window.removeEventListener('pointerup', onDragEnd)
-  window.removeEventListener('pointercancel', onDragEnd)
-  document.body.classList.remove('row-dragging')
 })
 </script>
 
 <template>
   <div ref="pageEl" class="stack-page" tabindex="-1" @keydown="onKeydown">
-    <div class="row page-head" style="margin-bottom: 14px">
-      <h1 class="grow">Stack</h1>
-      <button
-        class="btn sm ghost"
-        :class="{ active: showHistory }"
-        @click="((showHistory = !showHistory), showHistory && loadHistory())"
-      >
-        History
-      </button>
-      <button class="btn sm ghost" title="Keyboard shortcuts (?)" @click="showHelp = !showHelp">?</button>
-      <button class="btn sm ghost" @click="refresh"><span v-if="loading" class="spinner"></span> Refresh</button>
-    </div>
+    <StackHeader
+      :show-history="showHistory"
+      :loading="loading"
+      @toggle-history="toggleHistory"
+      @toggle-help="showHelp = !showHelp"
+      @refresh="refresh"
+    />
 
     <section class="panel stack-panel">
       <div class="stack-add row">
@@ -443,160 +283,29 @@ onUnmounted(() => {
         Couldn't load the stack: {{ error }}.
         <div style="margin-top: 10px"><button class="btn sm ghost" @click="refresh">Retry</button></div>
       </div>
-      <div v-else-if="!entries.length" class="empty">
-        The stack is empty. Type above and press <span class="mono">Enter</span> to make something current.
-      </div>
-      <div v-else-if="!visible.length" class="empty">No tasks match “{{ filter }}”.</div>
 
-      <table v-else ref="listEl" class="stack-table" aria-label="Task stack">
-        <tbody>
-          <template v-for="entry in visible" :key="entry.id">
-            <tr
-              class="stack-row"
-              :class="{ current: entry.is_current, selected: entry.id === selectedId, dragging: entry.id === dragId }"
-              @click="onRowClick(entry)"
-              @pointerdown="onRowPointerDown($event, entry)"
-            >
-              <td class="stack-handle-cell">
-                <span class="stack-handle" title="Drag to reorder" aria-hidden="true">⠿</span>
-              </td>
-              <td class="stack-index mono">{{ entry.position }}</td>
-              <td class="stack-indicator" :title="entry.is_current ? 'Current task' : 'Queued'">
-                {{ entry.is_current ? '🔥' : '💤' }}
-              </td>
-              <td class="stack-status-cell" @click.stop @keydown.stop>
-                <SearchSelect
-                  class="task-status-select"
-                  variant="icon"
-                  :model-value="entry.task?.status"
-                  :options="statusOptions"
-                  :sort="false"
-                  title="Change status"
-                  @update:model-value="(value) => changeStatus(entry, value)"
-                />
-              </td>
-              <td class="stack-open-cell">
-                <router-link class="btn sm ghost" :to="`/task/${entry.task_id}`" title="Open the task" @click.stop>
-                  ↗
-                </router-link>
-              </td>
-              <td class="stack-title-cell" :title="entry.task?.title">
-                <EditableText
-                  :ref="(el) => setEditorRef(entry.id, el)"
-                  class="stack-title"
-                  :value="entry.task?.title || ''"
-                  placeholder="Untitled task"
-                  @save="(title) => saveTitle(entry, title)"
-                />
-              </td>
-              <td class="stack-deadline-cell">
-                <span
-                  v-if="deadlineFor(entry)"
-                  class="badge"
-                  :class="deadlineFor(entry).tone"
-                  :title="`Deadline: ${formatDeadline(entry.task?.deadline)}`"
-                >
-                  {{ deadlineFor(entry).label }}
-                </span>
-              </td>
-              <td class="stack-col mono faint" title="Times it became current">×{{ entry.execution_count }}</td>
-              <td class="stack-col mono faint" title="Started">
-                {{ formatTimestamp(entry.started_at, nowDate) }}
-              </td>
-              <td class="stack-col mono faint" title="Last current">
-                {{ formatTimestamp(entry.last_current, nowDate) }}
-              </td>
-              <td class="stack-col stack-duration mono" title="Time as current">
-                {{ formatDuration(displayDuration(entry)) }}
-              </td>
-              <td class="stack-actions-cell">
-                <span class="stack-actions">
-                  <button
-                    v-if="!entry.is_current"
-                    class="btn sm ghost"
-                    title="Promote to current (Home)"
-                    @click.stop="promote(entry)"
-                  >
-                    ↑
-                  </button>
-                  <button
-                    class="btn sm ghost danger"
-                    title="Remove from the stack (Delete)"
-                    @click.stop="removeEntry(entry)"
-                  >
-                    ✕
-                  </button>
-                </span>
-              </td>
-            </tr>
-            <tr v-if="entry.id === selectedId" class="stack-desc-row">
-              <td :colspan="COLUMN_COUNT">
-                <div class="stack-desc">
-                  <div class="stack-desc-head">
-                    <span class="faint">Description</span>
-                    <router-link class="faint" :to="`/task/${entry.task_id}`">Open task →</router-link>
-                  </div>
-                  <textarea
-                    v-model="descriptionDraft"
-                    class="textarea"
-                    placeholder="Add a description…"
-                    @blur="saveDescription"
-                    @keydown.escape="saveDescription"
-                  ></textarea>
-                </div>
-              </td>
-            </tr>
-          </template>
-        </tbody>
-      </table>
+      <StackList
+        v-else
+        v-model:description="descriptionDraft"
+        :entries="visible"
+        :filter="filter"
+        :selected-id="selectedId"
+        :now="now"
+        :loaded-at="loadedAt"
+        :register-editor="setEditorRef"
+        @update:entries="entries = $event"
+        @set-entries="setEntries"
+        @select="onRowClick"
+        @promote="promote"
+        @remove="removeEntry"
+        @changed="emit('changed')"
+        @refresh="refresh"
+        @resync-description="syncDescription"
+      />
     </section>
 
-    <section v-if="showHistory" class="panel" style="margin-top: 16px">
-      <div class="panel-head">
-        <h2>History</h2>
-        <span class="faint">Removed and completed tasks</span>
-      </div>
-      <div v-if="!history.length" class="empty">Nothing removed yet.</div>
-      <table v-else class="stack-table history-table">
-        <tbody>
-          <tr v-for="entry in history" :key="entry.id" class="stack-row history">
-            <td class="stack-indicator">✅</td>
-            <td class="stack-title-cell">
-              <router-link :to="`/task/${entry.task_id}`" class="stack-title">{{ entry.task?.title }}</router-link>
-            </td>
-            <td class="stack-col mono faint">{{ formatDuration(entry.duration) }}</td>
-            <td class="stack-col mono faint">{{ formatTimestamp(entry.deleted_at, nowDate) }}</td>
-          </tr>
-        </tbody>
-      </table>
-    </section>
+    <StackHistory v-if="showHistory" :history="history" :now="now" />
 
-    <section v-if="showHelp" class="panel stack-help" style="margin-top: 16px">
-      <div class="panel-head"><h2>Keyboard shortcuts</h2></div>
-      <dl class="stack-help-grid">
-        <dt>Click</dt>
-        <dd>Select a task (the shortcuts below act on it)</dd>
-        <dt>Click a title</dt>
-        <dd>Edit it in place (Enter saves, Esc cancels)</dd>
-        <dt>Enter</dt>
-        <dd>Edit the selected task, or add a new one from the field above</dd>
-        <dt>Shift+Enter</dt>
-        <dd>Insert after the current task</dd>
-        <dt>↑ / ↓</dt>
-        <dd>Move the selection</dd>
-        <dt>← / →</dt>
-        <dd>Move the selected task up or down one</dd>
-        <dt>Drag</dt>
-        <dd>Drag a row (or its handle) to reorder</dd>
-        <dt>Home or /</dt>
-        <dd>Promote the selected task to current</dd>
-        <dt>Delete / Backspace</dt>
-        <dd>Remove the selected task</dd>
-        <dt>0–9</dt>
-        <dd>Select a task by position</dd>
-        <dt>Esc</dt>
-        <dd>Clear the selection and filter</dd>
-      </dl>
-    </section>
+    <StackHelp v-if="showHelp" />
   </div>
 </template>
