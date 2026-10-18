@@ -4,10 +4,12 @@ import {
   commitUrl,
   groupQueueByRepository,
   groupReviewFiles,
+  queueRowFor,
   reviewLabel,
   riskTone,
   shortCommit,
   stripReportMarker,
+  taskPullRequests,
   verdictLabel,
   verdictTone
 } from '../reviews'
@@ -136,5 +138,42 @@ describe('commitUrl', () => {
   it('is null without a commit or an owner', () => {
     expect(commitUrl({ repository: 'o/r', owner: 'o', head_commit: '' })).toBeNull()
     expect(commitUrl({ repository: 'r', owner: '', head_commit: 'abc1234' })).toBeNull()
+  })
+})
+
+describe('taskPullRequests', () => {
+  const assoc = (url, over = {}) => ({ item: { id: 'i1', url, kind: 'pull_request', ...over } })
+
+  it('reads the GitHub pull requests a task links, lowercased', () => {
+    const prs = taskPullRequests({
+      associations: [
+        assoc('https://github.com/Acme/API/pull/42'),
+        { item: { id: 'i2', url: 'https://github.com/acme/api/issues/7', kind: 'issue' } }
+      ]
+    })
+    expect(prs).toEqual([
+      { owner: 'acme', repo: 'api', number: 42, url: 'https://github.com/Acme/API/pull/42', item_id: 'i1' }
+    ])
+  })
+
+  it('collapses the same PR linked twice', () => {
+    const prs = taskPullRequests({
+      associations: [assoc('https://github.com/acme/api/pull/42'), assoc('https://github.com/acme/api/pull/42')]
+    })
+    expect(prs).toHaveLength(1)
+  })
+
+  it('returns nothing for a task with no pull request', () => {
+    expect(taskPullRequests({ associations: [] })).toEqual([])
+    expect(taskPullRequests(null)).toEqual([])
+  })
+})
+
+describe('queueRowFor', () => {
+  it('matches a store row by coordinates, case-insensitively', () => {
+    const row = { repository: 'TomzxCode/agentic', number: 42 }
+    expect(queueRowFor([row], { owner: 'tomzxcode', repo: 'agentic', number: 42 })).toBe(row)
+    expect(queueRowFor([row], { owner: 'tomzxcode', repo: 'agentic', number: 7 })).toBeNull()
+    expect(queueRowFor([], { owner: 'a', repo: 'b', number: 1 })).toBeNull()
   })
 })

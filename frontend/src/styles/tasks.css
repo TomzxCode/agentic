@@ -171,6 +171,43 @@
 .page-head {
   margin-bottom: 16px;
 }
+/* The task view's mode switch, beside the title: a two-button segmented
+   control (Default / PR). */
+.task-head-tools {
+  flex: none;
+}
+.view-switch {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--bg-1);
+}
+.view-switch-btn {
+  border: none;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  padding: 4px 12px;
+  cursor: pointer;
+}
+.view-switch-btn + .view-switch-btn {
+  border-left: 1px solid var(--border);
+}
+.view-switch-btn:hover:not(:disabled):not(.active) {
+  background: var(--bg-2);
+  color: var(--text);
+}
+.view-switch-btn.active {
+  background: var(--accent);
+  color: #04110c;
+  font-weight: 600;
+}
+.view-switch-btn:disabled {
+  color: var(--faint);
+  cursor: not-allowed;
+}
 /* Task header: title and actions, with the labelled properties strip and the
    description/context pair below. */
 .task-head {

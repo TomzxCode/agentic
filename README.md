@@ -240,10 +240,11 @@ same endpoint the rest of the app uses.
 
 The **Review queue** page (`/reviews`, the clipboard icon) reads the review
 reports the review skills write under `~/.sdlc/{owner}/{repo}/pull-requests/`
-and shows one row per pull request, grouped by repository, with a column per
-review step (Behavior, Risk, Coverage, Validate, Verify, Review). Each cell
-shows the step's verdict, in red when its report does not cover the newest
-reviewed commit, and opens the report when clicked. A merge-readiness light
+and shows one row per pull request, grouped by repository, with its author, age,
+last comment, reviewed commit, and the time of its last review event, then a
+column per review step (Behavior, Risk, Coverage, Validate, Verify, Review).
+Each cell shows the step's verdict, in red when its report does not cover the
+newest reviewed commit, and opens the report when clicked. A merge-readiness light
 beside each PR number summarizes the signals: green when the PR could be
 approved automatically, yellow when something still needs attention, red when a
 verdict blocks approval. The page mirrors the `review_requested_prs` script's
@@ -251,10 +252,24 @@ table: the review-step state comes from the store, each PR's own fields (title,
 state, author, age) come from `ghx`, and fields that would need a read it does
 not make (the diff size, the approvers, the PRs an open PR blocks) are left out.
 A **📝** before each PR's readiness light links to the task its item is
-associated to; when no task is linked, a **➕** imports the PR into a new task,
-the same way the repository view's "New task" does.
+associated to, opening it in its **PR** view (`/task/{id}?view=pr`); when no
+task is linked, a **➕** imports the PR into a new task, the same way the
+repository view's "New task" does.
 **Refresh** re-reads the store and bypasses the short cache of those `ghx`
 lookups.
+
+A task that links a pull request shows the same information on its own page: a
+**Default / PR** switch beside the title opens the queue's row for each PR the
+task is linked to (the switch is disabled while it links none), with the PR's
+readiness, reviewed commit, and per-step verdicts (each opening its report),
+followed by its must/should/may findings.
+The mode lives in the URL (`?view=pr`), so a link opens a task straight in it.
+
+Both surfaces offer **Share** for a pull request: it lists the must/should/may
+findings the review skills recorded in their state files (`review.yaml`,
+`validate.yaml`, `verify.yaml`), lets you pick which to send, and hands the
+selection to an agent run on the task, whose skills post them to the PR. The app
+itself posts nothing.
 
 
 The task header also links **dependencies**, next to the repository and people
@@ -532,6 +547,8 @@ GET                 /api/metrics                         (autonomy rate + yield)
 GET/PUT/DELETE      /api/metrics/baselines/{metric}
 GET                 /api/inbox                           (suggested next actions)
 GET                 /api/reviews                         (PR review queue from the local store)
+GET                 /api/reviews/task/{task_id}          (the queue scoped to a task's PRs)
+GET                 /api/reviews/findings/{number}       (a PR's must/should/may findings)
 GET                 /api/reviews/report/{number}/{name}  (one review report)
 GET/POST            /api/schedules                      (cron-scheduled shell tasks)
 GET/PATCH/DELETE    /api/schedules/{id}

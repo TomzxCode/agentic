@@ -14,8 +14,9 @@ import {
   verdictLabel,
   verdictTone
 } from '../reviews'
-import { store, timeAgo } from '../store'
+import { store, timeAgo, formatDateTime } from '../store'
 import { parseRemote, personForHandle } from '../repositories/parse'
+import ShareFindingsModal from '../components/ShareFindingsModal.vue'
 
 // The review queue: every pull request with review reports in the user-global
 // store the review skills write to, one row per PR with a column per review
@@ -27,6 +28,8 @@ const loading = ref(true)
 const error = ref(false)
 // The PR whose task is being created, so its button shows a spinner.
 const creatingKey = ref('')
+// The PR whose review findings are being shared.
+const sharing = ref(null)
 
 // The report open in the viewer: its PR, its relative store path, and content.
 const openPr = ref(null)
@@ -95,6 +98,13 @@ async function createTaskFrom(pr) {
 // The person carrying a GitHub login as an alias, or null when nobody does.
 function personFor(login) {
   return personForHandle(store.people, login)
+}
+
+// After the share modal imports a task for a PR, reflect it on the row so it
+// reads as linked, like the import button does.
+function onImported(task) {
+  if (sharing.value) sharing.value.task_ids = [task.id]
+  store.loadTasks().catch(() => {})
 }
 
 // Registered repositories keyed by their lowercased "owner/name", so a store
@@ -210,6 +220,7 @@ onMounted(load)
                 <th>Age</th>
                 <th>Last comment</th>
                 <th>Reviewed</th>
+                <th>Last review</th>
                 <th v-for="column in QUEUE_STEPS" :key="column.key" class="review-col-step">
                   {{ column.label }}
                 </th>
@@ -221,9 +232,9 @@ onMounted(load)
                   <router-link
                     v-if="taskFor(pr)"
                     class="review-task-link"
-                    :to="`/task/${taskFor(pr).id}`"
-                    :title="`Task: ${taskFor(pr).title}`"
-                    :aria-label="`Task: ${taskFor(pr).title}`"
+                    :to="`/task/${taskFor(pr).id}?view=pr`"
+                    :title="`Task: ${taskFor(pr).title} · opens in PR view`"
+                    :aria-label="`Task: ${taskFor(pr).title} (opens in PR view)`"
                     >📝</router-link
                   >
                   <button
@@ -249,6 +260,13 @@ onMounted(load)
                   </a>
                   <span v-if="pr.draft" class="badge st-draft">draft</span>
                   <span v-if="pr.title" class="review-title" :title="pr.title">{{ pr.title }}</span>
+                  <button
+                    class="btn sm ghost review-share"
+                    :title="`Share PR #${pr.number}'s review findings with its author`"
+                    @click="sharing = pr"
+                  >
+                    Share
+                  </button>
                 </td>
                 <td class="faint">
                   <router-link v-if="personFor(pr.author)" :to="`/person/${personFor(pr.author).id}`">{{
@@ -286,6 +304,10 @@ onMounted(load)
                     >{{ shortCommit(pr.head_commit) }}</a
                   >
                   <code v-else-if="pr.head_commit">{{ shortCommit(pr.head_commit) }}</code>
+                  <span v-else class="faint">—</span>
+                </td>
+                <td class="review-reviewed-at">
+                  <span v-if="pr.reviewed_at" class="mono">{{ formatDateTime(pr.reviewed_at) }}</span>
                   <span v-else class="faint">—</span>
                 </td>
 
@@ -363,5 +385,16 @@ onMounted(load)
         <p v-if="reportTruncated" class="faint">Showing the first part of a large report.</p>
       </div>
     </div>
+
+    <ShareFindingsModal
+      v-if="sharing"
+      :repository="sharing.repository"
+      :number="sharing.number"
+      :url="sharing.url"
+      :task-id="taskFor(sharing)?.id || null"
+      :task-label="taskFor(sharing)?.title || ''"
+      @close="sharing = null"
+      @imported="onImported"
+    />
   </div>
 </template>

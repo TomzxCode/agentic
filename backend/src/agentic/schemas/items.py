@@ -96,6 +96,23 @@ class ReviewStepRead(BaseModel):
     modified_at: datetime | None = None
 
 
+class ReviewFindingRead(BaseModel):
+    """One must/should/may finding a review skill recorded for a pull request.
+
+    ``step`` is the skill that recorded it, ``severity`` is one of must, should,
+    or may, and ``status`` is the skill's own status for the finding (open,
+    addressed, conforms, ...). ``sha`` is the commit the finding was first seen
+    at, informational only.
+    """
+
+    step: str
+    title: str
+    description: str = ""
+    severity: str
+    status: str = ""
+    sha: str = ""
+
+
 class ReviewPrRead(BaseModel):
     """One pull request in the review queue, with its review-step state.
 
@@ -121,6 +138,9 @@ class ReviewPrRead(BaseModel):
     last_comment_at: str | None = None
     last_comment_by: str = ""
     head_commit: str = ""
+    # When a review skill last wrote for this PR: the newest step report's
+    # modification time. None when the store holds no step report.
+    reviewed_at: datetime | None = None
     steps: dict[str, ReviewStepRead] = {}
     stale_steps: list[str] = []
     reviewed_steps: int = 0

@@ -1,5 +1,6 @@
 <script setup>
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { api, openTaskStream } from '../api'
 import { store } from '../store'
 import ContextPanel from '../components/ContextPanel.vue'
@@ -12,6 +13,7 @@ import AgentPanel from '../components/AgentPanel.vue'
 import SessionsPanel from '../components/SessionsPanel.vue'
 import TimelinePanel from '../components/TimelinePanel.vue'
 import SessionLinks from '../components/SessionLinks.vue'
+import TaskReviewPanel from '../components/TaskReviewPanel.vue'
 import EditableText from '../components/EditableText.vue'
 import DeadlinePicker from '../components/DeadlinePicker.vue'
 import SearchSelect from '../components/SearchSelect.vue'
@@ -20,13 +22,20 @@ import PeopleSelect from '../components/PeopleSelect.vue'
 import TagInput from '../components/TagInput.vue'
 import StatusIcon from '../components/StatusIcon.vue'
 import PriorityIcon from '../components/PriorityIcon.vue'
+import { taskPullRequests } from '../reviews'
 
 const props = defineProps({ id: { type: String, required: true } })
 const emit = defineEmits(['changed'])
+const route = useRoute()
+const router = useRouter()
 
 const task = ref(null)
 const loading = ref(true)
 const notFound = ref(false)
+// The view mode: the task's own content, or the review queue's row for each
+// pull request the task links. It is held in the URL (`?view=pr`) so a link can
+// open a task straight in PR mode, as the review queue's task icon does.
+const mode = ref('default')
 // The description's edit action lives in its panel head, so the head hides it
 // while the field is open (a second click would reopen and drop the draft).
 const editingDescription = ref(false)
@@ -34,6 +43,26 @@ const editingDescription = ref(false)
 const showCreateIssue = ref(false)
 const creatingIssue = ref(false)
 let closeStream = null
+
+// The pull requests the task is linked to, so PR mode is offered only then.
+const linkedPrs = computed(() => taskPullRequests(task.value))
+
+// Adopt the URL's view: `?view=pr` opens PR mode, anything else (or a task with
+// no linked pull request) falls back to the default view.
+function applyViewQuery() {
+  mode.value = route.query.view === 'pr' && linkedPrs.value.length ? 'pr' : 'default'
+}
+
+// Switch view and keep the URL in step, so the mode can be linked to and the
+// back button restores it.
+function setMode(next) {
+  if (next === 'pr' && !linkedPrs.value.length) return
+  mode.value = next
+  const query = { ...route.query }
+  if (next === 'pr') query.view = 'pr'
+  else delete query.view
+  router.replace({ query })
+}
 
 // Creating a GitHub issue needs a registered repository with a GitHub remote.
 const githubRepos = computed(() => store.repositories.filter((r) => (r.remote_url || '').includes('github.com')))
@@ -223,6 +252,7 @@ onMounted(async () => {
   // The timeline resolves item events against the store to link them.
   await store.loadItems().catch(() => {})
   await load()
+  applyViewQuery()
   subscribe()
 })
 onUnmounted(() => {
@@ -236,9 +266,25 @@ watch(
     if (!val) return
     loading.value = true
     notFound.value = false
+    // A newly opened task starts in its default view, then adopts the URL's.
+    mode.value = 'default'
     await load()
+    applyViewQuery()
     subscribe()
   }
+)
+// A task that loses its last linked pull request falls back to the default
+// view, so the switch never shows an empty PR mode.
+watch(
+  () => linkedPrs.value.length,
+  (count) => {
+    if (!count && mode.value === 'pr') setMode('default')
+  }
+)
+// The browser's back and forward buttons move between the modes.
+watch(
+  () => route.query.view,
+  () => applyViewQuery()
 )
 </script>
 
@@ -257,6 +303,35 @@ watch(
           @save="(value) => update('title', value)"
         />
       </div>
+      <div class="row task-head-tools">
+        <div class="view-switch" role="group" aria-label="View mode">
+          <button
+            type="button"
+            class="view-switch-btn"
+            :class="{ active: mode === 'default' }"
+            :aria-pressed="mode === 'default'"
+            title="Show the task"
+            @click="setMode('default')"
+          >
+            Default
+          </button>
+          <button
+            type="button"
+            class="view-switch-btn"
+            :class="{ active: mode === 'pr' }"
+            :aria-pressed="mode === 'pr'"
+            :disabled="!linkedPrs.length"
+            :title="
+              linkedPrs.length
+                ? 'Show the pull request review queue for this task'
+                : 'This task is not linked to a pull request'
+            "
+            @click="setMode('pr')"
+          >
+            PR
+          </button>
+        </div>
+      </div>
       <div class="row task-actions">
         <SessionLinks v-if="latestLinks.length" :links="latestLinks" compact />
         <button
@@ -274,139 +349,143 @@ watch(
       </div>
     </div>
 
-    <div v-if="showCreateIssue" class="row create-issue-pick">
-      <span class="faint">Create the issue in</span>
-      <SearchSelect
-        variant="inline"
-        :model-value="''"
-        :options="issueRepoOptions"
-        placeholder="+ choose a repository"
-        @update:model-value="createIssue"
-      />
-      <button class="btn sm ghost" @click="showCreateIssue = false">Cancel</button>
-    </div>
+    <TaskReviewPanel v-if="mode === 'pr'" :task="task" />
 
-    <section class="panel properties" aria-label="Task properties">
-      <div class="prop">
-        <span class="prop-label">Status</span>
+    <template v-else>
+      <div v-if="showCreateIssue" class="row create-issue-pick">
+        <span class="faint">Create the issue in</span>
         <SearchSelect
-          ref="statusRef"
           variant="inline"
-          :model-value="task.status"
-          :options="STATUS_OPTIONS"
-          :sort="false"
-          title="Status"
-          @update:model-value="(value) => update('status', value)"
+          :model-value="''"
+          :options="issueRepoOptions"
+          placeholder="+ choose a repository"
+          @update:model-value="createIssue"
         />
+        <button class="btn sm ghost" @click="showCreateIssue = false">Cancel</button>
       </div>
-      <div class="prop">
-        <span class="prop-label">Priority</span>
-        <SearchSelect
-          ref="priorityRef"
-          variant="inline"
-          :model-value="task.priority"
-          :options="PRIORITY_OPTIONS"
-          :sort="false"
-          title="Priority"
-          @update:model-value="(value) => update('priority', Number(value))"
-        />
-      </div>
-      <div class="prop">
-        <span class="prop-label">Deadline</span>
-        <DeadlinePicker
-          ref="deadlineRef"
-          :model-value="task.deadline"
-          @update:model-value="(value) => update('deadline', value)"
-        />
-      </div>
-      <div class="prop">
-        <span class="prop-label">Tags</span>
-        <TagInput
-          ref="tagRef"
-          :model-value="task.tags || []"
-          :suggestions="store.tags"
-          placeholder="Add a tag…"
-          @update:model-value="(value) => update('tags', value)"
-        />
-      </div>
-      <div class="prop">
-        <span class="prop-label">People</span>
-        <PeopleSelect ref="peopleRef" :task="task" empty-label="None" link-to-detail @changed="onChanged" />
-      </div>
-      <div class="prop">
-        <span class="prop-label">Requested by</span>
-        <PeopleSelect
-          ref="requesterRef"
-          kind="requesters"
-          :task="task"
-          empty-label="None"
-          link-to-detail
-          @changed="onChanged"
-        />
-      </div>
-      <div class="prop">
-        <span class="prop-label">Repositories</span>
-        <RepositorySelect
-          ref="repositoryRef"
-          :model-value="task.repository_ids"
-          :repositories="store.repositories"
-          empty-label="None"
-          link-to-detail
-          @update:model-value="setRepositories"
-        />
-      </div>
-      <DependenciesSelect ref="dependenciesRef" :task="task" link-to-detail @changed="onChanged" />
-    </section>
 
-    <!-- The description and the context gathered for it sit side by side: the
+      <section class="panel properties" aria-label="Task properties">
+        <div class="prop">
+          <span class="prop-label">Status</span>
+          <SearchSelect
+            ref="statusRef"
+            variant="inline"
+            :model-value="task.status"
+            :options="STATUS_OPTIONS"
+            :sort="false"
+            title="Status"
+            @update:model-value="(value) => update('status', value)"
+          />
+        </div>
+        <div class="prop">
+          <span class="prop-label">Priority</span>
+          <SearchSelect
+            ref="priorityRef"
+            variant="inline"
+            :model-value="task.priority"
+            :options="PRIORITY_OPTIONS"
+            :sort="false"
+            title="Priority"
+            @update:model-value="(value) => update('priority', Number(value))"
+          />
+        </div>
+        <div class="prop">
+          <span class="prop-label">Deadline</span>
+          <DeadlinePicker
+            ref="deadlineRef"
+            :model-value="task.deadline"
+            @update:model-value="(value) => update('deadline', value)"
+          />
+        </div>
+        <div class="prop">
+          <span class="prop-label">Tags</span>
+          <TagInput
+            ref="tagRef"
+            :model-value="task.tags || []"
+            :suggestions="store.tags"
+            placeholder="Add a tag…"
+            @update:model-value="(value) => update('tags', value)"
+          />
+        </div>
+        <div class="prop">
+          <span class="prop-label">People</span>
+          <PeopleSelect ref="peopleRef" :task="task" empty-label="None" link-to-detail @changed="onChanged" />
+        </div>
+        <div class="prop">
+          <span class="prop-label">Requested by</span>
+          <PeopleSelect
+            ref="requesterRef"
+            kind="requesters"
+            :task="task"
+            empty-label="None"
+            link-to-detail
+            @changed="onChanged"
+          />
+        </div>
+        <div class="prop">
+          <span class="prop-label">Repositories</span>
+          <RepositorySelect
+            ref="repositoryRef"
+            :model-value="task.repository_ids"
+            :repositories="store.repositories"
+            empty-label="None"
+            link-to-detail
+            @update:model-value="setRepositories"
+          />
+        </div>
+        <DependenciesSelect ref="dependenciesRef" :task="task" link-to-detail @changed="onChanged" />
+      </section>
+
+      <!-- The description and the context gathered for it sit side by side: the
          two things to read first when opening a task. -->
-    <div class="grid-even">
-      <!-- The description is Markdown (a task imported from a GitHub issue keeps
+      <div class="grid-even">
+        <!-- The description is Markdown (a task imported from a GitHub issue keeps
            its body), rendered with the shared renderer like notes and next steps.
            `as="div"`: the renderer emits block elements, which a <p> cannot hold.
            `edit-trigger="external"`: the body may carry its own controls (a
            collapsible <details> section), which a click on the field would
            otherwise steal; the panel head's button opens the editor instead. -->
-      <section class="panel">
-        <div class="panel-head">
-          <h2>Description</h2>
-          <button
-            v-if="!editingDescription"
-            class="btn sm ghost"
-            aria-label="Edit the description"
-            @click="editDescription"
-          >
-            ✎ Edit
-          </button>
-        </div>
-        <EditableText
-          ref="descriptionRef"
-          class="muted task-description"
-          as="div"
-          multiline
-          markdown
-          edit-trigger="external"
-          :value="task.description"
-          placeholder="Add a description…"
-          @editing="editingDescription = $event"
-          @save="(value) => update('description', value)"
-        />
-      </section>
-      <ContextPanel :task="task" @changed="onChanged" />
-    </div>
+        <section class="panel">
+          <div class="panel-head">
+            <h2>Description</h2>
+            <button
+              v-if="!editingDescription"
+              class="btn sm ghost"
+              aria-label="Edit the description"
+              @click="editDescription"
+            >
+              ✎ Edit
+            </button>
+          </div>
+          <EditableText
+            ref="descriptionRef"
+            class="muted task-description"
+            as="div"
+            multiline
+            markdown
+            edit-trigger="external"
+            :value="task.description"
+            placeholder="Add a description…"
+            @editing="editingDescription = $event"
+            @save="(value) => update('description', value)"
+          />
+        </section>
+        <ContextPanel :task="task" @changed="onChanged" />
+      </div>
 
-    <div class="grid-2">
-      <div>
-        <NotesPanel :task="task" @changed="onChanged" />
-        <AgentPanel :task="task" :harnesses="store.harnesses" @changed="onChanged" />
-        <SessionsPanel :task="task" @changed="onChanged" />
-        <TimelinePanel :events="task.timeline" :task="task" />
+      <div class="grid-2">
+        <div>
+          <NotesPanel :task="task" @changed="onChanged" />
+          <AgentPanel :task="task" :harnesses="store.harnesses" @changed="onChanged" />
+          <SessionsPanel :task="task" @changed="onChanged" />
+          <TimelinePanel :events="task.timeline" :task="task" />
+        </div>
+        <div>
+          <WorktreesPanel :task="task" :repositories="store.repositories" @changed="onChanged" />
+          <ItemsPanel :task="task" @changed="onChanged" />
+          <ChangesPanel :task="task" @changed="onChanged" />
+        </div>
       </div>
-      <div>
-        <WorktreesPanel :task="task" :repositories="store.repositories" @changed="onChanged" />
-        <ItemsPanel :task="task" @changed="onChanged" />
-        <ChangesPanel :task="task" @changed="onChanged" />
-      </div>
-    </div>
+    </template>
   </div>
 </template>

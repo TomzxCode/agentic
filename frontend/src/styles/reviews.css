@@ -20,7 +20,7 @@
   width: 100%;
   /* A floor keeps every column legible (and the title column readable);
      narrower viewports scroll instead. */
-  min-width: 1080px;
+  min-width: 1180px;
   /* Fixed layout gives every repository table the same column widths, so the
      columns line up down the page instead of each table sizing to its own
      content. */
@@ -29,28 +29,28 @@
 }
 /* One width per column, shared by every table. The order matches the header:
    PR (its task marker, readiness light, number and title), Author, Age, Last
-   comment, Reviewed, then the six review steps (Behavior, Risk, Coverage,
-   Validate, Verify, Review). */
+   comment, Reviewed, Last review, then the six review steps (Behavior, Risk,
+   Coverage, Validate, Verify, Review). */
 .review-table th:nth-child(1) {
-  width: 33.5%;
+  width: 30%;
 }
 .review-table th:nth-child(2) {
-  width: 7%;
+  width: 6%;
 }
 .review-table th:nth-child(3) {
-  width: 7.5%;
+  width: 7%;
 }
 .review-table th:nth-child(4) {
-  width: 9%;
+  width: 8%;
 }
 .review-table th:nth-child(5) {
   width: 6%;
 }
 .review-table th:nth-child(6) {
-  width: 6%;
+  width: 9%;
 }
 .review-table th:nth-child(7) {
-  width: 8%;
+  width: 5.5%;
 }
 .review-table th:nth-child(8) {
   width: 7%;
@@ -58,8 +58,11 @@
 .review-table th:nth-child(9) {
   width: 6%;
 }
-.review-table th:nth-child(10),
-.review-table th:nth-child(11) {
+.review-table th:nth-child(10) {
+  width: 5.5%;
+}
+.review-table th:nth-child(11),
+.review-table th:nth-child(12) {
   width: 5%;
 }
 .review-table th {
@@ -85,6 +88,11 @@
    class so it beats the generic left-aligned `.review-table th`. */
 .review-col-step {
   text-align: center;
+}
+/* The last review time reads as one line ("YYYY-MM-DD HH:MM"); its column is
+   sized to hold it without wrapping. */
+.review-reviewed-at {
+  white-space: nowrap;
 }
 /* The step headers run a touch smaller than the rest, so a column is sized by
    its verdicts (a mark, or a short word) rather than by its label. */
@@ -140,6 +148,13 @@
   white-space: nowrap;
   color: var(--muted);
   font-size: 12px;
+}
+/* The share action that forwards a PR's findings to its author, kept at the end
+   of the PR cell so a long title truncates before it. */
+.review-pr-cell .review-share {
+  flex: none;
+  font-size: 11px;
+  padding: 2px 8px;
 }
 /* A review step cell is a button so the report opens on click; when the step
    has no report it reads as plain text. */
@@ -206,4 +221,141 @@
 .review-modal-path {
   font-size: 12px;
   margin-left: 6px;
+}
+
+/* The task view's pull-request mode: the review queue's row for each PR the
+   task links, one panel each. */
+.task-pr-panel .task-pr-head {
+  flex-wrap: wrap;
+}
+.task-pr-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  margin: 0;
+}
+.task-pr-title a {
+  white-space: nowrap;
+}
+/* The PR's title follows its number, truncating when the row cannot hold it;
+   the tooltip carries the full title. */
+.task-pr-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+}
+.task-pr-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  font-size: 12px;
+  color: var(--muted);
+}
+/* One labelled cell per review step, wrapping to as many rows as the width
+   needs. */
+.task-pr-steps {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(92px, 1fr));
+  gap: 10px 12px;
+  margin-top: 12px;
+}
+.task-pr-step {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-width: 0;
+}
+.task-pr-step-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--faint);
+}
+.task-pr-step-empty {
+  font-size: 12px;
+}
+
+/* Sharing a PR's must/should/may findings with the author: the selection modal. */
+.share-findings {
+  width: min(720px, 94vw);
+}
+.share-tools {
+  gap: 8px;
+  margin: 12px 0 4px;
+}
+.share-group h3 {
+  margin: 12px 0 6px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.share-finding {
+  display: flex;
+  gap: 8px;
+  padding: 8px 0;
+  border-top: 1px solid var(--border);
+  cursor: pointer;
+}
+.share-finding input {
+  flex: none;
+  margin-top: 3px;
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+}
+.share-finding-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.share-finding-title {
+  font-weight: 600;
+}
+.share-finding-meta {
+  font-size: 11px;
+}
+.share-finding-desc {
+  font-size: 12px;
+  color: var(--muted);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.share-prompt {
+  margin-top: 12px;
+}
+/* The selection is inline in the task view's PR mode, below the PR summary, and
+   sits inside the share modal the review queue opens. */
+.findings-selector {
+  margin-top: 12px;
+}
+.findings-selector .share-footer {
+  margin-top: 12px;
+  gap: 8px;
+}
+/* Inside the share modal, keep the send action reachable while the findings
+   scroll, matching the other modals' sticky footer. */
+.modal .findings-selector .share-footer {
+  position: sticky;
+  bottom: -18px;
+  z-index: 1;
+  margin: 12px -18px -18px;
+  padding: 12px 18px 18px;
+  background: var(--bg-1);
+  border-top: 1px solid var(--border);
+}
+.share-prompt-text {
+  margin: 6px 0 0;
+  padding: 8px 10px;
+  max-height: 220px;
+  overflow: auto;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  white-space: pre-wrap;
+  font-size: 12px;
 }

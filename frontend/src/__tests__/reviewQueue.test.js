@@ -17,10 +17,12 @@ vi.mock('../api', () => ({
 }))
 
 import ReviewsView from '../views/ReviewsView.vue'
-import { store } from '../store'
+import { store, formatDateTime } from '../store'
 
 const RouterLinkStub = { props: ['to'], template: '<a :href="to"><slot /></a>' }
-const stub = { global: { stubs: { RouterLink: RouterLinkStub } } }
+const stub = {
+  global: { stubs: { RouterLink: RouterLinkStub, ShareFindingsModal: { template: '<div class="share-stub" />' } } }
+}
 
 function step(overrides = {}) {
   return {
@@ -54,6 +56,7 @@ function pr(overrides = {}) {
     last_comment_at: '2026-01-12T07:00:00Z',
     last_comment_by: 'bob',
     head_commit: 'abc1234',
+    reviewed_at: '2026-01-12T06:20:00Z',
     steps: {
       'review-pr': step(),
       'validate-pr': step({ step: 'validate-pr', report: 'validate-pr.abc1234.md', stale: true })
@@ -109,6 +112,8 @@ describe('ReviewsView', () => {
     expect(wrapper.get('.review-pr-cell a').attributes('title')).toContain('Still needs attention')
     expect(wrapper.text()).not.toContain('Needs review')
     expect(wrapper.find('table a[href^="/person/"]').exists()).toBe(false)
+    // The last review event reads as an absolute local date and time.
+    expect(wrapper.get('.review-reviewed-at').text()).toBe(formatDateTime('2026-01-12T06:20:00Z'))
     // The validate step is stale, so its reviewed commit is shown in red.
     expect(wrapper.get('.review-stale').text()).toBe('abc1234')
   })
@@ -173,12 +178,12 @@ describe('ReviewsView', () => {
     const wrapper = mount(ReviewsView, stub)
     await flushPromises()
 
-    const link = wrapper.get('a[href="/task/t1"]')
+    const link = wrapper.get('a[href="/task/t1?view=pr"]')
     expect(link.text()).toBe('📝')
-    expect(link.attributes('aria-label')).toBe('Task: Land the PR')
+    expect(link.attributes('aria-label')).toBe('Task: Land the PR (opens in PR view)')
     expect(wrapper.find('.review-task-new').exists()).toBe(false)
     // The task link comes first in the PR cell, before the readiness light.
-    expect(wrapper.get('.review-pr-cell').element.firstElementChild.getAttribute('href')).toBe('/task/t1')
+    expect(wrapper.get('.review-pr-cell').element.firstElementChild.getAttribute('href')).toBe('/task/t1?view=pr')
   })
 
   it('offers a "+" before the readiness light that imports the PR into a task when none is linked', async () => {
@@ -198,7 +203,20 @@ describe('ReviewsView', () => {
     await flushPromises()
 
     expect(mocks.createTask).toHaveBeenCalledWith({ github_url: 'https://github.com/TomzxCode/agentic/pull/42' })
-    expect(wrapper.get('a[href="/task/t2"]').text()).toBe('📝')
+    expect(wrapper.get('a[href="/task/t2?view=pr"]').text()).toBe('📝')
     expect(wrapper.find('.review-task-new').exists()).toBe(false)
+  })
+
+  it('offers a share action that opens the findings modal for the PR', async () => {
+    mocks.queue.mockResolvedValue({ root: null, counts: { total: 1 }, prs: [pr({ task_ids: ['t1'] })] })
+    store.tasks = [{ id: 't1', title: 'Land the PR', status: 'in_progress' }]
+
+    const wrapper = mount(ReviewsView, stub)
+    await flushPromises()
+
+    expect(wrapper.find('.share-stub').exists()).toBe(false)
+    await wrapper.get('.review-share').trigger('click')
+    await flushPromises()
+    expect(wrapper.find('.share-stub').exists()).toBe(true)
   })
 })

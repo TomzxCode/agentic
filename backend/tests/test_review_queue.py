@@ -1,5 +1,8 @@
 """The review queue: PRs in the local store with their review-step state."""
 
+import os
+from datetime import datetime
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlmodel import Session
@@ -80,6 +83,8 @@ def test_collect_review_prs_reads_markers_and_the_view_cache(tmp_path, monkeypat
     assert (pr["author"], pr["state"]) == ("alice", "OPEN")
     assert pr["url"] == "https://github.com/TomzxCode/agentic/pull/42"
     assert pr["head_commit"] == "abc1234"
+    # The last review event is the newest step report's write time.
+    assert pr["reviewed_at"] is not None
     assert pr["stale_steps"] == []
     assert pr["readiness"] == "green"
     assert pr["status"] == "ready"
@@ -107,6 +112,18 @@ def test_a_step_that_does_not_cover_the_newest_commit_is_stale(tmp_path, monkeyp
     # A stale validate cuts the chain: verify and review are stale too.
     assert "verify-pr" in pr["stale_steps"] and "review-pr" in pr["stale_steps"]
     assert pr["status"] == "needs-review"
+
+
+def test_reviewed_at_is_the_newest_step_report(tmp_path, monkeypatch):
+    monkeypatch.setattr(settings, "sdlc_dir", tmp_path)
+    directory = _write_pr(tmp_path, "TomzxCode", "agentic", 5, sha="aaaaaaa", steps={"validate-pr": "pass"})
+    # A newer report from another step makes it the last review event.
+    (directory / "review-pr.bbbbbbb.md").write_text(_marker("review-pr", "bbbbbbb", "pass"))
+    os.utime(directory / "validate-pr.aaaaaaa.md", (1000, 1000))
+    os.utime(directory / "review-pr.bbbbbbb.md", (2000, 2000))
+
+    pr = collect_review_prs()[0]
+    assert pr["reviewed_at"] == datetime.fromtimestamp(2000)
 
 
 def test_report_alias_without_a_commit_still_reports_its_verdict(tmp_path, monkeypatch):
@@ -235,6 +252,46 @@ def test_review_queue_pr_with_no_task_reports_no_task_ids(tmp_path, monkeypatch)
         assert pr["item_id"] == item["id"]
         assert pr["task_ids"] == []
         client.delete(f"/api/items/{item['id']}")
+
+
+def test_task_review_queue_is_scoped_to_the_tasks_own_prs(tmp_path, monkeypatch):
+    monkeypatch.setattr(settings, "sdlc_dir", tmp_path)
+    _write_pr(tmp_path, "TomzxCode", "agentic", 42, sha="abc1234", steps=ALL_STEPS)
+    # A second PR the task does not link, so the scoped read can be told apart.
+    _write_pr(tmp_path, "TomzxCode", "agentic", 7, sha="abc1234", steps={"review-pr": "pass"})
+
+    with TestClient(app) as client:
+        item = client.post(
+            "/api/items",
+            json={"url": "https://github.com/TomzxCode/agentic/pull/42", "fetch": False},
+        ).json()
+        task = client.post("/api/tasks", json={"title": "Land the PR"}).json()
+        with Session(engine) as session:
+            session.add(Association(task_id=task["id"], item_id=item["id"], note=""))
+            session.commit()
+
+        queue = client.get(f"/api/reviews/task/{task['id']}").json()
+        assert queue["counts"] == {"total": 1, "ready": 1, "blocked": 0}
+        assert [pr["number"] for pr in queue["prs"]] == [42]
+        assert queue["prs"][0]["task_ids"] == [task["id"]]
+        assert queue["prs"][0]["steps"]["review-pr"]["verdict"] == "pass"
+
+        # An unknown task has no queue rather than an empty one.
+        assert client.get("/api/reviews/task/missing").status_code == 404
+
+        client.delete(f"/api/tasks/{task['id']}")
+        client.delete(f"/api/items/{item['id']}")
+
+
+def test_task_review_queue_is_empty_when_the_task_links_no_pr(tmp_path, monkeypatch):
+    monkeypatch.setattr(settings, "sdlc_dir", tmp_path)
+    _write_pr(tmp_path, "TomzxCode", "agentic", 42, sha="abc1234", steps=ALL_STEPS)
+
+    with TestClient(app) as client:
+        task = client.post("/api/tasks", json={"title": "No PR"}).json()
+        queue = client.get(f"/api/reviews/task/{task['id']}").json()
+        assert queue["counts"]["total"] == 0 and queue["prs"] == []
+        client.delete(f"/api/tasks/{task['id']}")
 
 
 def test_github_fields_come_from_ghx(tmp_path, monkeypatch):

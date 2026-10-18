@@ -29,6 +29,8 @@ const mocks = vi.hoisted(() => ({
   tasksUpdate: vi.fn(),
   tasksRemove: vi.fn(),
   tasksAssociate: vi.fn(),
+  reviewsTask: vi.fn(),
+  reviewsReport: vi.fn(),
   openTaskStream: vi.fn()
 }))
 
@@ -65,7 +67,8 @@ vi.mock('../api', () => ({
       remove: mocks.tasksRemove,
       create: mocks.tasksCreate,
       associate: mocks.tasksAssociate
-    }
+    },
+    reviews: { task: mocks.reviewsTask, report: mocks.reviewsReport }
   },
   openTaskStream: mocks.openTaskStream
 }))
@@ -133,7 +136,8 @@ describe('TaskView', () => {
     WorktreesPanel: passthrough,
     DependenciesSelect: passthrough,
     TimelinePanel: passthrough,
-    SessionLinks: SessionLinksStub
+    SessionLinks: SessionLinksStub,
+    TaskReviewPanel: { template: '<div class="task-review-stub" />' }
   }
 
   beforeEach(() => {
@@ -255,6 +259,97 @@ describe('TaskView', () => {
     const panels = wrapper.get('.grid-2').element
     expect(properties.nextElementSibling).toBe(band)
     expect(band.nextElementSibling).toBe(panels)
+  })
+
+  const prAssoc = {
+    id: 'a1',
+    item: {
+      id: 'i1',
+      source: 'github',
+      kind: 'pull_request',
+      url: 'https://github.com/acme/api/pull/42',
+      metadata_json: {}
+    }
+  }
+  const viewButton = (wrapper, label) => wrapper.findAll('.view-switch-btn').find((button) => button.text() === label)
+
+  it('offers PR mode only when the task links a pull request', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+    expect(viewButton(wrapper, 'PR').attributes('disabled')).toBeDefined()
+
+    mocks.tasksGet.mockResolvedValue({ ...task, associations: [prAssoc] })
+    const linked = mountView()
+    await flushPromises()
+    expect(viewButton(linked, 'PR').attributes('disabled')).toBeUndefined()
+  })
+
+  it('switches between the default view and PR mode', async () => {
+    mocks.tasksGet.mockResolvedValue({ ...task, associations: [prAssoc] })
+    const wrapper = mountView()
+    await flushPromises()
+    expect(wrapper.find('.task-review-stub').exists()).toBe(false)
+    expect(wrapper.find('.properties').exists()).toBe(true)
+
+    await viewButton(wrapper, 'PR').trigger('click')
+    await flushPromises()
+    expect(wrapper.find('.task-review-stub').exists()).toBe(true)
+    expect(wrapper.find('.properties').exists()).toBe(false)
+
+    await viewButton(wrapper, 'Default').trigger('click')
+    await flushPromises()
+    expect(wrapper.find('.task-review-stub').exists()).toBe(false)
+    expect(wrapper.find('.properties').exists()).toBe(true)
+  })
+
+  it('falls back to the default view when the last linked pull request goes away', async () => {
+    let onEvent
+    mocks.openTaskStream.mockImplementation((id, cb) => {
+      onEvent = cb
+      return vi.fn()
+    })
+    mocks.tasksGet.mockResolvedValue({ ...task, associations: [prAssoc] })
+    const wrapper = mountView()
+    await flushPromises()
+    await viewButton(wrapper, 'PR').trigger('click')
+    await flushPromises()
+    expect(wrapper.find('.task-review-stub').exists()).toBe(true)
+
+    mocks.tasksGet.mockResolvedValue({ ...task, associations: [] })
+    onEvent({ kind: 'task', action: 'items_changed' })
+    await flushPromises()
+    expect(wrapper.find('.task-review-stub').exists()).toBe(false)
+    expect(wrapper.find('.properties').exists()).toBe(true)
+  })
+
+  it('opens in PR mode from the URL query', async () => {
+    mocks.routeQuery = { view: 'pr' }
+    mocks.tasksGet.mockResolvedValue({ ...task, associations: [prAssoc] })
+    const wrapper = mountView()
+    await flushPromises()
+    expect(wrapper.find('.task-review-stub').exists()).toBe(true)
+  })
+
+  it('ignores a PR-mode query when the task links no pull request', async () => {
+    mocks.routeQuery = { view: 'pr' }
+    const wrapper = mountView()
+    await flushPromises()
+    expect(wrapper.find('.task-review-stub').exists()).toBe(false)
+    expect(wrapper.find('.properties').exists()).toBe(true)
+  })
+
+  it('records the view mode in the URL', async () => {
+    mocks.tasksGet.mockResolvedValue({ ...task, associations: [prAssoc] })
+    const wrapper = mountView()
+    await flushPromises()
+
+    await viewButton(wrapper, 'PR').trigger('click')
+    await flushPromises()
+    expect(mocks.replace).toHaveBeenCalledWith({ query: { view: 'pr' } })
+
+    await viewButton(wrapper, 'Default').trigger('click')
+    await flushPromises()
+    expect(mocks.replace).toHaveBeenLastCalledWith({ query: {} })
   })
 
   it('blurs the focused field on Escape', async () => {

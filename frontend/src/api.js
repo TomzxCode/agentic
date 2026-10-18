@@ -121,6 +121,11 @@ export const api = {
     // Every PR with review reports in the user-global store, with its step state.
     // refresh re-reads each PR's GitHub fields instead of the short ghx cache.
     queue: ({ refresh = false } = {}) => request(`/reviews${refresh ? '?refresh=true' : ''}`),
+    // The same rows, scoped to the pull requests a task is linked to.
+    task: (taskId, { refresh = false } = {}) => request(`/reviews/task/${taskId}${refresh ? '?refresh=true' : ''}`),
+    // The must/should/may findings the review skills recorded for one PR.
+    findings: (repository, number) =>
+      request(`/reviews/findings/${number}?${new URLSearchParams({ repository }).toString()}`),
     // One PR's report, addressed by "owner/name" and its path in the store.
     report: (repository, number, name) =>
       request(

@@ -3,6 +3,8 @@
 // Everything here is pure: the item view hands it the files the reviews
 // endpoint returned, so no request is involved.
 
+import { parseGithubUrl } from './repositories/parse'
+
 // Group review report files by the commit they cover. The API orders files
 // newest first, so groups keep that order (a group is positioned by its newest
 // file) and the files inside a group stay newest first. Files with no commit in
@@ -93,6 +95,43 @@ export function riskTone(risk) {
   if (risk === 'medium') return 'warn'
   if (risk === 'high') return 'danger'
   return ''
+}
+
+// The GitHub pull requests a task is linked to, from its associated items.
+// Each entry names the PR's coordinates and its item, so the task view can offer
+// a pull-request mode and match the PR against the review queue. Pure: it reads
+// the task the view already holds. Duplicate items (one PR linked twice) are
+// collapsed by their owner/repo/number key.
+export function taskPullRequests(task) {
+  const prs = []
+  const seen = new Set()
+  for (const assoc of task?.associations || []) {
+    const item = assoc.item
+    const parsed = parseGithubUrl(item?.url)
+    if (!parsed || parsed.kind !== 'pr') continue
+    const key = `${parsed.owner}/${parsed.repo}#${parsed.number}`
+    if (seen.has(key)) continue
+    seen.add(key)
+    prs.push({
+      owner: parsed.owner,
+      repo: parsed.repo,
+      number: Number(parsed.number),
+      url: item.url,
+      item_id: item.id
+    })
+  }
+  return prs
+}
+
+// A review-queue row for a pull request, matched by its coordinates. The store
+// keys a repository by its canonical casing, so the match is case-insensitive.
+export function queueRowFor(prs, pr) {
+  const repository = `${pr.owner}/${pr.repo}`.toLowerCase()
+  return (
+    (prs || []).find(
+      (row) => Number(row.number) === Number(pr.number) && String(row.repository || '').toLowerCase() === repository
+    ) || null
+  )
 }
 
 // The queue grouped by repository, repositories in name order and the PRs in

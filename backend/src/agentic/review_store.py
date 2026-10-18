@@ -324,6 +324,9 @@ def collect_review_prs() -> list[dict[str, Any]]:
         view = parse_view_cache(_read_text(directory / "gh-pr-view.md"))
         steps, reference = _step_state(directory)
         stale_steps = determine_stale_steps(steps, reference)
+        # The last review event: the modification time of the newest step
+        # report, i.e. when a review skill last wrote for this PR.
+        reviewed_at = max((state["modified_at"] for state in steps.values()), default=None)
         for state in steps.values():
             # A step is stale when its own report does not cover the newest
             # reviewed commit; stale_steps also carries the chain steps a
@@ -348,6 +351,7 @@ def collect_review_prs() -> list[dict[str, Any]]:
                 "last_comment_at": view.get("last_comment_at"),
                 "last_comment_by": view.get("last_comment_by", ""),
                 "head_commit": reference,
+                "reviewed_at": reviewed_at,
                 "steps": steps,
                 "stale_steps": stale_steps,
                 "reviewed_steps": len(steps),

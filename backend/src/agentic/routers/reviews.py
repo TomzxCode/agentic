@@ -6,12 +6,20 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, col, select
 
 from ..config import settings
+from ..crud import get_task_or_404
 from ..db import get_session
 from ..models.base import utcnow
 from ..models.items import Association, SourceItem
+from ..review_findings import collect_findings
 from ..review_queue import collect_review_prs, enrich_from_github
 from ..reviews import read_report
-from ..schemas.items import ItemReviewContent, ReviewPrRead, ReviewQueueRead, ReviewStepRead
+from ..schemas.items import (
+    ItemReviewContent,
+    ReviewFindingRead,
+    ReviewPrRead,
+    ReviewQueueRead,
+    ReviewStepRead,
+)
 from ..services.parsing import parse_github
 
 router = APIRouter(prefix="/api/reviews", tags=["reviews"])
@@ -74,6 +82,76 @@ def _merge_item(pr: dict, item: SourceItem | None, task_ids: list[str]) -> dict:
     return pr
 
 
+def _key(pr: dict) -> tuple[str, str, int]:
+    """A store row's identity, lowercased the way GitHub casing can differ."""
+    return (str(pr["owner"]).lower(), str(pr["name"]).lower(), int(pr["number"]))
+
+
+def _collect_enriched_rows(
+    session: Session,
+    keys: set[tuple[str, str, int]] | None = None,
+    refresh: bool = False,
+) -> list[dict]:
+    """The store's PR rows, merged with the app's tracked items and ghx fields.
+
+    With *keys*, only the rows in that set are read and enriched, so a
+    task-scoped read does not shell out for every PR in the store.
+    """
+    items = _tracked_pull_requests(session)
+    task_ids = _task_ids_for_items(session, [item.id for item in items.values()])
+    rows = collect_review_prs()
+    if keys is not None:
+        rows = [pr for pr in rows if _key(pr) in keys]
+    for pr in rows:
+        item = items.get(_key(pr))
+        _merge_item(pr, item, task_ids.get(item.id, []) if item else [])
+    enrich_from_github(rows, refresh=refresh)
+    return rows
+
+
+def _rows_to_read(rows: list[dict]) -> list[ReviewPrRead]:
+    return [
+        ReviewPrRead(
+            **{key: value for key, value in pr.items() if key not in ("store_dir", "steps")},
+            steps={step: ReviewStepRead(**state) for step, state in pr["steps"].items()},
+        )
+        for pr in rows
+    ]
+
+
+def _queue_response(prs: list[ReviewPrRead]) -> ReviewQueueRead:
+    root = settings.sdlc_dir.expanduser()
+    return ReviewQueueRead(
+        root=str(root) if root.is_dir() else None,
+        generated_at=utcnow(),
+        counts={
+            "total": len(prs),
+            # Matches the readiness light the queue shows: green means the PR
+            # could be approved automatically, red means a signal blocks it.
+            "ready": sum(1 for pr in prs if pr.readiness == "green"),
+            "blocked": sum(1 for pr in prs if pr.readiness == "red"),
+        },
+        prs=prs,
+    )
+
+
+def _task_pull_requests(session: Session, task_id: str) -> set[tuple[str, str, int]]:
+    """The (owner, repo, number) of the pull requests a task's items link to."""
+    keys: set[tuple[str, str, int]] = set()
+    items = session.exec(
+        select(SourceItem)
+        .join(Association, col(Association.item_id) == col(SourceItem.id))
+        .where(col(Association.task_id) == task_id)
+    ).all()
+    for item in items:
+        if item.source != "github" or not item.url:
+            continue
+        parsed = parse_github(item.url)
+        if parsed and parsed["kind"] == "pull_request":
+            keys.add((parsed["owner"].lower(), parsed["repo"].lower(), int(parsed["number"])))
+    return keys
+
+
 @router.get("", response_model=ReviewQueueRead)
 def list_review_queue(
     refresh: bool = False,
@@ -86,37 +164,41 @@ def list_review_queue(
     creation time. ``refresh`` skips the short ghx result cache and re-reads
     GitHub.
     """
-    items = _tracked_pull_requests(session)
-    task_ids = _task_ids_for_items(session, [item.id for item in items.values()])
-    rows = collect_review_prs()
-    for pr in rows:
-        item = items.get((pr["owner"].lower(), pr["name"].lower(), pr["number"]))
-        _merge_item(pr, item, task_ids.get(item.id, []) if item else [])
-    enrich_from_github(rows, refresh=refresh)
+    return _queue_response(_rows_to_read(_collect_enriched_rows(session, refresh=refresh)))
 
-    prs: list[ReviewPrRead] = []
-    for pr in rows:
-        fields = {key: value for key, value in pr.items() if key not in ("store_dir", "steps")}
-        prs.append(
-            ReviewPrRead(
-                **fields,
-                steps={step: ReviewStepRead(**state) for step, state in pr["steps"].items()},
-            )
-        )
-    counts = {
-        "total": len(prs),
-        # Matches the readiness light the queue shows: green means the PR could
-        # be approved automatically, red means a collected signal blocks it.
-        "ready": sum(1 for pr in prs if pr.readiness == "green"),
-        "blocked": sum(1 for pr in prs if pr.readiness == "red"),
-    }
-    root = settings.sdlc_dir.expanduser()
-    return ReviewQueueRead(
-        root=str(root) if root.is_dir() else None,
-        generated_at=utcnow(),
-        counts=counts,
-        prs=prs,
-    )
+
+@router.get("/task/{task_id}", response_model=ReviewQueueRead)
+def task_review_queue(
+    task_id: str,
+    refresh: bool = False,
+    session: Session = Depends(get_session),
+) -> ReviewQueueRead:
+    """The review-queue rows for the pull requests a task is linked to.
+
+    A task links a pull request through its GitHub items; only the matching
+    store rows are read and enriched. A task with no linked pull request, or
+    whose PRs have no review reports, returns an empty queue.
+    """
+    get_task_or_404(session, task_id)
+    keys = _task_pull_requests(session, task_id)
+    rows = _collect_enriched_rows(session, keys=keys, refresh=refresh) if keys else []
+    return _queue_response(_rows_to_read(rows))
+
+
+@router.get("/findings/{number}", response_model=list[ReviewFindingRead])
+def list_review_findings(number: int, repository: str) -> list[ReviewFindingRead]:
+    """The must/should/may findings a PR's review skills recorded.
+
+    Findings are read from each skill's state file (``review.yaml``,
+    ``validate.yaml``, ``verify.yaml``) under the PR's review directory, so the
+    app can offer them for the reviewer to forward to the author. A PR with no
+    review directory returns an empty list rather than an error. ``repository``
+    is ``owner/name``, or the name alone for a store keyed without an owner.
+    """
+    owner, _, repo = repository.partition("/")
+    if not repo:
+        owner, repo = "", owner
+    return [ReviewFindingRead(**finding) for finding in collect_findings(owner, repo, number)]
 
 
 @router.get("/report/{number}/{name:path}", response_model=ItemReviewContent)
