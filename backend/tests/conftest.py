@@ -4,7 +4,10 @@ import tempfile
 import pytest
 
 # Point the app at a throwaway data dir before any app module imports settings.
-os.environ.setdefault("AGENTIC_DATA_DIR", tempfile.mkdtemp(prefix="agentic-test-"))
+# Assign unconditionally (not setdefault): under pytest-xdist each worker process
+# inherits the controller's environment, so a value the controller set would be
+# shared by every worker and they would all write to one SQLite file.
+os.environ["AGENTIC_DATA_DIR"] = tempfile.mkdtemp(prefix="agentic-test-")
 
 
 @pytest.fixture(scope="session", autouse=True)

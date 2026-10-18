@@ -37,7 +37,7 @@ jobs:
         run: uv run --frozen ty check
 
       - name: Test
-        run: uv run --frozen pytest -q --cov-report=xml:coverage.xml
+        run: uv run --frozen pytest -q -n auto --cov-report=xml:coverage.xml
 
       - name: Upload backend coverage
         if: always()

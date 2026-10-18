@@ -29,6 +29,7 @@ dev = [
     "pytest>=8.0",
     "pytest-asyncio>=0.24",
     "pytest-cov>=7.1.0",
+    "pytest-xdist>=3.8.0",
     "ruff>=0.6",
     "ty>=0.0.86",
     "zensical>=0.0.70",

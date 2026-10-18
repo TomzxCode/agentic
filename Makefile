@@ -7,9 +7,9 @@ help:
 	@echo "dev-frontend        run the Vite dev server on 0.0.0.0:5173"
 	@echo "dev-tray            run the menu-bar/tray companion (global hotkey + Mark Done)"
 	@echo "test                run backend + CLI tests with coverage"
-	@echo "test-backend        run backend + CLI tests with coverage"
+	@echo "test-backend        run backend + CLI tests with coverage (parallel)"
 	@echo "test-frontend       run frontend (Vitest) tests with coverage"
-	@echo "coverage-backend    backend + CLI tests, write coverage.xml"
+	@echo "coverage-backend    backend + CLI tests, write coverage.xml (parallel)"
 	@echo "coverage-frontend   frontend tests, write frontend/coverage/"
 	@echo "lint                ruff format + check"
 	@echo "lint-frontend       eslint + prettier check (frontend)"
@@ -39,13 +39,13 @@ dev-tray:
 test: test-backend test-frontend
 
 test-backend:
-	uv run pytest -q
+	uv run pytest -q -n auto
 
 test-frontend:
 	cd frontend && npm test
 
 coverage-backend:
-	uv run pytest -q --cov-report=xml:coverage.xml
+	uv run pytest -q -n auto --cov-report=xml:coverage.xml
 
 coverage-frontend:
 	cd frontend && npm run coverage

@@ -555,6 +555,8 @@ make run               # start the API (:8600), worker, frontend dev server (:51
 make run-dev           # same as run, with the API reloading on changes
 ```
 
+`make test-backend` runs pytest across all cores with pytest-xdist; pass `-n0` to `uv run pytest` to run it serially when debugging a single test.
+
 `make run` starts the API (`agentic-server serve`), the worker (`agentic-server worker`), the Vite dev server, and the tray (`agentic-stack`, pointed at the dev server's stack page); `make run-dev` starts the same set with the API reloading on file changes. `agentic` is the separate client.
 The worker does not need to reload: restart it to pick up backend changes.
 To run the tray on its own, use `make dev-tray` (or `uv run agentic-stack`). On macOS it prompts for Accessibility and Input Monitoring the first time.

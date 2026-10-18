@@ -31,7 +31,7 @@
 | uv | Package and workspace management | `uv add <package>` / `uv sync` |
 | ruff | Linting and formatting (line length 120) | `uv run ruff format .` / `uv run ruff check --fix .` |
 | ty | Static type checking | `uv run ty check` |
-| pytest (+ pytest-asyncio) | Testing | `uv run pytest -q` |
+| pytest (+ pytest-asyncio, pytest-xdist) | Testing (parallel across cores) | `uv run pytest -q -n auto` |
 | Vite | SPA dev server and build | `cd frontend && npm run dev` / `npm run build` |
 | zensical | Documentation site build and preview | `make docs` / `make docs-serve` |
 | make | Task shortcuts | `make test`, `make lint`, `make build`, `make run` |
@@ -52,7 +52,7 @@ Both servers bind `0.0.0.0` for remote/VPN access.
 
 | Workflow | Trigger | What it runs |
 |---|---|---|
-| `.github/workflows/ci.yml` (Python) | push to `main`, pull requests | `uv sync --frozen`, ruff check, ruff format check, `ty check`, `pytest -q`. |
+| `.github/workflows/ci.yml` (Python) | push to `main`, pull requests | `uv sync --frozen`, ruff check, ruff format check, `ty check`, `pytest -q -n auto`. |
 | `.github/workflows/ci.yml` (Frontend) | push to `main`, pull requests | `npm ci` then `npm run build` in `frontend/`. |
 | `.github/workflows/docs.yml` | push to `main`, pull requests, manual dispatch | `uv sync --frozen` then `zensical build`; on a non-PR event it uploads and deploys the site to GitHub Pages. |
 
@@ -79,6 +79,7 @@ The database is a single SQLite file under `AGENTIC_DATA_DIR` (default `~/.agent
 ## Smoke Tests
 
 `uv run pytest -q` from the repository root runs the backend and CLI test suites (see `Makefile` `test` target and `pyproject.toml` `testpaths`).
+`make test-backend` and CI add `-n auto` so pytest-xdist spreads the tests across cores; each worker gets its own throwaway data directory (see `backend/tests/conftest.py`).
 There is no separate smoke-test suite.
 
 ## Hosting
