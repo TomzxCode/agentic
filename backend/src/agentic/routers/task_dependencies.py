@@ -16,7 +16,7 @@ from ..events import bus
 from ..models.base import DependencyRelation
 from ..models.tasks import Task, TaskDependency
 from ..schemas.tasks import DependencyCreate, TaskDependencies
-from .tasks import _task_read
+from .task_service import _task_read
 
 router = APIRouter(prefix="/api/tasks", tags=["tasks"])
 

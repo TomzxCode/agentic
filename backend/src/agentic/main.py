@@ -22,6 +22,7 @@ from .jobs import close_queue, get_queue, reconcile_runs
 from .provenance import ProvenanceMiddleware
 from .routers import (
     agent_runs,
+    agent_streams,
     changes,
     fs,
     gantt,
@@ -41,6 +42,7 @@ from .routers import (
     stack,
     task_dependencies,
     task_items,
+    task_writes,
     tasks,
     worktrees,
 )
@@ -141,9 +143,11 @@ for module in (
     tasks,
     task_items,
     task_dependencies,
+    task_writes,
     worktrees,
     harnesses,
     agent_runs,
+    agent_streams,
     sessions,
     changes,
     inbox,

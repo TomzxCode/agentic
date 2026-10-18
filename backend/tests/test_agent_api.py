@@ -14,6 +14,7 @@ from agentic.models.agents import AgentRun
 from agentic.models.base import RunStatus, utcnow
 from agentic.models.tasks import Task
 from agentic.routers import agent_runs as agents_router
+from agentic.routers import agent_streams
 from agentic.routers import worktrees as worktrees_router
 
 
@@ -307,19 +308,19 @@ def test_task_signature_tracks_worker_visible_changes():
         session.commit()
         session.refresh(task)
         task_id = task.id
-        baseline = agents_router._task_signature(session, task_id)
+        baseline = agent_streams._task_signature(session, task_id)
 
         # A new run changes the signature.
         session.add(AgentRun(task_id=task_id, prompt="p", status=RunStatus.queued))
         session.commit()
-        with_runs = agents_router._task_signature(session, task_id)
+        with_runs = agent_streams._task_signature(session, task_id)
         assert with_runs != baseline
 
         # So does a rename (what the Slack summary run does).
         task.title = "renamed"
         session.add(task)
         session.commit()
-        assert agents_router._task_signature(session, task_id) != with_runs
+        assert agent_streams._task_signature(session, task_id) != with_runs
 
     with TestClient(app) as client:
         client.delete(f"/api/tasks/{task_id}")

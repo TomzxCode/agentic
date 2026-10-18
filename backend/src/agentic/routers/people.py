@@ -21,16 +21,13 @@ from ..events import bus
 from ..models.base import utcnow
 from ..models.items import ItemPerson, Person, PersonAlias, SourceItem, TaskPerson, TaskRequester
 from ..schemas.people import PersonCreate, PersonDetail, PersonLink, PersonMerge, PersonRead, PersonUpdate
+from .people_links import _link_item, _link_requester, _link_task, merge_people
 from .people_service import (
     _create_person,
-    _link_item,
-    _link_requester,
-    _link_task,
     _person_read,
     _resolve_person,
     _set_aliases,
     get_person_or_404,
-    merge_people,
     normalize_aliases,
     person_involved_task_ids,
     person_requester_task_ids,

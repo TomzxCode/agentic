@@ -6,7 +6,7 @@ import pytest
 from _agents_helpers import _create_task_and_run, _delete_task
 from sqlmodel import Session, select
 
-from agentic.agents import runner
+from agentic.agents import executions
 from agentic.agents.runner import persist_event
 from agentic.db import engine
 from agentic.models.agents import AgentEvent, AgentRun
@@ -33,8 +33,8 @@ async def test_execute_run_succeeds_and_persists_events(monkeypatch):
             await publish({"seq": 1, "type": "message", "text": "hello", "data": {"k": "v"}})
             return {"session_id": "ses_1", "stop_reason": "end_turn", "model": "zai-coding-plan/glm-5.3"}
 
-        monkeypatch.setattr(runner, "run_agent", fake_run_agent)
-        await runner.execute_run(run_id=run_id, harness_id=None, cwd=".", prompt="p", cancel_event=asyncio.Event())
+        monkeypatch.setattr(executions, "run_agent", fake_run_agent)
+        await executions.execute_run(run_id=run_id, harness_id=None, cwd=".", prompt="p", cancel_event=asyncio.Event())
 
         with Session(engine) as session:
             run = session.get(AgentRun, run_id)
@@ -58,8 +58,8 @@ async def test_execute_run_marks_cancelled(monkeypatch):
         async def fake_run_agent(*, run_id, harness, cwd, prompt, publish, cancel_event, **kwargs):
             return {"session_id": "ses_2", "stop_reason": "cancelled"}
 
-        monkeypatch.setattr(runner, "run_agent", fake_run_agent)
-        await runner.execute_run(run_id=run_id, harness_id=None, cwd=".", prompt="p", cancel_event=asyncio.Event())
+        monkeypatch.setattr(executions, "run_agent", fake_run_agent)
+        await executions.execute_run(run_id=run_id, harness_id=None, cwd=".", prompt="p", cancel_event=asyncio.Event())
 
         with Session(engine) as session:
             run = session.get(AgentRun, run_id)
@@ -76,8 +76,8 @@ async def test_execute_run_records_failure(monkeypatch):
         async def fake_run_agent(*, run_id, harness, cwd, prompt, publish, cancel_event, **kwargs):
             raise RuntimeError("boom")
 
-        monkeypatch.setattr(runner, "run_agent", fake_run_agent)
-        await runner.execute_run(run_id=run_id, harness_id=None, cwd=".", prompt="p", cancel_event=asyncio.Event())
+        monkeypatch.setattr(executions, "run_agent", fake_run_agent)
+        await executions.execute_run(run_id=run_id, harness_id=None, cwd=".", prompt="p", cancel_event=asyncio.Event())
 
         with Session(engine) as session:
             run = session.get(AgentRun, run_id)
@@ -93,7 +93,7 @@ async def test_execute_run_records_failure(monkeypatch):
 @pytest.mark.asyncio
 async def test_execute_run_with_unknown_run_is_a_noop():
     # No such run: the entrypoint returns quietly (the finally still notifies).
-    await runner.execute_run(
+    await executions.execute_run(
         run_id="does-not-exist", harness_id=None, cwd=".", prompt="p", cancel_event=asyncio.Event()
     )
 
@@ -114,8 +114,8 @@ async def test_execute_run_records_the_session_before_the_turn_finishes(monkeypa
                 assert row is not None and row.session_id == "ses_early"
             return {"session_id": "ses_early", "stop_reason": "end_turn"}
 
-        monkeypatch.setattr(runner, "run_agent", fake_run_agent)
-        await runner.execute_run(run_id=run_id, harness_id=None, cwd=".", prompt="p", cancel_event=asyncio.Event())
+        monkeypatch.setattr(executions, "run_agent", fake_run_agent)
+        await executions.execute_run(run_id=run_id, harness_id=None, cwd=".", prompt="p", cancel_event=asyncio.Event())
 
         with Session(engine) as session:
             run = session.get(AgentRun, run_id)
@@ -143,8 +143,8 @@ async def test_execute_run_resumes_an_existing_session(monkeypatch):
             seen["resume"] = resume_session_id
             return {"session_id": resume_session_id or "ses_new", "stop_reason": "end_turn"}
 
-        monkeypatch.setattr(runner, "run_agent", fake_run_agent)
-        await runner.execute_run(run_id=run_id, harness_id=None, cwd=".", prompt="p", cancel_event=asyncio.Event())
+        monkeypatch.setattr(executions, "run_agent", fake_run_agent)
+        await executions.execute_run(run_id=run_id, harness_id=None, cwd=".", prompt="p", cancel_event=asyncio.Event())
         assert seen == {"resume": "ses_prev"}
     finally:
         _delete_task(task_id)

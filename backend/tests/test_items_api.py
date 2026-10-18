@@ -4,6 +4,7 @@ from fastapi.testclient import TestClient
 
 from agentic.main import app
 from agentic.routers import items as items_router
+from agentic.routers import items_refresh
 from agentic.services import shell
 
 
@@ -235,7 +236,7 @@ def test_refresh_due_refreshes_items_the_policy_says_are_due(monkeypatch):
     def fake_fetch(source, url, external_id, title):
         return {"title": "Fresh", "content": "updated body", "metadata": {}}
 
-    monkeypatch.setattr(items_router, "fetch_source", fake_fetch)
+    monkeypatch.setattr(items_refresh, "fetch_source", fake_fetch)
     with TestClient(app) as client:
         client.patch("/api/settings", json={"github_refresh_policy": "1d=1h,7d=6h,30d=1d"})
         try:
@@ -261,7 +262,7 @@ def test_refresh_due_refreshes_items_the_policy_says_are_due(monkeypatch):
 
 
 def test_refresh_due_is_a_noop_without_a_policy(monkeypatch):
-    monkeypatch.setattr(items_router, "fetch_source", lambda *args, **kwargs: {})
+    monkeypatch.setattr(items_refresh, "fetch_source", lambda *args, **kwargs: {})
     with TestClient(app) as client:
         client.patch("/api/settings", json={"slack_refresh_policy": "", "github_refresh_policy": ""})
         client.post("/api/items", json={"url": "https://github.com/o/r/issues/10", "fetch": False})
@@ -281,7 +282,7 @@ def test_force_refresh_source_ignores_the_policy(monkeypatch):
             raise RuntimeError("unexpected item")
         return {"title": "Fresh", "content": "updated body", "metadata": {}}
 
-    monkeypatch.setattr(items_router, "fetch_source", fake_fetch)
+    monkeypatch.setattr(items_refresh, "fetch_source", fake_fetch)
     with TestClient(app) as client:
         # No policy is set, so a due refresh would do nothing; force still pulls.
         client.patch("/api/settings", json={"slack_refresh_policy": "", "github_refresh_policy": ""})

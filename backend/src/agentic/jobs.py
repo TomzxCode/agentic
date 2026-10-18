@@ -99,7 +99,7 @@ async def process_run(ctx: dict[str, Any], run_id: str) -> None:
     """SAQ entrypoint: execute one AgentRun to completion."""
     from sqlmodel import Session
 
-    from .agents import runner
+    from .agents import executions
     from .db import engine
     from .models.agents import AgentRun
     from .models.base import RunStatus, utcnow
@@ -124,7 +124,7 @@ async def process_run(ctx: dict[str, Any], run_id: str) -> None:
     heartbeat = asyncio.create_task(_heartbeat(job)) if job is not None and settings.job_heartbeat else None
     try:
         if kind == "refresh_context":
-            await runner.execute_context_refresh(
+            await executions.execute_context_refresh(
                 run_id=run_id,
                 task_id=task_id,
                 harness_id=harness_id,
@@ -133,7 +133,7 @@ async def process_run(ctx: dict[str, Any], run_id: str) -> None:
                 cancel_event=cancel_event,
             )
         elif kind == "summarize_slack":
-            await runner.execute_slack_summary(
+            await executions.execute_slack_summary(
                 run_id=run_id,
                 task_id=task_id,
                 harness_id=harness_id,
@@ -143,7 +143,7 @@ async def process_run(ctx: dict[str, Any], run_id: str) -> None:
                 generate_title=_slack_generate_title(task_id),
             )
         else:
-            await runner.execute_run(
+            await executions.execute_run(
                 run_id=run_id, harness_id=harness_id, cwd=cwd, prompt=prompt, cancel_event=cancel_event
             )
     finally:

@@ -307,7 +307,7 @@ def test_create_issue_endpoint(monkeypatch):
 
 def test_create_task_from_github(monkeypatch):
     # Stub the item fetch so no network/gh is needed.
-    from agentic.routers import tasks as tasks_router
+    from agentic.routers import task_writes as tasks_router
 
     def fake_upsert(session, payload):
         item = SourceItem(source="github", kind="issue", url=payload.url, title="Imported issue", content="body text")

@@ -6,7 +6,7 @@ from sqlmodel import select
 from agentic.main import app
 from agentic.models.items import SourceItem
 from agentic.routers import agent_runs as agents_router
-from agentic.routers import tasks as tasks_router
+from agentic.routers import task_writes as tasks_router
 from agentic.services import prompts
 
 SLACK_URL = "https://acme.slack.com/archives/C123/p1700000000000000"

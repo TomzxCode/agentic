@@ -6,7 +6,7 @@ import pytest
 from _agents_helpers import _create_task_and_run, _delete_task
 from sqlmodel import Session, select
 
-from agentic.agents import runner
+from agentic.agents import executions
 from agentic.agents.runner import persist_event
 from agentic.db import engine
 from agentic.models.tasks import Task, TimelineEvent
@@ -24,8 +24,8 @@ async def test_context_refresh_parses_the_agent_reply(monkeypatch):
             with Session(engine) as session:
                 persist_event(session, run_id, {"seq": 1, "type": "message", "text": VALID_CONTEXT, "data": {}})
 
-        monkeypatch.setattr(runner, "execute_run", fake_execute_run)
-        await runner.execute_context_refresh(
+        monkeypatch.setattr(executions, "execute_run", fake_execute_run)
+        await executions.execute_context_refresh(
             run_id=run_id, task_id=task_id, harness_id=None, cwd=".", prompt="p", cancel_event=asyncio.Event()
         )
 
@@ -50,8 +50,8 @@ async def test_context_refresh_falls_back_to_thoughts(monkeypatch):
             with Session(engine) as session:
                 persist_event(session, run_id, {"seq": 1, "type": "thought", "text": VALID_CONTEXT, "data": {}})
 
-        monkeypatch.setattr(runner, "execute_run", fake_execute_run)
-        await runner.execute_context_refresh(
+        monkeypatch.setattr(executions, "execute_run", fake_execute_run)
+        await executions.execute_context_refresh(
             run_id=run_id, task_id=task_id, harness_id=None, cwd=".", prompt="p", cancel_event=asyncio.Event()
         )
 
@@ -71,8 +71,8 @@ async def test_context_refresh_records_failure_when_unparseable(monkeypatch):
             with Session(engine) as session:
                 persist_event(session, run_id, {"seq": 1, "type": "message", "text": "no json here", "data": {}})
 
-        monkeypatch.setattr(runner, "execute_run", fake_execute_run)
-        await runner.execute_context_refresh(
+        monkeypatch.setattr(executions, "execute_run", fake_execute_run)
+        await executions.execute_context_refresh(
             run_id=run_id, task_id=task_id, harness_id=None, cwd=".", prompt="p", cancel_event=asyncio.Event()
         )
 
@@ -94,8 +94,8 @@ async def test_slack_summary_writes_the_agent_title_and_summary(monkeypatch):
             with Session(engine) as session:
                 persist_event(session, run_id, {"seq": 1, "type": "message", "text": VALID_SUMMARY, "data": {}})
 
-        monkeypatch.setattr(runner, "execute_run", fake_execute_run)
-        await runner.execute_slack_summary(
+        monkeypatch.setattr(executions, "execute_run", fake_execute_run)
+        await executions.execute_slack_summary(
             run_id=run_id, task_id=task_id, harness_id=None, cwd=".", prompt="p", cancel_event=asyncio.Event()
         )
 
@@ -120,8 +120,8 @@ async def test_slack_summary_keeps_a_user_supplied_title(monkeypatch):
             with Session(engine) as session:
                 persist_event(session, run_id, {"seq": 1, "type": "message", "text": VALID_SUMMARY, "data": {}})
 
-        monkeypatch.setattr(runner, "execute_run", fake_execute_run)
-        await runner.execute_slack_summary(
+        monkeypatch.setattr(executions, "execute_run", fake_execute_run)
+        await executions.execute_slack_summary(
             run_id=run_id,
             task_id=task_id,
             harness_id=None,
@@ -149,8 +149,8 @@ async def test_slack_summary_falls_back_to_thoughts(monkeypatch):
             with Session(engine) as session:
                 persist_event(session, run_id, {"seq": 1, "type": "thought", "text": VALID_SUMMARY, "data": {}})
 
-        monkeypatch.setattr(runner, "execute_run", fake_execute_run)
-        await runner.execute_slack_summary(
+        monkeypatch.setattr(executions, "execute_run", fake_execute_run)
+        await executions.execute_slack_summary(
             run_id=run_id, task_id=task_id, harness_id=None, cwd=".", prompt="p", cancel_event=asyncio.Event()
         )
 
@@ -172,8 +172,8 @@ async def test_slack_summary_keeps_the_title_when_only_a_summary_is_returned(mon
                     session, run_id, {"seq": 1, "type": "message", "text": '{"summary": "Only a summary."}', "data": {}}
                 )
 
-        monkeypatch.setattr(runner, "execute_run", fake_execute_run)
-        await runner.execute_slack_summary(
+        monkeypatch.setattr(executions, "execute_run", fake_execute_run)
+        await executions.execute_slack_summary(
             run_id=run_id, task_id=task_id, harness_id=None, cwd=".", prompt="p", cancel_event=asyncio.Event()
         )
 
@@ -197,8 +197,8 @@ async def test_slack_summary_records_failure_when_unparseable(monkeypatch):
             with Session(engine) as session:
                 persist_event(session, run_id, {"seq": 1, "type": "message", "text": "no json here", "data": {}})
 
-        monkeypatch.setattr(runner, "execute_run", fake_execute_run)
-        await runner.execute_slack_summary(
+        monkeypatch.setattr(executions, "execute_run", fake_execute_run)
+        await executions.execute_slack_summary(
             run_id=run_id, task_id=task_id, harness_id=None, cwd=".", prompt="p", cancel_event=asyncio.Event()
         )
 

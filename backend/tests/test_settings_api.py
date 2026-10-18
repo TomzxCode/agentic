@@ -159,9 +159,9 @@ def test_background_run_records_status_per_source(monkeypatch):
     from agentic import main
     from agentic.db import engine
     from agentic.models.system import Setting
-    from agentic.routers import items as items_router
+    from agentic.routers import items_refresh
 
-    monkeypatch.setattr(items_router, "fetch_source", lambda *args, **kwargs: {"title": "x", "content": "y"})
+    monkeypatch.setattr(items_refresh, "fetch_source", lambda *args, **kwargs: {"title": "x", "content": "y"})
     with TestClient(app) as client:
         client.patch("/api/settings", json={"slack_refresh_policy": "1d=1h", "github_refresh_policy": "1d=1h"})
         try:
@@ -191,12 +191,12 @@ def test_background_run_records_failures(monkeypatch):
     from agentic import main
     from agentic.db import engine
     from agentic.models.system import Setting
-    from agentic.routers import items as items_router
+    from agentic.routers import items_refresh
 
     def boom(*args, **kwargs):
         raise RuntimeError("ghx: authentication required")
 
-    monkeypatch.setattr(items_router, "fetch_source", boom)
+    monkeypatch.setattr(items_refresh, "fetch_source", boom)
     with TestClient(app) as client:
         client.patch("/api/settings", json={"github_refresh_policy": "1d=1h"})
         try:

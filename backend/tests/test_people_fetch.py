@@ -102,7 +102,7 @@ def test_upsert_matches_an_existing_person_by_alias(monkeypatch):
 
 def test_associating_a_github_item_fetches_its_people(monkeypatch):
     """An item stored without a fetch still names its author when linked."""
-    from agentic.routers import tasks as tasks_router
+    from agentic.routers import task_service as tasks_router
 
     monkeypatch.setattr(
         tasks_router,

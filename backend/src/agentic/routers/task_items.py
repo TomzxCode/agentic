@@ -16,7 +16,7 @@ from ..events import bus
 from ..models.items import Association, SourceItem
 from ..schemas.items import AssociateRequest, AssociationDetail, ItemRead
 from .items import _upsert_item
-from .tasks import _link_item, _populate_item_people
+from .task_service import _link_item, _populate_item_people
 
 router = APIRouter(prefix="/api/tasks", tags=["tasks"])
 
