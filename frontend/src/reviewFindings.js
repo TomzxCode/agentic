@@ -47,12 +47,16 @@ export function defaultSelectedFindings(findings) {
 }
 
 // The prompt an agent is handed: the selected findings, addressed to the PR, so
-// the agent can post them with its own skills (ghx) without restating the whole
-// review. Findings are grouped by severity; an empty description is skipped.
+// the agent can post them inline with its own skills (ghx) without restating the
+// whole review. Findings are grouped by severity; an empty description is
+// skipped.
 export function buildFindingsPrompt(pr, findings) {
   const repository = pr.repository || `${pr.owner}/${pr.repo}`
   const lines = [
-    `Post the selected review findings below as comments on pull request ${repository}#${pr.number}.`,
+    `Post the selected review findings below as inline review comments on pull request ${repository}#${pr.number}.`,
+    'Every comment must be attached inline to the file and line (or hunk) it is about;',
+    'locate that line in the diff when the finding does not name it.',
+    'Do not post them as general pull request comments, and do not leave a summary comment.',
     'Use your skills and the ghx CLI to post them, and include only these findings:',
     'do not add others and do not restate the rest of the review.',
     ''

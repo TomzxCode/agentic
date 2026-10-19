@@ -312,10 +312,10 @@ URL (`?view=pr` or `?view=issue`), so a link opens a task straight in it.
 Both surfaces offer **Share** for a pull request: it lists the must/should/may
 findings the review skills recorded in their state files (`review.yaml`,
 `validate.yaml`, `verify.yaml`), lets you pick which to send, and hands the
-selection to an agent run on the task, whose skills post them to the PR. Each
-check or uncheck records your decision (`include` or `skip`) on that finding in
-its state file, so the selection is still there next time. The app itself posts
-nothing.
+selection to an agent run on the task, whose skills post them inline on the PR.
+Each check or uncheck records your decision (`include` or `skip`) on that finding
+in its state file, so the selection is still there next time. The app itself
+posts nothing.
 
 
 The task header also links **dependencies**, next to the repository and people

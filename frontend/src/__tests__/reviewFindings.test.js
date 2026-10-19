@@ -66,6 +66,8 @@ describe('buildFindingsPrompt', () => {
       finding({ title: 'Tidy the helper', description: '', severity: 'may' })
     ])
     expect(prompt).toContain('pull request acme/api#42')
+    expect(prompt).toContain('inline review comments')
+    expect(prompt).toContain('attached inline to the file and line')
     expect(prompt).toContain('## MUST')
     expect(prompt).toContain('### Fix the thing _(review-pr)_')
     expect(prompt).toContain('It is broken.')
