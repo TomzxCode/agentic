@@ -67,6 +67,28 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+  /api/people/slack-aliases:
+    get:
+      summary: Name the Slack user ids carried as aliases
+      description: >
+        Resolves the aliases that look like a Slack user id (a U followed by
+        uppercase letters or digits) to the display name slackx knows, in one
+        slackx read. Display-only: the stored alias stays the id, so a source
+        re-import still matches on it. Ids slackx cannot name are left out.
+      operationId: listSlackAliases
+      tags: [people]
+      responses:
+        "200":
+          description: The resolved aliases, keyed by the alias as stored
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  names:
+                    type: object
+                    additionalProperties:
+                      type: string
   /api/people/{person_id}:
     get:
       summary: Get a person with the tasks and items they are linked to

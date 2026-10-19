@@ -20,7 +20,16 @@ from ..db import get_session
 from ..events import bus
 from ..models.base import utcnow
 from ..models.items import ItemPerson, Person, PersonAlias, SourceItem, TaskPerson, TaskRequester
-from ..schemas.people import PersonCreate, PersonDetail, PersonLink, PersonMerge, PersonRead, PersonUpdate
+from ..schemas.people import (
+    PersonCreate,
+    PersonDetail,
+    PersonLink,
+    PersonMerge,
+    PersonRead,
+    PersonUpdate,
+    SlackAliasNames,
+)
+from ..services.slack import resolve_slack_user_ids
 from .people_links import _link_item, _link_requester, _link_task, merge_people
 from .people_service import (
     _create_person,
@@ -51,6 +60,18 @@ def list_people(session: Session = Depends(get_session)) -> list[PersonRead]:
 @router.post("", response_model=PersonRead, status_code=201)
 def create_person(payload: PersonCreate, session: Session = Depends(get_session)) -> PersonRead:
     return _person_read(session, _create_person(session, payload))
+
+
+@router.get("/slack-aliases", response_model=SlackAliasNames)
+def list_slack_aliases(session: Session = Depends(get_session)) -> SlackAliasNames:
+    """The Slack user ids the directory carries as aliases, named through slackx.
+
+    Display-only: the stored alias stays the id, so a source re-import still
+    matches on it. An id slackx cannot name is left out, and the view then keeps
+    showing the raw value. Declared before ``/{person_id}`` so the static path wins.
+    """
+    values = session.exec(select(col(PersonAlias.value))).all()
+    return SlackAliasNames(names=resolve_slack_user_ids(values))
 
 
 @router.get("/{person_id}", response_model=PersonDetail)

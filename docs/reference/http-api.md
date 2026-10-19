@@ -72,6 +72,7 @@ There is no authentication, so expose it only on a trusted network.
 | `GET` / `POST` | `/api/groups` | List and create repository groups. |
 | `GET` / `PATCH` / `DELETE` | `/api/groups/{id}` | Read, update, and remove a group. |
 | `GET` / `POST` | `/api/people` | List and create people. |
+| `GET` | `/api/people/slack-aliases` | Name the Slack user ids carried as aliases, through slackx. |
 | `GET` / `PATCH` / `DELETE` | `/api/people/{id}` | Read, update, and remove a person. |
 | `POST` | `/api/people/{id}/merge` | Merge one person into another. |
 | `POST` | `/api/tasks/{id}/people` | Link a person involved in a task. |

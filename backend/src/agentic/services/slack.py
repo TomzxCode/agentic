@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import re
+from collections.abc import Iterable
 from datetime import datetime, tzinfo
 from typing import Any
 
@@ -56,6 +57,28 @@ def slack_title_channel(title: str, workspace: str) -> str | None:
     if match and match.group("workspace") == workspace:
         return match.group("channel")
     return None
+
+
+# A Slack user id: "U" followed by at least six uppercase letters or digits.
+_SLACK_USER_ID_RE = re.compile(r"^U[A-Z0-9]{6,}$")
+
+
+def is_slack_user_id(value: str) -> bool:
+    """Whether a value looks like a Slack user id (``U0123ABCD``), not a handle."""
+    return bool(_SLACK_USER_ID_RE.match(str(value).strip()))
+
+
+def resolve_slack_user_ids(values: Iterable[str]) -> dict[str, str]:
+    """Map the Slack user ids among ``values`` to the display name slackx knows.
+
+    Only ids slackx can name are returned, so a caller falls back to the raw
+    value for the rest. One slackx read resolves every id.
+    """
+    ids = [str(value) for value in values if is_slack_user_id(value)]
+    if not ids:
+        return {}
+    names = slack_user_names()
+    return {value: names[value] for value in ids if value in names}
 
 
 def slack_user_names() -> dict[str, str]:

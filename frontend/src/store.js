@@ -115,9 +115,13 @@ export function taskHasPerson(task, id) {
 }
 
 // A person's alias rendered with a leading @ when it is a handle (has no @)
-// rather than an email.
-export function aliasLabel(value) {
-  return String(value).includes('@') ? String(value) : `@${value}`
+// rather than an email. A Slack user id among the aliases is shown as the name
+// slackx resolved it to, keeping the raw id beside it.
+export function aliasLabel(value, names) {
+  const text = String(value)
+  const label = text.includes('@') ? text : `@${text}`
+  const name = names?.[text]
+  return name ? `${name} (${label})` : label
 }
 
 // An item's source (github, slack, note, …) rendered as a human label, falling

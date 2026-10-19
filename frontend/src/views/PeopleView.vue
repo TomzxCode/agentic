@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onMounted, ref, resolveComponent, shallowRef } from 'vue'
 import { aliasLabel, formatDateTime, store } from '../store'
+import { api } from '../api'
 import GridColumnChooser from '../components/GridColumnChooser.vue'
 import PeopleGrid from '../components/PeopleGrid.vue'
 
@@ -8,6 +9,8 @@ const people = ref([])
 const loading = ref(true)
 const newName = ref('')
 const busy = ref(false)
+// The names slackx resolved for the Slack user ids carried as aliases, if any.
+const slackNames = ref({})
 // How many rows the grid currently shows (its filters may hide some).
 const shown = ref(null)
 // The grid's api, once it reports ready, so the column chooser can read the
@@ -22,7 +25,7 @@ const routerLink = resolveComponent('RouterLink')
 const rows = computed(() =>
   people.value.map((person) => ({
     ...person,
-    aliases_line: (person.aliases || []).map(aliasLabel).join(' · '),
+    aliases_line: (person.aliases || []).map((alias) => aliasLabel(alias, slackNames.value)).join(' · '),
     created_line: formatDateTime(person.created_at),
     raw: person
   }))
@@ -31,8 +34,14 @@ const rows = computed(() =>
 async function load() {
   loading.value = true
   try {
-    await store.loadPeople()
+    // A Slack user id alias is shown as the name slackx resolves it to; asking
+    // for the names is best effort, so a failure leaves the raw ids displayed.
+    const [, resolved] = await Promise.all([
+      store.loadPeople(),
+      api.people.slackAliasNames().catch(() => ({ names: {} }))
+    ])
     people.value = store.people
+    slackNames.value = resolved.names || {}
   } catch (e) {
     store.notify(e.message, true)
   } finally {

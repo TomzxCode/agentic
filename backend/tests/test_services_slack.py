@@ -128,3 +128,26 @@ def test_resolve_slack_channel_name(monkeypatch):
     assert slack.resolve_slack_channel_name("C1") is None
     monkeypatch.setattr(shell, "_run_cli", lambda cmd, timeout=60: '{"channels": []}')
     assert slack.resolve_slack_channel_name("C1") is None
+
+
+def test_is_slack_user_id():
+    assert slack.is_slack_user_id("U0123ABCDEF")
+    # A handle, an email, and a channel id are not user ids.
+    assert not slack.is_slack_user_id("ada")
+    assert not slack.is_slack_user_id("ada@example.com")
+    assert not slack.is_slack_user_id("C0123ABCDEF")
+    # Too short to be a Slack user id, so a plain alias starting with U is kept.
+    assert not slack.is_slack_user_id("U123")
+
+
+def test_resolve_slack_user_ids(monkeypatch):
+    payload = '{"users": [{"id": "U0123ABCDEF", "real_name": "Tom Rochette"}]}'
+    monkeypatch.setattr(shell, "_run_cli", lambda cmd, timeout=60: payload if cmd[1:3] == ["users", "list"] else None)
+    # A resolve reads slackx once and names only the ids it knows.
+    assert slack.resolve_slack_user_ids(["ada", "U0123ABCDEF", "U9999ZZZZZZ"]) == {"U0123ABCDEF": "Tom Rochette"}
+
+    # No Slack user ids: slackx is not called at all.
+    calls: list = []
+    monkeypatch.setattr(shell, "_run_cli", lambda cmd, timeout=60: calls.append(cmd))
+    assert slack.resolve_slack_user_ids(["ada", "ada@example.com"]) == {}
+    assert calls == []

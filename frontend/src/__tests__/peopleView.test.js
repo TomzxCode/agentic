@@ -6,6 +6,7 @@ enableAutoUnmount(afterEach)
 const mocks = vi.hoisted(() => ({
   push: vi.fn(),
   peopleList: vi.fn(),
+  peopleSlackAliases: vi.fn(),
   peopleGet: vi.fn(),
   peopleCreate: vi.fn(),
   peopleUpdate: vi.fn(),
@@ -28,6 +29,7 @@ vi.mock('../api', () => ({
   api: {
     people: {
       list: mocks.peopleList,
+      slackAliasNames: mocks.peopleSlackAliases,
       get: mocks.peopleGet,
       create: mocks.peopleCreate,
       update: mocks.peopleUpdate,
@@ -62,6 +64,7 @@ beforeEach(() => {
   store.tasks = []
   store.people = []
   mocks.peopleList.mockResolvedValue([])
+  mocks.peopleSlackAliases.mockResolvedValue({ names: {} })
   vi.spyOn(store, 'loadPeople').mockResolvedValue()
   vi.spyOn(store, 'loadTasks').mockResolvedValue()
 })
@@ -111,6 +114,37 @@ describe('PeopleView', () => {
   it('shows when each person was created', async () => {
     const wrapper = await mountPeople()
     expect(wrapper.get('.ag-cell[col-id="created"]').text()).toBe(formatDateTime('2026-01-01T00:00:00Z'))
+  })
+
+  it('shows a Slack user id alias as the name slackx resolves it to', async () => {
+    store.people = [
+      {
+        id: 'p1',
+        name: 'Ada',
+        aliases: ['U0123ABCDEF'],
+        task_count: 0,
+        item_count: 0,
+        created_at: '2026-01-01T00:00:00Z'
+      }
+    ]
+    mocks.peopleSlackAliases.mockResolvedValue({ names: { U0123ABCDEF: 'Tom Rochette' } })
+    const wrapper = await mountPeople()
+    expect(wrapper.get('.ag-cell[col-id="aliases"]').text()).toBe('Tom Rochette (@U0123ABCDEF)')
+  })
+
+  it('keeps the raw Slack user id when slackx cannot resolve it', async () => {
+    store.people = [
+      {
+        id: 'p1',
+        name: 'Ada',
+        aliases: ['U0123ABCDEF'],
+        task_count: 0,
+        item_count: 0,
+        created_at: '2026-01-01T00:00:00Z'
+      }
+    ]
+    const wrapper = await mountPeople()
+    expect(wrapper.get('.ag-cell[col-id="aliases"]').text()).toBe('@U0123ABCDEF')
   })
 
   it('hides a column through the chooser and remembers the choice', async () => {

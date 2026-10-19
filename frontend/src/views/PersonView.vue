@@ -16,6 +16,8 @@ const items = ref([])
 const loading = ref(true)
 const notFound = ref(false)
 const newAlias = ref('')
+// The names slackx resolved for the Slack user ids carried as aliases, if any.
+const slackNames = ref({})
 
 const itemById = computed(() => Object.fromEntries(items.value.map((item) => [item.id, item])))
 const taskById = computed(() => Object.fromEntries(store.tasks.map((task) => [task.id, task])))
@@ -146,6 +148,11 @@ async function remove() {
 }
 
 onMounted(async () => {
+  // Best effort: the aliases panel then reads a Slack user id alias as its name.
+  api.people
+    .slackAliasNames()
+    .then((resolved) => (slackNames.value = resolved.names || {}))
+    .catch(() => {})
   await store.loadTasks().catch(() => {})
   await store.loadPeople().catch(() => {})
   try {
@@ -189,7 +196,7 @@ onMounted(async () => {
         <div v-if="!aliases.length" class="faint" style="margin-bottom: 12px">No aliases yet.</div>
         <div v-else class="row" style="gap: 6px; flex-wrap: wrap; margin-bottom: 12px">
           <span v-for="alias in aliases" :key="alias" class="chip">
-            {{ aliasLabel(alias) }}
+            {{ aliasLabel(alias, slackNames) }}
             <button class="chip-x" title="Remove" @click="removeAlias(alias)">✕</button>
           </span>
         </div>

@@ -6,6 +6,7 @@ enableAutoUnmount(afterEach)
 const mocks = vi.hoisted(() => ({
   push: vi.fn(),
   peopleList: vi.fn(),
+  peopleSlackAliases: vi.fn(),
   peopleGet: vi.fn(),
   peopleCreate: vi.fn(),
   peopleUpdate: vi.fn(),
@@ -28,6 +29,7 @@ vi.mock('../api', () => ({
   api: {
     people: {
       list: mocks.peopleList,
+      slackAliasNames: mocks.peopleSlackAliases,
       get: mocks.peopleGet,
       create: mocks.peopleCreate,
       update: mocks.peopleUpdate,
@@ -63,6 +65,7 @@ beforeEach(() => {
   store.tasks = []
   store.people = []
   mocks.peopleList.mockResolvedValue([])
+  mocks.peopleSlackAliases.mockResolvedValue({ names: {} })
   vi.spyOn(store, 'loadPeople').mockResolvedValue()
   vi.spyOn(store, 'loadTasks').mockResolvedValue()
 })
@@ -116,6 +119,23 @@ describe('PersonView', () => {
     // A GitHub item shows its state; a Slack item shows a speech emoji.
     expect(wrapper.get('.badge.st-open').text()).toBe('Open')
     expect(wrapper.get('.item-emoji').text()).toBe('💬')
+  })
+
+  it('shows a Slack user id alias as the name slackx resolves it to', async () => {
+    mocks.peopleGet.mockResolvedValue({
+      id: 'p1',
+      name: 'Ada',
+      aliases: ['U0123ABCDEF'],
+      notes: '',
+      task_ids: [],
+      involved_task_ids: [],
+      requester_task_ids: [],
+      item_ids: []
+    })
+    mocks.peopleSlackAliases.mockResolvedValue({ names: { U0123ABCDEF: 'Tom Rochette' } })
+    const wrapper = mount(PersonView, { props: { id: 'p1' }, ...stub })
+    await flushPromises()
+    expect(wrapper.get('.chip').text()).toContain('Tom Rochette (@U0123ABCDEF)')
   })
 
   it('labels each task with how the person is attached to it', async () => {
