@@ -41,7 +41,7 @@ The web app is organized into these pages:
 | Repositories (`/repositories`) | Registered checkouts and their issues and pull requests. |
 | Repository (`/repositories/:id`) | One repository's issues and pull requests, read fresh from GitHub. |
 | Scheduled tasks (`/schedules`) | Cron-scheduled shell tasks, with run history and output. |
-| Settings (`/settings`) | Harnesses, repository groups, refresh policies, link templates, and the sidebar layout. |
+| Settings (`/settings`) | Harnesses, repository groups, refresh policies, link templates, the sidebar layout, and dependency and cache diagnostics. |
 
 The app is built to work at phone widths: below 760px the sidebar becomes a drawer you open from the top bar.
 

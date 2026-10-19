@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { api } from '../api'
 import { SETTINGS_SECTIONS } from '../settings'
 import { store } from '../store'
+import Icon from '../components/Icon.vue'
 import RepositoryGroupsPanel from '../components/RepositoryGroupsPanel.vue'
 import SettingsSessionLinks from '../components/SettingsSessionLinks.vue'
 import SettingsIdentity from '../components/SettingsIdentity.vue'
@@ -12,6 +13,7 @@ import SettingsPrompts from '../components/SettingsPrompts.vue'
 import SettingsRefresh from '../components/SettingsRefresh.vue'
 import SettingsReviewScan from '../components/SettingsReviewScan.vue'
 import SettingsSidebar from '../components/SettingsSidebar.vue'
+import SettingsDiagnostics from '../components/SettingsDiagnostics.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -65,7 +67,8 @@ onMounted(load)
           :class="{ active: active === section.id }"
           @click="select(section.id)"
         >
-          {{ section.label }}
+          <Icon :name="section.icon" :size="16" />
+          <span>{{ section.label }}</span>
         </button>
       </nav>
 
@@ -100,6 +103,7 @@ onMounted(load)
         </div>
 
         <SettingsSidebar v-show="active === 'sidebar'" />
+        <SettingsDiagnostics v-show="active === 'diagnostics'" :active="active === 'diagnostics'" />
       </div>
     </div>
   </div>

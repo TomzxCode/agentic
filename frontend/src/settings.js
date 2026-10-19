@@ -4,12 +4,13 @@
 // a section.
 
 export const SETTINGS_SECTIONS = [
-  { id: 'sessions', label: 'Session links' },
-  { id: 'identity', label: 'Identity' },
-  { id: 'harnesses', label: 'Agent harnesses' },
-  { id: 'prompts', label: 'Agent prompts' },
-  { id: 'refresh', label: 'Refresh' },
-  { id: 'review-scan', label: 'Review requests' },
-  { id: 'groups', label: 'Repository groups' },
-  { id: 'sidebar', label: 'Sidebar' }
+  { id: 'sessions', label: 'Session links', icon: 'link' },
+  { id: 'identity', label: 'Identity', icon: 'identity' },
+  { id: 'harnesses', label: 'Agent harnesses', icon: 'harness' },
+  { id: 'prompts', label: 'Agent prompts', icon: 'prompt' },
+  { id: 'refresh', label: 'Refresh', icon: 'refresh' },
+  { id: 'review-scan', label: 'Review requests', icon: 'search' },
+  { id: 'groups', label: 'Repository groups', icon: 'group' },
+  { id: 'sidebar', label: 'Sidebar', icon: 'panel' },
+  { id: 'diagnostics', label: 'Diagnostics', icon: 'diagnostics' }
 ]

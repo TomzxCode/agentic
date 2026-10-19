@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => ({
   settingsUpdate: vi.fn(),
   settingsPreviewPolicy: vi.fn(),
   settingsRefreshStatus: vi.fn(),
+  settingsDiagnostics: vi.fn(),
   reviewsScan: vi.fn(),
   reviewsRunScan: vi.fn(),
   repositoriesUpdate: vi.fn(),
@@ -52,7 +53,8 @@ vi.mock('../api', () => ({
       get: mocks.settingsGet,
       update: mocks.settingsUpdate,
       previewRefreshPolicy: mocks.settingsPreviewPolicy,
-      refreshStatus: mocks.settingsRefreshStatus
+      refreshStatus: mocks.settingsRefreshStatus,
+      diagnostics: mocks.settingsDiagnostics
     },
     repositories: {
       create: mocks.repositoriesCreate,
@@ -115,12 +117,24 @@ describe('SettingsView', () => {
       fallback_seconds: 604800
     })
     mocks.settingsRefreshStatus.mockResolvedValue({ sources: {} })
+    mocks.settingsDiagnostics.mockResolvedValue({ checked_at: new Date().toISOString(), dependencies: [] })
   })
 
   const mountView = () =>
     mount(SettingsView, {
       global: { stubs: { RepositoryGroupsPanel: true, RouterLink: RouterLinkStub } }
     })
+
+  it('shows an icon on every settings nav item', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+
+    const items = wrapper.findAll('.settings-nav-item')
+    expect(items.length).toBe(9)
+    for (const item of items) {
+      expect(item.find('svg').exists()).toBe(true)
+    }
+  })
 
   it('loads data and switches sections', async () => {
     const wrapper = mountView()
@@ -267,6 +281,126 @@ describe('SettingsView', () => {
     pending()
     await flushPromises()
     expect(buttons[0].attributes('disabled')).toBeUndefined()
+  })
+
+  it('lists dependencies with presence and versions, and rechecks on demand', async () => {
+    mocks.settingsDiagnostics.mockResolvedValue({
+      checked_at: new Date().toISOString(),
+      ghx_cache: {
+        available: true,
+        error: null,
+        repositories: [
+          {
+            repository: 'openchamber/openchamber',
+            issues: 1854,
+            pull_requests: 2409,
+            cached_age: '14d',
+            status: 'stale'
+          },
+          { repository: 'tomzx/agents', issues: 2, pull_requests: 3, cached_age: null, status: 'no cache info' }
+        ]
+      },
+      slackx_cache: {
+        available: true,
+        error: null,
+        workspace: 'tomzx',
+        db_path: '/home/tomzx/.cache/slackx/tomzx/threads.db',
+        channel_count: 12,
+        user_count: 6,
+        thread_count: 32,
+        message_count: 47,
+        read_marker_count: 1,
+        channels_updated_at: new Date().toISOString(),
+        users_updated_at: null,
+        threads_updated_at: null
+      },
+      dependencies: [
+        {
+          id: 'python',
+          name: 'Python',
+          command: 'python',
+          category: 'runtime',
+          required: true,
+          purpose: 'Runs the Agentic server.',
+          present: true,
+          path: '/usr/bin/python3',
+          version: '3.12.3'
+        },
+        {
+          id: 'ghx',
+          name: 'ghx',
+          command: 'ghx',
+          category: 'tool',
+          required: false,
+          purpose: 'Reading GitHub issues and pull requests.',
+          present: true,
+          path: '/usr/bin/ghx',
+          version: 'ghx version 1.2.3'
+        },
+        {
+          id: 'slackx',
+          name: 'slackx',
+          command: 'slackx',
+          category: 'tool',
+          required: false,
+          purpose: 'Importing Slack threads and refreshing their content.',
+          present: false,
+          path: null,
+          version: null
+        },
+        {
+          id: 'harness:opencode',
+          name: 'OpenCode',
+          command: 'opencode',
+          category: 'harness',
+          required: false,
+          purpose: 'OpenCode ACP.',
+          present: true,
+          path: '/usr/bin/opencode',
+          version: 'opencode v2.0.30'
+        }
+      ]
+    })
+    const wrapper = mountView()
+    await flushPromises()
+
+    // The probes spawn each command server side, so they wait for the section.
+    expect(mocks.settingsDiagnostics).not.toHaveBeenCalled()
+
+    const nav = wrapper.findAll('.settings-nav-item').find((b) => b.text() === 'Diagnostics')
+    await nav.trigger('click')
+    await flushPromises()
+
+    expect(mocks.settingsDiagnostics).toHaveBeenCalledTimes(1)
+    expect(wrapper.text()).toContain('Runtime')
+    expect(wrapper.text()).toContain('Helper tools')
+    expect(wrapper.text()).toContain('Agent harnesses')
+    expect(wrapper.text()).toContain('ghx version 1.2.3')
+    expect(wrapper.text()).toContain('/usr/bin/ghx')
+    expect(wrapper.text()).toContain('missing')
+    expect(wrapper.text()).toContain('3 of 4 available')
+    expect(wrapper.text()).toContain('1 missing')
+
+    // The ghx cache dump, parsed from its table output.
+    expect(wrapper.text()).toContain('ghx cache')
+    expect(wrapper.text()).toContain('2 repositories')
+    expect(wrapper.text()).toContain('4268 issues and PRs')
+    expect(wrapper.text()).toContain('1 stale')
+    expect(wrapper.get('.diagnostics-table').text()).toContain('openchamber/openchamber')
+    expect(wrapper.get('.diagnostics-table').text()).toContain('1854')
+
+    // The slackx cache counts, read from its JSON status.
+    expect(wrapper.text()).toContain('slackx cache')
+    expect(wrapper.text()).toContain('workspace tomzx')
+    expect(wrapper.text()).toContain('/home/tomzx/.cache/slackx/tomzx/threads.db')
+    expect(wrapper.text()).toContain('Read markers')
+
+    await wrapper
+      .findAll('button')
+      .find((b) => b.text() === 'Recheck')
+      .trigger('click')
+    await flushPromises()
+    expect(mocks.settingsDiagnostics).toHaveBeenCalledTimes(2)
   })
 
   it('configures the review scan and the repositories it covers', async () => {

@@ -6,9 +6,11 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session
 
 from ..db import get_session
+from ..diagnostics import collect_diagnostics
 from ..refresh import POLICY_SETTING_KEYS, PolicyError, describe_policy, parse_policy
 from ..review_scan import scan_interval
 from ..schemas.settings import (
+    DiagnosticsRead,
     RefreshPolicyPreview,
     RefreshPolicyPreviewRequest,
     RefreshStatusRead,
@@ -83,6 +85,16 @@ def preview_refresh_policy(payload: RefreshPolicyPreviewRequest) -> RefreshPolic
 def read_refresh_status(session: Session = Depends(get_session)) -> RefreshStatusRead:
     """When the background refresh job last ran for each source."""
     return RefreshStatusRead(sources=get_refresh_status(session))
+
+
+@router.get("/diagnostics", response_model=DiagnosticsRead)
+def read_diagnostics(session: Session = Depends(get_session)) -> DiagnosticsRead:
+    """Presence and versions of the external tools and harnesses the app uses.
+
+    Sync on purpose: FastAPI runs it in a worker thread, so the version probes
+    never block the event loop.
+    """
+    return collect_diagnostics(session)
 
 
 __all__ = ["router"]

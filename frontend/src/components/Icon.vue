@@ -85,6 +85,37 @@ const ICONS = {
     ['circle', { cx: 12, cy: 12, r: 3 }]
   ],
 
+  // Settings sections: one glyph per section, shown in the Settings nav.
+  identity: [
+    ['circle', { cx: 12, cy: 8, r: 3.4 }],
+    ['path', { d: 'M5.5 20c0-3.4 2.9-5.6 6.5-5.6s6.5 2.2 6.5 5.6' }]
+  ],
+  harness: [
+    ['rect', { x: 4, y: 8, width: 16, height: 11, rx: 3 }],
+    ['path', { d: 'M12 4v4M8 12.5h.01M16 12.5h.01M9.5 16h5' }]
+  ],
+  prompt: [
+    ['rect', { x: 3, y: 4, width: 18, height: 16, rx: 2.6 }],
+    ['path', { d: 'M7 9l3 3-3 3M12.5 15h4.5' }]
+  ],
+  refresh: [
+    ['path', { d: 'M20 11a8 8 0 0 0-14.3-4.1L4 9' }],
+    ['path', { d: 'M4 4v5h5' }],
+    ['path', { d: 'M4 13a8 8 0 0 0 14.3 4.1L20 15' }],
+    ['path', { d: 'M20 20v-5h-5' }]
+  ],
+  search: [
+    ['circle', { cx: 10.5, cy: 10.5, r: 6 }],
+    ['path', { d: 'M15 15l4.5 4.5' }]
+  ],
+  group: [
+    ['rect', { x: 3.5, y: 3.5, width: 8, height: 8, rx: 1.8 }],
+    ['rect', { x: 12.5, y: 3.5, width: 8, height: 8, rx: 1.8 }],
+    ['rect', { x: 3.5, y: 12.5, width: 8, height: 8, rx: 1.8 }],
+    ['rect', { x: 12.5, y: 12.5, width: 8, height: 8, rx: 1.8 }]
+  ],
+  diagnostics: [['path', { d: 'M3.5 12h4l2.2-5.5 4.1 11 2.2-5.5h4.5' }]],
+
   // Actions.
   plus: [['path', { d: 'M12 5v14M5 12h14' }]],
   keyboard: [

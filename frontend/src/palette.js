@@ -152,7 +152,7 @@ export function buildPaletteItems({ route, router, showNew, sidebarHidden, toggl
       id: `settings-${section.id}`,
       label: section.label,
       group: 'Settings',
-      icon: 'settings',
+      icon: section.icon,
       keywords: `settings ${section.id}`,
       run: () => router.push({ path: '/settings', query: { section: section.id } })
     }))

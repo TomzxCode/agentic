@@ -63,6 +63,11 @@ Placeholders: `{owner}`, `{repository}`, `{number}` (filled from the associated 
 Two prompts are seeded by default: **Review PR** (`$review-pr-full {number} {owner}/{repository}`) and **Triage issue** (`$triage-issue {number} {owner}/{repository}`).
 There is no environment variable for these; they live only in the settings store.
 
+**Diagnostics** under **Settings → Diagnostics** lists the external commands the app runs: the server's Python interpreter, `git`, `ghx`, `gh`, `slackx`, and every configured harness.
+For each one it shows whether the command is on `PATH`, where it resolved, and the version it reports.
+Below those it dumps the two local caches: the repositories `ghx` has cached (issue and pull-request counts, cache age, and whether each is stale) and `slackx`'s cache database (the workspace it belongs to, its file path, and the entity counts with when each was last updated).
+The section is read-only and probes on demand, when you open it or press **Recheck**.
+
 ## Refresh policy format
 
 A refresh policy is a comma-separated list of `age=interval` bands, with an optional `*` fallback, for example:

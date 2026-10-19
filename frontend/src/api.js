@@ -257,7 +257,8 @@ export const api = {
     get: () => request('/settings'),
     update: (body) => request('/settings', { method: 'PATCH', body }),
     previewRefreshPolicy: (value) => request('/settings/refresh-policy/preview', { method: 'POST', body: { value } }),
-    refreshStatus: () => request('/settings/refresh-status')
+    refreshStatus: () => request('/settings/refresh-status'),
+    diagnostics: () => request('/settings/diagnostics')
   },
 
   worktrees: {

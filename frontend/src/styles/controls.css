@@ -160,6 +160,9 @@
   top: 0;
 }
 .settings-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   text-align: left;
   padding: 8px 12px;
   border-radius: 8px;
@@ -168,6 +171,9 @@
   color: var(--muted);
   cursor: pointer;
   font: inherit;
+}
+.settings-nav-item svg {
+  flex: none;
 }
 .settings-nav-item:hover {
   background: var(--bg-2);
@@ -181,6 +187,45 @@
 }
 .settings-content {
   min-width: 0;
+}
+
+/* Diagnostics: the ghx and slackx cache dumps. Compact, and scrollable on a
+   phone rather than wrapping every column. */
+.diagnostics-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-1);
+}
+.diagnostics-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.diagnostics-table th {
+  text-align: left;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--faint);
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+.diagnostics-table td {
+  padding: 6px 10px;
+  border-top: 1px solid var(--border);
+  vertical-align: middle;
+  white-space: nowrap;
+}
+.diagnostics-table th.num,
+.diagnostics-table td.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  width: 1%;
+}
+.diagnostics-table tbody tr:hover td {
+  background: var(--bg-2);
 }
 .settings-content > :last-child,
 .settings-content > :last-child > .panel {

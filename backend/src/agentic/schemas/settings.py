@@ -86,3 +86,66 @@ class RefreshStatusRead(BaseModel):
     """Per-source background refresh status, keyed by source."""
 
     sources: dict[str, RefreshSourceStatus] = {}
+
+
+class DependencyRead(BaseModel):
+    """One external command the app may run and what probing it found."""
+
+    id: str
+    name: str
+    command: str
+    # "runtime" (the server's own interpreter), "tool" (a helper CLI), or
+    # "harness" (an ACP agent command).
+    category: str = "tool"
+    required: bool = False
+    purpose: str = ""
+    present: bool = False
+    path: str | None = None
+    version: str | None = None
+    error: str | None = None
+
+
+class CachedRepositoryRead(BaseModel):
+    """One repository in ghx's local cache."""
+
+    repository: str
+    issues: int = 0
+    pull_requests: int = 0
+    # For example "14d"; None when ghx has no cache metadata for the repository.
+    cached_age: str | None = None
+    status: str = ""
+
+
+class GhxCacheRead(BaseModel):
+    """The repositories ghx has cached, or why the listing failed."""
+
+    available: bool = False
+    error: str | None = None
+    repositories: list[CachedRepositoryRead] = []
+
+
+class SlackxCacheRead(BaseModel):
+    """The counts and last-updated times in slackx's cache database."""
+
+    available: bool = False
+    error: str | None = None
+    # Which Slack workspace's cache this is, and the database file it lives in.
+    workspace: str | None = None
+    db_path: str | None = None
+    channel_count: int = 0
+    user_count: int = 0
+    thread_count: int = 0
+    message_count: int = 0
+    read_marker_count: int = 0
+    channels_updated_at: datetime | None = None
+    users_updated_at: datetime | None = None
+    threads_updated_at: datetime | None = None
+
+
+class DiagnosticsRead(BaseModel):
+    """The result of probing every dependency the Diagnostics section lists."""
+
+    dependencies: list[DependencyRead] = []
+    ghx_cache: GhxCacheRead = GhxCacheRead()
+    slackx_cache: SlackxCacheRead = SlackxCacheRead()
+    checked_at: datetime
