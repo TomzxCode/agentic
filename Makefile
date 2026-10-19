@@ -4,6 +4,10 @@
 #   make test-backend COV="--cov=agentic --cov=agentic_cli --cov-report=term-missing"
 COV ?=
 
+# Extra args for run/run-dev, e.g.
+#   make run-dev ARGS="--api-port 9000 --frontend-port 5300"
+ARGS ?=
+
 help:
 	@echo "install             install backend + CLI (workspace) and frontend deps"
 	@echo "dev-backend         run the API with reload on 0.0.0.0:8600"
@@ -21,8 +25,8 @@ help:
 	@echo "build               build the SPA into backend/static"
 	@echo "docs                build the documentation site into site/"
 	@echo "docs-serve          serve the documentation site with live reload"
-	@echo "run                 serve API + worker + frontend dev server + tray (0.0.0.0:8600 and :5173)"
-	@echo "run-dev             like run, with the API reloading on file changes"
+	@echo "run                 serve API + worker + frontend dev server + tray (free ports from :8600 and :5173)"
+	@echo "run-dev             like run, with the API reloading on file changes (ARGS=\"...\" to pin ports)"
 
 install:
 	uv sync
@@ -73,18 +77,8 @@ docs-serve:
 	uv run zensical serve --dev-addr 0.0.0.0:8000
 
 run:
-	@echo "API on http://0.0.0.0:8600, worker, frontend dev server on http://0.0.0.0:5173, tray (Ctrl+C stops all)"
-	@uv run agentic-server serve --host 0.0.0.0 --port 8600 $(RELOAD) & \
-	api_pid=$$!; \
-	uv run agentic-server worker & \
-	worker_pid=$$!; \
-	( cd frontend && npm run dev ) & \
-	frontend_pid=$$!; \
-	AGENTIC_STACK_URL=http://localhost:5173/stack uv run agentic-stack & \
-	tray_pid=$$!; \
-	trap 'kill $$api_pid $$worker_pid $$frontend_pid $$tray_pid 2>/dev/null' INT TERM EXIT; \
-	wait
+	@uv run python scripts/dev.py $(ARGS)
 
 # Like run, with the API reloading when backend files change.
 run-dev:
-	@$(MAKE) --no-print-directory run RELOAD=--reload
+	@uv run python scripts/dev.py --reload $(ARGS)

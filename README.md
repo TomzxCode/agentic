@@ -583,9 +583,11 @@ make docs              # build the documentation site into site/
 make docs-serve        # serve the documentation site with live reload
 make dev-worker        # run the agent-run worker on its own
 make dev-tray          # run the tray/global-hotkey companion on its own
-make run               # start the API (:8600), worker, frontend dev server (:5173), and tray
+make run               # start the API, worker, frontend dev server, and tray (free ports from :8600/:5173)
 make run-dev           # same as run, with the API reloading on changes
 ```
+
+`make run` picks the first free port at or above 8600 (API) and 5173 (dev server), and wires the Vite proxy and the tray to the ports it chose, so several checkouts (one per worktree) can run side by side. Pass `ARGS` to override, e.g. `make run-dev ARGS="--api-port 9000 --frontend-port 5300"`, and add `--no-tray` to skip the tray (its global hotkey is best kept to one running stack). The tray is also skipped when there is no display, and a tray or worker that exits does not stop the API and dev server.
 
 Tests run without coverage by default; use `make coverage-backend` / `make coverage-frontend` (or pass `COV="--cov=agentic --cov=agentic_cli --cov-report=term-missing"` to `make test-backend`) when you want it.
 
