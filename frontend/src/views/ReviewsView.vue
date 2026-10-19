@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { api } from '../api'
 import { renderMarkdown } from '../markdown'
 import {
@@ -43,10 +43,59 @@ const sharing = ref(null)
 // The filters: a PR's status (open by default, so the queue shows the pull
 // requests still awaiting a review), one or more repositories, one or more
 // authors, and a text search over the row's fields.
-const stateFilter = ref('open')
-const repositoryFilter = ref([])
-const authorFilter = ref([])
-const search = ref('')
+//
+// They are per-device view preferences, remembered in localStorage like the
+// feedback page's grouping, so leaving the page and coming back keeps them.
+const FILTERS_KEY = 'agentic.reviewQueueFilters'
+
+// The stored filters, with anything malformed or no longer offered falling back
+// to its default rather than breaking the page.
+function readStoredFilters() {
+  const defaults = { state: 'open', repositories: [], authors: [], search: '' }
+  try {
+    const stored = JSON.parse(localStorage.getItem(FILTERS_KEY) || 'null')
+    if (!stored || typeof stored !== 'object') return defaults
+    return {
+      state: PR_STATE_FILTERS.some((option) => option.value === stored.state) ? stored.state : defaults.state,
+      repositories: Array.isArray(stored.repositories) ? stored.repositories.map(String) : [],
+      authors: Array.isArray(stored.authors) ? stored.authors.map(String) : [],
+      search: typeof stored.search === 'string' ? stored.search : ''
+    }
+  } catch {
+    // Storage can be blocked (private mode), and a stored value can be corrupt;
+    // the defaults still apply for this session.
+    return defaults
+  }
+}
+
+const storedFilters = readStoredFilters()
+
+const stateFilter = ref(storedFilters.state)
+const repositoryFilter = ref(storedFilters.repositories)
+const authorFilter = ref(storedFilters.authors)
+const search = ref(storedFilters.search)
+
+// Write the filters back as they change: a choice, a clear from the empty
+// state, or a value the refreshed queue dropped all land here.
+watch(
+  [stateFilter, repositoryFilter, authorFilter, search],
+  () => {
+    try {
+      localStorage.setItem(
+        FILTERS_KEY,
+        JSON.stringify({
+          state: stateFilter.value,
+          repositories: repositoryFilter.value,
+          authors: authorFilter.value,
+          search: search.value
+        })
+      )
+    } catch {
+      // Not fatal: the filters still apply for this session.
+    }
+  },
+  { deep: true }
+)
 
 // The report open in the viewer: its PR, its relative store path, and content.
 const openPr = ref(null)

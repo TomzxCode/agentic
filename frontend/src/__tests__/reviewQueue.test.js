@@ -109,6 +109,7 @@ function prIn(repository, overrides = {}) {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  localStorage.clear()
   store.toast = null
   store.people = []
   store.repositories = []
@@ -526,5 +527,72 @@ describe('ReviewsView', () => {
     await flushPromises()
 
     expect(wrapper.find('a[href="https://github.com/TomzxCode/agentic/pull/9"]').exists()).toBe(true)
+  })
+
+  it('remembers every filter when the queue is reopened', async () => {
+    mocks.queue.mockResolvedValue({
+      root: null,
+      counts: { total: 3 },
+      prs: [
+        prIn('TomzxCode/agentic', { number: 42, author: 'alice', title: 'Add filters', state: 'MERGED' }),
+        prIn('acme/api', { number: 9, author: 'carol', title: 'Fix the parser', state: 'MERGED' }),
+        prIn('acme/api', { number: 7, author: 'carol', title: 'Other work', state: 'OPEN' })
+      ]
+    })
+
+    const wrapper = mount(ReviewsView, stub)
+    await flushPromises()
+
+    await openRepositories(wrapper)
+    await toggleRepository(wrapper, 'acme/api')
+    await openAuthors(wrapper)
+    await toggleAuthor(wrapper, 'carol')
+    await wrapper.findAll('.review-state-filter')[1].trigger('click')
+    await wrapper.get('.review-search').setValue('parser')
+    await flushPromises()
+
+    expect(wrapper.find('a[href="https://github.com/acme/api/pull/9"]').exists()).toBe(true)
+    wrapper.unmount()
+
+    // Coming back to the page restores the same filters, so the same row shows.
+    const reopened = mount(ReviewsView, stub)
+    await flushPromises()
+
+    expect(reopened.get('.review-repository-select .ss-label').text()).toBe('acme/api (2)')
+    expect(reopened.get('.review-author-select .ss-label').text()).toBe('carol (2)')
+    expect(reopened.findAll('.review-state-filter')[1].attributes('aria-pressed')).toBe('true')
+    expect(reopened.get('.review-search').element.value).toBe('parser')
+    expect(reopened.find('a[href="https://github.com/acme/api/pull/9"]').exists()).toBe(true)
+    expect(reopened.find('a[href="https://github.com/TomzxCode/agentic/pull/42"]').exists()).toBe(false)
+    expect(reopened.find('a[href="https://github.com/acme/api/pull/7"]').exists()).toBe(false)
+  })
+
+  it('falls back to the default filters when the stored filters are unusable', async () => {
+    mocks.queue.mockResolvedValue({ root: null, counts: { total: 1 }, prs: [pr({ number: 42 })] })
+    localStorage.setItem(
+      'agentic.reviewQueueFilters',
+      JSON.stringify({ state: 'bogus', repositories: 'acme/api', authors: 3, search: { q: 'x' } })
+    )
+
+    const wrapper = mount(ReviewsView, stub)
+    await flushPromises()
+
+    expect(wrapper.findAll('.review-state-filter')[0].attributes('aria-pressed')).toBe('true')
+    expect(wrapper.get('.review-repository-select .ss-label').text()).toBe('All repositories')
+    expect(wrapper.get('.review-author-select .ss-label').text()).toBe('All authors')
+    expect(wrapper.get('.review-search').element.value).toBe('')
+    expect(wrapper.find('a[href="https://github.com/TomzxCode/agentic/pull/42"]').exists()).toBe(true)
+  })
+
+  it('falls back to the default filters when the stored filters cannot be parsed', async () => {
+    mocks.queue.mockResolvedValue({ root: null, counts: { total: 1 }, prs: [pr({ number: 42 })] })
+    localStorage.setItem('agentic.reviewQueueFilters', '{not json')
+
+    const wrapper = mount(ReviewsView, stub)
+    await flushPromises()
+
+    expect(wrapper.findAll('.review-state-filter')[0].attributes('aria-pressed')).toBe('true')
+    expect(wrapper.get('.review-search').element.value).toBe('')
+    expect(wrapper.find('a[href="https://github.com/TomzxCode/agentic/pull/42"]').exists()).toBe(true)
   })
 })

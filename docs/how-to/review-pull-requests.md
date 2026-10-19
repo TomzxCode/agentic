@@ -28,6 +28,7 @@ The reports live under `AGENTIC_SDLC_DIR` (`~/.sdlc` by default), at `{owner}/{r
    Use the **All authors** dropdown the same way to pick one or more authors.
    At the top of either list, **Select all** takes every option the filter box currently lists and **Deselect all** clears the choice.
    Type in the search box to narrow by repository, number, title, or author.
+   The status, repository, author, and search filters are remembered on this device, so leaving the page and coming back keeps them.
    When nothing matches, the empty state offers to clear the search, repositories, or author, or show all statuses.
 3. Read the row's own columns: the pull request number and title, its author, its age, the last comment and who made it, the commit last reviewed, and when the last review ran.
    Click the number to open the pull request on GitHub.
