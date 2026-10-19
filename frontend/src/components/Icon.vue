@@ -5,50 +5,66 @@ import { h } from 'vue'
 // nav, which shares the page glyphs). Each entry is the inner markup of a 24x24
 // stroke icon, rendered with a render function so no v-html lands in templates.
 const ICONS = {
-  // Pages: the sidebar's bottom nav.
+  // Pages: the sidebar's bottom nav. Each page keeps one silhouette that the
+  // others do not use, so the twelve stay apart at 18px: Tasks a checklist,
+  // Inbox a mail tray, Reviews a document, Stack layers, Gantt and Metrics a
+  // chart (bars against a trend line), Items a box, Graph a node network,
+  // People a pair, Repositories a book, Schedules a clock, Settings a gear.
   tasks: [
-    ['path', { d: 'M9 6h11M9 12h11M9 18h11' }],
-    ['path', { d: 'M4 6l1 1 2-2M4 12l1 1 2-2M4 18l1 1 2-2' }]
+    ['path', { d: 'M10 5.5h9.5M10 12h9.5M10 18.5h9.5' }],
+    ['path', { d: 'M3.5 5.2l1.6 1.6 3-3.2' }],
+    ['path', { d: 'M3.5 11.7l1.6 1.6 3-3.2' }],
+    ['path', { d: 'M3.5 18.2l1.6 1.6 3-3.2' }]
   ],
   inbox: [
-    ['rect', { x: 4, y: 5.5, width: 16, height: 13, rx: 2 }],
-    ['path', { d: 'M4.5 7.5l7.5 6 7.5-6' }]
+    ['polyline', { points: '21 12 15.6 12 13.8 14.7 10.2 14.7 8.4 12 3 12' }],
+    [
+      'path',
+      {
+        d: 'M6.1 5.8 3 12v5.4a1.8 1.8 0 0 0 1.8 1.8h14.4a1.8 1.8 0 0 0 1.8-1.8v-5.4l-3.11-6.2A1.8 1.8 0 0 0 16.28 4.8H7.72a1.8 1.8 0 0 0-1.61 1z'
+      }
+    ]
   ],
   reviews: [
-    ['path', { d: 'M7 3h7l4 4v14H7z' }],
-    ['path', { d: 'M14 3v4h4' }],
-    ['path', { d: 'M10 14l2 2 4-4' }]
+    ['path', { d: 'M13.5 3H7.5a2.5 2.5 0 0 0-2.5 2.5v13A2.5 2.5 0 0 0 7.5 21h9a2.5 2.5 0 0 0 2.5-2.5V8.5z' }],
+    ['path', { d: 'M13.5 3v4a1.5 1.5 0 0 0 1.5 1.5h4' }],
+    ['path', { d: 'M9.5 14.6l1.9 1.9 3.6-3.8' }]
   ],
   stack: [
-    ['rect', { x: 4, y: 3.5, width: 16, height: 5, rx: 1.5 }],
-    ['rect', { x: 4, y: 9.5, width: 16, height: 5, rx: 1.5 }],
-    ['rect', { x: 4, y: 15.5, width: 16, height: 5, rx: 1.5 }]
+    ['path', { d: 'M12 3.4 20.5 7.9 12 12.4 3.5 7.9z' }],
+    ['path', { d: 'M3.5 12l8.5 4.5 8.5-4.5' }],
+    ['path', { d: 'M3.5 16.1l8.5 4.5 8.5-4.5' }]
   ],
-  gantt: [['path', { d: 'M4 6h9M4 12h13M4 18h6' }]],
+  gantt: [
+    ['path', { d: 'M10 6.5h7.5' }],
+    ['path', { d: 'M7 11.5h7' }],
+    ['path', { d: 'M12 16.5h5.5' }],
+    ['path', { d: 'M3.5 3.5v14.5a2.5 2.5 0 0 0 2.5 2.5h14.5' }]
+  ],
   graph: [
     ['circle', { cx: 6, cy: 6, r: 2.4 }],
     ['circle', { cx: 6, cy: 18, r: 2.4 }],
     ['circle', { cx: 18, cy: 12, r: 2.4 }],
     ['path', { d: 'M8.2 7.2 15.8 11M8.2 16.8 15.8 13' }]
   ],
-  metrics: [['path', { d: 'M5 20V11M12 20V5M19 20v-6' }]],
+  metrics: [
+    ['path', { d: 'M3.5 3.5v14.5a2.5 2.5 0 0 0 2.5 2.5h14.5' }],
+    ['path', { d: 'M7 15.5l3.5-3.8 3 2.6 5.5-6' }]
+  ],
   schedule: [
     ['circle', { cx: 12, cy: 12, r: 8.5 }],
-    ['path', { d: 'M12 7.5V12l3 2' }]
+    ['path', { d: 'M12 6.8V12l3.5 2.2' }]
   ],
   items: [
-    ['path', { d: 'M4 13l2-7h12l2 7v5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z' }],
-    ['path', { d: 'M4 13h4l1.5 2h5L16 13h4' }]
+    ['path', { d: 'M3.7 7.4 12 3.2l8.3 4.2v9.2L12 20.8 3.7 16.6z' }],
+    ['path', { d: 'M3.9 7.5 12 11.8l8.1-4.3M12 11.8v8.9' }]
   ],
   people: [
     ['circle', { cx: 9, cy: 8, r: 3 }],
     ['path', { d: 'M3 20c0-3 2.5-5 6-5s6 2 6 5' }],
     ['path', { d: 'M16 5.5a3 3 0 0 1 0 5.5M18 15c2 .6 3 1.9 3 4' }]
   ],
-  repositories: [
-    ['path', { d: 'M12 3l9 5-9 5-9-5 9-5z' }],
-    ['path', { d: 'M3 13l9 5 9-5' }]
-  ],
+  repositories: [['path', { d: 'M4.5 19.2V4.8A1.8 1.8 0 0 1 6.3 3h13.2v18H6.3a1.8 1.8 0 0 1 0-3.6h13.2' }]],
   settings: [
     [
       'path',
