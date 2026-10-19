@@ -7,11 +7,13 @@ const mocks = vi.hoisted(() => ({
   taskReviews: vi.fn(),
   report: vi.fn(),
   findings: vi.fn(),
-  createRun: vi.fn()
+  createRun: vi.fn(),
+  githubIssue: vi.fn()
 }))
 
 vi.mock('../api', () => ({
   api: {
+    github: { issue: mocks.githubIssue },
     reviews: { task: mocks.taskReviews, report: mocks.report, findings: mocks.findings },
     runs: { create: mocks.createRun }
   }
@@ -75,6 +77,7 @@ function pr(overrides = {}) {
 
 const task = {
   id: 't1',
+  title: 'Review the thing',
   associations: [
     {
       id: 'a1',
@@ -83,6 +86,8 @@ const task = {
         source: 'github',
         kind: 'pull_request',
         url: 'https://github.com/acme/api/pull/42',
+        title: 'Stored PR title',
+        content: 'stored PR body',
         metadata_json: {}
       }
     }
@@ -97,6 +102,17 @@ beforeEach(() => {
   mocks.taskReviews.mockResolvedValue({ root: null, counts: { total: 1 }, prs: [pr()] })
   mocks.findings.mockResolvedValue([finding()])
   mocks.createRun.mockResolvedValue({ id: 'r1', status: 'queued' })
+  mocks.githubIssue.mockResolvedValue({
+    number: 42,
+    title: 'Do the thing',
+    url: 'https://github.com/acme/api/pull/42',
+    state: 'OPEN',
+    is_draft: false,
+    created_at: '2026-01-10T00:00:00Z',
+    author: 'alice',
+    labels: ['enhancement'],
+    body: 'It **adds** the thing.'
+  })
 })
 
 afterEach(() => {
@@ -112,11 +128,32 @@ describe('TaskReviewPanel', () => {
     expect(wrapper.text()).toContain('acme/api#42')
     expect(wrapper.text()).toContain('Do the thing')
     expect(wrapper.text()).toContain('alice')
-    // The readiness light is the PR link's tooltip.
-    expect(wrapper.get('.task-item-title a').attributes('title')).toContain('Still needs attention')
+    // The readiness light is the tooltip on the panel head.
+    expect(wrapper.get('.task-pr-readiness').attributes('title')).toContain('Still needs attention')
     // The reviewed commit and the review step's verdict are shown.
-    expect(wrapper.get('.task-item-meta a').text()).toBe('abc1234')
+    expect(wrapper.get('.task-pr-reviewed a').text()).toBe('abc1234')
     expect(wrapper.text()).toContain('Review')
+  })
+
+  it('shows the pull request description and metadata, as issue mode does', async () => {
+    const wrapper = mount(TaskReviewPanel, { props: { task }, ...stub })
+    await flushPromises()
+
+    expect(mocks.githubIssue).toHaveBeenCalledWith('https://github.com/acme/api/pull/42')
+    // The state badge, labels, and body come from the GitHub read.
+    expect(wrapper.get('.task-item-title .badge').text()).toBe('Open')
+    expect(wrapper.get('.task-item-meta .badge').text()).toBe('enhancement')
+    expect(wrapper.get('.task-item-body').html()).toContain('<strong>adds</strong>')
+  })
+
+  it('falls back to the stored pull request when GitHub cannot be read', async () => {
+    mocks.githubIssue.mockRejectedValue(new Error('ghx failed'))
+    const wrapper = mount(TaskReviewPanel, { props: { task }, ...stub })
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Could not read the pull request from GitHub')
+    expect(wrapper.text()).toContain('Stored PR title')
+    expect(wrapper.text()).toContain('stored PR body')
   })
 
   it('says so when the store has no reports for the linked pull request', async () => {

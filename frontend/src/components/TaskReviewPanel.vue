@@ -15,16 +15,18 @@ import {
   verdictLabel,
   verdictTone
 } from '../reviews'
-import { personForHandle } from '../repositories/parse'
 import { store, timeAgo } from '../store'
 import AgentPanel from './AgentPanel.vue'
 import FindingsSelector from './FindingsSelector.vue'
+import GithubItemPanel from './GithubItemPanel.vue'
 
-// The task's pull-request mode: for each PR the task is linked to, the review
-// queue's information for that PR (readiness, reviewed commit, per-step
-// verdicts) read from the user-global store the review skills write to. A PR the
-// store has no reports for still shows its link, with a note instead of steps.
-// The agent panel below them works the pull requests through an agent.
+// The task's pull-request mode: for each PR the task is linked to, the same
+// detail panel the issue mode shows for an issue (state, author, labels,
+// description, read from GitHub) with the review queue's row for that PR
+// below it (readiness, reviewed commit, per-step verdicts) read from the
+// user-global store the review skills write to. A PR the store has no reports
+// for still shows its detail and link, with a note instead of steps. The agent
+// panel below them works the pull requests through an agent.
 
 const props = defineProps({
   task: { type: Object, required: true },
@@ -76,11 +78,6 @@ async function load(refresh = false) {
   }
 }
 
-// The person carrying a GitHub login as an alias, or null when nobody does.
-function personFor(login) {
-  return personForHandle(store.people, login)
-}
-
 function readinessTitle(row) {
   return READINESS_TITLES[row?.readiness] || ''
 }
@@ -126,129 +123,103 @@ watch(signature, () => load())
 
 <template>
   <div class="task-review">
-    <div v-if="loading && !queue.prs.length" class="empty"><span class="spinner" aria-hidden="true"></span></div>
+    <GithubItemPanel v-for="{ pr, row } in items" :key="`${pr.owner}/${pr.repo}#${pr.number}`" :url="pr.url" :item="pr.item">
+      <template #head>
+        <span v-if="row && READINESS_LIGHTS[row.readiness]" class="task-pr-readiness" :title="readinessTitle(row)">{{
+          READINESS_LIGHTS[row.readiness]
+        }}</span>
+        <button class="btn sm ghost" :disabled="loading" title="Re-read the store and GitHub" @click="load(true)">
+          Refresh
+        </button>
+      </template>
 
-    <div v-else-if="error" class="panel">
-      <p style="margin-top: 0; color: var(--danger)">Could not load the review queue for this task.</p>
-      <button class="btn" @click="load()">Retry</button>
-    </div>
+      <div v-if="loading && !queue.prs.length" class="empty"><span class="spinner" aria-hidden="true"></span></div>
 
-    <template v-else>
-      <section v-for="{ pr, row } in items" :key="`${pr.owner}/${pr.repo}#${pr.number}`" class="panel task-item-panel">
-        <div class="panel-head task-item-head">
-          <h2 class="task-item-title">
+      <div v-else-if="error">
+        <p style="margin: 8px 0 0; color: var(--danger)">Could not load the review queue for this task.</p>
+        <button class="btn" @click="load()">Retry</button>
+      </div>
+
+      <template v-else-if="row">
+        <div class="task-item-meta">
+          <span v-if="row.last_comment_at">
+            last comment <span class="mono">{{ timeAgo(row.last_comment_at) }}</span>
+          </span>
+          <span v-if="row.head_commit" class="task-pr-reviewed">
+            reviewed
             <a
-              :href="row?.url || pr.url"
+              v-if="commitUrl(row)"
+              class="mono"
+              :href="commitUrl(row)"
               target="_blank"
               rel="noopener"
-              :title="[row?.title, readinessTitle(row)].filter(Boolean).join(' — ')"
+              :title="`Reviewed commit ${row.head_commit}`"
+              >{{ shortCommit(row.head_commit) }}</a
             >
-              <span v-if="row" aria-hidden="true">{{ READINESS_LIGHTS[row.readiness] }}</span>
-              {{ row ? `${row.repository}#${row.number}` : `${pr.owner}/${pr.repo}#${pr.number}` }}
-            </a>
-            <span v-if="row?.draft" class="badge st-draft">draft</span>
-            <span v-if="row?.title" class="faint task-item-name" :title="row.title">{{ row.title }}</span>
-          </h2>
-          <button class="btn sm ghost" :disabled="loading" title="Re-read the store and GitHub" @click="load(true)">
-            Refresh
-          </button>
+            <code v-else>{{ shortCommit(row.head_commit) }}</code>
+          </span>
         </div>
 
-        <template v-if="row">
-          <div class="task-item-meta">
-            <span v-if="row.author">
-              by
-              <router-link v-if="personFor(row.author)" :to="`/person/${personFor(row.author).id}`">{{
-                row.author
-              }}</router-link>
-              <template v-else>{{ row.author }}</template>
-            </span>
-            <span v-if="row.created_at"
-              >opened <span class="mono">{{ timeAgo(row.created_at) }}</span></span
-            >
-            <span v-if="row.last_comment_at">
-              last comment <span class="mono">{{ timeAgo(row.last_comment_at) }}</span>
-            </span>
-            <span v-if="row.head_commit">
-              reviewed
-              <a
-                v-if="commitUrl(row)"
-                class="mono"
-                :href="commitUrl(row)"
-                target="_blank"
-                rel="noopener"
-                :title="`Reviewed commit ${row.head_commit}`"
-                >{{ shortCommit(row.head_commit) }}</a
+        <div class="task-pr-steps">
+          <div v-for="column in QUEUE_STEPS" :key="column.key" class="task-pr-step">
+            <span class="task-pr-step-label">{{ column.label }}</span>
+            <template v-if="row.steps?.[column.key]">
+              <button
+                class="review-step"
+                :title="stepTitle(column.key, row.steps[column.key])"
+                @click="openReport(row, row.steps[column.key])"
               >
-              <code v-else>{{ shortCommit(row.head_commit) }}</code>
-            </span>
-          </div>
-
-          <div class="task-pr-steps">
-            <div v-for="column in QUEUE_STEPS" :key="column.key" class="task-pr-step">
-              <span class="task-pr-step-label">{{ column.label }}</span>
-              <template v-if="row.steps?.[column.key]">
-                <button
-                  class="review-step"
-                  :title="stepTitle(column.key, row.steps[column.key])"
-                  @click="openReport(row, row.steps[column.key])"
-                >
-                  <template v-if="column.key === 'assess-pr-risk'">
-                    <span
-                      v-if="row.steps[column.key].risk"
-                      class="review-risk"
-                      :class="`tone-${riskTone(row.steps[column.key].risk)}`"
-                      >{{ row.steps[column.key].risk[0].toUpperCase() }}</span
-                    ><span class="faint"
-                      >/{{
-                        row.steps[column.key].confidence ? row.steps[column.key].confidence[0].toUpperCase() : '—'
-                      }}</span
-                    >
-                  </template>
+                <template v-if="column.key === 'assess-pr-risk'">
                   <span
-                    v-if="row.steps[column.key].verdict"
-                    :class="
-                      column.key === 'assess-pr-risk'
-                        ? `tone-${verdictTone(row.steps[column.key].verdict)}`
-                        : 'review-verdict'
-                    "
-                    >{{
-                      column.key === 'assess-pr-risk'
-                        ? row.steps[column.key].verdict
-                        : verdictLabel(row.steps[column.key].verdict)
+                    v-if="row.steps[column.key].risk"
+                    class="review-risk"
+                    :class="`tone-${riskTone(row.steps[column.key].risk)}`"
+                    >{{ row.steps[column.key].risk[0].toUpperCase() }}</span
+                  ><span class="faint"
+                    >/{{
+                      row.steps[column.key].confidence ? row.steps[column.key].confidence[0].toUpperCase() : '—'
                     }}</span
                   >
-                  <span v-else-if="column.key !== 'assess-pr-risk'" class="faint">local</span>
-                  <span v-if="row.steps[column.key].stale && row.steps[column.key].commit" class="review-stale">{{
-                    shortCommit(row.steps[column.key].commit)
-                  }}</span>
-                </button>
-              </template>
-              <span v-else class="faint task-pr-step-empty">—</span>
-            </div>
+                </template>
+                <span
+                  v-if="row.steps[column.key].verdict"
+                  :class="
+                    column.key === 'assess-pr-risk'
+                      ? `tone-${verdictTone(row.steps[column.key].verdict)}`
+                      : 'review-verdict'
+                  "
+                  >{{
+                    column.key === 'assess-pr-risk'
+                      ? row.steps[column.key].verdict
+                      : verdictLabel(row.steps[column.key].verdict)
+                  }}</span
+                >
+                <span v-else-if="column.key !== 'assess-pr-risk'" class="faint">local</span>
+                <span v-if="row.steps[column.key].stale && row.steps[column.key].commit" class="review-stale">{{
+                  shortCommit(row.steps[column.key].commit)
+                }}</span>
+              </button>
+            </template>
+            <span v-else class="faint task-pr-step-empty">—</span>
           </div>
+        </div>
 
-          <FindingsSelector
-            :repository="row.repository"
-            :number="row.number"
-            :url="row.url"
-            :task-id="task.id"
-            :task-label="task.title"
-          />
-        </template>
+        <FindingsSelector
+          :repository="row.repository"
+          :number="row.number"
+          :url="row.url"
+          :task-id="task.id"
+          :task-label="task.title"
+        />
+      </template>
 
-        <p v-else class="faint" style="margin: 0">
-          No review reports for this pull request yet. Run <code>/review-pr-full</code> on it to fill the queue.
-        </p>
-      </section>
+      <p v-else class="faint" style="margin: 8px 0 0">
+        No review reports for this pull request yet. Run <code>/review-pr-full</code> on it to fill the queue.
+      </p>
+    </GithubItemPanel>
 
-      <div v-if="!items.length" class="empty">This task is not linked to a pull request.</div>
-    </template>
+    <div v-if="!items.length" class="empty">This task is not linked to a pull request.</div>
 
-    <!-- The interface for interacting with the pull requests: the task's agent
-         panel, whose prompt buttons include the configured PR prompts. It stays
-         available while the review queue loads or when it cannot be read, so the
-         pull requests can still be worked on through an agent. -->
     <AgentPanel :task="task" :harnesses="harnesses" @changed="emit('changed')" />
 
     <div v-if="openPr" class="modal-backdrop" @click.self="closeReport">

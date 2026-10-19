@@ -68,7 +68,7 @@ describe('TaskIssuePanel', () => {
     expect(wrapper.text()).toContain('bug')
     expect(wrapper.text()).toContain('Open')
     // The body is rendered as Markdown.
-    expect(wrapper.get('.task-issue-body').html()).toContain('<strong>fails</strong>')
+    expect(wrapper.get('.task-item-body').html()).toContain('<strong>fails</strong>')
     // The Agent panel is the interface for acting on the issue.
     expect(wrapper.get('.agent-stub').exists()).toBe(true)
   })

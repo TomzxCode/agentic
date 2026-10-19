@@ -258,15 +258,16 @@ repository view's "New task" does.
 **Refresh** re-reads the store and bypasses the short cache of those `ghx`
 lookups.
 
-A task that links a pull request or an issue gets a **Default / PR / Issue**
-switch beside the title. **PR** opens the review queue's row for each PR the
-task links: readiness, reviewed commit, and per-step verdicts (each opening its
-report), followed by its must/should/may findings. **Issue** shows each linked
-issue read fresh from GitHub (state, author, labels, body). Both special modes
-keep the Agent panel below their content, so the linked pull requests or issues
-are worked through an agent instead of the GitHub UI. A mode is disabled while
-the task links nothing of its kind, and the mode lives in the URL (`?view=pr` or
-`?view=issue`), so a link opens a task straight in it.
+A task that links a pull request or an issue gets a **Default / Issue / PR**
+switch beside the title. **PR** and **Issue** both lead with each linked item
+read fresh from GitHub (state, author, labels, description), so what the pull
+request or issue is reads the same in either mode. **PR** then adds the review
+queue's row for each pull request: readiness, reviewed commit, and per-step
+verdicts (each opening its report), followed by its must/should/may findings.
+Both special modes keep the Agent panel below their content, so the linked pull
+requests or issues are worked through an agent instead of the GitHub UI. A mode
+is disabled while the task links nothing of its kind, and the mode lives in the
+URL (`?view=pr` or `?view=issue`), so a link opens a task straight in it.
 
 Both surfaces offer **Share** for a pull request: it lists the must/should/may
 findings the review skills recorded in their state files (`review.yaml`,

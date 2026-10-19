@@ -255,9 +255,15 @@
   font-size: 12px;
   color: var(--muted);
 }
-/* A GitHub issue's body in the issue mode, rendered as Markdown. */
-.task-issue-body {
+/* A GitHub issue's or pull request's body in the task view's issue and PR
+   modes, rendered as Markdown. */
+.task-item-body {
   margin-top: 12px;
+}
+/* The review readiness light in a PR panel's head, ahead of Refresh. */
+.task-pr-readiness {
+  flex: none;
+  cursor: help;
 }
 /* One labelled cell per review step, wrapping to as many rows as the width
    needs. */

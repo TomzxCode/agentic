@@ -284,6 +284,12 @@ describe('TaskView', () => {
   }
   const viewButton = (wrapper, label) => wrapper.findAll('.view-switch-btn').find((button) => button.text() === label)
 
+  it('orders the mode switch Default, Issue, PR', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+    expect(wrapper.findAll('.view-switch-btn').map((button) => button.text())).toEqual(['Default', 'Issue', 'PR'])
+  })
+
   it('offers PR mode only when the task links a pull request', async () => {
     const wrapper = mountView()
     await flushPromises()

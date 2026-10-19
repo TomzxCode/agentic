@@ -55,16 +55,16 @@ const linkedIssues = computed(() => taskIssues(task.value))
 const MODES = [
   { value: 'default', label: 'Default', title: 'Show the task' },
   {
-    value: 'pr',
-    label: 'PR',
-    title: 'Show the pull request review queue for this task',
-    disabledTitle: 'This task is not linked to a pull request'
-  },
-  {
     value: 'issue',
     label: 'Issue',
     title: 'Show the linked issues and work them through an agent',
     disabledTitle: 'This task is not linked to an issue'
+  },
+  {
+    value: 'pr',
+    label: 'PR',
+    title: 'Show the pull request review queue for this task',
+    disabledTitle: 'This task is not linked to a pull request'
   }
 ]
 
