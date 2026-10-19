@@ -12,6 +12,7 @@ export const SIDEBAR_NAV_ITEMS = [
   { id: 'tasks', label: 'Tasks', to: '/', icon: 'tasks', routeNames: ['tasks'] },
   { id: 'inbox', label: 'Inbox', to: '/inbox', icon: 'inbox', routeNames: ['inbox'], badge: 'inbox' },
   { id: 'reviews', label: 'Review queue', to: '/reviews', icon: 'reviews', routeNames: ['reviews'] },
+  { id: 'feedback', label: 'PR feedback', to: '/feedback', icon: 'feedback', routeNames: ['feedback'] },
   { id: 'stack', label: 'Stack', to: '/stack', icon: 'stack', routeNames: ['stack'] },
   { id: 'gantt', label: 'Gantt', to: '/gantt', icon: 'gantt', routeNames: ['gantt'] },
   { id: 'graph', label: 'Graph', to: '/graph', icon: 'graph', routeNames: ['graph'] },
@@ -126,7 +127,7 @@ export const sidebarNavList = computed(() =>
 // What the shell renders: the items the user has not hidden.
 export const visibleSidebarNav = computed(() => sidebarNavList.value.filter((item) => !item.hidden))
 
-// How many columns the nav grid uses: six at most, so twelve items fill two
+// How many columns the nav grid uses: six at most, so the items fill two even
 // rows, and fewer when the user hides items so the remaining icons do not shrink
 // into a corner.
 export const sidebarNavColumns = computed(() => Math.max(1, Math.min(6, visibleSidebarNav.value.length)))

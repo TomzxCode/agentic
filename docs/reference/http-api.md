@@ -87,6 +87,13 @@ There is no authentication, so expose it only on a trusted network.
 | `GET` | `/api/reviews/scan` | The review scan's cadence, its last pass, and how many pull requests it holds. |
 | `POST` | `/api/reviews/scan` | Run the review scan now, ignoring its cadence. |
 
+## PR feedback
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| `GET` | `/api/feedback` | Every reviewer-comment analysis file in the store, with its recommendation and decision state (`?refresh=true` re-reads each PR's GitHub state). |
+| `POST` | `/api/feedback/{feedback_id}/decision` | Record an `implement` / `decline` / `defer` decision, or `null` to reset it, in one analysis file's frontmatter. |
+
 ## Scheduled tasks
 
 | Method | Path | Purpose |

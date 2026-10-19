@@ -134,6 +134,17 @@ export const api = {
       )
   },
 
+  feedback: {
+    // The reviewer-feedback analysis files in the user-global store, with their
+    // decision state. refresh re-reads each PR's GitHub state instead of the
+    // short ghx cache.
+    list: ({ refresh = false } = {}) => request(`/feedback${refresh ? '?refresh=true' : ''}`),
+    // Record a decision (implement/decline/defer), or null to reset it to
+    // awaiting a decision, in one analysis file's frontmatter.
+    setDecision: (feedbackId, decision) =>
+      request(`/feedback/${encodeURIComponent(feedbackId)}/decision`, { method: 'POST', body: { decision } })
+  },
+
   metrics: {
     get: ({ windowDays, observationDays, tolerance, taskId, changeClass } = {}) => {
       const qs = new URLSearchParams()

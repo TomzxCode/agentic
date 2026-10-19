@@ -263,6 +263,19 @@ repository view's "New task" does.
 **Refresh** re-reads the store and bypasses the short cache of those `ghx`
 lookups.
 
+The **PR feedback** page (`/feedback`, the speech-bubble icon) triages the
+reviewer comments on the pull requests you authored. It reads the analysis files
+the `handle-pr-reviewer-feedback` skill writes under
+`~/.sdlc/{owner}/{repo}/pull-requests/{n}/feedback/`, one card per comment, with
+the recommendation and confidence the analysis reached and its sections (the
+comment, the analysis, a recommended action, and a draft reply). **Implement**,
+**Decline**, or **Defer** records the decision into the file's frontmatter
+(`decision` + `decided_at`, leaving `executed_at` unset), which is the "decided
+but not run" state `handle-pr-reviewer-feedback` picks up and carries out on its
+next run; **Reset** clears the decision. Cards filter and group by pull request,
+repository, author, recommendation, status, or comment type, and a card for a
+closed PR is marked and hidden under the default "Active PRs" filter.
+
 A task that links a pull request or an issue gets a **Default / Issue / PR**
 switch beside the title. **PR** and **Issue** both lead with each linked item
 read fresh from GitHub (state, author, labels, description), so what the pull
@@ -559,6 +572,8 @@ GET                 /api/reviews                         (PR review queue from t
 GET                 /api/reviews/task/{task_id}          (the queue scoped to a task's PRs)
 GET                 /api/reviews/findings/{number}       (a PR's must/should/may findings)
 GET                 /api/reviews/report/{number}/{name}  (one review report)
+GET                 /api/feedback                        (reviewer comments awaiting a decision)
+POST                /api/feedback/{feedback_id}/decision (record implement/decline/defer)
 GET/POST            /api/schedules                      (cron-scheduled shell tasks)
 GET/PATCH/DELETE    /api/schedules/{id}
 POST                /api/schedules/{id}/run            (run now)

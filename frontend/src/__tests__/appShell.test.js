@@ -647,7 +647,7 @@ describe('App', () => {
       )
       const wrapper = mountApp()
       await flushPromises()
-      expect(wrapper.get('.sidebar-nav-links').attributes('style')).toContain('--nav-cols: 5')
+      expect(wrapper.get('.sidebar-nav-links').attributes('style')).toContain('--nav-cols: 6')
     })
 
     it('leaves out the nav container when every icon is hidden', async () => {

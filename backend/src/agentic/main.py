@@ -24,6 +24,7 @@ from .routers import (
     agent_runs,
     agent_streams,
     changes,
+    feedback,
     fs,
     gantt,
     github,
@@ -162,6 +163,7 @@ for module in (
     people,
     stack,
     reviews,
+    feedback,
     schedules,
 ):
     app.include_router(module.router)

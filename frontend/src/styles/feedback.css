@@ -1,0 +1,357 @@
+/* PR-feedback styles. */
+
+/* The PR-feedback queue: one card per reviewer comment the analysis files hold,
+   with its recommendation and the decision controls. */
+.feedback-head {
+  margin-bottom: 4px;
+}
+.feedback-head h1 {
+  margin-right: 4px;
+}
+.feedback-root {
+  margin: 0 0 12px;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+}
+
+/* The header's counts: pending, each decision, and how many await a run. */
+.feedback-stats {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.feedback-stats .stat {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  background: var(--bg-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 6px 12px;
+}
+.feedback-stats .n {
+  font-size: 18px;
+  font-weight: 700;
+}
+.feedback-stats .l {
+  font-size: 11px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.feedback-stats .implement .n {
+  color: var(--ok);
+}
+.feedback-stats .decline .n {
+  color: var(--danger);
+}
+.feedback-stats .defer .n {
+  color: var(--warn);
+}
+.feedback-stats .torun .n {
+  color: var(--accent-2);
+}
+
+/* The filter row: search grows, the selects size to their content. */
+.feedback-controls {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-bottom: 16px;
+}
+.feedback-controls .input {
+  flex: 1 1 220px;
+  width: auto;
+}
+.feedback-controls .select {
+  width: auto;
+}
+
+/* The author filter: a summary that opens a checkbox menu. */
+.filter-menu {
+  position: relative;
+}
+.filter-menu > summary {
+  list-style: none;
+  cursor: pointer;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  user-select: none;
+}
+.filter-menu > summary::-webkit-details-marker {
+  display: none;
+}
+.filter-menu > summary::after {
+  content: ' \25BE';
+  color: var(--muted);
+}
+.filter-menu-body {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 30;
+  min-width: 220px;
+  max-height: 320px;
+  overflow: auto;
+  background: var(--bg-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+}
+.filter-menu .menu-actions {
+  display: flex;
+  gap: 10px;
+  padding: 2px 6px 8px;
+}
+.filter-menu .menu-link {
+  background: none;
+  border: 0;
+  color: var(--accent);
+  font-size: 12px;
+  padding: 0;
+  cursor: pointer;
+}
+.filter-menu .menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 6px;
+  border-radius: 5px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.filter-menu .menu-item:hover {
+  background: var(--bg-2);
+}
+.filter-menu .menu-count {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.filter-menu .menu-item input {
+  flex: none;
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+/* The group nav beside the cards. It is a convenience on wide screens and is
+   hidden on phones, where the group headings in the flow carry the same names. */
+.feedback-layout {
+  display: flex;
+  gap: 20px;
+  align-items: flex-start;
+}
+.feedback-nav {
+  position: sticky;
+  top: 12px;
+  flex: none;
+  width: 220px;
+  max-height: calc(100vh - 24px);
+  overflow-y: auto;
+}
+.feedback-nav .sidebar-title {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  margin: 0 6px 8px;
+}
+.feedback-nav .nav-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  color: var(--muted);
+  font-size: 12.5px;
+  margin-bottom: 2px;
+}
+.feedback-nav .nav-item:hover {
+  background: var(--bg-2);
+  color: var(--text);
+  text-decoration: none;
+}
+.feedback-nav .nav-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.feedback-nav .nav-count {
+  margin-left: auto;
+  flex: none;
+  font-size: 11px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.feedback-list {
+  flex: 1;
+  min-width: 0;
+}
+.feedback-group {
+  margin-bottom: 24px;
+}
+
+/* One reviewer comment. The rail's colour is the decision's, or the
+   recommendation's while the item still awaits a decision. */
+.feedback-card {
+  display: flex;
+  background: var(--bg-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin-bottom: 16px;
+  overflow: hidden;
+}
+.feedback-card .card-rail {
+  width: 4px;
+  flex: none;
+  background: var(--decision-color);
+}
+.feedback-card.pending .card-rail {
+  background: var(--rec-color);
+}
+.feedback-card .card-main {
+  padding: 14px 16px;
+  flex: 1;
+  min-width: 0;
+}
+.feedback-card .card-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: flex-start;
+}
+.feedback-card .pills {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.feedback-card .pill {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  text-transform: lowercase;
+}
+.feedback-card .pill.rec {
+  color: var(--rec-color);
+  border-color: var(--rec-color);
+  font-weight: 600;
+}
+.feedback-card .pill.decision {
+  color: var(--c);
+  border-color: var(--c);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.feedback-card .pill.closed {
+  font-style: italic;
+}
+.feedback-card .pill.run.executed {
+  color: var(--ok);
+  border-color: var(--ok);
+}
+.feedback-card .pill.run.awaiting {
+  color: var(--accent-2);
+  border-color: var(--accent-2);
+}
+.feedback-card .card-when {
+  white-space: nowrap;
+  font-size: 12px;
+}
+.feedback-card .card-title {
+  font-size: 15px;
+  margin: 10px 0 4px;
+  line-height: 1.4;
+}
+.feedback-card .card-meta {
+  color: var(--muted);
+  font-size: 12px;
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.feedback-card .card-actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin: 12px 0;
+  flex-wrap: wrap;
+}
+/* A decision button reads as pressed once it is the item's decision, in the
+   decision's own colour. */
+.feedback-card .btn.implement.active {
+  background: var(--ok);
+  color: #04110c;
+  border-color: var(--ok);
+}
+.feedback-card .btn.decline.active {
+  background: var(--danger);
+  color: #1a0503;
+  border-color: var(--danger);
+}
+.feedback-card .btn.defer.active {
+  background: var(--warn);
+  color: #1a1305;
+  border-color: var(--warn);
+}
+.feedback-card .btn.pending.active {
+  background: var(--bg-3);
+  color: var(--text);
+  border-color: var(--muted);
+}
+
+/* The analysis body: one collapsible section per named part of the file. */
+.feedback-section {
+  border-top: 1px solid var(--border);
+  padding: 8px 0 2px;
+}
+.feedback-section summary {
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  list-style: none;
+}
+.feedback-section summary::-webkit-details-marker {
+  display: none;
+}
+.feedback-section summary::before {
+  content: '\25B8';
+  color: var(--muted);
+  font-size: 11px;
+}
+.feedback-section[open] summary::before {
+  content: '\25BE';
+}
+.feedback-section .reply-copy {
+  margin-left: auto;
+}
+.feedback-section-body {
+  padding: 8px 0 10px 14px;
+}
+
+@media (max-width: 760px) {
+  /* The group nav steps aside; the group headings in the flow name the groups. */
+  .feedback-nav {
+    display: none;
+  }
+  .feedback-controls .input,
+  .feedback-controls .select,
+  .feedback-controls .filter-menu {
+    flex: 1 1 100%;
+    width: 100%;
+  }
+  .feedback-controls .filter-menu > summary {
+    width: 100%;
+  }
+}

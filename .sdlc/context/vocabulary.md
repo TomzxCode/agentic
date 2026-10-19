@@ -13,6 +13,8 @@
 | Change class | The kind of a change: feature, bugfix, refactor, chore, docs, test, or trivial. |
 | Context refresh | A special agent run that reads a task and its items and rewrites the task's summary and next steps. |
 | Deadline | The date and time by which a task should be done; a task without one has no due date. |
+| Feedback decision | The outcome recorded on a reviewer-feedback item: `implement`, `decline`, or `defer`. A decision with no `executed_at` is awaiting a run. |
+| Feedback item | One reviewer-comment analysis file the feedback skills write under the user-global store, triaged on the PR feedback page. |
 | Harness | A coding-agent command reachable over ACP, stored as a row (`command` plus `args`). |
 | Human intervention | A recorded human touch on a change (question, correction, manual fix, rerun, or approval) that makes the change non-touchless. |
 | Item | A `SourceItem`: something external (Slack thread, GitHub issue or PR, Drive doc, URL, note, commit, file) that can be associated to tasks. |

@@ -28,6 +28,7 @@ The web app is organized into these pages:
 | Tasks (`/`) | The task list, with status filters, grouping, upcoming deadlines, and the people in flight. |
 | Inbox (`/inbox`) | Suggested next actions, recomputed on every read. |
 | Review queue (`/reviews`) | Pull requests with review reports, one row per PR with a column per review step and a merge-readiness light. |
+| PR feedback (`/feedback`) | Reviewer comments awaiting a decision, one card per comment, with Implement / Decline / Defer. |
 | Stack (`/stack`) | The focus queue, with the current task on top. |
 | Task (`/task/:id`) | One task: context, items, people, dependencies, worktrees, runs, and changes. |
 | Gantt (`/gantt`) | Tasks in flight as a timeline, one marker per event. |
