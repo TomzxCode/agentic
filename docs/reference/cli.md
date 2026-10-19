@@ -27,8 +27,8 @@ This installs `agentic` only; run the backend from the workspace with `uv run ag
 | Option | Purpose |
 | --- | --- |
 | `--api-url` | API base URL. The default is `http://127.0.0.1:8600`. |
-| `--format` | `json` or `text`. Defaults to JSON when the output is piped, text otherwise. |
-| `--timeout` | Request timeout. |
+| `--format` | `auto`, `json`, or `text`. Defaults to `auto`, which uses JSON when the output is piped and text otherwise. |
+| `--timeout` | Per-request timeout in seconds. Defaults to `60.0`. |
 
 Point the client elsewhere with `--api-url`:
 

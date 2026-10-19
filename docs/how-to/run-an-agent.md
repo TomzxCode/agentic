@@ -18,6 +18,9 @@ You want a coding agent to work on a task, and you want to see and keep what it 
    See [Create and remove worktrees](../how-to/use-worktrees.md).
 3. Open the task's **Agent** panel, type a prompt, and run it.
    The run is enqueued, and the worker picks it up.
+
+   ![A task page with the Agent panel below the description, context, notes, and worktrees](../assets/task.png)
+
 4. Watch the transcript stream into the panel.
    You can cancel a run that is going the wrong way.
 5. When you want a fresh summary and next-steps list, click **Refresh with agent** in the **Context** panel.

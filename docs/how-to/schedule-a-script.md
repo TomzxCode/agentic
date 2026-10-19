@@ -18,6 +18,9 @@ You have a script you run on a regular cadence (a backup, a report, a cleanup) a
    - **Working directory**: optional; leave it empty to run in the server's own directory.
 2. Keep **Enabled** checked and click **Create scheduled task**.
    The row shows the next run time in the task's timezone (with your local time beside it when they differ).
+
+   ![The Scheduled tasks page, one row per task with its cron expression, timezone, next run, and last status](../assets/schedules.png)
+
 3. Use **Run now** to execute it immediately, **Pause** to stop the schedule, or **Edit** to change it.
    **Edit** opens that row's form in place. Each form keeps its own draft, so opening one never clears what you typed in another, including a half-finished new task.
 4. Open **Run history** on a row to see each run's status, exit code, duration, and combined output.

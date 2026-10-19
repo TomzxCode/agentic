@@ -6,6 +6,8 @@ You track work as **tasks**, attach the Slack threads, GitHub issues and pull re
 
 The goal is that resuming a task takes under a minute: the context you need sits with the task instead of scattered across systems.
 
+![The Agentic task list, with status and tag filters, upcoming deadlines, and every task in flight](assets/tasks.png)
+
 ## What it does
 
 - Tracks tasks with a status, priority, tags, a deadline, and a timeline of every change.
@@ -14,6 +16,7 @@ The goal is that resuming a task takes under a minute: the context you need sits
 - Creates git worktrees per task and runs any ACP harness against them.
 - Streams the agent transcript, then stores a summary and next steps on the task.
 - Runs user-defined shell scripts on a cron schedule, with a run history.
+- Reads the review reports your review skills write, and shows each open pull request's merge readiness.
 - Records changes, so it can report autonomy rate and yield.
 
 ## The app
@@ -24,6 +27,7 @@ The web app is organized into these pages:
 | --- | --- |
 | Tasks (`/`) | The task list, with status filters, grouping, upcoming deadlines, and the people in flight. |
 | Inbox (`/inbox`) | Suggested next actions, recomputed on every read. |
+| Review queue (`/reviews`) | Pull requests with review reports, one row per PR with a column per review step and a merge-readiness light. |
 | Stack (`/stack`) | The focus queue, with the current task on top. |
 | Task (`/task/:id`) | One task: context, items, people, dependencies, worktrees, runs, and changes. |
 | Gantt (`/gantt`) | Tasks in flight as a timeline, one marker per event. |
@@ -32,9 +36,15 @@ The web app is organized into these pages:
 | Items (`/items`) | Every tracked resource, with per-source filters. |
 | Item (`/items/:id`) | One resource, laid out for its type, with its linked tasks and people. |
 | People (`/people`) | The people directory and what each is attached to. |
+| Person (`/person/:id`) | One person and the tasks and items they are attached to. |
 | Repositories (`/repositories`) | Registered checkouts and their issues and pull requests. |
-| Schedules (`/schedules`) | Cron-scheduled shell tasks, with run history and output. |
-| Settings (`/settings`) | Harnesses, repository groups, refresh policies, and link templates. |
+| Repository (`/repositories/:id`) | One repository's issues and pull requests, read fresh from GitHub. |
+| Scheduled tasks (`/schedules`) | Cron-scheduled shell tasks, with run history and output. |
+| Settings (`/settings`) | Harnesses, repository groups, refresh policies, link templates, and the sidebar layout. |
+
+The app is built to work at phone widths: below 760px the sidebar becomes a drawer you open from the top bar.
+
+![The Agentic task list on a phone, with the sidebar collapsed to a drawer](assets/mobile-tasks.png)
 
 ## Documentation
 

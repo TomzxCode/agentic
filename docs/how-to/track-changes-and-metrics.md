@@ -18,6 +18,9 @@ You want to know how much work the agent lands without your help, and whether th
 5. Open the **Metrics** page to read the two primary factory metrics:
    - **Autonomy rate** is the share of accepted changes that had no human intervention.
    - **Yield** is the share of accepted changes that survived the observation window without a revert.
+
+   ![The Metrics page: autonomy rate and yield cards, each with a direction against its baseline, above the recent changes](../assets/metrics.png)
+
 6. Set a baseline so each metric is shown with a direction (improving, worsening, or flat):
 
    ```bash

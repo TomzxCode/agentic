@@ -61,6 +61,7 @@ There is no authentication, so expose it only on a trusted network.
 | --- | --- | --- |
 | `GET` / `POST` | `/api/items` | List and create source items. |
 | `POST` | `/api/items/refresh-due` | Run one refresh pass immediately. |
+| `POST` | `/api/items/refresh-source/{source}` | Re-fetch every item of one source now, ignoring the refresh policy. |
 | `GET` / `PATCH` / `DELETE` | `/api/items/{id}` | Read, update, and delete an item. |
 | `POST` | `/api/items/{id}/refresh` | Refresh one item now. |
 | `GET` | `/api/items/{id}/reviews` | List the review reports a pull request item has on disk. |
@@ -83,6 +84,8 @@ There is no authentication, so expose it only on a trusted network.
 | `GET` | `/api/reviews/task/{task_id}` | The same rows, scoped to the pull requests a task is linked to. |
 | `GET` | `/api/reviews/findings/{number}` | The must/should/may findings the review skills recorded, by `repository` (`owner/name`). |
 | `GET` | `/api/reviews/report/{number}/{name}` | Read one review report, by `repository` (`owner/name`) and its path. |
+| `GET` | `/api/reviews/scan` | The review scan's cadence, its last pass, and how many pull requests it holds. |
+| `POST` | `/api/reviews/scan` | Run the review scan now, ignoring its cadence. |
 
 ## Scheduled tasks
 
@@ -127,7 +130,9 @@ There is no authentication, so expose it only on a trusted network.
 | `PATCH` / `DELETE` | `/api/harnesses/{id}` | Update or remove a harness. |
 | `GET` / `PATCH` | `/api/settings` | Effective settings and overrides. |
 | `POST` | `/api/settings/refresh-policy/preview` | Preview a refresh policy's schedule. |
+| `GET` | `/api/settings/refresh-status` | When the background refresh job last ran for each source. |
 | `GET` | `/api/github/issues` | Issue picker for import. |
 | `POST` | `/api/github/issues` | Create an issue from a title and body. |
 | `GET` | `/api/github/issue` | One issue by URL. |
+| `GET` | `/api/github/repository` | A repository's issues and pull requests (via `ghx`), all states by default. |
 | `GET` | `/api/fs/list` | Server-side directory picker. |

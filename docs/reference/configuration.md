@@ -16,6 +16,7 @@ The backend reads environment variables prefixed with `AGENTIC_`, or the same ke
 | `AGENTIC_STATIC_DIR` | `backend/static` | Built SPA for the API to serve. |
 | `AGENTIC_CORS_ORIGINS` | `["http://localhost:5173","http://127.0.0.1:5173"]` | CORS origins allowed for the Vite dev server. |
 | `AGENTIC_DEFAULT_HARNESS` | `opencode` | Fallback harness by name, used when no harness is marked default. |
+| `AGENTIC_GITHUB_LOGIN` | (empty) | The GitHub login that counts as "you": the inbox and a repository's pull requests only offer to record a change for a merged PR this account authored. Empty auto-detects the authenticated `gh` account. |
 | `AGENTIC_AUTO_APPROVE_PERMISSIONS` | `true` | Auto-approve ACP permission requests. |
 | `AGENTIC_QUEUE_URL` | `sqlite:///<data_dir>/queue.db` | Agent-run queue. Use a `redis://` or `postgres://` URL to share the queue across machines. |
 | `AGENTIC_WORKER_CONCURRENCY` | `4` | Agent runs a worker processes concurrently. |
@@ -30,6 +31,11 @@ The backend reads environment variables prefixed with `AGENTIC_`, or the same ke
 | `AGENTIC_SLACK_REFRESH_POLICY` | (empty) | When to re-fetch Slack threads, for example `1d=1h,7d=6h,30d=1d,*=7d`. Empty disables it. |
 | `AGENTIC_GITHUB_REFRESH_POLICY` | (empty) | When to re-fetch GitHub issues and pull requests, in the same format. Empty disables it. |
 | `AGENTIC_ITEM_REFRESH_TICK` | `300` | Seconds between checks for items that are due. `0` disables the loop. |
+| `AGENTIC_REVIEW_SCAN_INTERVAL` | `1h` | How often the review scan asks GitHub which pull requests await your review. A duration such as `30m`, `1h` or `1d`; empty disables the scan. |
+| `AGENTIC_REVIEW_SCAN_TICK` | `300` | Seconds between checks for whether the review scan is due. `0` disables the loop. |
+| `AGENTIC_REVIEW_SCAN_DEFAULT` | `include` | What a repository with no review-scan policy of its own does: `include` (scan every repository except the excluded ones) or `exclude` (scan only the repositories marked include). |
+| `AGENTIC_REVIEW_SCAN_LIMIT` | `100` | How many results each of the review scan's two searches returns. |
+| `AGENTIC_REVIEW_SCAN_EXCLUDE_AUTHORS` | `dependabot[bot]` | Comma-separated logins the review scan leaves out of its results. |
 | `AGENTIC_SCHEDULED_TASK_TICK` | `30` | Seconds between checks for scheduled shell tasks that are due. `0` disables the loop. |
 | `AGENTIC_SCHEDULED_TASK_TIMEOUT` | `3600` | Seconds a scheduled shell task may run before it is stopped and marked failed. |
 
@@ -46,6 +52,8 @@ Template placeholders:
 
 The session-link settings (OpenChamber URL and path, terminal URL template, and editor URL template) can also be set on the **Settings** page.
 A stored override wins over the matching environment variable.
+
+The GitHub login is editable under **Settings → Identity**; leave it blank to fall back to the authenticated `gh` account.
 
 The refresh policies are editable under **Settings → Refresh**.
 

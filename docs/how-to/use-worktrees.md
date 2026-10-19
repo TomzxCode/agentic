@@ -19,6 +19,9 @@ You want an agent to work in an isolated checkout of a repository, without touch
 3. Associate the task with one or more repositories using the `repositories:` chips on its header, or with a repository group.
 4. Open the task's **Worktrees** panel and create a worktree.
    Agentic runs `git worktree add` and creates the checkout under `AGENTIC_WORKTREE_ROOT` (`~/.agentic/worktrees` by default).
+
+   ![A task page with the Worktrees panel on the right, listing the checkout's path and repository](../assets/task.png)
+
 5. To open the checkout in your editor, set an **Editor URL template** in Settings, then use the **Open in editor** button on the worktree.
    A local VS Code template is `vscode://file{path}`.
 

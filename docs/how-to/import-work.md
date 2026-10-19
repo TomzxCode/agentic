@@ -13,6 +13,9 @@ You want a task that already carries its upstream context, instead of retyping a
 ## Steps
 
 1. Click the `+` at the top of the sidebar to open the new-task form.
+
+   ![The new-task form, with the import field at the top and a repository picker below it](../assets/new-task.png)
+
 2. Paste a GitHub issue or pull request URL into the import field.
    Agentic detects the GitHub source, prefills the title and description, and links the issue to the task as an item.
 3. To import a Slack thread instead, paste its permalink.

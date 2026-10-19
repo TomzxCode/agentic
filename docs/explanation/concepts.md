@@ -22,6 +22,8 @@ This page explains the parts and how they relate.
 | **Task session** | A stretch of time a stack entry spent as the current task. Execution count and duration are derived from these. |
 | **Operation** | An audit record of a mutating request: its method, path, and status, plus which client sent it (web UI, CLI, or raw API) and whether a human or a coding agent was behind it. |
 
+![The Items page, every tracked resource with a per-source filter: notes, Drive docs, Slack threads, GitHub issues and pull requests, and URLs](../assets/items.png)
+
 ## How the parts relate
 
 - A task has zero or more items, people, repositories, worktrees, runs, sessions, changes, and dependency links.

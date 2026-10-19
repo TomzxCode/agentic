@@ -77,11 +77,15 @@ The Vite dev server proxies `/api` to the API on port 8600.
 Open [http://localhost:5173](http://localhost:5173) in a browser.
 You should see the task list with an empty sidebar.
 
+![The task list, with status filters and upcoming deadlines across the top](../assets/tasks.png)
+
 ## Step 7: create a task
 
 Click the `+` at the top of the sidebar.
 Type a title such as `Add a health check endpoint` and save.
 The task appears in the list and on the focus stack, because every open task is on the stack.
+
+![The new-task form, with an optional field to import a GitHub issue, pull request, or Slack thread](../assets/new-task.png)
 
 ## Step 8: register a repository
 
@@ -108,6 +112,8 @@ When the run finishes, the task shows the summary and the next-steps list.
 In the **Agent** panel, type a prompt such as `List the files in this repository and suggest where a health check endpoint should live`, then run it.
 The transcript streams into the panel as the agent works.
 When the run finishes, it is recorded against the task with links to reopen its session.
+
+![A task page: header fields, description, agent-written context and next steps, notes, worktrees, and the agent panel](../assets/task.png)
 
 ## What you have learned
 

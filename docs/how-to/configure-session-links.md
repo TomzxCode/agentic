@@ -11,6 +11,9 @@ When you come back to a run, you want one click to reopen the session in your ed
 ## Steps
 
 1. Open **Settings**.
+
+   ![The Settings page on the Session links section, with the OpenChamber, terminal, and editor URL fields](../assets/settings-session-links.png)
+
 2. Set the **OpenChamber URL** base and the session path.
    The default path is `/?session={session}`, so with base `http://your-host:3001` a run opens `http://your-host:3001/?session=<id>`.
    For the native OpenChamber app, use base `openchamber://session` and path `/{session}`.
