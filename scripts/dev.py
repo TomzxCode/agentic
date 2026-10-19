@@ -30,7 +30,7 @@ import socket
 import subprocess
 import sys
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -48,7 +48,10 @@ class Service:
     cmd: list[str]
     cwd: Path
     essential: bool = True
-    env: dict[str, str] = field(default_factory=dict)
+    # Extra environment for the process. A service that sets none inherits the
+    # launcher's environment, so PATH keeps the user's helper CLIs (ghx, slackx,
+    # the harnesses) reachable.
+    env: dict[str, str] | None = None
 
 
 def find_free_port(start: int, attempts: int = 100) -> int:
