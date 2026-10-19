@@ -28,6 +28,7 @@ from .config import settings
 from .models.base import utcnow
 from .models.repositories import Repository, ReviewScanPolicy
 from .models.reviews import ReviewRequest, ReviewScanSource
+from .parallel import run_parallel
 from .refresh import parse_duration
 from .services import shell
 from .services.github import github_owner_repo
@@ -121,12 +122,13 @@ def search_awaiting_reviews(limit: int, exclude_authors: set[str]) -> list[dict[
 
     None when neither search could run (``gh`` missing, not authenticated); one
     failing search is tolerated, since the other still yields its half. Each
-    search carries its own *limit*, as the script's did.
+    search carries its own *limit*, as the script's did. The two searches are
+    independent, so they run together.
     """
     found: dict[tuple[str, int], dict[str, Any]] = {}
     ran = False
-    for flag, source in SEARCHES:
-        results = _search(flag, limit)
+    searches = run_parallel([lambda flag=flag: _search(flag, limit) for flag, _ in SEARCHES])
+    for (flag, source), results in zip(SEARCHES, searches, strict=True):
         if results is None:
             log.warning("review scan search failed", flag=flag)
             continue

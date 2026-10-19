@@ -1,6 +1,7 @@
 """The review queue: PRs in the local store with their review-step state."""
 
 import os
+import threading
 from datetime import datetime
 
 import pytest
@@ -323,3 +324,20 @@ def test_github_fields_come_from_ghx(tmp_path, monkeypatch):
     review_queue.enrich_from_github(prs)
     assert prs[0]["title"] == "Fetched from ghx"
     assert calls == []
+
+
+def test_github_lookups_run_together(monkeypatch):
+    """Each PR's ghx lookup is a subprocess wait, so they overlap."""
+    barrier = threading.Barrier(2, timeout=5)
+
+    def fetch(owner, name, number, kind="issue"):
+        barrier.wait()
+        return {"title": f"PR {number}", "author": "", "state": "OPEN"}
+
+    monkeypatch.setattr(review_queue, "fetch_github_issue", fetch)
+    prs = [
+        {"owner": "TomzxCode", "name": "agentic", "number": 901},
+        {"owner": "TomzxCode", "name": "agentic", "number": 902},
+    ]
+    review_queue.enrich_from_github(prs)
+    assert [pr["title"] for pr in prs] == ["PR 901", "PR 902"]

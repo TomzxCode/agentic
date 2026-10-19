@@ -8,6 +8,7 @@ from typing import Any
 
 import structlog
 
+from ..parallel import run_parallel
 from . import shell
 from .parsing import parse_github
 
@@ -114,10 +115,14 @@ def list_github_repo_items(owner: str, repo: str, state: str = "all", limit: int
     Returns ``{"items": [...], "failed": [...]}`` where ``failed`` names each
     kind ghx could not list ("issues", "pull requests"), so a partial failure is
     visible rather than reading as an empty section. None only when both kinds
-    fail.
+    fail. The two listings are independent, so they run together.
     """
-    issues = list_github_issues(owner, repo, state=state, limit=limit)
-    pulls = list_github_pulls(owner, repo, state=state, limit=limit)
+    issues, pulls = run_parallel(
+        [
+            lambda: list_github_issues(owner, repo, state=state, limit=limit),
+            lambda: list_github_pulls(owner, repo, state=state, limit=limit),
+        ]
+    )
     if issues is None and pulls is None:
         return None
     failed = []

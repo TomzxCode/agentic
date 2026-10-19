@@ -12,6 +12,7 @@ from sqlmodel import Session, col, select
 
 from ..models.base import utcnow
 from ..models.items import SourceItem
+from ..parallel import run_parallel
 from ..refresh import (
     REFRESHABLE_SOURCES,
     PolicyError,
@@ -44,18 +45,35 @@ def _apply_fetch(item: SourceItem, fetched: dict, now) -> str | None:
     return error
 
 
+def _safe_fetch(item: SourceItem) -> dict:
+    """Fetch one item's source, turning a failure into that item's error.
+
+    ``fetch_source`` never raises, but the fetch runs on a pool thread and one
+    item's failure must not take the whole pass down with it.
+    """
+    try:
+        return fetch_source(item.source, item.url, item.external_id, item.title)
+    except Exception as exc:  # noqa: BLE001
+        return {"metadata": {}, "content": "", "title": item.title, "people": [], "error": str(exc)}
+
+
 def _refresh_entries(session: Session, items: list[SourceItem], now) -> list[dict]:
-    """Fetch and persist each item, recording success or the error. Best effort."""
+    """Fetch and persist each item, recording success or the error. Best effort.
+
+    Each fetch is a ``slackx``/``ghx`` subprocess wait or an HTTP request, so
+    they run together; the results are then applied one at a time, which keeps
+    the session and the per-item commits on this thread.
+    """
+    fetched = run_parallel([lambda item=item: _safe_fetch(item) for item in items])
     entries: list[dict] = []
-    for item in items:
+    for item, result in zip(items, fetched, strict=True):
         entry = {"item_id": item.id, "source": item.source, "title": item.title, "refreshed": False, "error": None}
         try:
-            fetched = fetch_source(item.source, item.url, item.external_id, item.title)
-            error = _apply_fetch(item, fetched, now)
+            error = _apply_fetch(item, result, now)
             session.add(item)
             session.commit()
             session.refresh(item)
-            link_people_to_item(session, item.id, fetched.get("people") or [])
+            link_people_to_item(session, item.id, result.get("people") or [])
             if error:
                 entry["error"] = error
             else:

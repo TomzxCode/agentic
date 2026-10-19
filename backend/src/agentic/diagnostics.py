@@ -13,12 +13,15 @@ import platform
 import shutil
 import subprocess
 import sys
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from typing import Any
 
 from sqlmodel import Session, select
 
 from .models.agents import Harness
+from .parallel import run_parallel
 from .schemas.settings import (
     CachedRepositoryRead,
     DependencyRead,
@@ -264,13 +267,21 @@ def slackx_cache() -> SlackxCacheRead:
 
 
 def collect_diagnostics(session: Session) -> DiagnosticsRead:
-    """Probe every runtime, helper CLI, and harness, plus both local caches."""
-    dependencies = [_python_report(), *(probe(spec) for spec in TOOL_DEPENDENCIES)]
-    dependencies.extend(_harness_reports(session))
+    """Probe every runtime, helper CLI, and harness, plus both local caches.
+
+    Every probe and both cache listings wait on a subprocess, so they run
+    together rather than one after another. ``_harness_reports`` is the only one
+    that reads the database, so it stays on this thread.
+    """
+    probes: list[Callable[[], Any]] = [_python_report]
+    probes.extend(lambda spec=spec: probe(spec) for spec in TOOL_DEPENDENCIES)
+    # Each probe returns its own report type; the pool's result is unpacked back
+    # into the positions the constructor expects.
+    results: list[Any] = run_parallel([*probes, ghx_cache, slackx_cache])
     return DiagnosticsRead(
-        dependencies=dependencies,
-        ghx_cache=ghx_cache(),
-        slackx_cache=slackx_cache(),
+        dependencies=[*results[: len(probes)], *_harness_reports(session)],
+        ghx_cache=results[-2],
+        slackx_cache=results[-1],
         checked_at=datetime.now(UTC),
     )
 

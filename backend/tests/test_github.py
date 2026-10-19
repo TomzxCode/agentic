@@ -401,4 +401,8 @@ def test_create_task_from_github(monkeypatch):
         assert len(detail["associations"]) == 1
         assert detail["associations"][0]["item"]["url"] == "https://github.com/o/r/issues/9"
         assert any(e["type"] == "item_added" for e in detail["timeline"])
+        # Delete the task and the item it imported: the item is keyed by its URL,
+        # so a test that leaves it behind makes the same URL resolve to it later
+        # (a store row with content is not fetched again).
         client.delete(f"/api/tasks/{task['id']}")
+        client.delete(f"/api/items/{detail['associations'][0]['item']['id']}")
