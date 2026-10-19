@@ -1,7 +1,7 @@
 <script setup>
 import { ref, watch } from 'vue'
 import { api } from '../api'
-import { DEFAULT_AGENT_PROMPTS, PROMPT_KINDS, parseAgentPrompts } from '../prompts'
+import { DEFAULT_AGENT_PROMPTS, PROMPT_KINDS, PROMPT_VARIABLE_GROUPS, parseAgentPrompts } from '../prompts'
 import { store } from '../store'
 
 // The "Agent prompts" settings section: user-defined buttons for the agent
@@ -76,8 +76,30 @@ function reset() {
       <span v-else-if="saved" class="faint">saved</span>
     </div>
     <p class="faint" style="margin-top: 0">
-      Buttons shown in the agent panel. Each appears when a task has exactly one associated item of its kind.
-      Placeholders: <code>{owner}</code>, <code>{repository}</code>, <code>{number}</code>.
+      Buttons shown in the agent panel. Each appears when a task has exactly one associated item of its kind. Variables
+      are filled from the task and that item before the run starts (hover one to see what it holds):
+    </p>
+    <div
+      v-for="group in PROMPT_VARIABLE_GROUPS"
+      :key="group.label"
+      class="row"
+      style="gap: 6px; flex-wrap: wrap; align-items: baseline; margin-top: 6px"
+    >
+      <span class="faint" style="font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em">{{
+        group.label
+      }}</span>
+      <code
+        v-for="variable in group.variables"
+        :key="variable.token"
+        :title="variable.description"
+        style="font-size: 11px"
+        >{{ variable.token }}</code
+      >
+    </div>
+    <p class="faint" style="margin: 10px 0 0">
+      When a task links several items, each gets a short id and the fields become
+      <code>{li.a.item_url}</code>, <code>{li.a.number}</code>, and so on; <code>{li.a}</code> alone is
+      <code>owner/repository#number</code>. The panel labels each id with the item it names.
     </p>
     <div v-for="(p, index) in drafts" :key="p.id" class="row" style="margin-top: 8px">
       <select v-model="p.kind" class="select" style="width: auto" aria-label="Item kind" @change="save">

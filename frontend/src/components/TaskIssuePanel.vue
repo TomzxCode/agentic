@@ -26,6 +26,6 @@ const issues = computed(() => taskIssues(props.task))
 
     <!-- The interface for interacting with the issue: the task's agent panel,
          whose prompt buttons include the configured issue prompts. -->
-    <AgentPanel :task="task" :harnesses="harnesses" @changed="emit('changed')" />
+    <AgentPanel :task="task" :harnesses="harnesses" context-kind="issue" @changed="emit('changed')" />
   </div>
 </template>

@@ -62,8 +62,11 @@ Each registered repository can also be set to include or exclude on its own.
 See [How to read the review queue](../how-to/review-pull-requests.md).
 
 **Agent prompts** are editable under **Settings → Agent prompts**.
-Each prompt appears as a button in the agent panel when a task has exactly one associated issue or pull request of the prompt's kind, and clicking it starts a run with the resolved template.
-Placeholders: `{owner}`, `{repository}`, `{number}` (filled from the associated GitHub item).
+Each prompt appears as a button in the agent panel when a task has exactly one associated issue or pull request of the prompt's kind, and clicking it starts a run with the prompt's variables resolved.
+Variables come from the task (`{task_id}`, `{title}`, `{description}`, `{status}`, `{priority}`, `{deadline}`, `{tags}`, `{task_url}`, `{people}`, `{requested_by}`, `{repositories}`, `{worktree}`) and from the associated GitHub item (`{owner}`, `{repository}`, `{number}`, `{item_url}`, `{item_title}`, `{item_author}`, `{item_state}`).
+The panel lists every variable and inserts it at the cursor.
+When a task links several items, each gets a short id and the item fields become `{li.a.item_url}`, `{li.a.number}`, and so on; `{li.a}` alone is `owner/repository#number`.
+Submitting a message also attaches a context block naming the task and the linked items the current view is about (the issue in the issue view, the pull requests in the PR view); a command (a message starting with `$` or `/`) is left as-is.
 Two prompts are seeded by default: **Review PR** (`$review-pr-full {number} {owner}/{repository}`) and **Triage issue** (`$triage-issue {number} {owner}/{repository}`).
 There is no environment variable for these; they live only in the settings store.
 

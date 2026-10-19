@@ -261,6 +261,52 @@
   color: var(--text);
 }
 
+/* The agent panel's context toggle and variable palette. */
+.prompt-context {
+  margin-top: 8px;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: baseline;
+}
+.prompt-vars {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 8px;
+}
+.prompt-vars-title {
+  flex: none;
+}
+.prompt-vars-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.prompt-vars-group {
+  flex: none;
+  min-width: 74px;
+  text-transform: uppercase;
+  font-size: 10px;
+  letter-spacing: 0.05em;
+}
+.prompt-vars-note {
+  flex: none;
+  margin-right: 2px;
+}
+button.prompt-var {
+  cursor: pointer;
+  font-family: var(--mono);
+}
+button.prompt-var:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+button.prompt-var:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 /* Transcript */
 .transcript {
   background: #0b0e13;

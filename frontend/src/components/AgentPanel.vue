@@ -1,16 +1,35 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, nextTick, onMounted, ref } from 'vue'
 import { api, openRunStream } from '../api'
-import { parseAgentPrompts, taskPrompts } from '../prompts'
+import {
+  LINKED_ITEM_VARIABLES,
+  PROMPT_VARIABLE_GROUPS,
+  buildPromptContext,
+  isCommandPrompt,
+  linkedItemVariables,
+  linkedPromptItems,
+  parseAgentPrompts,
+  resolvePromptTemplate,
+  taskPrompts,
+  taskVariables
+} from '../prompts'
 import { store, timeAgo } from '../store'
 import EntityCard from './EntityCard.vue'
 import SessionLinks from './SessionLinks.vue'
 import SearchSelect from './SearchSelect.vue'
 
-const props = defineProps({ task: { type: Object, required: true }, harnesses: { type: Array, default: () => [] } })
+const props = defineProps({
+  task: { type: Object, required: true },
+  harnesses: { type: Array, default: () => [] },
+  // The linked items the panel's view is about: "issue" in the issue view,
+  // "pull_request" in the PR view. Empty means the task's own view, where every
+  // linked issue and pull request is relevant.
+  contextKind: { type: String, default: '' }
+})
 const emit = defineEmits(['changed'])
 
 const prompt = ref('')
+const promptEl = ref(null)
 const harnessId = ref('')
 const worktreeId = ref('')
 const activeRunId = ref('')
@@ -18,7 +37,65 @@ const activeRun = ref(null)
 const events = ref([])
 const running = ref(false)
 const runs = ref([])
+// Whether to attach the task and view context to a submitted message.
+const attachContext = ref(true)
 let closeStream = null
+
+// The linked items the panel is about, and the single one that fills the item
+// variables when the task names exactly one of them.
+const contextItems = computed(() => linkedPromptItems(props.task, props.contextKind || null))
+const contextItem = computed(() => (contextItems.value.length === 1 ? contextItems.value[0].item : null))
+// Each linked item gets a short identifier (li.a, li.b, ...), so a prompt can
+// name a specific one when the task links several.
+const linked = computed(() => linkedItemVariables(contextItems.value))
+
+// Where the task lives in the app, so a variable can link straight to it.
+const taskUrl = computed(() => {
+  const id = props.task?.id
+  if (!id) return ''
+  const origin = typeof location !== 'undefined' ? location.origin : ''
+  return `${origin}/task/${id}`
+})
+
+// The values the prompt's variables resolve to. Filled once and reused for the
+// prompt buttons and for a message typed into the box.
+const variables = computed(() => ({
+  ...taskVariables(props.task, contextItem.value, {
+    repositories: store.repositories,
+    taskUrl: taskUrl.value
+  }),
+  ...linked.value.variables
+}))
+
+// The variable palette: the fixed groups, plus one group per linked item when
+// the task links several. With a single linked item the unprefixed fields
+// already name it, so that group is replaced by the per-item ones only when
+// there is more than one.
+const paletteGroups = computed(() => {
+  const multiple = contextItems.value.length > 1
+  const groups = PROMPT_VARIABLE_GROUPS.filter((group) => !(multiple && group.label === 'Linked item'))
+  if (!multiple) return groups
+  return [
+    ...groups,
+    ...linked.value.labels.map(({ prefix, item, coords }) => ({
+      label: prefix,
+      note: `${coords.owner}/${coords.repository}#${coords.number}${item?.title ? ` · ${item.title}` : ''}`,
+      variables: LINKED_ITEM_VARIABLES.map((variable) => ({ ...variable, token: `${prefix}.${variable.token}` }))
+    }))
+  ]
+})
+
+// What the submitted message will carry beyond its own text.
+const contextSummary = computed(() => {
+  const parts = ['task']
+  const count = contextItems.value.length
+  if (count) {
+    const label =
+      props.contextKind === 'pull_request' ? 'pull request' : props.contextKind === 'issue' ? 'issue' : 'item'
+    parts.push(`${count} linked ${label}${count === 1 ? '' : 's'}`)
+  }
+  return `Attaches ${parts.join(' + ')}`
+})
 
 const liveCwd = computed(() => {
   const w = props.task.worktrees?.find((x) => x.id === worktreeId.value)
@@ -53,7 +130,27 @@ const worktreeOptions = computed(() => [
 
 // User-defined prompts (Settings → Agent prompts) that apply here: each shows
 // only when the task has exactly one associated GitHub item of its kind.
-const promptButtons = computed(() => taskPrompts(props.task, parseAgentPrompts(store.settings.agent_prompts)))
+const promptButtons = computed(() =>
+  taskPrompts(props.task, parseAgentPrompts(store.settings.agent_prompts), variables.value)
+)
+
+// Insert a variable's token at the cursor, so a click adds it without losing
+// what is already typed.
+function insertVariable(token) {
+  const text = `{${token}}`
+  const el = promptEl.value
+  if (!el) {
+    prompt.value += text
+    return
+  }
+  const start = el.selectionStart ?? prompt.value.length
+  const end = el.selectionEnd ?? start
+  prompt.value = `${prompt.value.slice(0, start)}${text}${prompt.value.slice(end)}`
+  nextTick(() => {
+    el.focus()
+    el.setSelectionRange(start + text.length, start + text.length)
+  })
+}
 
 // ACP names the tool in the update's title (opencode sends just `read` or
 // `skill`) and puts the call's own argument in `rawInput`, which arrives with
@@ -217,9 +314,20 @@ function handleEvent(ev) {
   events.value.push(ev)
 }
 
+// The message a run receives: the prompt with its variables filled, plus the
+// task and view context unless the message is a command that carries its own
+// arguments.
+function composePrompt(text) {
+  const resolved = resolvePromptTemplate(text, variables.value)
+  if (!attachContext.value || isCommandPrompt(resolved)) return resolved
+  const context = buildPromptContext(props.task, contextItems.value, { repositories: store.repositories })
+  return context ? `${resolved}\n\n---\n${context}` : resolved
+}
+
 async function start(text) {
-  const value = (typeof text === 'string' ? text : prompt.value).trim()
-  if (!value || running.value) return
+  const raw = (typeof text === 'string' ? text : prompt.value).trim()
+  if (!raw || running.value) return
+  const value = composePrompt(raw)
   running.value = true
   events.value = []
   try {
@@ -285,6 +393,7 @@ onMounted(loadRuns)
     </div>
 
     <textarea
+      ref="promptEl"
       v-model="prompt"
       class="textarea"
       :disabled="running"
@@ -298,6 +407,33 @@ onMounted(loadRuns)
       <button v-if="running" class="btn danger" @click="cancel">Cancel</button>
       <span v-if="running" class="faint">streaming…</span>
       <span v-else class="faint kbd-hint">Ctrl+Enter to run</span>
+    </div>
+
+    <div class="prompt-context row">
+      <label class="row" style="gap: 6px; cursor: pointer">
+        <input v-model="attachContext" type="checkbox" :disabled="running" />
+        <span class="faint">Attach context</span>
+      </label>
+      <span class="faint">{{ contextSummary }}</span>
+    </div>
+
+    <div class="prompt-vars">
+      <span class="faint prompt-vars-title">Variables</span>
+      <div v-for="group in paletteGroups" :key="group.label" class="prompt-vars-row">
+        <span class="prompt-vars-group faint">{{ group.label }}</span>
+        <span v-if="group.note" class="faint prompt-vars-note">{{ group.note }}</span>
+        <button
+          v-for="variable in group.variables"
+          :key="variable.token"
+          type="button"
+          class="chip prompt-var"
+          :title="variable.description"
+          :disabled="running"
+          @click="insertVariable(variable.token)"
+        >
+          {{ variable.token }}
+        </button>
+      </div>
     </div>
 
     <div v-if="activeRun" class="row transcript-head" style="margin-top: 12px; justify-content: space-between">

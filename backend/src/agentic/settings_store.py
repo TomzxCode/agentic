@@ -33,8 +33,8 @@ OVERRIDABLE_KEYS = (
 AGENT_PROMPT_KINDS = ("issue", "pull_request")
 
 # Seeded prompt buttons: one to review a pull request, one to triage an issue.
-# ``{owner}``, ``{repository}``, and ``{number}`` are substituted from the
-# associated GitHub item before the run starts.
+# The SPA substitutes the prompt's variables (``{owner}``, ``{repository}``,
+# ``{number}``, and the task's own fields) before the run starts.
 DEFAULT_AGENT_PROMPTS: list[dict[str, str]] = [
     {"kind": "pull_request", "label": "Review PR", "template": "$review-pr-full {number} {owner}/{repository}"},
     {"kind": "issue", "label": "Triage issue", "template": "$triage-issue {number} {owner}/{repository}"},

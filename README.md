@@ -376,8 +376,19 @@ Placeholders: `{session}`, `{cwd}`, `{harness}`.
 
 **Settings → Agent prompts** defines one-click prompt buttons for the agent
 panel. A prompt shows when a task has exactly one associated issue or pull
-request of its kind; clicking it starts a run with `{owner}`, `{repository}`,
-and `{number}` filled in from that item. Two prompts are seeded: **Review PR**
+request of its kind; clicking it starts a run with the prompt's variables filled
+in. The panel lists every variable (hover one for what it holds) and inserts it
+at the cursor: `{owner}`, `{repository}`, and `{number}` from the linked item,
+and task values such as `{task_id}`, `{title}`, `{description}`, `{status}`,
+`{priority}`, `{deadline}`, `{tags}`, `{task_url}`, `{people}`, `{requested_by}`,
+`{repositories}`, and `{worktree}`. When a task links several items, each gets a
+short id and the item fields become `{li.a.item_url}`, `{li.a.number}`, and so
+on (`{li.a}` alone is `owner/repository#number`); the panel labels each id with
+the item it names. When you submit a message the panel also attaches a context
+block, the task and the linked items the current view is about: the issue in the
+issue view, the pull requests in the PR view. Commands (a message starting with
+`$` or `/`) carry their own arguments, so the panel does not attach context to
+them. Two prompts are seeded: **Review PR**
 (`$review-pr-full {number} {owner}/{repository}`) and **Triage issue**
 (`$triage-issue {number} {owner}/{repository}`).
 

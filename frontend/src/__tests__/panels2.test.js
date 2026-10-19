@@ -159,7 +159,12 @@ describe('DirectoryPicker', () => {
 })
 
 describe('AgentPanel', () => {
-  const task = { id: 't1', worktrees: [{ id: 'w1', status: 'active', branch: 'b', path: '/w' }] }
+  const task = {
+    id: 't1',
+    title: 'Test task',
+    status: 'open',
+    worktrees: [{ id: 'w1', status: 'active', branch: 'b', path: '/w' }]
+  }
   const mountPanel = () =>
     mount(AgentPanel, {
       props: { task, harnesses: [] },
@@ -239,7 +244,10 @@ describe('AgentPanel', () => {
     await wrapper.get('textarea').setValue('do work')
     await wrapper.get('.btn.primary').trigger('click')
     await flushPromises()
-    expect(mocks.runsCreate).toHaveBeenCalledWith('t1', { prompt: 'do work' })
+    const sent = mocks.runsCreate.mock.calls[0][1].prompt
+    expect(sent.startsWith('do work')).toBe(true)
+    expect(sent).toContain('# Context')
+    expect(sent).toContain('- Task: Test task (t1)')
     expect(mocks.openRunStream).toHaveBeenCalled()
 
     onEvent({ type: 'message', text: 'hello' })
@@ -445,5 +453,133 @@ describe('AgentPanel', () => {
     await flushPromises()
     expect(wrapper.findAll('button').some((b) => b.text().includes('Triage issue'))).toBe(false)
     store.settings = {}
+  })
+
+  it('attaches the linked item the view is about to a typed prompt', async () => {
+    mocks.runsCreate.mockResolvedValue({ id: 'r1', status: 'running', kind: 'chat', links: [] })
+    mocks.openRunStream.mockReturnValue(vi.fn())
+
+    const task = {
+      id: 't1',
+      title: 'Fix login',
+      status: 'open',
+      associations: [
+        {
+          id: 'a1',
+          item: {
+            id: 'i1',
+            source: 'github',
+            kind: 'issue',
+            title: 'Login fails',
+            url: 'https://github.com/acme/api/issues/7',
+            metadata_json: { owner: 'acme', repo: 'api', number: 7 }
+          }
+        }
+      ]
+    }
+    const wrapper = mount(AgentPanel, {
+      props: { task, harnesses: [], contextKind: 'issue' },
+      global: { stubs: { SearchSelect: true, SessionLinks: true } }
+    })
+    await flushPromises()
+    await wrapper.get('textarea').setValue('why does {number} fail?')
+    await wrapper.get('.btn.primary').trigger('click')
+    await flushPromises()
+
+    const prompt = mocks.runsCreate.mock.calls[0][1].prompt
+    // Task and item variables are filled, then the view context is appended.
+    expect(prompt.startsWith('why does 7 fail?')).toBe(true)
+    expect(prompt).toContain('# Context')
+    expect(prompt).toContain('- Issue: https://github.com/acme/api/issues/7 (Login fails)')
+  })
+
+  it('gives each linked item a short id when a task links several', async () => {
+    mocks.runsCreate.mockResolvedValue({ id: 'r1', status: 'running', kind: 'chat', links: [] })
+    mocks.openRunStream.mockReturnValue(vi.fn())
+
+    const task = {
+      id: 't1',
+      title: 'Compare',
+      status: 'open',
+      associations: [
+        {
+          id: 'a1',
+          item: {
+            id: 'i1',
+            source: 'github',
+            kind: 'issue',
+            title: 'First',
+            url: 'https://github.com/acme/api/issues/1',
+            metadata_json: { owner: 'acme', repo: 'api', number: 1 }
+          }
+        },
+        {
+          id: 'a2',
+          item: {
+            id: 'i2',
+            source: 'github',
+            kind: 'issue',
+            title: 'Second',
+            url: 'https://github.com/acme/api/issues/2',
+            metadata_json: { owner: 'acme', repo: 'api', number: 2 }
+          }
+        }
+      ]
+    }
+    const wrapper = mount(AgentPanel, {
+      props: { task, harnesses: [], contextKind: 'issue' },
+      global: { stubs: { SearchSelect: true, SessionLinks: true } }
+    })
+    await flushPromises()
+
+    // The per-item groups replace the ambiguous single-item group.
+    expect(wrapper.findAll('button.prompt-var').some((b) => b.text() === 'item_url')).toBe(false)
+    expect(wrapper.findAll('button.prompt-var').some((b) => b.text() === 'li.a.item_url')).toBe(true)
+    expect(wrapper.text()).toContain('acme/api#1 · First')
+    expect(wrapper.text()).toContain('acme/api#2 · Second')
+
+    await wrapper.get('textarea').setValue('compare {li.a.item_url} and {li.b.item_url}')
+    await wrapper.get('.btn.primary').trigger('click')
+    await flushPromises()
+    const prompt = mocks.runsCreate.mock.calls[0][1].prompt
+    expect(
+      prompt.startsWith('compare https://github.com/acme/api/issues/1 and https://github.com/acme/api/issues/2')
+    ).toBe(true)
+  })
+
+  it('leaves a command prompt as-is, without attaching context', async () => {
+    mocks.runsCreate.mockResolvedValue({ id: 'r1', status: 'running', kind: 'chat', links: [] })
+    mocks.openRunStream.mockReturnValue(vi.fn())
+
+    const wrapper = mountPanel()
+    await flushPromises()
+    await wrapper.get('textarea').setValue('$some-skill 1 acme/api')
+    await wrapper.get('.btn.primary').trigger('click')
+    await flushPromises()
+
+    expect(mocks.runsCreate).toHaveBeenCalledWith('t1', { prompt: '$some-skill 1 acme/api' })
+  })
+
+  it('submits the prompt alone when attaching context is turned off', async () => {
+    mocks.runsCreate.mockResolvedValue({ id: 'r1', status: 'running', kind: 'chat', links: [] })
+    mocks.openRunStream.mockReturnValue(vi.fn())
+
+    const wrapper = mountPanel()
+    await flushPromises()
+    await wrapper.get('input[type="checkbox"]').setValue(false)
+    await wrapper.get('textarea').setValue('do work')
+    await wrapper.get('.btn.primary').trigger('click')
+    await flushPromises()
+
+    expect(mocks.runsCreate).toHaveBeenCalledWith('t1', { prompt: 'do work' })
+  })
+
+  it('inserts a variable token when its chip is clicked', async () => {
+    const wrapper = mountPanel()
+    await flushPromises()
+    const chip = wrapper.findAll('button.prompt-var').find((b) => b.text() === 'title')
+    expect(chip).toBeTruthy()
+    await chip.trigger('click')
+    expect(wrapper.get('textarea').element.value).toBe('{title}')
   })
 })

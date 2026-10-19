@@ -220,7 +220,7 @@ watch(signature, () => load())
 
     <div v-if="!items.length" class="empty">This task is not linked to a pull request.</div>
 
-    <AgentPanel :task="task" :harnesses="harnesses" @changed="emit('changed')" />
+    <AgentPanel :task="task" :harnesses="harnesses" context-kind="pull_request" @changed="emit('changed')" />
 
     <div v-if="openPr" class="modal-backdrop" @click.self="closeReport">
       <div class="modal review-modal">
