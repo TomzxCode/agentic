@@ -201,7 +201,8 @@ describe('SettingsView', () => {
           refreshed: 2,
           failed: 1,
           error: 'slackx: rate limited',
-          origin: 'manual'
+          origin: 'manual',
+          refreshed_24h: 7
         }
       }
     })
@@ -213,6 +214,7 @@ describe('SettingsView', () => {
     await flushPromises()
     expect(wrapper.text()).toContain('Last run:')
     expect(wrapper.text()).toContain('2 refreshed')
+    expect(wrapper.text()).toContain('7 refreshed in the last 24h')
     expect(wrapper.text()).toContain('1 failed')
     expect(wrapper.text()).toContain('slackx: rate limited')
     expect(wrapper.text()).toContain('forced')

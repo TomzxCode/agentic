@@ -146,11 +146,76 @@ def test_refresh_status_reports_the_last_run():
         assert status["slack"]["error"] == "slackx: rate limited"
         assert status["slack"]["origin"] == "manual"
         assert status["slack"]["last_run_at"].startswith("2026-10-15T12:00")
+        # The fixed date is well outside the trailing window, so the 24h sum is 0.
+        assert status["slack"]["refreshed_24h"] == 0
         assert "github" not in status
 
         with Session(engine) as session:
             session.delete(session.get(Setting, "slack_refresh_status"))
             session.commit()
+
+
+def test_refresh_status_sums_runs_in_the_last_24h():
+    from datetime import UTC, datetime, timedelta
+
+    from sqlmodel import Session
+
+    from agentic.db import engine
+    from agentic.models.system import Setting
+    from agentic.settings_store import record_refresh_run
+
+    now = datetime.now(UTC)
+    with TestClient(app) as client:
+        with Session(engine) as session:
+            # A run from two days ago and one from outside the window (30h),
+            # then two inside it.
+            record_refresh_run(session, "github", last_run_at=now - timedelta(days=2), refreshed=100)
+            record_refresh_run(session, "github", last_run_at=now - timedelta(hours=30), refreshed=50)
+            record_refresh_run(session, "github", last_run_at=now - timedelta(hours=2), refreshed=4)
+            record_refresh_run(session, "github", last_run_at=now, refreshed=3)
+
+        status = client.get("/api/settings/refresh-status").json()["sources"]["github"]
+        # The newest run is the last one; the 24h sum covers only the recent two.
+        assert status["refreshed"] == 3
+        assert status["refreshed_24h"] == 7
+
+        with Session(engine) as session:
+            session.delete(session.get(Setting, "github_refresh_status"))
+            session.commit()
+
+
+def test_refresh_status_counts_a_legacy_last_run_in_the_window():
+    import json
+    from datetime import UTC, datetime, timedelta
+
+    from sqlmodel import Session
+
+    from agentic.db import engine
+    from agentic.models.system import Setting
+    from agentic.settings_store import get_refresh_status
+
+    now = datetime.now(UTC)
+    with Session(engine) as session:
+        # A row written before histories were kept has none; its last run still
+        # counts when it falls inside the window.
+        session.add(
+            Setting(
+                key="slack_refresh_status",
+                value=json.dumps({"last_run_at": now.isoformat(), "refreshed": 5, "failed": 0}),
+            )
+        )
+        session.commit()
+        assert get_refresh_status(session)["slack"]["refreshed_24h"] == 5
+
+        # And it counts zero once that run is older than the window.
+        session.get(Setting, "slack_refresh_status").value = json.dumps(
+            {"last_run_at": (now - timedelta(hours=30)).isoformat(), "refreshed": 5, "failed": 0}
+        )
+        session.commit()
+        assert get_refresh_status(session)["slack"]["refreshed_24h"] == 0
+
+        session.delete(session.get(Setting, "slack_refresh_status"))
+        session.commit()
 
 
 def test_background_run_records_status_per_source(monkeypatch):

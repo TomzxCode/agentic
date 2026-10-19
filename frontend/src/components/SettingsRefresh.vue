@@ -171,6 +171,7 @@ onMounted(loadStatus)
             · {{ status[field.source].failed }} failed
           </span>
           <span v-if="status[field.source].origin === 'manual'"> · forced</span>
+          · {{ status[field.source].refreshed_24h || 0 }} refreshed in the last 24h
         </template>
         <template v-else>never</template>
       </p>

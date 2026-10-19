@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 
 from sqlmodel import Session, select
 
@@ -112,6 +112,35 @@ def refresh_status_key(source: str) -> str:
     return f"{source}_refresh_status"
 
 
+# How far back a source keeps its run history, so the Settings page can sum a
+# trailing window ("X refreshed in the last 24h") without the row growing
+# without bound. Runs older than the window are dropped as new ones land.
+REFRESH_HISTORY_WINDOW = timedelta(hours=24)
+
+
+def _history_time(entry: object) -> datetime | None:
+    """The timestamp of a history entry, or None when it is malformed."""
+    if not isinstance(entry, dict):
+        return None
+    try:
+        parsed = datetime.fromisoformat(str(entry.get("at")))
+    except (TypeError, ValueError):
+        return None
+    return parsed if parsed.tzinfo is not None else parsed.replace(tzinfo=UTC)
+
+
+def _prune_history(history: list[dict], now: datetime) -> list[dict]:
+    """Keep only the runs within the history window, oldest first."""
+    reference = now if now.tzinfo is not None else now.replace(tzinfo=UTC)
+    cutoff = reference - REFRESH_HISTORY_WINDOW
+    kept: list[dict] = []
+    for entry in history:
+        at = _history_time(entry)
+        if at is not None and at >= cutoff:
+            kept.append(entry)
+    return kept
+
+
 def record_refresh_run(
     session: Session,
     source: str,
@@ -122,8 +151,18 @@ def record_refresh_run(
     error: str | None = None,
     origin: str = "background",
 ) -> None:
-    """Persist a source's last refresh pass (invisible to the settings API)."""
+    """Persist a source's last refresh pass and append it to its run history."""
     key = refresh_status_key(source)
+    row = session.get(Setting, key)
+    history: list[dict] = []
+    if row is not None and row.value:
+        try:
+            previous = json.loads(row.value)
+        except json.JSONDecodeError:
+            previous = {}
+        if isinstance(previous, dict) and isinstance(previous.get("history"), list):
+            history = previous["history"]
+    history.append({"at": last_run_at.isoformat(), "refreshed": refreshed, "failed": failed})
     value = json.dumps(
         {
             "last_run_at": last_run_at.isoformat(),
@@ -131,9 +170,9 @@ def record_refresh_run(
             "failed": failed,
             "error": error[:300] if error else None,
             "origin": origin,
+            "history": _prune_history(history, last_run_at),
         }
     )
-    row = session.get(Setting, key)
     if row is None:
         row = Setting(key=key, value=value)
     else:
@@ -143,16 +182,42 @@ def record_refresh_run(
     session.commit()
 
 
+def _refreshed_within_window(data: dict, cutoff: datetime) -> int:
+    """Items refreshed in the last window, from the run history or the last run.
+
+    A row written before histories were kept has none, so its single last run
+    counts when it falls inside the window.
+    """
+    history = data.get("history")
+    if not isinstance(history, list):
+        at = _history_time({"at": data.get("last_run_at")})
+        return int(data.get("refreshed") or 0) if at is not None and at >= cutoff else 0
+    total = 0
+    for entry in history:
+        at = _history_time(entry)
+        if at is not None and at >= cutoff:
+            total += int(entry.get("refreshed") or 0)
+    return total
+
+
 def get_refresh_status(session: Session) -> dict[str, dict]:
-    """Read each source's last refresh pass, skipping unset or unreadable ones."""
+    """Read each source's last refresh pass, skipping unset or unreadable ones.
+
+    Each status also carries ``refreshed_24h``: the items refreshed across the
+    runs of the last day, summed from the stored history.
+    """
     rows = {row.key: row.value for row in session.exec(select(Setting)).all()}
+    cutoff = utcnow() - REFRESH_HISTORY_WINDOW
     status: dict[str, dict] = {}
     for source in REFRESHABLE_SOURCES:
         raw = rows.get(refresh_status_key(source))
         if not raw:
             continue
         try:
-            status[source] = json.loads(raw)
+            data = json.loads(raw)
         except json.JSONDecodeError:
             continue
+        if isinstance(data, dict):
+            data["refreshed_24h"] = _refreshed_within_window(data, cutoff)
+        status[source] = data
     return status

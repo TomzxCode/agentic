@@ -74,6 +74,8 @@ class RefreshSourceStatus(BaseModel):
     failed: int = 0
     error: str | None = None
     origin: str | None = None
+    # Items refreshed across the runs of the last 24 hours, from the stored history.
+    refreshed_24h: int = 0
 
 
 class RefreshStatusRead(BaseModel):

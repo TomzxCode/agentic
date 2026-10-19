@@ -38,7 +38,8 @@ def settings_refresh_status() -> str:
         status = client.refresh_status()
     sources = status.get("sources") or {}
     lines = [
-        f"{source}: {entry.get('last_run_at') or 'never'}  ({entry.get('refreshed', 0)} refreshed)"
+        f"{source}: {entry.get('last_run_at') or 'never'}  ({entry.get('refreshed', 0)} refreshed, "
+        f"{entry.get('refreshed_24h', 0)} in the last 24h)"
         for source, entry in sources.items()
     ]
     return emit(status, "\n".join(lines) or "no background runs recorded")
