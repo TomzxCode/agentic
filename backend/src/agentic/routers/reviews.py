@@ -12,12 +12,14 @@ from ..models.base import utcnow
 from ..models.items import Association, SourceItem
 from ..review_findings import collect_findings
 from ..review_queue import collect_review_prs, enrich_from_github
+from ..review_scan import ReviewRequest, review_scan_state, run_review_scan, stored_review_requests
 from ..reviews import read_report
 from ..schemas.items import (
     ItemReviewContent,
     ReviewFindingRead,
     ReviewPrRead,
     ReviewQueueRead,
+    ReviewScanRead,
     ReviewStepRead,
 )
 from ..services.parsing import parse_github
@@ -87,6 +89,35 @@ def _key(pr: dict) -> tuple[str, str, int]:
     return (str(pr["owner"]).lower(), str(pr["name"]).lower(), int(pr["number"]))
 
 
+def _scan_row(recorded: ReviewRequest) -> dict:
+    """A pull request the review scan found, as a queue row.
+
+    It has no report yet, so every step is empty and the readiness light is
+    yellow: nothing clears it for approval, and nothing blocks it either.
+    """
+    owner, _, name = recorded.repository.partition("/")
+    return {
+        "owner": owner,
+        "name": name or recorded.repository,
+        "repository": recorded.repository,
+        "number": recorded.number,
+        "title": recorded.title,
+        "url": recorded.url,
+        "author": recorded.author,
+        "state": recorded.state,
+        "draft": recorded.draft,
+        "created_at": recorded.created_at,
+        "labels": [],
+        "head_commit": "",
+        "steps": {},
+        "stale_steps": [],
+        "reviewed_steps": 0,
+        "readiness": "yellow",
+        "status": "unreviewed",
+        "request_source": recorded.source,
+    }
+
+
 def _collect_enriched_rows(
     session: Session,
     keys: set[tuple[str, str, int]] | None = None,
@@ -96,6 +127,11 @@ def _collect_enriched_rows(
 
     With *keys*, only the rows in that set are read and enriched, so a
     task-scoped read does not shell out for every PR in the store.
+
+    The review scan's finds are appended: pull requests GitHub says are awaiting
+    a review, which usually have no report at all yet. They carry their own
+    GitHub fields from the search, so they take the item merge but no second ghx
+    lookup.
     """
     items = _tracked_pull_requests(session)
     task_ids = _task_ids_for_items(session, [item.id for item in items.values()])
@@ -106,6 +142,25 @@ def _collect_enriched_rows(
         item = items.get(_key(pr))
         _merge_item(pr, item, task_ids.get(item.id, []) if item else [])
     enrich_from_github(rows, refresh=refresh)
+
+    # The scan's finds ride along: a PR it reports is awaiting a review whether
+    # or not a report already exists for it, so a store row takes the source too.
+    scanned = {_key(_scan_row(recorded)): recorded for recorded in stored_review_requests(session)}
+    seen = set()
+    for pr in rows:
+        key = _key(pr)
+        seen.add(key)
+        recorded = scanned.get(key)
+        if recorded is not None:
+            pr["request_source"] = recorded.source
+    for key, recorded in scanned.items():
+        if key in seen or (keys is not None and key not in keys):
+            continue
+        row = _scan_row(recorded)
+        item = items.get(key)
+        _merge_item(row, item, task_ids.get(item.id, []) if item else [])
+        rows.append(row)
+    rows.sort(key=lambda pr: (str(pr["repository"]).lower(), -int(pr["number"])))
     return rows
 
 
@@ -157,14 +212,33 @@ def list_review_queue(
     refresh: bool = False,
     session: Session = Depends(get_session),
 ) -> ReviewQueueRead:
-    """Every PR with a review-report directory, with its review-step state.
+    """Every PR with a review-report directory, plus the ones awaiting a review.
 
     The store holds a snapshot of each PR's own fields from the review run that
     wrote its reports, so ghx supplies the live title, state, author, and
     creation time. ``refresh`` skips the short ghx result cache and re-reads
-    GitHub.
+    GitHub. The pull requests the review scan found (see ``GET /api/reviews/scan``)
+    are included even when no report exists for them yet.
     """
     return _queue_response(_rows_to_read(_collect_enriched_rows(session, refresh=refresh)))
+
+
+@router.get("/scan", response_model=ReviewScanRead)
+def read_review_scan(session: Session = Depends(get_session)) -> ReviewScanRead:
+    """The review scan's cadence, its last pass, and how many PRs it holds."""
+    return ReviewScanRead.model_validate(review_scan_state(session))
+
+
+@router.post("/scan", response_model=ReviewScanRead)
+def scan_review_requests(session: Session = Depends(get_session)) -> ReviewScanRead:
+    """Run the review scan now, ignoring its cadence.
+
+    A scan that cannot run (``gh`` missing or unauthenticated) records the error
+    and leaves the stored set as it was, so the queue is never emptied by a
+    failure; the response carries that error.
+    """
+    run_review_scan(session, origin="manual", force=True)
+    return ReviewScanRead.model_validate(review_scan_state(session))
 
 
 @router.get("/task/{task_id}", response_model=ReviewQueueRead)

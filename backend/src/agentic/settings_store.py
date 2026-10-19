@@ -23,6 +23,8 @@ OVERRIDABLE_KEYS = (
     "editor_url_template",
     "slack_refresh_policy",
     "github_refresh_policy",
+    "review_scan_interval",
+    "review_scan_default",
     "agent_prompts",
 )
 
@@ -67,6 +69,8 @@ def env_defaults() -> dict[str, str]:
         "editor_url_template": settings.editor_url_template,
         "slack_refresh_policy": settings.slack_refresh_policy,
         "github_refresh_policy": settings.github_refresh_policy,
+        "review_scan_interval": settings.review_scan_interval,
+        "review_scan_default": settings.review_scan_default,
         "agent_prompts": json.dumps(DEFAULT_AGENT_PROMPTS),
     }
 
@@ -221,3 +225,48 @@ def get_refresh_status(session: Session) -> dict[str, dict]:
             data["refreshed_24h"] = _refreshed_within_window(data, cutoff)
         status[source] = data
     return status
+
+
+# The review scan's last pass. Kept out of OVERRIDABLE_KEYS: it is the job's own
+# state, not something the Settings page edits.
+REVIEW_SCAN_STATUS_KEY = "review_scan_status"
+
+
+def record_review_scan_run(
+    session: Session,
+    *,
+    last_run_at: datetime,
+    found: int,
+    stored: int,
+    error: str | None = None,
+    origin: str = "background",
+) -> None:
+    """Persist the review scan's last pass, so the Settings page can show it."""
+    value = json.dumps(
+        {
+            "last_run_at": last_run_at.isoformat(),
+            "found": found,
+            "stored": stored,
+            "error": error[:300] if error else None,
+            "origin": origin,
+        }
+    )
+    row = session.get(Setting, REVIEW_SCAN_STATUS_KEY)
+    if row is None:
+        row = Setting(key=REVIEW_SCAN_STATUS_KEY, value=value)
+    else:
+        row.value = value
+        row.updated_at = utcnow()
+    session.add(row)
+    session.commit()
+
+
+def get_review_scan_status(session: Session) -> dict:
+    """The review scan's last pass, or an empty dict when it never ran."""
+    row = session.get(Setting, REVIEW_SCAN_STATUS_KEY)
+    if row is None or not row.value:
+        return {}
+    try:
+        return json.loads(row.value)
+    except json.JSONDecodeError:
+        return {}

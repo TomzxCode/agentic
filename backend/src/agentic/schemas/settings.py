@@ -21,6 +21,10 @@ class SettingsUpdate(BaseModel):
     editor_url_template: str | None = None
     slack_refresh_policy: str | None = None
     github_refresh_policy: str | None = None
+    # The review scan's cadence ("1h", "30m"; empty disables it) and what a
+    # repository with no policy of its own does (include or exclude).
+    review_scan_interval: str | None = None
+    review_scan_default: str | None = None
     # A JSON list of user-defined agent prompts (kind, label, template).
     agent_prompts: str | None = None
 

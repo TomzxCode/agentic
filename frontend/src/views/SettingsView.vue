@@ -10,6 +10,7 @@ import SettingsIdentity from '../components/SettingsIdentity.vue'
 import SettingsHarnesses from '../components/SettingsHarnesses.vue'
 import SettingsPrompts from '../components/SettingsPrompts.vue'
 import SettingsRefresh from '../components/SettingsRefresh.vue'
+import SettingsReviewScan from '../components/SettingsReviewScan.vue'
 import SettingsSidebar from '../components/SettingsSidebar.vue'
 
 const route = useRoute()
@@ -86,6 +87,12 @@ onMounted(load)
           :overrides="settings.overrides"
           :defaults="settings.defaults"
           :active="active === 'refresh'"
+        />
+        <SettingsReviewScan
+          v-show="active === 'review-scan'"
+          :overrides="settings.overrides"
+          :defaults="settings.defaults"
+          :active="active === 'review-scan'"
         />
 
         <div v-show="active === 'groups'">

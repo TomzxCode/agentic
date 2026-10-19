@@ -115,6 +115,13 @@
 .review-pr-cell .badge {
   flex: none;
 }
+/* Why the review scan has this PR in the queue (requested or reviewed). */
+.review-source {
+  flex: none;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
 /* The PR's task marker, before the readiness light: an emoji link to the task
    its item is associated to, or a "➕" that imports the PR into a new task. */
 .review-task-link {

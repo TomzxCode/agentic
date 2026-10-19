@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from enum import StrEnum
 
 from sqlalchemy import UniqueConstraint
 from sqlmodel import Field, SQLModel
@@ -14,6 +15,18 @@ from .base import (
 )
 
 
+class ReviewScanPolicy(StrEnum):
+    """Whether the review scan considers a repository's pull requests.
+
+    ``default`` follows the app-wide setting, so a repository only needs an
+    opinion when it differs from every other one.
+    """
+
+    default = "default"
+    include = "include"
+    exclude = "exclude"
+
+
 class Repository(SQLModel, table=True):
     """A local git checkout that tasks can create worktrees from."""
 
@@ -22,6 +35,9 @@ class Repository(SQLModel, table=True):
     path: str
     remote_url: str | None = None
     default_branch: str | None = None
+    # One of ReviewScanPolicy: whether the pull requests of this repository are
+    # part of the review scan.
+    review_scan: str = ReviewScanPolicy.default.value
     created_at: datetime = Field(default_factory=utcnow)
 
 

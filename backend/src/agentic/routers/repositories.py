@@ -14,8 +14,14 @@ from sqlmodel import Session, col, select
 from ..crud import get_or_404
 from ..db import get_session
 from ..models.changes import Change
-from ..models.repositories import Repository, RepositoryGroupMember, TaskRepository, Worktree
-from ..schemas.repositories import RepositoryBulkCreate, RepositoryBulkResult, RepositoryCreate, RepositoryRead
+from ..models.repositories import Repository, RepositoryGroupMember, ReviewScanPolicy, TaskRepository, Worktree
+from ..schemas.repositories import (
+    RepositoryBulkCreate,
+    RepositoryBulkResult,
+    RepositoryCreate,
+    RepositoryRead,
+    RepositoryUpdate,
+)
 from ..services.git import detect_default_branch, detect_remote_url, remove_worktree
 from ..services.github import github_owner_repo
 
@@ -86,6 +92,27 @@ def create_repositories(payload: RepositoryBulkCreate, session: Session = Depend
 @router.get("/{repository_id}", response_model=RepositoryRead)
 def get_repository(repository_id: str, session: Session = Depends(get_session)) -> Repository:
     repo = get_or_404(session, Repository, repository_id, "Repository not found")
+    return repo
+
+
+@router.patch("/{repository_id}", response_model=RepositoryRead)
+def update_repository(
+    repository_id: str,
+    payload: RepositoryUpdate,
+    session: Session = Depends(get_session),
+) -> Repository:
+    """Update the repository fields the app exposes (today, its review-scan policy)."""
+    repo = get_or_404(session, Repository, repository_id, "Repository not found")
+    fields = payload.model_dump(exclude_unset=True)
+    review_scan = fields.get("review_scan")
+    if review_scan is not None:
+        allowed = {policy.value for policy in ReviewScanPolicy}
+        if review_scan not in allowed:
+            raise HTTPException(status_code=422, detail=f"review_scan must be one of {', '.join(sorted(allowed))}")
+        repo.review_scan = review_scan
+    session.add(repo)
+    session.commit()
+    session.refresh(repo)
     return repo
 
 

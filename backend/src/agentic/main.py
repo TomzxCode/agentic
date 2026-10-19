@@ -88,6 +88,32 @@ async def _refresh_due_forever() -> None:
             log.info("refreshed due items", refreshed=result["refreshed"])
 
 
+def _review_scan_once() -> dict:
+    """Run the review scan when its cadence says it is due (gh blocks).
+
+    Opens its own session so the ``gh`` calls never touch the event loop's
+    connection. The scan records its own last pass, which is what the Settings
+    page shows.
+    """
+    from .review_scan import run_due_review_scan
+
+    with Session(engine) as session:
+        return run_due_review_scan(session)
+
+
+async def _review_scan_forever() -> None:
+    """Tick on a timer and ask GitHub which pull requests await a review."""
+    tick = settings.review_scan_tick
+    if tick <= 0:
+        return
+    while True:
+        await asyncio.sleep(tick)
+        try:
+            await asyncio.to_thread(_review_scan_once)
+        except Exception as exc:  # noqa: BLE001
+            log.warning("review scan tick failed", error=str(exc))
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     create_db_and_tables()
@@ -101,14 +127,19 @@ async def lifespan(app: FastAPI):
     reconcile_scheduled_runs()
     # Re-fetch Slack/GitHub items on the configured schedule.
     refresh_task = asyncio.create_task(_refresh_due_forever())
+    # Ask GitHub which pull requests await the user's review, on its own cadence.
+    scan_task = asyncio.create_task(_review_scan_forever())
     # Fire the user-defined scheduled tasks whose time has come.
     schedule_task = asyncio.create_task(scheduler_loop())
     log.info("agentic ready", data_dir=str(settings.data_dir))
     yield
     refresh_task.cancel()
+    scan_task.cancel()
     schedule_task.cancel()
     with suppress(asyncio.CancelledError):
         await refresh_task
+    with suppress(asyncio.CancelledError):
+        await scan_task
     with suppress(asyncio.CancelledError):
         await schedule_task
     await close_queue()

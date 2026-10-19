@@ -263,6 +263,16 @@ repository view's "New task" does.
 **Refresh** re-reads the store and bypasses the short cache of those `ghx`
 lookups.
 
+The queue also shows what GitHub says is still waiting on you, which the report
+store alone cannot: a background scan searches for pull requests with a review
+requested from you and for open ones you have already reviewed, and lists them
+even before any review report exists. A **requested** or **reviewed** badge beside
+the number says which search found it. **Settings → Review requests** sets how
+often the scan runs (a duration such as `1h`; blank stops it), whether a
+repository with no policy of its own is included or excluded, and each
+registered repository's own Include / Exclude / Default choice; **Scan now** runs
+it immediately.
+
 The **PR feedback** page (`/feedback`, the speech-bubble icon) triages the
 reviewer comments on the pull requests you authored. It reads the analysis files
 the `handle-pr-reviewer-feedback` skill writes under
@@ -397,6 +407,11 @@ Environment variables (prefix `AGENTIC_`) or `backend/.env`:
 | `AGENTIC_SLACK_REFRESH_POLICY` | (empty) | When to re-fetch Slack threads, e.g. `1d=1h,7d=6h,30d=1d,*=7d`. Empty disables it. |
 | `AGENTIC_GITHUB_REFRESH_POLICY` | (empty) | When to re-fetch GitHub issues/PRs, same format. Empty disables it. |
 | `AGENTIC_ITEM_REFRESH_TICK` | `300` | Seconds between checks for due items (0 disables the loop). |
+| `AGENTIC_REVIEW_SCAN_INTERVAL` | `1h` | How often the review scan asks GitHub which pull requests await you (a duration such as `1h`; empty disables it). |
+| `AGENTIC_REVIEW_SCAN_TICK` | `300` | Seconds between checks for whether the review scan is due (0 disables the loop). |
+| `AGENTIC_REVIEW_SCAN_DEFAULT` | `include` | What a repository with no review-scan policy of its own does: `include` or `exclude`. |
+| `AGENTIC_REVIEW_SCAN_LIMIT` | `100` | Results each review-scan search returns. |
+| `AGENTIC_REVIEW_SCAN_EXCLUDE_AUTHORS` | `dependabot[bot]` | Comma-separated logins the review scan leaves out. |
 | `AGENTIC_SCHEDULED_TASK_TICK` | `30` | Seconds between checks for scheduled shell tasks that are due (0 disables the loop). |
 | `AGENTIC_SCHEDULED_TASK_TIMEOUT` | `3600` | Seconds a scheduled shell task may run before it is stopped and marked failed. |
 | `AGENTIC_QUEUE_URL` | `sqlite:///<data_dir>/queue.db` | Agent-run queue. Use a `redis://` or `postgres://` URL to share the queue. |
@@ -572,6 +587,7 @@ GET                 /api/reviews                         (PR review queue from t
 GET                 /api/reviews/task/{task_id}          (the queue scoped to a task's PRs)
 GET                 /api/reviews/findings/{number}       (a PR's must/should/may findings)
 GET                 /api/reviews/report/{number}/{name}  (one review report)
+GET/POST            /api/reviews/scan                   (the review scan: state, or run it now)
 GET                 /api/feedback                        (reviewer comments awaiting a decision)
 POST                /api/feedback/{feedback_id}/decision (record implement/decline/defer)
 GET/POST            /api/schedules                      (cron-scheduled shell tasks)

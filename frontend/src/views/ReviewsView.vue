@@ -134,6 +134,17 @@ function readinessTitle(pr) {
   return READINESS_TITLES[pr.readiness] || ''
 }
 
+// Why the review scan put a PR in the queue, when it did. The report store alone
+// says nothing about that: a PR can be here only because a review has run.
+const SOURCE_TITLES = {
+  requested: 'A review is requested from you',
+  reviewed: 'You reviewed this pull request and it is still open'
+}
+
+function sourceTitle(pr) {
+  return SOURCE_TITLES[pr.request_source] || 'Awaiting your review'
+}
+
 // A step cell's tooltip: its verdict, its reviewed commit, and whether it is
 // stale (does not cover the newest reviewed commit).
 function stepTitle(pr, key, step) {
@@ -259,6 +270,9 @@ onMounted(load)
                     #{{ pr.number }}
                   </a>
                   <span v-if="pr.draft" class="badge st-draft">draft</span>
+                  <span v-if="pr.request_source" class="badge review-source" :title="sourceTitle(pr)">{{
+                    pr.request_source
+                  }}</span>
                   <span v-if="pr.title" class="review-title" :title="pr.title">{{ pr.title }}</span>
                   <button
                     class="btn sm ghost review-share"

@@ -26,7 +26,16 @@ class RepositoryRead(ORMModel):
     path: str
     remote_url: str | None = None
     default_branch: str | None = None
+    # One of ReviewScanPolicy: whether the review scan considers this
+    # repository's pull requests.
+    review_scan: str = "default"
     created_at: datetime
+
+
+class RepositoryUpdate(BaseModel):
+    """The repository fields the app lets a client change."""
+
+    review_scan: str | None = None
 
 
 class RepositoryBulkResult(BaseModel):

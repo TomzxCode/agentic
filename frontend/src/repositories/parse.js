@@ -27,6 +27,14 @@ export function parseRemote(remote) {
   return { owner: match[1].toLowerCase(), repo: match[2].toLowerCase() }
 }
 
+// The GitHub "owner/repo" a remote names, in the remote's own casing, for
+// display; null when it is not a GitHub remote. Unlike parseRemote this is for
+// showing an identifier, not for matching, so it does not lowercase.
+export function remoteLabel(remote) {
+  const match = GITHUB_REMOTE_RE.exec(String(remote || ''))
+  return match ? `${match[1]}/${match[2]}` : null
+}
+
 // An item's kind as "issue" or "pr", preferring the URL path and falling back
 // to the stored kind. Anything else is null (and excluded from the views).
 export function itemKind(item) {

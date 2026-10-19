@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   parseGithubUrl,
   parseRemote,
+  remoteLabel,
   itemKind,
   itemNumber,
   itemState,
@@ -9,6 +10,19 @@ import {
   itemAuthor,
   personForHandle
 } from '../repositories/parse'
+
+describe('remoteLabel', () => {
+  it('names a GitHub remote in its own casing, for display', () => {
+    expect(remoteLabel('git@github.com:TomzxCode/agentic.git')).toBe('TomzxCode/agentic')
+    expect(remoteLabel('https://github.com/Acme/API')).toBe('Acme/API')
+  })
+
+  it('is null for a remote that is not GitHub', () => {
+    expect(remoteLabel('https://gitlab.com/acme/api.git')).toBeNull()
+    expect(remoteLabel('')).toBeNull()
+    expect(remoteLabel(undefined)).toBeNull()
+  })
+})
 
 describe('parseGithubUrl', () => {
   it('parses an issue URL', () => {

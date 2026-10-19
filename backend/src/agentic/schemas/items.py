@@ -151,6 +151,29 @@ class ReviewPrRead(BaseModel):
     # untracked or not yet linked), so the queue can link a PR to its task
     # instead of offering to import one.
     task_ids: list[str] = []
+    # How the review scan found this PR: "requested" (a review is asked of you)
+    # or "reviewed" (you reviewed it and it is still open). Empty for a PR that
+    # is only in the report store.
+    request_source: str = ""
+
+
+class ReviewScanRead(BaseModel):
+    """The review scan's configuration and its last pass."""
+
+    interval: str = ""
+    enabled: bool = False
+    interval_seconds: float | None = None
+    # What a repository with no policy of its own does: include or exclude.
+    default: str = "include"
+    # How many pull requests the scan currently holds.
+    stored: int = 0
+    last_run_at: datetime | None = None
+    next_run_at: datetime | None = None
+    # The last pass: what the searches returned, and what survived the filter.
+    found: int = 0
+    kept: int = 0
+    error: str | None = None
+    origin: str | None = None
 
 
 class ReviewQueueRead(BaseModel):

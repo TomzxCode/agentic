@@ -40,6 +40,7 @@ def create_db_and_tables() -> None:
         changes,
         items,
         repositories,
+        reviews,
         schedules,
         system,
         tasks,
@@ -164,6 +165,15 @@ def _ensure_columns() -> None:
             with engine.begin() as connection:
                 # Pre-existing items read as auto-titled; DEFAULT backfills them.
                 connection.execute(text("ALTER TABLE sourceitem ADD COLUMN title_custom BOOLEAN NOT NULL DEFAULT 0"))
+    if "repository" in inspector.get_table_names():
+        repository_columns = {column["name"] for column in inspector.get_columns("repository")}
+        if "review_scan" not in repository_columns:
+            with engine.begin() as connection:
+                # DEFAULT backfills existing repositories to follow the app-wide
+                # setting rather than each needing an explicit opinion.
+                connection.execute(
+                    text("ALTER TABLE repository ADD COLUMN review_scan VARCHAR NOT NULL DEFAULT 'default'")
+                )
     if "scheduledtask" in inspector.get_table_names():
         schedule_columns = {column["name"] for column in inspector.get_columns("scheduledtask")}
         if "timezone" not in schedule_columns:

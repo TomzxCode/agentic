@@ -131,7 +131,11 @@ export const api = {
       request(
         `/reviews/report/${number}/${String(name).split('/').map(encodeURIComponent).join('/')}` +
           `?${new URLSearchParams({ repository }).toString()}`
-      )
+      ),
+    // The review scan's cadence, its last pass, and how many PRs it holds.
+    scan: () => request('/reviews/scan'),
+    // Run the scan now, ignoring its cadence.
+    runScan: () => request('/reviews/scan', { method: 'POST' })
   },
 
   feedback: {
@@ -196,6 +200,7 @@ export const api = {
     list: () => request('/repositories'),
     create: (body) => request('/repositories', { method: 'POST', body }),
     createBulk: (paths) => request('/repositories/bulk', { method: 'POST', body: { paths } }),
+    update: (id, body) => request(`/repositories/${id}`, { method: 'PATCH', body }),
     remove: (id) => request(`/repositories/${id}`, { method: 'DELETE' })
   },
 

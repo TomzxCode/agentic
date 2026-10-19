@@ -15,6 +15,9 @@ const mocks = vi.hoisted(() => ({
   settingsUpdate: vi.fn(),
   settingsPreviewPolicy: vi.fn(),
   settingsRefreshStatus: vi.fn(),
+  reviewsScan: vi.fn(),
+  reviewsRunScan: vi.fn(),
+  repositoriesUpdate: vi.fn(),
   repositoriesCreate: vi.fn(),
   repositoriesCreateBulk: vi.fn(),
   repositoriesRemove: vi.fn(),
@@ -54,8 +57,10 @@ vi.mock('../api', () => ({
     repositories: {
       create: mocks.repositoriesCreate,
       createBulk: mocks.repositoriesCreateBulk,
+      update: mocks.repositoriesUpdate,
       remove: mocks.repositoriesRemove
     },
+    reviews: { scan: mocks.reviewsScan, runScan: mocks.reviewsRunScan },
     items: { refresh: mocks.itemsRefresh, refreshSource: mocks.itemsRefreshSource },
     github: { repository: mocks.githubRepository, createIssue: mocks.githubCreateIssue },
     changes: { list: mocks.changesList, create: mocks.changesCreate },
@@ -262,6 +267,69 @@ describe('SettingsView', () => {
     pending()
     await flushPromises()
     expect(buttons[0].attributes('disabled')).toBeUndefined()
+  })
+
+  it('configures the review scan and the repositories it covers', async () => {
+    store.repositories = [
+      { id: 'r1', name: 'agentic', remote_url: 'git@github.com:TomzxCode/agentic.git', review_scan: 'default' },
+      {
+        id: 'r2',
+        name: 'openchamber',
+        remote_url: 'https://github.com/openchamber/openchamber',
+        review_scan: 'exclude'
+      }
+    ]
+    mocks.settingsGet.mockResolvedValue({ defaults: { review_scan_interval: '1h' }, overrides: {} })
+    mocks.reviewsScan.mockResolvedValue({
+      interval: '1h',
+      enabled: true,
+      default: 'include',
+      stored: 4,
+      found: 9,
+      kept: 4,
+      last_run_at: new Date().toISOString(),
+      origin: 'background'
+    })
+    mocks.settingsUpdate.mockResolvedValue({})
+    mocks.repositoriesUpdate.mockResolvedValue({ id: 'r2', review_scan: 'include' })
+
+    const wrapper = mountView()
+    await flushPromises()
+    const nav = wrapper.findAll('.settings-nav-item').find((b) => b.text() === 'Review requests')
+    await nav.trigger('click')
+    await flushPromises()
+
+    expect(mocks.reviewsScan).toHaveBeenCalled()
+    expect(wrapper.text()).toContain('9 found, 4 kept')
+
+    // The cadence saves on blur.
+    await wrapper.get('input[placeholder="1h"]').setValue('30m')
+    await wrapper.get('input[placeholder="1h"]').trigger('blur')
+    await flushPromises()
+    expect(mocks.settingsUpdate).toHaveBeenCalledWith({ review_scan_interval: '30m' })
+
+    // Each row is identified by its owner/repo (not its registered name) and the
+    // list is alphabetical, so openchamber/openchamber comes before TomzxCode/agentic.
+    const selects = wrapper.findAll('select[aria-label^="Review scan for"]')
+    expect(selects.map((select) => select.attributes('aria-label'))).toEqual([
+      'Review scan for openchamber/openchamber',
+      'Review scan for TomzxCode/agentic'
+    ])
+    expect(wrapper.text()).toContain('agentic')
+    await selects[1].setValue('include')
+    await flushPromises()
+    expect(mocks.repositoriesUpdate).toHaveBeenCalledWith('r1', { review_scan: 'include' })
+    expect(store.repositories.find((r) => r.id === 'r1').review_scan).toBe('include')
+
+    // Scan now runs it immediately and reports the outcome.
+    mocks.reviewsRunScan.mockResolvedValue({ enabled: true, stored: 5, found: 12, kept: 5 })
+    await wrapper
+      .findAll('button')
+      .find((b) => b.text() === 'Scan now')
+      .trigger('click')
+    await flushPromises()
+    expect(mocks.reviewsRunScan).toHaveBeenCalled()
+    expect(store.toast.message).toBe('Scan found 12, kept 5')
   })
 
   it('adds a harness with parsed args', async () => {

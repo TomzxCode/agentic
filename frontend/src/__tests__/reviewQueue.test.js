@@ -151,6 +151,31 @@ describe('ReviewsView', () => {
     expect(wrapper.find('.group-head a').exists()).toBe(false)
   })
 
+  it('marks a pull request the review scan found, before any report exists', async () => {
+    mocks.queue.mockResolvedValue({
+      root: null,
+      counts: { total: 1 },
+      prs: [
+        pr({
+          title: 'Awaiting review',
+          steps: {},
+          stale_steps: [],
+          reviewed_steps: 0,
+          head_commit: '',
+          reviewed_at: null,
+          request_source: 'requested'
+        })
+      ]
+    })
+    const wrapper = mount(ReviewsView, stub)
+    await flushPromises()
+
+    expect(wrapper.get('.review-source').text()).toBe('requested')
+    expect(wrapper.get('.review-source').attributes('title')).toBe('A review is requested from you')
+    // Nothing has run for it, so every step column reads as empty.
+    expect(wrapper.findAll('.review-step').length).toBe(0)
+  })
+
   it('opens a report when a step cell is clicked', async () => {
     mocks.queue.mockResolvedValue({ root: null, counts: { total: 1 }, prs: [pr()] })
     mocks.report.mockResolvedValue({

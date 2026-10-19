@@ -7,6 +7,7 @@ from sqlmodel import Session
 
 from ..db import get_session
 from ..refresh import POLICY_SETTING_KEYS, PolicyError, describe_policy, parse_policy
+from ..review_scan import scan_interval
 from ..schemas.settings import (
     RefreshPolicyPreview,
     RefreshPolicyPreviewRequest,
@@ -50,6 +51,15 @@ def patch_settings(payload: SettingsUpdate, session: Session = Depends(get_sessi
             parse_policy(policy_text)
         except PolicyError as exc:
             raise HTTPException(status_code=422, detail=f"{key}: {exc}") from exc
+    interval = values.get("review_scan_interval")
+    if interval is not None and interval.strip() and scan_interval(interval) is None:
+        raise HTTPException(
+            status_code=422,
+            detail="review_scan_interval: use a duration such as 30m, 1h or 1d, or leave it blank to stop scanning",
+        )
+    scan_default = values.get("review_scan_default")
+    if scan_default is not None and scan_default not in ("include", "exclude"):
+        raise HTTPException(status_code=422, detail="review_scan_default: must be include or exclude")
     prompts = values.get("agent_prompts")
     if prompts is not None:
         try:

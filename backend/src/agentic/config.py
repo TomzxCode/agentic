@@ -86,6 +86,21 @@ class Settings(BaseSettings):
     scheduled_task_tick: int = 30
     scheduled_task_timeout: int = 3600
 
+    # The review scan: a background pass that asks GitHub which pull requests
+    # await the user's review, stored for the review queue. ``review_scan_interval``
+    # is the cadence ("1h", "30m"; empty disables it); ``review_scan_tick`` is how
+    # often (seconds) the API checks whether it is due, so a change to the
+    # interval takes effect without a restart. ``review_scan_default`` decides
+    # what a repository with no opinion of its own does: "include" every
+    # repository, or "exclude" all but the ones marked include. The searches run
+    # through `gh` (ghx has no search qualifiers), so ``gh`` must be installed.
+    review_scan_interval: str = "1h"
+    review_scan_tick: int = 300
+    review_scan_default: str = "include"
+    review_scan_limit: int = 100
+    # Comma-separated logins left out of the scan, e.g. a dependency-bump bot.
+    review_scan_exclude_authors: str = "dependabot[bot]"
+
     @property
     def db_path(self) -> Path:
         return self.data_dir / "agentic.db"
