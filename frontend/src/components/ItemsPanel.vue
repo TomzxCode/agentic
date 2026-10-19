@@ -35,6 +35,12 @@ function isPullRequest(item) {
   return item?.kind === 'pull_request' || item?.metadata_json?.kind === 'pull_request'
 }
 
+// The external URL of a linked item, so its actions can open the reference.
+// Notes have none, and an item that was never given a link has none either.
+function itemUrl(item) {
+  return item?.url || null
+}
+
 // Offer to record a change for a linked PR that no change references yet.
 function needsChange(item) {
   return isPullRequest(item) && !changes.value.some((change) => changeReferencesItem(change, item))
@@ -152,6 +158,16 @@ async function refreshItem(itemId) {
           >
             Record change
           </button>
+          <a
+            v-if="itemUrl(assoc.item)"
+            class="btn sm ghost"
+            :href="itemUrl(assoc.item)"
+            target="_blank"
+            rel="noopener"
+            title="Open link"
+            aria-label="Open link"
+            >↗</a
+          >
           <button class="btn sm ghost" title="Refresh" @click="refreshItem(assoc.item.id)">↻</button>
           <button class="btn sm ghost" title="Expand" @click="toggle(assoc.item.id)">
             {{ expanded[assoc.item.id] ? '▾' : '▸' }}

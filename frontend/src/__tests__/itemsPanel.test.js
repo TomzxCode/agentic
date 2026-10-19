@@ -109,6 +109,76 @@ describe('ItemsPanel', () => {
     expect(mocks.itemRefresh).toHaveBeenCalledWith('i1')
   })
 
+  it('opens any linked item that has a link in a new tab', () => {
+    const withLinks = task({
+      associations: [
+        {
+          id: 'a1',
+          note: '',
+          created_at: new Date().toISOString(),
+          item: {
+            id: 'i1',
+            source: 'github',
+            kind: 'issue',
+            title: 'Login fails',
+            url: 'https://github.com/o/r/issues/2',
+            content: '',
+            fetched_at: null
+          }
+        },
+        {
+          id: 'a2',
+          note: '',
+          created_at: new Date().toISOString(),
+          item: {
+            id: 'i2',
+            source: 'slack',
+            title: 'Thread about login',
+            url: 'https://acme.slack.com/archives/C1/p123',
+            content: '',
+            fetched_at: null
+          }
+        },
+        {
+          id: 'a3',
+          note: '',
+          created_at: new Date().toISOString(),
+          item: {
+            id: 'i3',
+            source: 'gdrive',
+            title: 'Design doc',
+            url: 'https://docs.google.com/document/d/abc',
+            content: '',
+            fetched_at: null
+          }
+        }
+      ]
+    })
+    const wrapper = mount(ItemsPanel, { props: { task: withLinks } })
+    const links = wrapper.findAll('a[title="Open link"]')
+    expect(links).toHaveLength(3)
+    expect(links[0].attributes('href')).toBe('https://github.com/o/r/issues/2')
+    expect(links[1].attributes('href')).toBe('https://acme.slack.com/archives/C1/p123')
+    expect(links[2].attributes('href')).toBe('https://docs.google.com/document/d/abc')
+    expect(links[0].attributes('target')).toBe('_blank')
+    expect(links[0].attributes('rel')).toBe('noopener')
+  })
+
+  it('shows no link icon for an item that has no URL', () => {
+    const withoutUrl = task({
+      associations: [
+        {
+          id: 'a1',
+          note: '',
+          created_at: new Date().toISOString(),
+          item: { id: 'i1', source: 'note', title: 'Just a note', url: null, content: 'kept text', fetched_at: null }
+        }
+      ]
+    })
+    const wrapper = mount(ItemsPanel, { props: { task: withoutUrl } })
+    expect(wrapper.find('a[title="Open link"]').exists()).toBe(false)
+  })
+
   it('toggles the expanded state', async () => {
     const wrapper = mount(ItemsPanel, { props: { task: task() } })
     const expand = wrapper.get('button[title="Expand"]')
