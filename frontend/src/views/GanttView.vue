@@ -40,6 +40,19 @@ function onRangeInput() {
   rangePinned.value = !!(rangeStart.value || rangeEnd.value)
 }
 
+// Change a task's status straight from its gantt row.
+async function changeStatus(row, status) {
+  if (status === row.status) return
+  const previous = row.status
+  row.status = status
+  try {
+    await api.tasks.update(row.id, { status })
+  } catch (e) {
+    row.status = previous
+    store.notify(e.message, true)
+  }
+}
+
 function fitRange() {
   const { lo, hi } = resolveDomain(rows.value).fit
   rangePinned.value = false
@@ -80,7 +93,7 @@ function fitRange() {
       <div v-else-if="loading && !rows.length" class="empty"><span class="spinner"></span></div>
       <div v-else-if="!rows.length" class="empty">No tasks in flight. Create one to see it here.</div>
 
-      <GanttChart v-else :rows="rows" :domain="domain" link-rows />
+      <GanttChart v-else :rows="rows" :domain="domain" link-rows @change-status="changeStatus" />
     </section>
   </div>
 </template>

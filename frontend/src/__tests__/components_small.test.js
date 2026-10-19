@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import DeadlinePicker from '../components/DeadlinePicker.vue'
 import StatusIcon from '../components/StatusIcon.vue'
+import StatusSelect from '../components/StatusSelect.vue'
 import PriorityIcon from '../components/PriorityIcon.vue'
 import SessionLinks from '../components/SessionLinks.vue'
 import TimelinePanel from '../components/TimelinePanel.vue'
@@ -37,6 +38,19 @@ describe('StatusIcon', () => {
     const wrapper = mount(StatusIcon)
     expect(wrapper.classes()).toContain('st-open')
     expect(wrapper.attributes('title')).toBe('open')
+  })
+})
+
+describe('StatusSelect', () => {
+  it('renders the icon status picker and emits the chosen status', async () => {
+    const wrapper = mount(StatusSelect, { props: { modelValue: 'open' } })
+    expect(wrapper.get('.task-status-select').exists()).toBe(true)
+    await wrapper.get('.ss-trigger').trigger('click')
+    await wrapper
+      .findAll('.ss-option')
+      .find((option) => option.text().includes('Blocked'))
+      .trigger('click')
+    expect(wrapper.emitted('update:modelValue')[0]).toEqual(['blocked'])
   })
 })
 

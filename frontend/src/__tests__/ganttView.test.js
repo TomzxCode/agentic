@@ -73,6 +73,44 @@ describe('GanttView', () => {
     expect(wrapper.text()).toContain('Task One')
     expect(wrapper.findAll('.gantt-marker')).toHaveLength(2)
     expect(wrapper.findAll('.legend-item').length).toBeGreaterThanOrEqual(2)
+    // Each row reuses the editable icon status picker, not a read-only icon.
+    expect(wrapper.find('.gantt-label .task-status-select').exists()).toBe(true)
+  })
+
+  it('changes a task status from its gantt row', async () => {
+    const data = rows.map((r) => ({ ...r }))
+    mocks.ganttGet.mockResolvedValue(data)
+    mocks.tasksUpdate.mockResolvedValue({ id: 't1', status: 'blocked' })
+    const wrapper = mount(GanttView, stub)
+    await flushPromises()
+
+    await wrapper.get('.gantt-label .task-status-select .ss-trigger').trigger('click')
+    await wrapper
+      .findAll('.ss-option')
+      .find((option) => option.text().includes('Blocked'))
+      .trigger('click')
+    await flushPromises()
+
+    expect(mocks.tasksUpdate).toHaveBeenCalledWith('t1', { status: 'blocked' })
+    expect(data[0].status).toBe('blocked')
+  })
+
+  it('reverts a row status when the update fails', async () => {
+    const data = rows.map((r) => ({ ...r }))
+    mocks.ganttGet.mockResolvedValue(data)
+    mocks.tasksUpdate.mockRejectedValue(new Error('offline'))
+    const wrapper = mount(GanttView, stub)
+    await flushPromises()
+
+    await wrapper.get('.gantt-label .task-status-select .ss-trigger').trigger('click')
+    await wrapper
+      .findAll('.ss-option')
+      .find((option) => option.text().includes('Blocked'))
+      .trigger('click')
+    await flushPromises()
+
+    expect(data[0].status).toBe('in_progress')
+    expect(store.toast).toEqual({ message: 'offline', isError: true })
   })
 
   it('reloads including done tasks', async () => {

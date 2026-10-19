@@ -1,10 +1,10 @@
 <script setup>
 import { computed } from 'vue'
-import { deadlineInfo, formatDeadline, priorityLabel as priorityName, statusLabel, store, timeAgo } from '../store'
+import { deadlineInfo, formatDeadline, priorityLabel as priorityName, store, timeAgo } from '../store'
 import EntityCard from './EntityCard.vue'
 import PriorityIcon from './PriorityIcon.vue'
 import SearchSelect from './SearchSelect.vue'
-import StatusIcon from './StatusIcon.vue'
+import StatusSelect from './StatusSelect.vue'
 
 // A single Task rendered as a card: inline status and priority pickers, a title
 // linking to the task, the people linked to it, its deadline and age, its next
@@ -31,14 +31,6 @@ const props = defineProps({
 })
 
 defineEmits(['change-status', 'change-priority', 'toggle'])
-
-const STATUS_VALUES = ['open', 'in_progress', 'blocked', 'done', 'archived']
-const statusOptions = STATUS_VALUES.map((value) => ({
-  value,
-  label: statusLabel(value),
-  icon: StatusIcon,
-  iconProps: { status: value, label: statusLabel(value) }
-}))
 
 // 0 = low, 1 = medium, 2 = high, 3 = urgent. The icon-only picker reuses the
 // priority icon, so the circle can be clicked to change the level in place.
@@ -83,14 +75,9 @@ const age = computed(() => {
     </template>
 
     <template #lead>
-      <SearchSelect
+      <StatusSelect
         v-if="showStatus"
-        class="task-status-select"
-        variant="icon"
         :model-value="task.status"
-        :options="statusOptions"
-        :sort="false"
-        title="Change status"
         @update:model-value="(value) => $emit('change-status', task, value)"
       />
       <SearchSelect

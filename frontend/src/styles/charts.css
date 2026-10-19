@@ -79,9 +79,9 @@
   gap: 8px;
   padding: 9px 12px 9px 0;
 }
-.gantt-label .badge {
+.gantt-status {
   flex: none;
-  text-transform: capitalize;
+  display: inline-flex;
 }
 .gantt-title {
   overflow: hidden;

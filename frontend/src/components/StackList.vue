@@ -2,10 +2,9 @@
 import { computed, onUnmounted, ref, watch } from 'vue'
 import { api } from '../api'
 import { formatTimestamp, moveItem, targetIndexAt } from '../stack'
-import { deadlineInfo, formatDeadline, statusLabel, store } from '../store'
+import { deadlineInfo, formatDeadline, store } from '../store'
 import EditableText from './EditableText.vue'
-import SearchSelect from './SearchSelect.vue'
-import StatusIcon from './StatusIcon.vue'
+import StatusSelect from './StatusSelect.vue'
 
 // The stack table: one row per entry plus the selected row's description, with
 // drag-to-reorder. The page shell owns the entries, the selection, and the
@@ -32,16 +31,6 @@ const emit = defineEmits([
   'resync-description',
   'update:description'
 ])
-
-// The status picker reuses the same icon-only SearchSelect as the task rows, so
-// a stack row's status is editable in place.
-const STATUS_VALUES = ['open', 'in_progress', 'blocked', 'done', 'archived']
-const statusOptions = STATUS_VALUES.map((value) => ({
-  value,
-  label: statusLabel(value),
-  icon: StatusIcon,
-  iconProps: { status: value, label: statusLabel(value) }
-}))
 
 // The stack table's columns, used by the description row's colspan.
 const COLUMN_COUNT = 12
@@ -232,13 +221,8 @@ onUnmounted(() => {
             {{ entry.is_current ? '🔥' : '💤' }}
           </td>
           <td class="stack-status-cell" @click.stop @keydown.stop>
-            <SearchSelect
-              class="task-status-select"
-              variant="icon"
+            <StatusSelect
               :model-value="entry.task?.status"
-              :options="statusOptions"
-              :sort="false"
-              title="Change status"
               @update:model-value="(value) => changeStatus(entry, value)"
             />
           </td>

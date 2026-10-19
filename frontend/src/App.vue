@@ -7,6 +7,7 @@ import SearchSelect from './components/SearchSelect.vue'
 import RepositorySelect from './components/RepositorySelect.vue'
 import TagInput from './components/TagInput.vue'
 import DeadlinePicker from './components/DeadlinePicker.vue'
+import StatusSelect from './components/StatusSelect.vue'
 import StatusIcon from './components/StatusIcon.vue'
 import PriorityIcon from './components/PriorityIcon.vue'
 import Icon from './components/Icon.vue'
@@ -407,15 +408,7 @@ onUnmounted(() => {
           {{ store.tasks.length ? 'All caught up.' : 'No tasks yet.' }}
         </div>
         <div v-for="p in sidebarTasks" :key="p.id" class="task-card" :class="{ active: route.params.id === p.id }">
-          <SearchSelect
-            class="task-status-select"
-            variant="icon"
-            :model-value="p.status"
-            :options="statusOptions"
-            :sort="false"
-            title="Change status"
-            @update:model-value="(value) => changeStatus(p, value)"
-          />
+          <StatusSelect :model-value="p.status" @update:model-value="(value) => changeStatus(p, value)" />
           <router-link :to="`/task/${p.id}`" class="task-link" @click="sidebarOpen = false">
             <span class="t">{{ p.title }}</span>
             <span v-if="p.next_steps?.length" class="badge steps">{{

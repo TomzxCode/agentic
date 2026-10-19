@@ -1,7 +1,7 @@
 <script setup>
 import { computed } from 'vue'
 import { ganttTicks, markerKind, markerLabel, spanPct } from '../gantt'
-import { statusClass } from '../store'
+import StatusSelect from './StatusSelect.vue'
 
 const props = defineProps({
   // Rows: span (created_at, updated_at), status, and one marker per event.
@@ -17,7 +17,7 @@ const props = defineProps({
   showLegend: { type: Boolean, default: true }
 })
 
-const emit = defineEmits(['marker-click'])
+const emit = defineEmits(['marker-click', 'change-status'])
 
 function onMarkerClick(marker) {
   if (props.clickMarkers) emit('marker-click', marker)
@@ -82,7 +82,14 @@ const legend = computed(() => {
         :title="row.title"
       >
         <div v-if="!compact" class="gantt-label">
-          <span :class="statusClass(row.status)">{{ row.status.replace('_', ' ') }}</span>
+          <!-- Stop the click from reaching the row's task link, so changing the
+               status does not also open the task. -->
+          <span class="gantt-status" @click.stop.prevent>
+            <StatusSelect
+              :model-value="row.status"
+              @update:model-value="(value) => emit('change-status', row, value)"
+            />
+          </span>
           <span class="gantt-title">{{ row.title }}</span>
         </div>
         <div class="gantt-track">
