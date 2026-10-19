@@ -193,6 +193,11 @@ the width and the hidden state are remembered per device. On a narrow screen the
 task list is a drawer instead, opened with the panel button in the corner or a
 right swipe.
 
+The row of page icons at the bottom of the sidebar is yours to arrange: under
+**Settings → Sidebar**, uncheck a page to hide its icon and drag the grip to move
+it in the order. The choice is remembered per device, and every page stays
+reachable from the command palette even when its icon is hidden.
+
 The **Tasks in flight** page also lists the people linked to the current
 in-flight work, so you can narrow the list (and its status counts and upcoming
 deadlines) to a single person's tasks. The status badges at the top (Open,

@@ -28,6 +28,7 @@ vi.mock('../api', () => ({
 
 import App from '../App.vue'
 import { store } from '../store'
+import { SIDEBAR_NAV_ITEMS } from '../sidebarNav'
 
 const RouterLinkStub = { props: ['to'], template: '<a><slot /></a>' }
 const SearchSelectStub = {
@@ -482,7 +483,8 @@ describe('App', () => {
       'Agent harnesses',
       'Agent prompts',
       'Refresh',
-      'Repository groups'
+      'Repository groups',
+      'Sidebar'
     ]) {
       expect(labels).toContain(section)
     }
@@ -611,5 +613,49 @@ describe('App', () => {
     await wrapper.get('.sidebar-close').trigger('click')
     expect(wrapper.get('.app').classes()).not.toContain('sidebar-open')
     window.innerWidth = 1024
+  })
+
+  describe('sidebar nav configuration', () => {
+    beforeEach(() => {
+      localStorage.clear()
+      window.innerWidth = 1024
+    })
+
+    it('renders the page icons in the configured order, leaving out the hidden ones', async () => {
+      localStorage.setItem('agentic.sidebarNav', JSON.stringify({ order: ['settings', 'tasks'], hidden: ['gantt'] }))
+      const wrapper = mountApp()
+      await flushPromises()
+
+      const titles = wrapper.findAll('.sidebar-nav-links .nav-link').map((link) => link.attributes('title'))
+      expect(titles.slice(0, 2)).toEqual(['Settings', 'Tasks'])
+      expect(titles).not.toContain('Gantt')
+      expect(titles.length).toBe(SIDEBAR_NAV_ITEMS.length - 1)
+    })
+
+    it('lights the icon of a detail route through its route names', async () => {
+      route.name = 'repository'
+      const wrapper = mountApp()
+      await flushPromises()
+      const active = wrapper.findAll('.sidebar-nav-links .nav-link.active')
+      expect(active.map((link) => link.attributes('title'))).toEqual(['Repositories'])
+    })
+
+    it('sizes the grid to the visible icons', async () => {
+      localStorage.setItem(
+        'agentic.sidebarNav',
+        JSON.stringify({ order: [], hidden: ['reviews', 'stack', 'gantt', 'graph', 'metrics', 'items', 'people'] })
+      )
+      const wrapper = mountApp()
+      await flushPromises()
+      expect(wrapper.get('.sidebar-nav-links').attributes('style')).toContain('--nav-cols: 5')
+    })
+
+    it('leaves out the nav container when every icon is hidden', async () => {
+      const ids = SIDEBAR_NAV_ITEMS.map((item) => item.id)
+      localStorage.setItem('agentic.sidebarNav', JSON.stringify({ order: ids, hidden: ids }))
+      const wrapper = mountApp()
+      await flushPromises()
+      expect(wrapper.find('.sidebar-nav-links').exists()).toBe(false)
+    })
   })
 })

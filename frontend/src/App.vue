@@ -14,6 +14,7 @@ import CommandPalette from './components/CommandPalette.vue'
 import { useFocusHints } from './composables/useFocusHints'
 import { useSidebar } from './composables/useSidebar'
 import { buildPaletteItems } from './palette'
+import { loadSidebarNav, sidebarNavColumns, visibleSidebarNav } from './sidebarNav'
 
 const { hintBadges, handleHintKey, hasHintTargets, stopHints } = useFocusHints()
 
@@ -23,6 +24,9 @@ const router = useRouter()
 const showNew = ref(false)
 const sidebarOpen = ref(false)
 const paletteOpen = ref(false)
+// Read the per-device nav choice before the first render, so a reordered or
+// trimmed nav never flashes the default order.
+loadSidebarNav()
 const {
   sidebarWidth,
   sidebarResizing,
@@ -444,127 +448,21 @@ onUnmounted(() => {
             New task
           </button>
         </div>
-        <div class="sidebar-nav-links">
+        <div v-if="visibleSidebarNav.length" class="sidebar-nav-links" :style="{ '--nav-cols': sidebarNavColumns }">
           <router-link
-            to="/"
+            v-for="item in visibleSidebarNav"
+            :key="item.id"
+            :to="item.to"
             class="nav-link"
-            :class="{ active: route.name === 'tasks' }"
-            title="Tasks"
-            aria-label="Tasks"
+            :class="{ active: item.routeNames.includes(route.name) }"
+            :title="item.label"
+            :aria-label="item.label"
             @click="sidebarOpen = false"
           >
-            <Icon name="tasks" />
-          </router-link>
-          <router-link
-            to="/inbox"
-            class="nav-link"
-            :class="{ active: route.name === 'inbox' }"
-            title="Inbox"
-            aria-label="Inbox"
-            @click="sidebarOpen = false"
-          >
-            <Icon name="inbox" />
-            <span v-if="store.inboxCount" class="nav-badge" aria-hidden="true">{{ store.inboxCount }}</span>
-          </router-link>
-          <router-link
-            to="/reviews"
-            class="nav-link"
-            :class="{ active: route.name === 'reviews' }"
-            title="Review queue"
-            aria-label="Review queue"
-            @click="sidebarOpen = false"
-          >
-            <Icon name="reviews" />
-          </router-link>
-          <router-link
-            to="/stack"
-            class="nav-link"
-            :class="{ active: route.name === 'stack' }"
-            title="Stack"
-            aria-label="Stack"
-            @click="sidebarOpen = false"
-          >
-            <Icon name="stack" />
-          </router-link>
-          <router-link
-            to="/gantt"
-            class="nav-link"
-            :class="{ active: route.name === 'gantt' }"
-            title="Gantt"
-            aria-label="Gantt"
-            @click="sidebarOpen = false"
-          >
-            <Icon name="gantt" />
-          </router-link>
-          <router-link
-            to="/graph"
-            class="nav-link"
-            :class="{ active: route.name === 'graph' }"
-            title="Graph"
-            aria-label="Graph"
-            @click="sidebarOpen = false"
-          >
-            <Icon name="graph" />
-          </router-link>
-          <router-link
-            to="/metrics"
-            class="nav-link"
-            :class="{ active: route.name === 'metrics' }"
-            title="Metrics"
-            aria-label="Metrics"
-            @click="sidebarOpen = false"
-          >
-            <Icon name="metrics" />
-          </router-link>
-          <router-link
-            to="/items"
-            class="nav-link"
-            :class="{ active: route.name === 'items' }"
-            title="Items"
-            aria-label="Items"
-            @click="sidebarOpen = false"
-          >
-            <Icon name="items" />
-          </router-link>
-          <router-link
-            to="/people"
-            class="nav-link"
-            :class="{ active: route.name === 'people' || route.name === 'person' }"
-            title="People"
-            aria-label="People"
-            @click="sidebarOpen = false"
-          >
-            <Icon name="people" />
-          </router-link>
-          <router-link
-            to="/repositories"
-            class="nav-link"
-            :class="{ active: route.name === 'repositories' || route.name === 'repository' }"
-            title="Repositories"
-            aria-label="Repositories"
-            @click="sidebarOpen = false"
-          >
-            <Icon name="repositories" />
-          </router-link>
-          <router-link
-            to="/schedules"
-            class="nav-link"
-            :class="{ active: route.name === 'schedules' }"
-            title="Scheduled tasks"
-            aria-label="Scheduled tasks"
-            @click="sidebarOpen = false"
-          >
-            <Icon name="schedule" />
-          </router-link>
-          <router-link
-            to="/settings"
-            class="nav-link"
-            :class="{ active: route.name === 'settings' }"
-            title="Settings"
-            aria-label="Settings"
-            @click="sidebarOpen = false"
-          >
-            <Icon name="settings" />
+            <Icon :name="item.icon" />
+            <span v-if="item.badge === 'inbox' && store.inboxCount" class="nav-badge" aria-hidden="true">{{
+              store.inboxCount
+            }}</span>
           </router-link>
         </div>
       </nav>

@@ -10,6 +10,7 @@ import SettingsIdentity from '../components/SettingsIdentity.vue'
 import SettingsHarnesses from '../components/SettingsHarnesses.vue'
 import SettingsPrompts from '../components/SettingsPrompts.vue'
 import SettingsRefresh from '../components/SettingsRefresh.vue'
+import SettingsSidebar from '../components/SettingsSidebar.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -90,6 +91,8 @@ onMounted(load)
         <div v-show="active === 'groups'">
           <RepositoryGroupsPanel :repositories="store.repositories" />
         </div>
+
+        <SettingsSidebar v-show="active === 'sidebar'" />
       </div>
     </div>
   </div>

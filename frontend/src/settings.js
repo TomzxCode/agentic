@@ -9,5 +9,6 @@ export const SETTINGS_SECTIONS = [
   { id: 'harnesses', label: 'Agent harnesses' },
   { id: 'prompts', label: 'Agent prompts' },
   { id: 'refresh', label: 'Refresh' },
-  { id: 'groups', label: 'Repository groups' }
+  { id: 'groups', label: 'Repository groups' },
+  { id: 'sidebar', label: 'Sidebar' }
 ]

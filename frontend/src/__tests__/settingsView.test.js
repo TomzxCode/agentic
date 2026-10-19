@@ -72,6 +72,7 @@ vi.mock('../api', () => ({
 
 import SettingsView from '../views/SettingsView.vue'
 import { store } from '../store'
+import { SIDEBAR_NAV_ITEMS, resetSidebarNav } from '../sidebarNav'
 
 const RouterLinkStub = { props: ['to'], template: '<a><slot /></a>' }
 
@@ -365,5 +366,60 @@ describe('SettingsView', () => {
     await flushPromises()
     expect(mocks.harnessesUpdate).toHaveBeenCalledWith('pi', { is_default: true })
     expect(store.toast.message).toBe('Default harness updated')
+  })
+
+  it('configures the sidebar nav, saving the choice on the device', async () => {
+    localStorage.clear()
+    resetSidebarNav()
+    const wrapper = mountView()
+    await flushPromises()
+
+    const section = wrapper.findAll('.settings-nav-item').find((b) => b.text() === 'Sidebar')
+    await section.trigger('click')
+    await flushPromises()
+    expect(wrapper.findAll('.nav-config-row').length).toBe(SIDEBAR_NAV_ITEMS.length)
+
+    // Hide Gantt.
+    const gantt = wrapper.findAll('.nav-config-row').find((row) => row.text().includes('Gantt'))
+    await gantt.get('input[type="checkbox"]').setValue(false)
+    expect(JSON.parse(localStorage.getItem('agentic.sidebarNav')).hidden).toEqual(['gantt'])
+
+    // Drag Tasks down two slots.
+    const rows = wrapper.findAll('.nav-config-row')
+    rows.forEach((row, index) => {
+      row.element.getBoundingClientRect = () => ({ top: index * 40, bottom: index * 40 + 40, height: 40 })
+    })
+    const tasks = rows.find((row) => row.text().includes('Tasks'))
+    const pointer = (type, y) => {
+      const event = new Event(type, { bubbles: true, cancelable: true })
+      event.clientY = y
+      event.button = 0
+      return event
+    }
+    tasks.get('.nav-config-grip').element.dispatchEvent(pointer('pointerdown', 20))
+    window.dispatchEvent(pointer('pointermove', 95))
+    window.dispatchEvent(pointer('pointerup', 95))
+    expect(JSON.parse(localStorage.getItem('agentic.sidebarNav')).order[2]).toBe('tasks')
+
+    // Reset restores the default order and visibility.
+    await wrapper
+      .findAll('button')
+      .find((b) => b.text() === 'Reset to default')
+      .trigger('click')
+    expect(JSON.parse(localStorage.getItem('agentic.sidebarNav'))).toEqual({
+      order: SIDEBAR_NAV_ITEMS.map((item) => item.id),
+      hidden: []
+    })
+  })
+
+  it('reorders the sidebar nav from the keyboard on the grip', async () => {
+    localStorage.clear()
+    resetSidebarNav()
+    const wrapper = mountView()
+    await flushPromises()
+
+    const tasks = wrapper.findAll('.nav-config-row').find((row) => row.text().includes('Tasks'))
+    await tasks.get('.nav-config-grip').trigger('keydown', { key: 'ArrowDown' })
+    expect(JSON.parse(localStorage.getItem('agentic.sidebarNav')).order[1]).toBe('tasks')
   })
 })
