@@ -68,12 +68,18 @@ There is no authentication, so expose it only on a trusted network.
 | `GET` | `/api/items/{id}/reviews/{name}` | Read one review report. |
 | `GET` / `POST` | `/api/repositories` | List and create registered repositories. |
 | `POST` | `/api/repositories/bulk` | Add several repositories at once. |
-| `GET` / `DELETE` | `/api/repositories/{id}` | Read and remove a repository. |
+| `GET` / `PATCH` / `DELETE` | `/api/repositories/{id}` | Read, update (its review-scan policy), and remove a repository. |
 | `GET` / `POST` | `/api/groups` | List and create repository groups. |
 | `GET` / `PATCH` / `DELETE` | `/api/groups/{id}` | Read, update, and remove a group. |
 | `GET` / `POST` | `/api/people` | List and create people. |
 | `GET` / `PATCH` / `DELETE` | `/api/people/{id}` | Read, update, and remove a person. |
 | `POST` | `/api/people/{id}/merge` | Merge one person into another. |
+| `POST` | `/api/tasks/{id}/people` | Link a person involved in a task. |
+| `DELETE` | `/api/tasks/{id}/people/{person_id}` | Unlink a person from a task. |
+| `POST` | `/api/tasks/{id}/requesters` | Link a person who requested a task. |
+| `DELETE` | `/api/tasks/{id}/requesters/{person_id}` | Unlink a requester from a task. |
+| `POST` | `/api/items/{id}/people` | Link a person on an item. |
+| `DELETE` | `/api/items/{id}/people/{person_id}` | Unlink a person from an item. |
 | `GET` | `/api/tags` | Tags in use, with counts. |
 
 ## Review queue
@@ -138,6 +144,7 @@ There is no authentication, so expose it only on a trusted network.
 | `GET` / `PATCH` | `/api/settings` | Effective settings and overrides. |
 | `POST` | `/api/settings/refresh-policy/preview` | Preview a refresh policy's schedule. |
 | `GET` | `/api/settings/refresh-status` | When the background refresh job last ran for each source. |
+| `GET` | `/api/settings/diagnostics` | Presence and versions of the external commands and harnesses the app runs. |
 | `GET` | `/api/github/issues` | Issue picker for import. |
 | `POST` | `/api/github/issues` | Create an issue from a title and body. |
 | `GET` | `/api/github/issue` | One issue by URL. |

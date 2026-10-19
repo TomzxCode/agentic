@@ -2,21 +2,22 @@
 
 ## Problem
 
-Your review skills write their reports to disk, and you want one place that shows which pull requests still need your review and what each review step concluded.
+You want one place that shows which pull requests still need your review and what each review step concluded, whether or not a review has run against a pull request yet.
 
 ## Prerequisites
 
 - A running API and the web app open (see the [tutorial](../tutorials/getting-started.md)).
-- At least one pull request with review reports in the store.
-  Run `/review-pr-full` (or the individual review skills) on a PR to write them.
 - `ghx` on your `PATH`: the queue reads each pull request's own fields (title, state, author, age) from it.
+- `gh` on your `PATH` and authenticated, for the review scan that asks GitHub which pull requests await your review.
+- Review reports in the store for the pull requests you have already reviewed.
+  Run `/review-pr-full` (or the individual review skills) on a PR to write them.
 
 The reports live under `AGENTIC_SDLC_DIR` (`~/.sdlc` by default), at `{owner}/{repository}/pull-requests/`.
 
 ## Steps
 
 1. Open the **Review queue** page (the `/reviews` route).
-   Each row is one pull request with review reports in the store, grouped by repository, newest first.
+   Each row is one pull request: those with review reports in the store, plus the ones the review scan found awaiting your review. Grouped by repository, newest first.
 
    ![The Review queue, one row per pull request, grouped by repository, with a merge-readiness light and a column per review step](../assets/reviews.png)
 
@@ -35,6 +36,20 @@ The reports live under `AGENTIC_SDLC_DIR` (`~/.sdlc` by default), at `{owner}/{r
    The app itself posts nothing to GitHub.
 8. Click **Refresh** to re-read the store and bypass the short cache of the pull request field lookups.
 
+## Where the pull requests come from
+
+The review scan asks GitHub which pull requests await your review: the ones with a review requested from you (`review-requested:@me`), and the open ones you have already reviewed (`reviewed-by:@me`).
+Discovery runs through `gh`, and a pull request the scan finds joins the queue even before any review report exists for it.
+
+Configure the scan under **Settings → Review requests**:
+
+- **How often to scan** is a duration such as `30m`, `1h`, or `1d`; leave it blank to stop scanning.
+- **Repositories with no policy of their own** is what a repository that has no policy of its own does: **Include** (scan every repository except the excluded ones) or **Exclude** (scan only the repositories marked include).
+- Each repository can be left on **Default** to follow that choice, or set to **Include** or **Exclude** on its own.
+- **Scan now** runs one pass immediately.
+
+The section shows when the scan last ran, how many it found and kept, and any error.
+
 ## Where the data comes from
 
 The review-step state comes from the reports the review skills write under the store, and each pull request's own fields come from `ghx`.
@@ -42,10 +57,11 @@ Fields that would need a read the queue does not make (the diff size, the approv
 
 ## Verification
 
-Every PR with a report in the store appears, its readiness light reflects its step verdicts, and clicking a step cell opens that report.
+Every PR with a report in the store appears, plus the ones the scan found awaiting your review, its readiness light reflects its step verdicts, and clicking a step cell opens that report.
 
 ## Related
 
+- [Triage reviewer feedback](../how-to/triage-pr-feedback.md) to decide on the comments reviewers left.
 - [Run an agent against a task](../how-to/run-an-agent.md) to act on a pull request through its task's PR view.
 - [HTTP API reference](../reference/http-api.md) covers the `/api/reviews` endpoints.
-- [Configuration reference](../reference/configuration.md) lists `AGENTIC_SDLC_DIR`.
+- [Configuration reference](../reference/configuration.md) lists `AGENTIC_SDLC_DIR` and the `AGENTIC_REVIEW_SCAN_*` keys.

@@ -16,7 +16,8 @@ The goal is that resuming a task takes under a minute: the context you need sits
 - Creates git worktrees per task and runs any ACP harness against them.
 - Streams the agent transcript, then stores a summary and next steps on the task.
 - Runs user-defined shell scripts on a cron schedule, with a run history.
-- Reads the review reports your review skills write, and shows each open pull request's merge readiness.
+- Reads the review reports your review skills write, scans GitHub for the pull requests awaiting your review, and shows each open pull request's merge readiness.
+- Collects the reviewer comments your PR-feedback skill analyzed, so you can decide what to implement, decline, or defer.
 - Records changes, so it can report autonomy rate and yield.
 
 ## The app
@@ -27,7 +28,7 @@ The web app is organized into these pages:
 | --- | --- |
 | Tasks (`/`) | The task list, with status filters, grouping, upcoming deadlines, and the people in flight. |
 | Inbox (`/inbox`) | Suggested next actions, recomputed on every read. |
-| Review queue (`/reviews`) | Pull requests with review reports, one row per PR with a column per review step and a merge-readiness light. |
+| Review queue (`/reviews`) | Pull requests awaiting your review and those with review reports, one row per PR with a column per review step and a merge-readiness light. |
 | PR feedback (`/feedback`) | Reviewer comments awaiting a decision, one card per comment, with Implement / Decline / Defer. |
 | Stack (`/stack`) | The focus queue, with the current task on top. |
 | Task (`/task/:id`) | One task: context, items, people, dependencies, worktrees, runs, and changes. |

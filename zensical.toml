@@ -16,6 +16,7 @@ nav = [
     { "Import a GitHub issue or Slack thread" = "how-to/import-work.md" },
     { "Run an agent against a task" = "how-to/run-an-agent.md" },
     { "Read the review queue" = "how-to/review-pull-requests.md" },
+    { "Triage reviewer feedback" = "how-to/triage-pr-feedback.md" },
     { "Create and remove worktrees" = "how-to/use-worktrees.md" },
     { "Use the focus stack" = "how-to/use-the-focus-stack.md" },
     { "Track changes and read the metrics" = "how-to/track-changes-and-metrics.md" },

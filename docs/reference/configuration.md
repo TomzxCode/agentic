@@ -57,6 +57,10 @@ The GitHub login is editable under **Settings → Identity**; leave it blank to 
 
 The refresh policies are editable under **Settings → Refresh**.
 
+The review scan is editable under **Settings → Review requests**: how often it runs (`review_scan_interval`), and what a repository with no policy of its own does (`review_scan_default`).
+Each registered repository can also be set to include or exclude on its own.
+See [How to read the review queue](../how-to/review-pull-requests.md).
+
 **Agent prompts** are editable under **Settings → Agent prompts**.
 Each prompt appears as a button in the agent panel when a task has exactly one associated issue or pull request of the prompt's kind, and clicking it starts a run with the resolved template.
 Placeholders: `{owner}`, `{repository}`, `{number}` (filled from the associated GitHub item).
