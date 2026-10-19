@@ -84,11 +84,12 @@ def test_single_merged_pr_offers_close_and_record_change():
     close = suggestions[0]
     assert close["task_id"] == "t1"
     assert close["task_title"] == "Task t1"
-    assert close["reason"] == "PR #5 is merged."
+    assert close["reason"] == "PR o/r#5 is merged."
     action = close["actions"][0]
     assert action["kind"] == "set_task_status"
     assert action["status"] == "done"
     assert suggestions[1]["actions"][0]["kind"] == "create_change"
+    assert suggestions[1]["reason"] == "PR o/r#5 is merged and has no change recorded."
 
 
 def test_recorded_change_suppresses_the_change_suggestion():
@@ -130,7 +131,7 @@ def test_a_closed_unmerged_pr_offers_close():
     assert is_finished_item(pr)
     suggestions = _run([task], [pr], {"t1": ["i1"]})
     assert [s["kind"] for s in suggestions] == [CLOSE_TASK_FINISHED_ITEMS]
-    assert suggestions[0]["reason"] == "PR #5 is closed."
+    assert suggestions[0]["reason"] == "PR o/r#5 is closed."
 
 
 def test_a_closed_issue_and_a_merged_pr_are_offered_for_closing():

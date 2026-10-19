@@ -38,6 +38,7 @@ KIND_RANK = {
 CLOSED_STATUSES = (TaskStatus.done, TaskStatus.archived)
 
 _NUMBER_RE = re.compile(r"#(\d+)$")
+_ITEM_REF_RE = re.compile(r"^(?P<owner>[^/\s]+)/(?P<repo>[^#\s]+)#\d+$")
 
 
 def is_pull_request(item: SourceItem) -> bool:
@@ -95,10 +96,24 @@ def _item_number(item: SourceItem) -> str | None:
     return number
 
 
+def _item_repository(item: SourceItem) -> str | None:
+    """The owner/repository the item belongs to, from its URL or external id."""
+    parsed = parse_github(item.url or "")
+    if parsed is not None:
+        return f"{parsed['owner']}/{parsed['repo']}"
+    match = _ITEM_REF_RE.match(item.external_id or "")
+    if match:
+        return f"{match.group('owner')}/{match.group('repo')}"
+    return None
+
+
 def _pr_label(item: SourceItem) -> str:
-    """A short way to name a PR: its number when known, else its title."""
+    """A short way to name a PR: its number and repository when known, else its title."""
     number = _item_number(item)
-    return f"PR #{number}" if number else (item.title or "The pull request")
+    if not number:
+        return item.title or "The pull request"
+    repository = _item_repository(item)
+    return f"PR {repository}#{number}" if repository else f"PR #{number}"
 
 
 def _issue_label(item: SourceItem) -> str:

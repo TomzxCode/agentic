@@ -32,7 +32,7 @@ function closeSuggestion() {
   return {
     id: 'close_task_finished_items:t1:close',
     kind: 'close_task_finished_items',
-    reason: 'PR #5 is merged.',
+    reason: 'PR o/r#5 is merged.',
     task_id: 't1',
     task_title: 'Do the thing',
     task_status: 'open',
@@ -89,7 +89,7 @@ describe('InboxView', () => {
 
     expect(wrapper.text()).toContain('Close finished tasks')
     expect(wrapper.text()).toContain('Do the thing')
-    expect(wrapper.text()).toContain('PR #5 is merged.')
+    expect(wrapper.text()).toContain('PR o/r#5 is merged.')
 
     await wrapper.get('.inbox-item button').trigger('click')
     await flushPromises()
@@ -105,7 +105,7 @@ describe('InboxView', () => {
       {
         id: 'record_change_merged_pr:t1:i1',
         kind: 'record_change_merged_pr',
-        reason: 'PR #5 is merged and has no change recorded.',
+        reason: 'PR o/r#5 is merged and has no change recorded.',
         task_id: 't1',
         task_title: 'Do the thing',
         task_status: 'open',
