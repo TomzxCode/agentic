@@ -1,13 +1,17 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { api } from '../api'
-import { changeStatusBadge } from '../changes'
+import { changeStatusBadge, changeCreateBody, changeReferencesItem, isPullRequestItem } from '../changes'
 import { store } from '../store'
 
 const report = ref(null)
 const changes = ref([])
+const items = ref([])
 const loading = ref(false)
 const error = ref('')
+// The candidate row whose change is being recorded, so its button shows a
+// spinner and cannot be clicked twice.
+const recordingId = ref('')
 
 const windowDays = ref(30)
 const observationDays = ref(14)
@@ -31,16 +35,34 @@ function percent(value) {
 const metricEntries = computed(() => report.value?.metrics || [])
 const counts = computed(() => report.value?.counts || {})
 
+// Every linked pull request that could still get a change record: a PR item on
+// a task where no change recorded against that task references the PR yet. The
+// task page offers its Record change button under this same rule.
+const changeCandidates = computed(() => {
+  const changeList = changes.value || []
+  const rows = []
+  for (const item of items.value || []) {
+    if (!isPullRequestItem(item)) continue
+    for (const taskId of item.task_ids || []) {
+      const recorded = changeList.some((change) => change.task_id === taskId && changeReferencesItem(change, item))
+      if (!recorded) rows.push({ id: `${taskId}:${item.id}`, taskId, item })
+    }
+  }
+  return rows
+})
+
 async function load() {
   loading.value = true
   error.value = ''
   try {
-    const [metrics, changeList] = await Promise.all([
+    const [metrics, changeList, itemList] = await Promise.all([
       api.metrics.get({ windowDays: Number(windowDays.value), observationDays: Number(observationDays.value) }),
-      api.changes.list()
+      api.changes.list(),
+      api.items.list()
     ])
     report.value = metrics
     changes.value = changeList
+    items.value = itemList
   } catch (e) {
     error.value = e.message
     store.notify(e.message, true)
@@ -79,6 +101,31 @@ async function clearBaseline(metric) {
 
 function taskTitle(id) {
   return store.tasks.find((task) => task.id === id)?.title || id
+}
+
+// Record the linked PR as an accepted change, skipping the proposed step. A
+// merged PR dates the change to its merge, so an item fetched before merge
+// times were stored is refreshed once to pick the time up; an open PR is
+// accepted as of now.
+async function recordAccepted(row) {
+  if (recordingId.value) return
+  recordingId.value = row.id
+  try {
+    const item = row.item
+    let mergedAt = item.metadata_json?.merged_at
+    const state = String(item.metadata_json?.state || '').toUpperCase()
+    if (!mergedAt && state === 'MERGED' && item.url) {
+      const refreshed = await api.items.refresh(item.id).catch(() => null)
+      if (refreshed) mergedAt = refreshed.metadata_json?.merged_at
+    }
+    await api.changes.create(changeCreateBody(row.taskId, item, mergedAt || new Date().toISOString()))
+    await load()
+    store.notify('Change recorded (accepted)')
+  } catch (e) {
+    store.notify(e.message, true)
+  } finally {
+    recordingId.value = ''
+  }
 }
 </script>
 
@@ -152,6 +199,34 @@ function taskTitle(id) {
           <span class="faint">· {{ taskTitle(change.task_id) }}</span>
           <span v-if="change.human_intervened" class="badge warn" title="A human touched this change">touched</span>
         </span>
+      </div>
+    </section>
+
+    <section class="panel" style="margin-top: 16px">
+      <div class="panel-head">
+        <h2>
+          Pull requests without a change record <span class="faint">{{ changeCandidates.length }}</span>
+        </h2>
+        <span class="faint">Record one here, or open the task for the full lifecycle.</span>
+      </div>
+      <div v-if="!changeCandidates.length" class="empty">Every linked pull request already has a change recorded.</div>
+      <div v-for="row in changeCandidates" :key="row.id" class="change-row">
+        <span class="grow">
+          <router-link :to="`/task/${row.taskId}`">{{ taskTitle(row.taskId) }}</router-link>
+          <span class="faint">· linked PR</span>
+          <a v-if="row.item.url" :href="row.item.url" target="_blank" rel="noopener">
+            {{ row.item.title || row.item.url }}
+          </a>
+          <span v-else>{{ row.item.title }}</span>
+        </span>
+        <button
+          class="btn sm"
+          :disabled="recordingId === row.id"
+          title="Record this PR as an accepted change"
+          @click="recordAccepted(row)"
+        >
+          <span v-if="recordingId === row.id" class="spinner"></span> Record accepted
+        </button>
       </div>
     </section>
   </div>

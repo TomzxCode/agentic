@@ -21,6 +21,8 @@ You want to know how much work the agent lands without your help, and whether th
 
    ![The Metrics page: autonomy rate and yield cards, each with a direction against its baseline, above the recent changes](../assets/metrics.png)
 
+   At the bottom the page lists every task that has a linked pull request with no change record yet, so you can see what still needs recording. Each row has a **Record accepted** button that creates the change already accepted (dated to the PR's merge when GitHub reports one) without going through the proposed step.
+
 6. Set a baseline so each metric is shown with a direction (improving, worsening, or flat):
 
    ```bash

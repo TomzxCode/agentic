@@ -18,6 +18,11 @@ export function changeStatusBadge(status) {
   return STATUS_BADGES[status] || 'badge'
 }
 
+// A GitHub pull request item, from its inferred kind or its fetched metadata.
+export function isPullRequestItem(item) {
+  return item?.kind === 'pull_request' || item?.metadata_json?.kind === 'pull_request'
+}
+
 // A change references an item when its external ref names that item. A change
 // recorded from a GitHub pull request stores the PR's URL there, so matching on
 // url or external id is enough to link the two.

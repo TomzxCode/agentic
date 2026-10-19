@@ -1,7 +1,7 @@
 <script setup>
 import { computed, reactive, ref } from 'vue'
 import { api } from '../api'
-import { changeCreateBody, changeReferencesItem } from '../changes'
+import { changeCreateBody, changeReferencesItem, isPullRequestItem } from '../changes'
 import { sourceLabel, store, timeAgo } from '../store'
 import ItemCard from './ItemCard.vue'
 
@@ -30,11 +30,6 @@ const changes = computed(() => props.task.changes || [])
 // external sources it lists.
 const itemCount = computed(() => (props.task.associations || []).filter((a) => a.item.source !== 'note').length)
 
-// A GitHub pull request item, from either its inferred kind or its fetched metadata.
-function isPullRequest(item) {
-  return item?.kind === 'pull_request' || item?.metadata_json?.kind === 'pull_request'
-}
-
 // The external URL of a linked item, so its actions can open the reference.
 // Notes have none, and an item that was never given a link has none either.
 function itemUrl(item) {
@@ -43,7 +38,7 @@ function itemUrl(item) {
 
 // Offer to record a change for a linked PR that no change references yet.
 function needsChange(item) {
-  return isPullRequest(item) && !changes.value.some((change) => changeReferencesItem(change, item))
+  return isPullRequestItem(item) && !changes.value.some((change) => changeReferencesItem(change, item))
 }
 
 async function recordChange(item) {
