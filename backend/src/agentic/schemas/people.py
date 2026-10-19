@@ -59,12 +59,6 @@ class PersonMerge(BaseModel):
     source_id: str
 
 
-class SlackAliasNames(BaseModel):
-    """Slack user ids carried as aliases, mapped to the display name slackx knows."""
-
-    names: dict[str, str] = {}
-
-
 class TagRead(BaseModel):
     """A tag in use, with how many tasks carry it."""
 

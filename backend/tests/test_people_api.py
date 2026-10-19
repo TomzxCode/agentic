@@ -4,7 +4,6 @@ from _people_helpers import _item, _person, _task
 from fastapi.testclient import TestClient
 
 from agentic.main import app
-from agentic.services import slack
 
 
 def test_create_and_list_people_with_counts():
@@ -136,21 +135,3 @@ def test_merge_moves_requester_links():
         for task_id in (shared, source_only):
             client.delete(f"/api/tasks/{task_id}")
         client.delete(f"/api/people/{target}")
-
-
-def test_slack_user_id_aliases_are_named_through_slackx(monkeypatch):
-    monkeypatch.setattr(slack, "slack_user_names", lambda: {"U0123ABCDEF": "Ada Lovelace"})
-    with TestClient(app) as client:
-        person = client.post("/api/people", json={"name": "Ada", "aliases": ["ada", "U0123ABCDEF"]}).json()
-        # Only the alias that looks like a Slack user id is resolved; a plain
-        # handle is not sent to slackx.
-        assert client.get("/api/people/slack-aliases").json() == {"names": {"U0123ABCDEF": "Ada Lovelace"}}
-        client.delete(f"/api/people/{person['id']}")
-
-
-def test_slack_alias_lookup_survives_an_unavailable_slackx(monkeypatch):
-    monkeypatch.setattr(slack, "slack_user_names", lambda: {})
-    with TestClient(app) as client:
-        person = client.post("/api/people", json={"name": "Ada", "aliases": ["U0123ABCDEF"]}).json()
-        assert client.get("/api/people/slack-aliases").json() == {"names": {}}
-        client.delete(f"/api/people/{person['id']}")

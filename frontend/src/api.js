@@ -66,7 +66,6 @@ export const api = {
 
   people: {
     list: () => request('/people'),
-    slackAliasNames: () => request('/people/slack-aliases'),
     get: (id) => request(`/people/${id}`),
     create: (body) => request('/people', { method: 'POST', body }),
     update: (id, body) => request(`/people/${id}`, { method: 'PATCH', body }),
@@ -243,6 +242,14 @@ export const api = {
       qs.set('limit', String(limit))
       if (refresh) qs.set('refresh', 'true')
       return request(`/github/repository?${qs.toString()}`)
+    }
+  },
+
+  slack: {
+    // Name the Slack user ids given, so a handle like U0123ABCD reads as a name.
+    users: (ids = []) => {
+      const qs = new URLSearchParams(ids.map((id) => ['ids', id])).toString()
+      return request(`/slack/users${qs ? `?${qs}` : ''}`)
     }
   },
 

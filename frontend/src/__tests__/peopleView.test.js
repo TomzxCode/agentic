@@ -6,7 +6,7 @@ enableAutoUnmount(afterEach)
 const mocks = vi.hoisted(() => ({
   push: vi.fn(),
   peopleList: vi.fn(),
-  peopleSlackAliases: vi.fn(),
+  slackUsers: vi.fn(),
   peopleGet: vi.fn(),
   peopleCreate: vi.fn(),
   peopleUpdate: vi.fn(),
@@ -29,7 +29,6 @@ vi.mock('../api', () => ({
   api: {
     people: {
       list: mocks.peopleList,
-      slackAliasNames: mocks.peopleSlackAliases,
       get: mocks.peopleGet,
       create: mocks.peopleCreate,
       update: mocks.peopleUpdate,
@@ -42,6 +41,7 @@ vi.mock('../api', () => ({
       linkItem: mocks.linkItem,
       unlinkItem: mocks.unlinkItem
     },
+    slack: { users: mocks.slackUsers },
     items: { list: mocks.itemsList }
   }
 }))
@@ -64,7 +64,7 @@ beforeEach(() => {
   store.tasks = []
   store.people = []
   mocks.peopleList.mockResolvedValue([])
-  mocks.peopleSlackAliases.mockResolvedValue({ names: {} })
+  mocks.slackUsers.mockResolvedValue({ names: {} })
   vi.spyOn(store, 'loadPeople').mockResolvedValue()
   vi.spyOn(store, 'loadTasks').mockResolvedValue()
 })
@@ -127,9 +127,11 @@ describe('PeopleView', () => {
         created_at: '2026-01-01T00:00:00Z'
       }
     ]
-    mocks.peopleSlackAliases.mockResolvedValue({ names: { U0123ABCDEF: 'Tom Rochette' } })
+    mocks.slackUsers.mockResolvedValue({ names: { U0123ABCDEF: 'Tom Rochette' } })
     const wrapper = await mountPeople()
     expect(wrapper.get('.ag-cell[col-id="aliases"]').text()).toBe('Tom Rochette (@U0123ABCDEF)')
+    // Only the alias that looks like a Slack user id is sent to the lookup.
+    expect(mocks.slackUsers).toHaveBeenCalledWith(['U0123ABCDEF'])
   })
 
   it('keeps the raw Slack user id when slackx cannot resolve it', async () => {

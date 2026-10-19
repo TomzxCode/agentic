@@ -6,7 +6,7 @@ enableAutoUnmount(afterEach)
 const mocks = vi.hoisted(() => ({
   push: vi.fn(),
   peopleList: vi.fn(),
-  peopleSlackAliases: vi.fn(),
+  slackUsers: vi.fn(),
   peopleGet: vi.fn(),
   peopleCreate: vi.fn(),
   peopleUpdate: vi.fn(),
@@ -29,7 +29,6 @@ vi.mock('../api', () => ({
   api: {
     people: {
       list: mocks.peopleList,
-      slackAliasNames: mocks.peopleSlackAliases,
       get: mocks.peopleGet,
       create: mocks.peopleCreate,
       update: mocks.peopleUpdate,
@@ -42,6 +41,7 @@ vi.mock('../api', () => ({
       linkItem: mocks.linkItem,
       unlinkItem: mocks.unlinkItem
     },
+    slack: { users: mocks.slackUsers },
     items: { list: mocks.itemsList }
   }
 }))
@@ -65,7 +65,7 @@ beforeEach(() => {
   store.tasks = []
   store.people = []
   mocks.peopleList.mockResolvedValue([])
-  mocks.peopleSlackAliases.mockResolvedValue({ names: {} })
+  mocks.slackUsers.mockResolvedValue({ names: {} })
   vi.spyOn(store, 'loadPeople').mockResolvedValue()
   vi.spyOn(store, 'loadTasks').mockResolvedValue()
 })
@@ -132,10 +132,12 @@ describe('PersonView', () => {
       requester_task_ids: [],
       item_ids: []
     })
-    mocks.peopleSlackAliases.mockResolvedValue({ names: { U0123ABCDEF: 'Tom Rochette' } })
+    mocks.slackUsers.mockResolvedValue({ names: { U0123ABCDEF: 'Tom Rochette' } })
     const wrapper = mount(PersonView, { props: { id: 'p1' }, ...stub })
     await flushPromises()
     expect(wrapper.get('.chip').text()).toContain('Tom Rochette (@U0123ABCDEF)')
+    // Only this person's aliases that look like a Slack user id are asked about.
+    expect(mocks.slackUsers).toHaveBeenCalledWith(['U0123ABCDEF'])
   })
 
   it('labels each task with how the person is attached to it', async () => {

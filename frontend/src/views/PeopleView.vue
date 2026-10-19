@@ -1,7 +1,6 @@
 <script setup>
 import { computed, onMounted, ref, resolveComponent, shallowRef } from 'vue'
-import { aliasLabel, formatDateTime, store } from '../store'
-import { api } from '../api'
+import { aliasLabel, formatDateTime, resolveSlackNames, store } from '../store'
 import GridColumnChooser from '../components/GridColumnChooser.vue'
 import PeopleGrid from '../components/PeopleGrid.vue'
 
@@ -34,14 +33,11 @@ const rows = computed(() =>
 async function load() {
   loading.value = true
   try {
-    // A Slack user id alias is shown as the name slackx resolves it to; asking
-    // for the names is best effort, so a failure leaves the raw ids displayed.
-    const [, resolved] = await Promise.all([
-      store.loadPeople(),
-      api.people.slackAliasNames().catch(() => ({ names: {} }))
-    ])
+    await store.loadPeople()
     people.value = store.people
-    slackNames.value = resolved.names || {}
+    // Aliases that are Slack user ids read as names; the ids are asked of
+    // slackx, and one it cannot name keeps showing as itself.
+    slackNames.value = await resolveSlackNames(store.people.flatMap((person) => person.aliases || []))
   } catch (e) {
     store.notify(e.message, true)
   } finally {

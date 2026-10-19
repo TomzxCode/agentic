@@ -124,6 +124,24 @@ export function aliasLabel(value, names) {
   return name ? `${name} (${label})` : label
 }
 
+// A Slack user id: "U" followed by at least six uppercase letters or digits.
+// The backend applies the same test, so both agree on what is worth resolving.
+const SLACK_USER_ID_RE = /^U[A-Z0-9]{6,}$/
+
+export function isSlackUserId(value) {
+  return SLACK_USER_ID_RE.test(String(value))
+}
+
+// The display names of the Slack user ids among `values`, asked of the API in
+// one read. Best effort: an id with no name is absent, so the caller keeps
+// showing the raw value.
+export async function resolveSlackNames(values = []) {
+  const ids = [...new Set(values.filter(isSlackUserId))]
+  if (!ids.length) return {}
+  const data = await api.slack.users(ids).catch(() => null)
+  return (data && data.names) || {}
+}
+
 // An item's source (github, slack, note, …) rendered as a human label, falling
 // back to the raw value for a source with no label. SOURCE_ORDER is the display
 // order for grouping and filtering items by source.

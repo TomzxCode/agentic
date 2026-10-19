@@ -2,7 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { api } from '../api'
-import { aliasLabel, formatDateTime, SOURCE_ORDER, sourceLabel, store } from '../store'
+import { aliasLabel, formatDateTime, resolveSlackNames, SOURCE_ORDER, sourceLabel, store } from '../store'
 import EditableText from '../components/EditableText.vue'
 import ItemLink from '../components/ItemLink.vue'
 import SearchSelect from '../components/SearchSelect.vue'
@@ -67,6 +67,9 @@ async function load() {
   loading.value = true
   try {
     person.value = await api.people.get(props.id)
+    // An alias that is a Slack user id reads as a name; slackx is asked only
+    // about the aliases on this person, and one it cannot name is left as is.
+    slackNames.value = await resolveSlackNames(aliases.value)
   } catch {
     notFound.value = true
   } finally {
@@ -148,11 +151,6 @@ async function remove() {
 }
 
 onMounted(async () => {
-  // Best effort: the aliases panel then reads a Slack user id alias as its name.
-  api.people
-    .slackAliasNames()
-    .then((resolved) => (slackNames.value = resolved.names || {}))
-    .catch(() => {})
   await store.loadTasks().catch(() => {})
   await store.loadPeople().catch(() => {})
   try {

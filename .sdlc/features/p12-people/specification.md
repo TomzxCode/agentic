@@ -88,7 +88,6 @@ The table below is a summary.
 | Method | Path | Purpose |
 |---|---|---|
 | GET | `/api/people` | List people with their task and item counts |
-| GET | `/api/people/slack-aliases` | Name the aliases that look like a Slack user id, through slackx |
 | POST | `/api/people` | Create a person (name required) |
 | GET | `/api/people/{person_id}` | A person with the task ids and item ids they are linked to |
 | PATCH | `/api/people/{person_id}` | Update a person's fields |
