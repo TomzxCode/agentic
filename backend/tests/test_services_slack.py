@@ -141,13 +141,38 @@ def test_is_slack_user_id():
 
 
 def test_resolve_slack_user_ids(monkeypatch):
-    payload = '{"users": [{"id": "U0123ABCDEF", "real_name": "Tom Rochette"}]}'
-    monkeypatch.setattr(shell, "_run_cli", lambda cmd, timeout=60: payload if cmd[1:3] == ["users", "list"] else None)
-    # A resolve reads slackx once and names only the ids it knows.
-    assert slack.resolve_slack_user_ids(["ada", "U0123ABCDEF", "U9999ZZZZZZ"]) == {"U0123ABCDEF": "Tom Rochette"}
+    cached = '{"user_count": 1, "users": [{"id": "U0123ABCDEF", "real_name": "Tom Rochette"}]}'
+    fetched = '{"user_count": 1, "users": [{"id": "U0COLDCOLD", "name": "ada"}]}'
+    calls: list = []
+
+    def fake(cmd, timeout=60):
+        calls.append(cmd)
+        if cmd[1:3] == ["users", "list"]:
+            return cached
+        if cmd[1:3] == ["users", "get"]:
+            return fetched if cmd[3] == "U0COLDCOLD" else None
+        return None
+
+    monkeypatch.setattr(shell, "_run_cli", fake)
+    # One bulk read names the cached ids; an id the cache lacks is fetched on its
+    # own, and one slackx cannot fetch at all is left out.
+    assert slack.resolve_slack_user_ids(["ada", "U0123ABCDEF", "U0COLDCOLD", "U9999ZZZZZZ"]) == {
+        "U0123ABCDEF": "Tom Rochette",
+        "U0COLDCOLD": "ada",
+    }
+    assert [(cmd[1], cmd[2]) for cmd in calls] == [("users", "list"), ("users", "get"), ("users", "get")]
 
     # No Slack user ids: slackx is not called at all.
-    calls: list = []
-    monkeypatch.setattr(shell, "_run_cli", lambda cmd, timeout=60: calls.append(cmd))
+    calls.clear()
     assert slack.resolve_slack_user_ids(["ada", "ada@example.com"]) == {}
     assert calls == []
+
+
+def test_slack_user_name_falls_back_to_the_login(monkeypatch):
+    payload = '{"user_count": 1, "users": [{"id": "U0123ABCDEF", "name": "ada"}]}'
+    monkeypatch.setattr(shell, "_run_cli", lambda cmd, timeout=60: payload)
+    assert slack.slack_user_name("U0123ABCDEF") == "ada"
+    # An id the payload does not describe (or a broken payload) resolves to None.
+    assert slack.slack_user_name("U9999ZZZZZZ") is None
+    monkeypatch.setattr(shell, "_run_cli", lambda cmd, timeout=60: "not json")
+    assert slack.slack_user_name("U0123ABCDEF") is None

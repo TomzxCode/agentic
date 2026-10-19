@@ -149,5 +149,5 @@ There is no authentication, so expose it only on a trusted network.
 | `POST` | `/api/github/issues` | Create an issue from a title and body. |
 | `GET` | `/api/github/issue` | One issue by URL. |
 | `GET` | `/api/github/repository` | A repository's issues and pull requests (via `ghx`), all states by default. |
-| `GET` | `/api/slack/users` | Name the Slack user ids given (via `slackx`), for display. |
+| `GET` | `/api/slack/users` | Name the Slack user ids given (via `slackx`), fetching an uncached user from Slack. |
 | `GET` | `/api/fs/list` | Server-side directory picker. |

@@ -8,9 +8,13 @@ from collections.abc import Iterable
 from datetime import datetime, tzinfo
 from typing import Any
 
+import structlog
+
 from . import shell
 from .github import dedupe_people
 from .parsing import parse_slack
+
+log = structlog.get_logger(__name__)
 
 
 def slack_item_datetime(ts: str, tz: tzinfo | None = None) -> str:
@@ -68,35 +72,69 @@ def is_slack_user_id(value: str) -> bool:
     return bool(_SLACK_USER_ID_RE.match(str(value).strip()))
 
 
-def resolve_slack_user_ids(values: Iterable[str]) -> dict[str, str]:
-    """Map the Slack user ids among ``values`` to the display name slackx knows.
+def slack_user_ids(values: Iterable[str]) -> list[str]:
+    """The Slack user ids among ``values``, de-duplicated, in the order given."""
+    return list(dict.fromkeys(str(value) for value in values if is_slack_user_id(value)))
 
-    Only ids slackx can name are returned, so a caller falls back to the raw
-    value for the rest. One slackx read resolves every id.
-    """
-    ids = [str(value) for value in values if is_slack_user_id(value)]
-    if not ids:
-        return {}
-    names = slack_user_names()
-    return {value: names[value] for value in ids if value in names}
+
+def _slack_users(raw: str | None) -> list[dict[str, Any]]:
+    """The user rows of a slackx payload, which holds one user or many."""
+    if not raw:
+        return []
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError:
+        return []
+    users = data.get("users") if isinstance(data, dict) else data
+    return [user for user in users or [] if isinstance(user, dict)]
 
 
 def slack_user_names() -> dict[str, str]:
     """Map Slack user ids to a display name, via the slackx cache. Best effort."""
     raw = shell._run_cli(["slackx", "users", "list", "--json", "--fields", "id,name,real_name"], timeout=30)
-    if not raw:
-        return {}
-    try:
-        data = json.loads(raw)
-    except json.JSONDecodeError:
-        return {}
-    users = data.get("users") if isinstance(data, dict) else data
     names: dict[str, str] = {}
-    for user in users or []:
-        if not isinstance(user, dict) or not user.get("id"):
+    for user in _slack_users(raw):
+        if not user.get("id"):
             continue
         names[str(user["id"])] = user.get("real_name") or user.get("name") or str(user["id"])
     return names
+
+
+def slack_user_name(user_id: str) -> str | None:
+    """One Slack user's display name, fetched by slackx when its cache lacks it.
+
+    ``slackx users get`` reads the cache and calls ``users.info`` on a miss, so
+    a user who never appeared in a cached thread is still named. None when
+    slackx is missing, or the id is not a user it can fetch.
+    """
+    raw = shell._run_cli(["slackx", "users", "get", user_id, "--json", "--fields", "id,name,real_name"], timeout=30)
+    for user in _slack_users(raw):
+        if str(user.get("id")) == user_id:
+            name = user.get("real_name") or user.get("name")
+            return str(name) if name else None
+    return None
+
+
+def resolve_slack_user_ids(values: Iterable[str]) -> dict[str, str]:
+    """Map the Slack user ids among ``values`` to the display name slackx knows.
+
+    One bulk cache read names every id slackx already holds; an id it does not
+    hold is fetched one at a time through ``users get``, which asks Slack about
+    that user alone. Only ids that can be named are returned, so a caller falls
+    back to the raw value for the rest.
+    """
+    ids = slack_user_ids(values)
+    if not ids:
+        return {}
+    names = slack_user_names()
+    resolved: dict[str, str] = {}
+    for user_id in ids:
+        name = names.get(user_id) or slack_user_name(user_id)
+        if name:
+            resolved[user_id] = name
+        else:
+            log.info("slack user unresolved", user=user_id)
+    return resolved
 
 
 def slack_people(payload: str, names: dict[str, str] | None = None) -> list[dict[str, Any]]:
