@@ -89,6 +89,21 @@ export function itemAuthor(item) {
   return login ? String(login) : null
 }
 
+// Whether an item counts as the viewer's, by matching its GitHub author to the
+// configured login (case-insensitive). With no login known (never set and `gh`
+// could not detect one) authorship cannot be attributed, so nothing is filtered.
+export function authoredByLogin(item, login) {
+  const mine = String(login || '')
+    .trim()
+    .toLowerCase()
+  if (!mine) return true
+  return (
+    String(itemAuthor(item) || '')
+      .trim()
+      .toLowerCase() === mine
+  )
+}
+
 // The person who carries a handle (a GitHub login) as one of their aliases,
 // matched case-insensitively, or null when nobody does. Aliases are the
 // identities used to de-duplicate people across sources.

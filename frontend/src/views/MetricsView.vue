@@ -2,6 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { api } from '../api'
 import { changeStatusBadge, changeCreateBody, changeReferencesItem, isPullRequestItem } from '../changes'
+import { authoredByLogin, itemState } from '../repositories/parse'
 import { store } from '../store'
 
 const report = ref(null)
@@ -35,14 +36,19 @@ function percent(value) {
 const metricEntries = computed(() => report.value?.metrics || [])
 const counts = computed(() => report.value?.counts || {})
 
-// Every linked pull request that could still get a change record: a PR item on
-// a task where no change recorded against that task references the PR yet. The
-// task page offers its Record change button under this same rule.
+// Every merged pull request that could still get a change record: a PR item on
+// a task where no change recorded against that task references the PR yet. An
+// open or draft PR has not landed, so it is not a change yet. Only the viewer's
+// own PRs are offered, the same rule that gates the repository view's Record
+// change button: a PR someone else wrote is not the viewer's change.
 const changeCandidates = computed(() => {
   const changeList = changes.value || []
+  const login = store.settings?.github_login
   const rows = []
   for (const item of items.value || []) {
     if (!isPullRequestItem(item)) continue
+    if (itemState(item) !== 'merged') continue
+    if (!authoredByLogin(item, login)) continue
     for (const taskId of item.task_ids || []) {
       const recorded = changeList.some((change) => change.task_id === taskId && changeReferencesItem(change, item))
       if (!recorded) rows.push({ id: `${taskId}:${item.id}`, taskId, item })
@@ -105,16 +111,15 @@ function taskTitle(id) {
 
 // Record the linked PR as an accepted change, skipping the proposed step. A
 // merged PR dates the change to its merge, so an item fetched before merge
-// times were stored is refreshed once to pick the time up; an open PR is
-// accepted as of now.
+// times were stored is refreshed once to pick the time up; with no merge time
+// to resolve, the change is accepted as of now.
 async function recordAccepted(row) {
   if (recordingId.value) return
   recordingId.value = row.id
   try {
     const item = row.item
     let mergedAt = item.metadata_json?.merged_at
-    const state = String(item.metadata_json?.state || '').toUpperCase()
-    if (!mergedAt && state === 'MERGED' && item.url) {
+    if (!mergedAt && item.url) {
       const refreshed = await api.items.refresh(item.id).catch(() => null)
       if (refreshed) mergedAt = refreshed.metadata_json?.merged_at
     }
@@ -209,7 +214,9 @@ async function recordAccepted(row) {
         </h2>
         <span class="faint">Record one here, or open the task for the full lifecycle.</span>
       </div>
-      <div v-if="!changeCandidates.length" class="empty">Every linked pull request already has a change recorded.</div>
+      <div v-if="!changeCandidates.length" class="empty">
+        Every merged pull request of yours already has a change recorded.
+      </div>
       <div v-for="row in changeCandidates" :key="row.id" class="change-row">
         <span class="grow">
           <router-link :to="`/task/${row.taskId}`">{{ taskTitle(row.taskId) }}</router-link>

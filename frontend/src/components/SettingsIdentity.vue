@@ -53,8 +53,8 @@ async function save() {
       <span v-else-if="saved" class="faint">saved</span>
     </div>
     <p class="faint" style="margin-top: 0">
-      The GitHub account that counts as you. The inbox and a repository's pull requests only offer to record a change
-      for a merged PR this account authored.
+      The GitHub account that counts as you. The inbox, a repository's pull requests, and the metrics page only offer to
+      record a change for a pull request this account authored.
     </p>
     <div class="field">
       <label>Your GitHub login</label>

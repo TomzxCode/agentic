@@ -3,7 +3,15 @@ import { computed, onMounted, ref, resolveComponent, shallowRef } from 'vue'
 import { api } from '../api'
 import { changeCreateBody, changesForItem } from '../changes'
 import { store, statusLabel, timeAgo } from '../store'
-import { itemAuthor, itemState, itemStatus, parseRemote, personForHandle, personLink } from '../repositories/parse'
+import {
+  authoredByLogin,
+  itemAuthor,
+  itemState,
+  itemStatus,
+  parseRemote,
+  personForHandle,
+  personLink
+} from '../repositories/parse'
 import { itemsForRepository, repositoryRows, sortItems } from '../repositories/rows'
 import GridColumnChooser from '../components/GridColumnChooser.vue'
 import RepositoryItemsGrid from '../components/RepositoryItemsGrid.vue'
@@ -119,15 +127,7 @@ function canRecordChange(row) {
 // login (case-insensitive). With no login known (never set and `gh` could not
 // detect one), authorship cannot be attributed, so nothing is filtered out.
 function authoredByMe(row) {
-  const login = String(store.settings?.github_login || '')
-    .trim()
-    .toLowerCase()
-  if (!login) return true
-  return (
-    String(itemAuthor(row) || '')
-      .trim()
-      .toLowerCase() === login
-  )
+  return authoredByLogin(row, store.settings?.github_login)
 }
 
 // Swap a refreshed stored item back into the store so its row reflects the new

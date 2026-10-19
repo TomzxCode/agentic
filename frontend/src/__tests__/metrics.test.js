@@ -80,11 +80,12 @@ const recordedPr = {
   kind: 'pull_request',
   title: 'Recorded PR',
   url: 'https://github.com/acme/api/pull/1',
-  metadata_json: {},
+  metadata_json: { state: 'MERGED' },
   task_ids: ['t1']
 }
 
-// A PR on t1 with no change recorded, and a PR on a task the store does not hold.
+// An open PR on t1 with no change recorded: not merged yet, so not a
+// candidate.
 const openPr = {
   id: 'i2',
   source: 'github',
@@ -104,13 +105,14 @@ const mergedPr = {
   metadata_json: { state: 'MERGED' },
   task_ids: ['t1']
 }
+// A merged PR on a task the store does not hold.
 const orphanPr = {
   id: 'i3',
   source: 'github',
   kind: 'pull_request',
   title: 'Orphan PR',
   url: 'https://github.com/acme/api/pull/3',
-  metadata_json: {},
+  metadata_json: { state: 'MERGED' },
   task_ids: ['t2']
 }
 
@@ -121,6 +123,7 @@ function mountView() {
 beforeEach(() => {
   vi.clearAllMocks()
   store.toast = null
+  store.settings = {}
   store.tasks = [{ id: 't1', title: 'Task One' }]
   vi.spyOn(store, 'loadTasks').mockResolvedValue()
   mocks.metricsGet.mockResolvedValue(report)
@@ -151,38 +154,85 @@ describe('MetricsView', () => {
     expect(wrapper.findAll('button').some((b) => b.text() === 'Accept')).toBe(false)
   })
 
-  it('lists tasks with a linked PR that has no change record', async () => {
+  it('lists tasks with a merged PR that has no change record', async () => {
     const wrapper = mountView()
     await flushPromises()
 
     expect(mocks.itemsList).toHaveBeenCalled()
     const text = wrapper.text()
     expect(text).toContain('Pull requests without a change record')
-    // The open PR on t1 is offered; the PR the change references is not.
-    expect(text).toContain('Open PR')
+    // The merged PR on t1 is offered; the open PR and the PR the change
+    // references are not.
+    expect(text).toContain('Merged PR')
+    expect(text).not.toContain('Open PR')
     expect(text).not.toContain('Recorded PR')
-    // A PR on a task the store does not hold falls back to the raw id.
+    // A merged PR on a task the store does not hold falls back to the raw id.
     expect(text).toContain('Orphan PR')
     expect(text).toContain('t2')
   })
 
-  it('records a linked PR as an accepted change dated to now when it has no merge time', async () => {
-    mocks.changesCreate.mockResolvedValue({})
+  it('lists only the merged pull requests the configured identity authored', async () => {
+    store.settings = { github_login: 'me' }
+    mocks.itemsList.mockResolvedValue([
+      { ...openPr, metadata_json: { state: 'OPEN', author: 'Me' } },
+      { ...mergedPr, metadata_json: { state: 'MERGED', author: 'Me' } },
+      { ...orphanPr, metadata_json: { state: 'MERGED', author: 'Me' } },
+      {
+        ...mergedPr,
+        id: 'i5',
+        title: 'Their Merged PR',
+        url: 'https://github.com/acme/api/pull/5',
+        metadata_json: { state: 'MERGED', author: 'someone' }
+      },
+      {
+        ...mergedPr,
+        id: 'i6',
+        title: 'No Author PR',
+        url: 'https://github.com/acme/api/pull/6',
+        metadata_json: { state: 'MERGED' }
+      }
+    ])
     const wrapper = mountView()
     await flushPromises()
 
-    // The first row is the open PR on t1.
-    await wrapper
-      .findAll('button')
-      .find((b) => b.text().includes('Record accepted'))
-      .trigger('click')
+    const text = wrapper.text()
+    // Case-insensitive match; other people's PRs, open PRs even when authored by
+    // me, and PRs with no known author are left out.
+    expect(text).toContain('Merged PR')
+    expect(text).toContain('Orphan PR')
+    expect(text).not.toContain('Their Merged PR')
+    expect(text).not.toContain('No Author PR')
+    expect(text).not.toContain('Open PR')
+  })
+
+  it('lists merged pull requests from every author when no identity is known', async () => {
+    store.settings = {}
+    const wrapper = mountView()
     await flushPromises()
 
+    const text = wrapper.text()
+    expect(text).toContain('Merged PR')
+    expect(text).toContain('Orphan PR')
+    expect(text).not.toContain('Open PR')
+  })
+
+  it('records a merged PR as accepted now when no merge time can be resolved', async () => {
+    mocks.changesCreate.mockResolvedValue({})
+    // The refresh finds no merge time either, so the change is dated to now.
+    mocks.itemsRefresh.mockResolvedValue(null)
+    const wrapper = mountView()
+    await flushPromises()
+
+    const mergedRow = wrapper.findAll('.change-row').find((row) => row.text().includes('Merged PR'))
+    await mergedRow.find('button').trigger('click')
+    await flushPromises()
+
+    expect(mocks.itemsRefresh).toHaveBeenCalledWith('i4')
     const body = mocks.changesCreate.mock.calls[0][0]
     expect(body).toMatchObject({
       task_id: 't1',
-      title: 'Open PR',
-      external_ref: 'https://github.com/acme/api/pull/2',
+      title: 'Merged PR',
+      external_ref: 'https://github.com/acme/api/pull/4',
       status: 'accepted'
     })
     expect(body.opened_at).toBe(body.accepted_at)

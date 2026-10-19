@@ -8,6 +8,7 @@ import {
   itemState,
   itemStatus,
   itemAuthor,
+  authoredByLogin,
   personForHandle,
   personLink
 } from '../repositories/parse'
@@ -151,6 +152,25 @@ describe('itemAuthor', () => {
     expect(itemAuthor({ metadata_json: {} })).toBeNull()
     expect(itemAuthor({})).toBeNull()
     expect(itemAuthor(null)).toBeNull()
+  })
+})
+
+describe('authoredByLogin', () => {
+  const item = { metadata_json: { author: 'Tom' } }
+
+  it('matches the author to the login case-insensitively', () => {
+    expect(authoredByLogin(item, 'tom')).toBe(true)
+    expect(authoredByLogin(item, ' TOM ')).toBe(true)
+  })
+
+  it('does not match another author or a missing one', () => {
+    expect(authoredByLogin(item, 'alice')).toBe(false)
+    expect(authoredByLogin({ metadata_json: {} }, 'tom')).toBe(false)
+  })
+
+  it('keeps everything when no login bounds authorship', () => {
+    expect(authoredByLogin(item, '')).toBe(true)
+    expect(authoredByLogin({ metadata_json: {} }, undefined)).toBe(true)
   })
 })
 
