@@ -2,8 +2,10 @@
 import { computed, onUnmounted, ref, watch } from 'vue'
 import { api } from '../api'
 import { formatTimestamp, moveItem, targetIndexAt } from '../stack'
-import { deadlineInfo, formatDeadline, store } from '../store'
+import { deadlineInfo, formatDeadline, priorityLabel as priorityName, store } from '../store'
 import EditableText from './EditableText.vue'
+import PriorityIcon from './PriorityIcon.vue'
+import SearchSelect from './SearchSelect.vue'
 import StatusSelect from './StatusSelect.vue'
 
 // The stack table: one row per entry plus the selected row's description, with
@@ -33,7 +35,19 @@ const emit = defineEmits([
 ])
 
 // The stack table's columns, used by the description row's colspan.
-const COLUMN_COUNT = 12
+const COLUMN_COUNT = 13
+
+// 0 = low, 1 = medium, 2 = high, 3 = urgent. The icon-only picker reuses the
+// priority icon, so the level can be changed in place from the stack row.
+const priorityOptions = [0, 1, 2, 3].map((value) => {
+  const name = priorityName(value)
+  return {
+    value,
+    label: name.charAt(0).toUpperCase() + name.slice(1),
+    icon: PriorityIcon,
+    iconProps: { priority: value, label: `Priority: ${name}` }
+  }
+})
 
 // A local copy of the rows so a drag can reorder live and read its own result on
 // release, before the shell's prop round-trips back.
@@ -88,6 +102,20 @@ async function changeStatus(entry, status) {
     emit('refresh')
   } catch (e) {
     entry.task.status = previous
+    store.notify(e.message, true)
+  }
+}
+
+// Change a task's priority from its stack row; it stays on the stack.
+async function changePriority(entry, priority) {
+  if (!entry.task || priority === entry.task.priority) return
+  const previous = entry.task.priority
+  entry.task.priority = priority
+  try {
+    await api.tasks.update(entry.task_id, { priority })
+    emit('changed')
+  } catch (e) {
+    entry.task.priority = previous
     store.notify(e.message, true)
   }
 }
@@ -224,6 +252,17 @@ onUnmounted(() => {
             <StatusSelect
               :model-value="entry.task?.status"
               @update:model-value="(value) => changeStatus(entry, value)"
+            />
+          </td>
+          <td class="stack-priority-cell" @click.stop @keydown.stop>
+            <SearchSelect
+              class="task-priority-select"
+              variant="icon"
+              :model-value="entry.task?.priority ?? 2"
+              :options="priorityOptions"
+              :sort="false"
+              title="Change priority"
+              @update:model-value="(value) => changePriority(entry, Number(value))"
             />
           </td>
           <td class="stack-open-cell">

@@ -53,7 +53,7 @@ function entry(overrides = {}) {
   return {
     id: 's1',
     task_id: 't1',
-    task: { title: 'First', description: '', status: 'open' },
+    task: { title: 'First', description: '', status: 'open', priority: 3 },
     position: 0,
     is_current: true,
     created_at: '2026-01-01T00:00:00',
@@ -74,7 +74,7 @@ beforeEach(() => {
     entry({
       id: 's2',
       task_id: 't2',
-      task: { title: 'Second', description: 'note', status: 'in_progress' },
+      task: { title: 'Second', description: 'note', status: 'in_progress', priority: 0 },
       position: 1,
       is_current: false,
       duration: 0,
@@ -106,6 +106,29 @@ describe('StackView', () => {
     expect(wrapper.text()).toContain('1m 30s')
     // Each row reuses the icon status picker (editable in place).
     expect(wrapper.findAll('.task-status-select').length).toBe(2)
+  })
+
+  it('shows the priority of each task', async () => {
+    const wrapper = mount(StackView, stub)
+    await flushPromises()
+
+    const icons = wrapper.findAll('.stack-priority-cell .task-priority')
+    expect(icons.length).toBe(2)
+    expect(icons[0].classes()).toContain('prio-urgent')
+    expect(icons[1].classes()).toContain('prio-low')
+  })
+
+  it('changes a task priority from the stack', async () => {
+    const wrapper = mount(StackView, stub)
+    await flushPromises()
+
+    await wrapper.findAll('.stack-priority-cell .ss-trigger')[1].trigger('click')
+    await flushPromises()
+    const urgent = wrapper.findAll('.ss-option').find((option) => option.text().includes('Urgent'))
+    await urgent.trigger('click')
+    await flushPromises()
+
+    expect(mocks.updateTask).toHaveBeenCalledWith('t2', { priority: 3 })
   })
 
   it('shows a deadline badge only when the task has one', async () => {
