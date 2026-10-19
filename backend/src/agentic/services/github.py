@@ -163,6 +163,77 @@ def fetch_github_issue(owner: str, repo: str, number: object, kind: str = "issue
     }
 
 
+#: Review states that decide a reviewer's standing on the PR. A later plain
+#: comment does not override an approval, a change request, or a dismissal.
+_DECISIVE_REVIEW_STATES = frozenset({"APPROVED", "CHANGES_REQUESTED", "DISMISSED"})
+
+
+def fetch_github_pull_reviewers(owner: str, repo: str, number: object) -> list[dict[str, Any]] | None:
+    """The reviewers assigned to a pull request, via ``gh``.
+
+    ``ghx`` reads issues and pull requests from its cache but does not carry
+    reviews, so this one read goes through ``gh``. Each reviewer appears once:
+    their latest decisive review state wins over a later plain comment, their
+    last submitted review time is kept, and a reviewer a review is still
+    requested from carries state ``PENDING`` with ``requested`` set. None when
+    the read could not run.
+    """
+    raw = shell._run_cli(
+        ["gh", "pr", "view", str(number), "--repo", f"{owner}/{repo}", "--json", "reviews,reviewRequests"],
+        timeout=60,
+    )
+    if not raw:
+        return None
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(data, dict):
+        return None
+    reviewers: dict[str, dict[str, Any]] = {}
+    for review in data.get("reviews") or []:
+        if not isinstance(review, dict):
+            continue
+        login = (review.get("author") or {}).get("login")
+        if not login:
+            continue
+        state = str(review.get("state") or "").upper()
+        submitted_at = review.get("submittedAt")
+        current = reviewers.get(str(login).lower())
+        if current is None:
+            reviewers[str(login).lower()] = {
+                "login": str(login),
+                "state": state,
+                "submitted_at": submitted_at,
+                "requested": False,
+            }
+            continue
+        if submitted_at and (not current["submitted_at"] or str(submitted_at) > str(current["submitted_at"])):
+            current["submitted_at"] = submitted_at
+        if state in _DECISIVE_REVIEW_STATES or current["state"] not in _DECISIVE_REVIEW_STATES:
+            current["state"] = state
+    for request in data.get("reviewRequests") or []:
+        # A team request names a team, not a person, so only user requests are
+        # listed: a reviewer row has someone a poke can reach.
+        if not isinstance(request, dict) or request.get("__typename") != "User":
+            continue
+        login = request.get("login")
+        if not login:
+            continue
+        current = reviewers.get(str(login).lower())
+        if current is None:
+            reviewers[str(login).lower()] = {
+                "login": str(login),
+                "state": "PENDING",
+                "submitted_at": None,
+                "requested": True,
+            }
+        else:
+            current["state"] = "PENDING"
+            current["requested"] = True
+    return list(reviewers.values())
+
+
 def create_github_issue(owner: str, repo: str, title: str, body: str = "") -> dict[str, Any] | None:
     """Create an issue in a repository with `gh`. None on failure.
 

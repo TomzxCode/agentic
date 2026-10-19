@@ -8,7 +8,7 @@ You want one place that shows which pull requests still need your review and wha
 
 - A running API and the web app open (see the [tutorial](../tutorials/getting-started.md)).
 - `ghx` on your `PATH`: the queue reads each pull request's own fields (title, state, author, age) from it.
-- `gh` on your `PATH` and authenticated, for the review scan that asks GitHub which pull requests await your review.
+- `gh` on your `PATH` and authenticated, for the review scan that asks GitHub which pull requests await your review, and for a pull request item's review list.
 - Review reports in the store for the pull requests you have already reviewed.
   Run `/review-pr-full` (or the individual review skills) on a PR to write them.
 
@@ -60,10 +60,25 @@ Configure the scan under **Settings → Review requests**:
 
 The section shows when the scan last ran, how many it found and kept, and any error.
 
+## Request a review from a reviewer
+
+Open a pull request item: from a row's **📝** in the queue, a task's PR view, or the Resources list.
+Its **Pull request** panel lists the reviewers assigned to the pull request: the ones who already reviewed (with their latest state and when they last reviewed), and the ones a review is still requested from, shown as **Awaiting review**.
+
+Click the **👉** beside a reviewer to send them a Slack DM asking for their review.
+The message reads `:wave::robot_face: I would love your review on this PR: <title linking to GitHub>`.
+
+The GitHub login resolves through the People directory: the person carrying that login as an alias supplies the Slack user id (or Slack handle) among their other aliases.
+When either is missing, the app says which one to add instead of sending.
+
+The send needs `SLACK_TOKEN` in the environment or the `.env` file the server starts from, plus `SLACK_COOKIE` when the token is an `xoxc-` web token.
+Without it, the poke reports that Slack is not configured.
+
 ## Where the data comes from
 
 The review-step state comes from the reports the review skills write under the store, and each pull request's own fields come from `ghx`.
-Fields that would need a read the queue does not make (the diff size, the approvers, the pull requests an open PR blocks) are left out.
+A pull request item's reviewer list comes from `gh pr view`, because `ghx` does not carry reviews.
+Fields that would need a read the queue does not make (the diff size, the pull requests an open PR blocks) are left out.
 
 ## Verification
 

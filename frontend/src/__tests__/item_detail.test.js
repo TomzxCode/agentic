@@ -10,7 +10,9 @@ const mocks = vi.hoisted(() => ({
   itemsRefresh: vi.fn(),
   itemsRemove: vi.fn(),
   reviewsGet: vi.fn(),
-  reviewGet: vi.fn()
+  reviewGet: vi.fn(),
+  reviewersGet: vi.fn(),
+  poke: vi.fn()
 }))
 
 vi.mock('vue-router', () => ({
@@ -25,7 +27,9 @@ vi.mock('../api', () => ({
       refresh: mocks.itemsRefresh,
       remove: mocks.itemsRemove,
       reviews: mocks.reviewsGet,
-      review: mocks.reviewGet
+      review: mocks.reviewGet,
+      reviewers: mocks.reviewersGet,
+      poke: mocks.poke
     }
   }
 }))
@@ -65,6 +69,8 @@ beforeEach(() => {
   store.people = []
   vi.spyOn(store, 'loadTasks').mockResolvedValue()
   vi.spyOn(store, 'loadPeople').mockResolvedValue()
+  mocks.reviewersGet.mockResolvedValue({ reviewers: [], error: null })
+  mocks.reviewsGet.mockResolvedValue({ path: null, files: [] })
 })
 
 describe('ItemDetailView', () => {
@@ -326,5 +332,86 @@ describe('ItemDetailView', () => {
     await flushPromises()
     expect(mocks.reviewsGet).not.toHaveBeenCalled()
     expect(wrapper.find('.review-tabs').exists()).toBe(false)
+  })
+
+  it('lists a pull request’s reviewers, pending ones first and then newest', async () => {
+    mocks.itemsGet.mockResolvedValue(item({ url: 'https://github.com/acme/api/pull/42', kind: 'pull_request' }))
+    mocks.reviewersGet.mockResolvedValue({
+      reviewers: [
+        { login: 'alice', state: 'COMMENTED', submitted_at: '2026-01-01T00:00:00Z', requested: false },
+        { login: 'bob', state: 'APPROVED', submitted_at: '2026-01-03T00:00:00Z', requested: false },
+        { login: 'carol', state: 'PENDING', submitted_at: null, requested: true }
+      ],
+      error: null
+    })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(mocks.reviewersGet).toHaveBeenCalledWith('i1')
+    expect(wrapper.text()).toContain('Reviewers')
+    const rows = wrapper.findAll('.review-person')
+    expect(rows.map((row) => row.get('a').text())).toEqual(['@carol', '@bob', '@alice'])
+    expect(rows[0].text()).toContain('Awaiting review')
+    expect(rows[0].text()).toContain('requested')
+    expect(rows[1].text()).toContain('Approved')
+    expect(rows[1].text()).toContain('last review')
+    expect(rows[2].text()).toContain('Commented')
+    // Every reviewer carries the poke action beside their name.
+    expect(rows.map((row) => row.get('.review-poke').text())).toEqual(['👉', '👉', '👉'])
+  })
+
+  it('pokes a reviewer through Slack and reports who was reached', async () => {
+    mocks.itemsGet.mockResolvedValue(item({ url: 'https://github.com/acme/api/pull/42', kind: 'pull_request' }))
+    mocks.reviewersGet.mockResolvedValue({
+      reviewers: [{ login: 'alice', state: 'PENDING', submitted_at: null, requested: true }],
+      error: null
+    })
+    mocks.poke.mockResolvedValue({ login: 'alice', slack_user_id: 'U0123ABCDEF', name: 'Alice', ts: '1.2' })
+
+    const wrapper = mountView()
+    await flushPromises()
+    await wrapper.get('.review-poke').trigger('click')
+    await flushPromises()
+
+    expect(mocks.poke).toHaveBeenCalledWith('i1', 'alice')
+    expect(store.toast).toEqual({ message: 'Poked Alice on Slack', isError: false })
+  })
+
+  it('shows why a poke could not be sent', async () => {
+    mocks.itemsGet.mockResolvedValue(item({ url: 'https://github.com/acme/api/pull/42', kind: 'pull_request' }))
+    mocks.reviewersGet.mockResolvedValue({
+      reviewers: [{ login: 'alice', state: 'PENDING', submitted_at: null, requested: true }],
+      error: null
+    })
+    mocks.poke.mockRejectedValue(new Error('No person carries the GitHub login @alice.'))
+
+    const wrapper = mountView()
+    await flushPromises()
+    await wrapper.get('.review-poke').trigger('click')
+    await flushPromises()
+
+    expect(store.toast).toEqual({ message: 'No person carries the GitHub login @alice.', isError: true })
+  })
+
+  it('shows a failed reviewers read instead of reading as no reviewers', async () => {
+    mocks.itemsGet.mockResolvedValue(item({ url: 'https://github.com/acme/api/pull/42', kind: 'pull_request' }))
+    mocks.reviewersGet.mockResolvedValue({
+      reviewers: [],
+      error: 'Could not read this pull request’s reviewers (is `gh` installed and authenticated?)'
+    })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('is `gh` installed and authenticated?')
+    expect(wrapper.text()).not.toContain('No reviewers yet.')
+  })
+
+  it('does not ask GitHub for reviewers on an issue', async () => {
+    mocks.itemsGet.mockResolvedValue(item())
+    mountView()
+    await flushPromises()
+    expect(mocks.reviewersGet).not.toHaveBeenCalled()
   })
 })

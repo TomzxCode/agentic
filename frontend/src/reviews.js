@@ -282,3 +282,38 @@ export function commitUrl(pr) {
   if (!pr?.head_commit || !pr?.owner) return null
   return `https://github.com/${pr.repository}/commit/${pr.head_commit}`
 }
+
+// --- A pull request's reviewers on GitHub -----------------------------
+// The item view lists one row per reviewer `gh` names for a PR, plus the
+// reviewers a review is still requested from. Everything here is pure: the view
+// hands in the reviews endpoint returned.
+
+// How each GitHub review state reads, and the badge tone it carries. PENDING is
+// not a GitHub review state: the API uses it for a reviewer a review is still
+// requested from.
+export const GITHUB_REVIEW_STATES = {
+  APPROVED: { label: 'Approved', className: 'tone-ok' },
+  CHANGES_REQUESTED: { label: 'Changes requested', className: 'tone-danger' },
+  COMMENTED: { label: 'Commented', className: '' },
+  DISMISSED: { label: 'Dismissed', className: 'faint' },
+  PENDING: { label: 'Awaiting review', className: 'tone-warn' }
+}
+
+export function githubReviewState(state) {
+  return GITHUB_REVIEW_STATES[String(state || '').toUpperCase()] || { label: String(state || ''), className: '' }
+}
+
+// Reviewers in display order: the ones still owing a review first (those are the
+// ones worth a poke), then the rest by when they last reviewed, newest first.
+// `key` is stable for the list even if the API repeats a login.
+export function orderGithubReviewers(reviewers) {
+  return [...(reviewers || [])]
+    .sort((a, b) => {
+      if (!!a.requested !== !!b.requested) return a.requested ? -1 : 1
+      return String(b.submitted_at || '').localeCompare(String(a.submitted_at || ''))
+    })
+    .map((reviewer, index) => ({
+      ...reviewer,
+      key: `${reviewer.login}|${reviewer.submitted_at || ''}|${index}`
+    }))
+}

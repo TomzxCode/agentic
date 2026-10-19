@@ -4,10 +4,12 @@ import {
   commitUrl,
   groupQueueByRepository,
   groupReviewFiles,
+  githubReviewState,
   matchesAuthorFilter,
   matchesQueueSearch,
   matchesRepositoryFilter,
   matchesStateFilter,
+  orderGithubReviewers,
   PR_STATE_FILTERS,
   prStateGroup,
   queueAuthors,
@@ -300,5 +302,30 @@ describe('queueRowFor', () => {
     expect(queueRowFor([row], { owner: 'tomzxcode', repo: 'agentic', number: 42 })).toBe(row)
     expect(queueRowFor([row], { owner: 'tomzxcode', repo: 'agentic', number: 7 })).toBeNull()
     expect(queueRowFor([], { owner: 'a', repo: 'b', number: 1 })).toBeNull()
+  })
+})
+
+describe('githubReviewState', () => {
+  it('names each GitHub review state and its badge tone', () => {
+    expect(githubReviewState('APPROVED')).toEqual({ label: 'Approved', className: 'tone-ok' })
+    expect(githubReviewState('changes_requested')).toEqual({ label: 'Changes requested', className: 'tone-danger' })
+    expect(githubReviewState('PENDING')).toEqual({ label: 'Awaiting review', className: 'tone-warn' })
+    expect(githubReviewState('COMMENTED')).toEqual({ label: 'Commented', className: '' })
+    // An unknown state still reads as something rather than disappearing.
+    expect(githubReviewState('WHATEVER')).toEqual({ label: 'WHATEVER', className: '' })
+  })
+})
+
+describe('orderGithubReviewers', () => {
+  it('puts reviewers still owing a review first, then the rest by last review', () => {
+    const rows = orderGithubReviewers([
+      { login: 'alice', state: 'APPROVED', submitted_at: '2026-01-01T00:00:00Z' },
+      { login: 'bob', state: 'COMMENTED', submitted_at: '2026-01-03T00:00:00Z' },
+      { login: 'carol', state: 'PENDING', submitted_at: null, requested: true }
+    ])
+    expect(rows.map((row) => row.login)).toEqual(['carol', 'bob', 'alice'])
+    // Every row carries a stable key, including two reviews at the same moment.
+    expect(new Set(rows.map((row) => row.key)).size).toBe(3)
+    expect(orderGithubReviewers(undefined)).toEqual([])
   })
 })

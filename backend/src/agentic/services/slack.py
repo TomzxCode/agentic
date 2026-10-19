@@ -8,14 +8,20 @@ from collections.abc import Iterable
 from datetime import datetime, tzinfo
 from typing import Any
 
+import httpx
 import structlog
 
+from ..config import settings
 from ..parallel import run_parallel
 from . import shell
 from .github import dedupe_people
 from .parsing import parse_slack
 
 log = structlog.get_logger(__name__)
+
+
+class SlackError(RuntimeError):
+    """A Slack send that could not run, or that Slack refused."""
 
 
 def slack_item_datetime(ts: str, tz: tzinfo | None = None) -> str:
@@ -139,6 +145,59 @@ def resolve_slack_user_ids(values: Iterable[str]) -> dict[str, str]:
         else:
             log.info("slack user unresolved", user=user_id)
     return resolved
+
+
+def resolve_slack_user_id(values: Iterable[str]) -> str | None:
+    """The Slack user id carried by ``values``, or the one their handle names.
+
+    A person's aliases may hold the id itself (``U0123ABCD``) or a Slack handle
+    (``tomzx``). An id wins outright; otherwise the handles are matched against
+    the ``name`` field of the users slackx caches. None when neither resolves.
+    """
+    cleaned = [str(value).strip() for value in values if str(value).strip()]
+    for value in cleaned:
+        if is_slack_user_id(value):
+            return value
+    handles = {value.lower() for value in cleaned if "@" not in value}
+    if not handles:
+        return None
+    raw = shell._run_cli(["slackx", "users", "list", "--json", "--fields", "id,name"], timeout=30)
+    for user in _slack_users(raw):
+        user_id = user.get("id")
+        if user_id and str(user.get("name") or "").lower() in handles:
+            return str(user_id)
+    return None
+
+
+def slack_send_dm(user_id: str, text: str) -> dict[str, Any]:
+    """Send a direct message to a Slack user, opening the DM if needed.
+
+    ``chat.postMessage`` takes a user id as its channel. Slack's own error is
+    raised as :class:`SlackError`, so a caller can show it instead of reporting
+    a silent success.
+    """
+    token = (settings.slack_token or "").strip()
+    if not token:
+        raise SlackError("SLACK_TOKEN is not configured; set it in the environment or in a .env file")
+    cookie = (settings.slack_cookie or "").strip()
+    if token.startswith("xoxc-") and not cookie:
+        raise SlackError("An xoxc- token also needs SLACK_COOKIE (the xoxd- value) from the same browser session")
+    headers = {"Authorization": f"Bearer {token}"}
+    if cookie:
+        headers["Cookie"] = f"d={cookie}"
+    url = f"{(settings.slack_api_base_url or 'https://slack.com/api').rstrip('/')}/chat.postMessage"
+    try:
+        response = httpx.post(url, data={"channel": user_id, "text": text}, headers=headers, timeout=30)
+    except httpx.HTTPError as exc:
+        raise SlackError(f"Slack request failed: {exc}") from exc
+    try:
+        data = response.json()
+    except ValueError as exc:
+        raise SlackError(f"Slack returned an unreadable response (HTTP {response.status_code})") from exc
+    if not isinstance(data, dict) or not data.get("ok"):
+        error = data.get("error", "unknown") if isinstance(data, dict) else "unknown"
+        raise SlackError(f"Slack refused the message: {error}")
+    return data
 
 
 def slack_people(payload: str, names: dict[str, str] | None = None) -> list[dict[str, Any]]:

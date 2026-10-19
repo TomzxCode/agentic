@@ -1,6 +1,7 @@
 # Configuration
 
 The backend reads environment variables prefixed with `AGENTIC_`, or the same keys from a `.env` file in the directory you start the server from (the repository root when you use the Makefile).
+The Slack credentials keep the names `slackx` uses (`SLACK_TOKEN`, `SLACK_COOKIE`, `SLACK_API_BASE_URL`), so one configuration serves both tools; the `AGENTIC_` spellings are accepted too.
 
 `.env.example` in the repository root lists every key with its default.
 
@@ -17,6 +18,9 @@ The backend reads environment variables prefixed with `AGENTIC_`, or the same ke
 | `AGENTIC_CORS_ORIGINS` | `["http://localhost:5173","http://127.0.0.1:5173"]` | CORS origins allowed for the Vite dev server. |
 | `AGENTIC_DEFAULT_HARNESS` | `opencode` | Fallback harness by name, used when no harness is marked default. |
 | `AGENTIC_GITHUB_LOGIN` | (empty) | The GitHub login that counts as "you": the inbox and a repository's pull requests only offer to record a change for a merged PR this account authored. Empty auto-detects the authenticated `gh` account. |
+| `SLACK_TOKEN` | (empty) | Slack token the item view's poke action sends with. Also read as `AGENTIC_SLACK_TOKEN`. A web token (`xoxc-`) needs `SLACK_COOKIE` (the `xoxd-` value); a bot token (`xoxb-`) does not. Empty disables poking. |
+| `SLACK_COOKIE` | (empty) | The `xoxd-` cookie that goes with an `xoxc-` web token. Also read as `AGENTIC_SLACK_COOKIE`. |
+| `SLACK_API_BASE_URL` | `https://slack.com/api` | Slack API base the poke action posts to. Also read as `AGENTIC_SLACK_API_BASE_URL`. |
 | `AGENTIC_AUTO_APPROVE_PERMISSIONS` | `true` | Auto-approve ACP permission requests. |
 | `AGENTIC_WARM_HARNESS_SESSION` | `true` | Hold an ACP session open for the default harness from API startup, so the task view lists its model choices without spawning it. Runs still spawn their own session. |
 | `AGENTIC_QUEUE_URL` | `sqlite:///<data_dir>/queue.db` | Agent-run queue. Use a `redis://` or `postgres://` URL to share the queue across machines. |

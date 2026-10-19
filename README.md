@@ -414,7 +414,7 @@ Local: `vscode://file{path}`. Remote VS Code over SSH:
 
 ## Configuration
 
-Environment variables (prefix `AGENTIC_`) or `backend/.env`:
+Environment variables (prefix `AGENTIC_`; the Slack credentials keep slackx's names) or `backend/.env`:
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
@@ -424,6 +424,8 @@ Environment variables (prefix `AGENTIC_`) or `backend/.env`:
 | `AGENTIC_STATIC_DIR` | `backend/static` | Built SPA to serve. |
 | `AGENTIC_DEFAULT_HARNESS` | `opencode` | Fallback harness (by name) when no harness is marked default. |
 | `AGENTIC_GITHUB_LOGIN` | (empty) | The GitHub login that counts as you, for change-record suggestions. Empty auto-detects the authenticated `gh` account. |
+| `SLACK_TOKEN` | (empty) | Slack token the item view's poke action sends with (also `AGENTIC_SLACK_TOKEN`). A `xoxc-` web token needs `SLACK_COOKIE`; empty disables poking. |
+| `SLACK_COOKIE` | (empty) | The `xoxd-` cookie for a `xoxc-` token (also `AGENTIC_SLACK_COOKIE`). |
 | `AGENTIC_AUTO_APPROVE_PERMISSIONS` | `true` | Auto-approve ACP permission requests. |
 | `AGENTIC_OPENCHAMBER_URL` | (unset) | Base URL for "Open in OpenChamber" links. |
 | `AGENTIC_OPENCHAMBER_SESSION_PATH` | `/?session={session}` | Path appended to the base. |
@@ -601,6 +603,8 @@ PATCH/DELETE        /api/stack/{id}                      (edit the task / remove
 GET                 /api/stack/history                   (soft-deleted entries)
 GET                 /api/stack/current                   (the current task)
 GET/POST/PATCH      /api/harnesses   /api/repositories   /api/items
+GET                 /api/items/{id}/reviewers       (a PR's reviewers, live from GitHub)
+POST                /api/items/{id}/poke                (DM a reviewer on Slack)
 GET/POST            /api/changes
 GET/PATCH/DELETE    /api/changes/{id}
 POST                /api/changes/{id}/status             (lifecycle transition)

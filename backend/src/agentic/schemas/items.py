@@ -83,6 +83,48 @@ class ItemReviewContent(BaseModel):
     truncated: bool = False
 
 
+class ItemGithubReviewer(BaseModel):
+    """One reviewer on a GitHub pull request.
+
+    ``state`` is the reviewer's latest decisive GitHub state (``APPROVED``,
+    ``CHANGES_REQUESTED``, ``DISMISSED``), their latest plain state (``COMMENTED``)
+    when they have no decisive one, or ``PENDING`` when a review is requested and
+    still owed. ``submitted_at`` is when they last reviewed, and ``requested``
+    marks a review that is currently asked of them.
+    """
+
+    login: str
+    state: str
+    submitted_at: str | None = None
+    requested: bool = False
+
+
+class ItemGithubReviewers(BaseModel):
+    """A pull request's reviewers, read live from GitHub through ``gh``.
+
+    ``error`` names a read that could not run (``gh`` missing or not
+    authenticated) instead of letting an empty list read as "no reviewers".
+    """
+
+    reviewers: list[ItemGithubReviewer] = []
+    error: str | None = None
+
+
+class ItemPokeRequest(BaseModel):
+    """Ask the API to send a reviewer a Slack message about the PR."""
+
+    login: str
+
+
+class ItemPoke(BaseModel):
+    """The Slack message a poke sent."""
+
+    login: str
+    slack_user_id: str
+    name: str = ""
+    ts: str | None = None
+
+
 class ReviewStepRead(BaseModel):
     """One review step's newest report for a pull request."""
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -52,6 +53,17 @@ class Settings(BaseSettings):
     # offered a change record when this account authored it. Empty auto-detects
     # the authenticated `gh` account (see ``detect_github_login``).
     github_login: str = ""
+
+    # Slack: the credentials a poke uses to start a DM with a reviewer. They are
+    # read under the same names slackx uses, so one configuration serves both;
+    # the AGENTIC_ spellings are accepted too. An xoxc- web token also needs its
+    # xoxd- cookie. Empty disables poking.
+    slack_token: str = Field(default="", validation_alias=AliasChoices("AGENTIC_SLACK_TOKEN", "SLACK_TOKEN"))
+    slack_cookie: str = Field(default="", validation_alias=AliasChoices("AGENTIC_SLACK_COOKIE", "SLACK_COOKIE"))
+    slack_api_base_url: str = Field(
+        default="https://slack.com/api",
+        validation_alias=AliasChoices("AGENTIC_SLACK_API_BASE_URL", "SLACK_API_BASE_URL"),
+    )
 
     # Session links. These are defaults; the Settings page can override them,
     # and overrides are stored in the database.

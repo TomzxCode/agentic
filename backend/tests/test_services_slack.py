@@ -3,6 +3,8 @@
 import threading
 from datetime import UTC
 
+import pytest
+
 from agentic.services import shell, slack
 
 
@@ -197,3 +199,95 @@ def test_slack_user_name_falls_back_to_the_login(monkeypatch):
     assert slack.slack_user_name("U9999ZZZZZZ") is None
     monkeypatch.setattr(shell, "_run_cli", lambda cmd, timeout=60: "not json")
     assert slack.slack_user_name("U0123ABCDEF") is None
+
+
+class _SlackResponse:
+    """The minimal shape of a Slack Web API response."""
+
+    status_code = 200
+
+    def __init__(self, data):
+        self._data = data
+
+    def json(self):
+        return self._data
+
+
+def test_resolve_slack_user_id_prefers_an_id_alias(monkeypatch):
+    def fail(cmd, timeout=60):
+        raise AssertionError("an id alias needs no slackx read")
+
+    monkeypatch.setattr(shell, "_run_cli", fail)
+    assert slack.resolve_slack_user_id(["alice", "U0123ABCDEF"]) == "U0123ABCDEF"
+    assert slack.resolve_slack_user_id(["alice@example.com"]) is None
+
+
+def test_resolve_slack_user_id_matches_a_cached_handle(monkeypatch):
+    payload = '{"users": [{"id": "U0HANDLE1", "name": "alice"}, {"id": "U0OTHER22", "name": "bob"}]}'
+    monkeypatch.setattr(shell, "_run_cli", lambda cmd, timeout=60: payload)
+    assert slack.resolve_slack_user_id(["alice"]) == "U0HANDLE1"
+    assert slack.resolve_slack_user_id(["nobody"]) is None
+
+
+def test_slack_send_dm_posts_to_the_user_with_the_configured_token(monkeypatch):
+    from agentic.config import settings
+
+    calls = {}
+
+    def fake_post(url, data=None, headers=None, timeout=None):
+        calls.update(url=url, data=data, headers=headers)
+        return _SlackResponse({"ok": True, "ts": "1.2"})
+
+    monkeypatch.setattr(settings, "slack_token", "xoxb-1")
+    monkeypatch.setattr(settings, "slack_cookie", "")
+    monkeypatch.setattr(settings, "slack_api_base_url", "https://slack.example/api")
+    monkeypatch.setattr(slack.httpx, "post", fake_post)
+
+    assert slack.slack_send_dm("U0123ABCDEF", "hi") == {"ok": True, "ts": "1.2"}
+    assert calls["url"] == "https://slack.example/api/chat.postMessage"
+    assert calls["data"] == {"channel": "U0123ABCDEF", "text": "hi"}
+    assert calls["headers"] == {"Authorization": "Bearer xoxb-1"}
+
+
+def test_slack_send_dm_carries_the_cookie_for_a_web_token(monkeypatch):
+    from agentic.config import settings
+
+    calls = {}
+
+    def fake_post(url, data=None, headers=None, timeout=None):
+        calls.update(headers=headers)
+        return _SlackResponse({"ok": True, "ts": "1.2"})
+
+    monkeypatch.setattr(settings, "slack_token", "xoxc-1")
+    monkeypatch.setattr(settings, "slack_cookie", "xoxd-2")
+    monkeypatch.setattr(slack.httpx, "post", fake_post)
+
+    slack.slack_send_dm("U0123ABCDEF", "hi")
+    assert calls["headers"] == {"Authorization": "Bearer xoxc-1", "Cookie": "d=xoxd-2"}
+
+
+def test_slack_send_dm_names_an_unusable_configuration(monkeypatch):
+    from agentic.config import settings
+
+    monkeypatch.setattr(settings, "slack_token", "")
+    with pytest.raises(slack.SlackError, match="SLACK_TOKEN"):
+        slack.slack_send_dm("U0123ABCDEF", "hi")
+
+    monkeypatch.setattr(settings, "slack_token", "xoxc-1")
+    monkeypatch.setattr(settings, "slack_cookie", "")
+    with pytest.raises(slack.SlackError, match="SLACK_COOKIE"):
+        slack.slack_send_dm("U0123ABCDEF", "hi")
+
+
+def test_slack_send_dm_raises_the_slack_error(monkeypatch):
+    from agentic.config import settings
+
+    monkeypatch.setattr(settings, "slack_token", "xoxb-1")
+    monkeypatch.setattr(settings, "slack_cookie", "")
+    monkeypatch.setattr(
+        slack.httpx,
+        "post",
+        lambda *a, **k: _SlackResponse({"ok": False, "error": "channel_not_found"}),
+    )
+    with pytest.raises(slack.SlackError, match="channel_not_found"):
+        slack.slack_send_dm("U0123ABCDEF", "hi")

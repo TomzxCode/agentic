@@ -5,7 +5,7 @@ import { api } from '../api'
 import { formatDateTime, sourceLabel, store, timeAgo } from '../store'
 import { itemAuthor, itemStatus, parseGithubUrl, personLink } from '../repositories/parse'
 import { renderMarkdown } from '../markdown'
-import { groupReviewFiles, reviewLabel, stripReportMarker } from '../reviews'
+import { groupReviewFiles, githubReviewState, orderGithubReviewers, reviewLabel, stripReportMarker } from '../reviews'
 import EditableText from '../components/EditableText.vue'
 import TaskLink from '../components/TaskLink.vue'
 
@@ -27,6 +27,20 @@ const selectedReview = ref(null)
 const reviewContent = ref(null)
 const reviewTruncated = ref(false)
 const reviewLoading = ref(false)
+
+// The PR's reviewers on GitHub, read live through `gh`, and the reviewer whose
+// Slack poke is in flight. Each row is one reviewer.
+const reviewers = ref([])
+const reviewersError = ref(null)
+const reviewersLoading = ref(false)
+const poking = ref(null)
+const reviewerRows = computed(() =>
+  orderGithubReviewers(reviewers.value).map((review) => ({
+    ...review,
+    link: personLink(store.people, review.login),
+    stateInfo: githubReviewState(review.state)
+  }))
+)
 
 // The reports of one reviewed commit belong together, so the list is grouped by
 // the commit in each report's name.
@@ -170,6 +184,37 @@ async function openReview(name) {
   }
 }
 
+async function loadReviewers() {
+  reviewers.value = []
+  reviewersError.value = null
+  if (!isPullRequest.value) return
+  reviewersLoading.value = true
+  try {
+    const data = await api.items.reviewers(props.id)
+    reviewers.value = data.reviewers || []
+    reviewersError.value = data.error || null
+  } catch (e) {
+    reviewersError.value = e.message
+  } finally {
+    reviewersLoading.value = false
+  }
+}
+
+// Ask a reviewer for their review through Slack. The emoji itself is the
+// action; the toast reports who the message reached, or why it could not go.
+async function poke(reviewer) {
+  if (poking.value) return
+  poking.value = reviewer.login
+  try {
+    const sent = await api.items.poke(props.id, reviewer.login)
+    store.notify(`Poked ${sent.name || `@${reviewer.login}`} on Slack`)
+  } catch (e) {
+    store.notify(e.message, true)
+  } finally {
+    poking.value = null
+  }
+}
+
 async function remove() {
   const linked = linkedTasks.value.length
   const message = linked
@@ -188,7 +233,7 @@ async function remove() {
 onMounted(async () => {
   await Promise.all([store.loadTasks().catch(() => {}), store.loadPeople().catch(() => {})])
   await load()
-  await loadReviews()
+  await Promise.all([loadReviews(), loadReviewers()])
 })
 </script>
 
@@ -276,6 +321,35 @@ onMounted(async () => {
           <div v-if="mergedAt" class="field" style="margin-bottom: 0">
             <label>Merged</label>
             <div>{{ formatDateTime(mergedAt) }}</div>
+          </div>
+        </div>
+        <!-- The PR's reviewers, read live from GitHub. The ones still owing a
+             review are listed too, since those are the ones to poke. -->
+        <div v-if="isPullRequest" class="field">
+          <label>Reviewers</label>
+          <div v-if="reviewersLoading" class="empty"><span class="spinner"></span></div>
+          <p v-else-if="reviewersError" class="faint" style="margin: 0">{{ reviewersError }}</p>
+          <p v-else-if="!reviewerRows.length" class="faint" style="margin: 0">No reviewers yet.</p>
+          <div v-else class="review-people">
+            <div v-for="reviewer in reviewerRows" :key="reviewer.key" class="review-person">
+              <router-link v-if="reviewer.link" :to="reviewer.link.path" :class="{ faint: reviewer.link.missing }"
+                >@{{ reviewer.login }}</router-link
+              >
+              <span v-else class="faint">@{{ reviewer.login }}</span>
+              <button
+                class="btn sm ghost review-poke"
+                :disabled="!!poking"
+                :title="`Poke ${reviewer.login} on Slack`"
+                :aria-label="`Poke ${reviewer.login} on Slack`"
+                @click="poke(reviewer)"
+              >
+                <span v-if="poking === reviewer.login" class="spinner" aria-hidden="true"></span>
+                <span v-else aria-hidden="true">👉</span>
+              </button>
+              <span class="badge" :class="reviewer.stateInfo.className">{{ reviewer.stateInfo.label }}</span>
+              <span v-if="reviewer.submitted_at" class="faint">last review {{ timeAgo(reviewer.submitted_at) }}</span>
+              <span v-else-if="reviewer.requested" class="faint">requested</span>
+            </div>
           </div>
         </div>
         <!-- The description is Markdown, rendered with the shared renderer and

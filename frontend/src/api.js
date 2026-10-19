@@ -194,6 +194,12 @@ export const api = {
     refresh: (id) => request(`/items/${id}/refresh`, { method: 'POST' }),
     refreshSource: (source) => request(`/items/refresh-source/${source}`, { method: 'POST' }),
     reviews: (id) => request(`/items/${id}/reviews`),
+    // The reviewers on a PR, one row each, read live from GitHub (gh); a
+    // reviewer a review is still requested from comes back as PENDING.
+    reviewers: (id) => request(`/items/${id}/reviewers`),
+    // Ask a reviewer for their review through a Slack DM. The GitHub login
+    // resolves through the people directory to a Slack user id or handle.
+    poke: (id, login) => request(`/items/${id}/poke`, { method: 'POST', body: { login } }),
     // The report name is a path relative to the PR's review directory (it may
     // hold a "feedback/" segment), so each segment is encoded separately.
     review: (id, name) => request(`/items/${id}/reviews/${String(name).split('/').map(encodeURIComponent).join('/')}`),

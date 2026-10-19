@@ -45,6 +45,12 @@ def person_aliases(session: Session, person_id: str) -> list[str]:
     return [row.value for row in rows]
 
 
+def person_for_alias(session: Session, value: str) -> Person | None:
+    """The person carrying ``value`` as an alias (case-insensitive), if any."""
+    text = str(value or "").strip()
+    return _find_by_alias(session, [text]) if text else None
+
+
 def _set_aliases(session: Session, person_id: str, values: list[str]) -> None:
     """Replace a person's aliases with exactly ``values`` (already normalized)."""
     session.exec(sa_delete(PersonAlias).where(col(PersonAlias.person_id) == person_id))
