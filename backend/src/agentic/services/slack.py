@@ -10,6 +10,7 @@ from typing import Any
 
 import structlog
 
+from ..parallel import run_parallel
 from . import shell
 from .github import dedupe_people
 from .parsing import parse_slack
@@ -118,18 +119,21 @@ def slack_user_name(user_id: str) -> str | None:
 def resolve_slack_user_ids(values: Iterable[str]) -> dict[str, str]:
     """Map the Slack user ids among ``values`` to the display name slackx knows.
 
-    One bulk cache read names every id slackx already holds; an id it does not
-    hold is fetched one at a time through ``users get``, which asks Slack about
-    that user alone. Only ids that can be named are returned, so a caller falls
-    back to the raw value for the rest.
+    One bulk cache read names every id slackx already holds; the ids it does not
+    hold are fetched together through ``users get``, which asks Slack about that
+    user alone. Only ids that can be named are returned, so a caller falls back
+    to the raw value for the rest.
     """
     ids = slack_user_ids(values)
     if not ids:
         return {}
     names = slack_user_names()
+    missing = [user_id for user_id in ids if user_id not in names]
+    fetched = run_parallel([lambda user_id=user_id: slack_user_name(user_id) for user_id in missing])
+    looked_up = dict(zip(missing, fetched, strict=True))
     resolved: dict[str, str] = {}
     for user_id in ids:
-        name = names.get(user_id) or slack_user_name(user_id)
+        name = names.get(user_id) or looked_up.get(user_id)
         if name:
             resolved[user_id] = name
         else:

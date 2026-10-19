@@ -1,5 +1,6 @@
 """Slack fetch helpers and thread naming."""
 
+import threading
 from datetime import UTC
 
 from agentic.services import shell, slack
@@ -160,12 +161,32 @@ def test_resolve_slack_user_ids(monkeypatch):
         "U0123ABCDEF": "Tom Rochette",
         "U0COLDCOLD": "ada",
     }
-    assert [(cmd[1], cmd[2]) for cmd in calls] == [("users", "list"), ("users", "get"), ("users", "get")]
+    kinds = [(cmd[1], cmd[2]) for cmd in calls]
+    # The bulk cache read comes first; the two per-id fetches run together, so
+    # their order is not fixed.
+    assert kinds[0] == ("users", "list")
+    assert sorted(kinds[1:]) == [("users", "get"), ("users", "get")]
 
     # No Slack user ids: slackx is not called at all.
     calls.clear()
     assert slack.resolve_slack_user_ids(["ada", "ada@example.com"]) == {}
     assert calls == []
+
+
+def test_uncached_slack_users_are_fetched_together(monkeypatch):
+    """Each uncached id is a slackx subprocess wait, so they run at once."""
+    barrier = threading.Barrier(2, timeout=5)
+    monkeypatch.setattr(slack, "slack_user_names", lambda: {})
+
+    def fetch(user_id):
+        barrier.wait()
+        return f"name {user_id}"
+
+    monkeypatch.setattr(slack, "slack_user_name", fetch)
+    assert slack.resolve_slack_user_ids(["U0123ABCDEF", "U0COLDCOLD"]) == {
+        "U0123ABCDEF": "name U0123ABCDEF",
+        "U0COLDCOLD": "name U0COLDCOLD",
+    }
 
 
 def test_slack_user_name_falls_back_to_the_login(monkeypatch):
