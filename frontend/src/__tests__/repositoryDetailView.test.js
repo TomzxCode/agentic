@@ -480,6 +480,8 @@ describe('RepositoryDetailView', () => {
       limit: 1000,
       refresh: true
     })
+    // The backend syncs the linked items, so the view reloads them too.
+    expect(store.loadItems).toHaveBeenCalledTimes(2)
     expect(store.toast.message).toBe('Refreshed 1 issue and 1 pull request')
     expect(store.toast.isError).toBe(false)
   })

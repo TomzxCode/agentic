@@ -232,6 +232,8 @@ async function loadGithub({ refresh = false } = {}) {
 }
 
 // Button one: re-fetch the whole repository from GitHub (forcing ghx's cache).
+// The backend writes the listing's state back onto the task-linked items, so
+// reload the items too: the refresh covers the repository and its items.
 async function refreshAll() {
   if (refreshingAll.value || !canListGithub.value) return
   refreshingAll.value = true
@@ -240,6 +242,11 @@ async function refreshAll() {
   if (ghxError.value) {
     store.notify(`Could not refresh from GitHub: ${ghxError.value}`, true)
     return
+  }
+  try {
+    await store.loadItems()
+  } catch (e) {
+    store.notify(e.message, true)
   }
   const issues = ghxItems.value.filter((item) => item.kind === 'issue').length
   const pulls = ghxItems.value.filter((item) => item.kind === 'pr').length

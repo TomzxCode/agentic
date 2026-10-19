@@ -20,6 +20,7 @@ from ..refresh import (
     item_age,
     parse_policy,
 )
+from ..services.parsing import parse_github
 from ..services.sources import fetch_source
 from ..settings_store import record_refresh_run
 from .people_links import link_people_to_item
@@ -149,3 +150,69 @@ def force_refresh_source(session: Session, source: str, now=None) -> dict:
     entries = _refresh_entries(session, fetchable, now)
     _record_runs(session, [source], entries, now, "manual")
     return _refresh_report(len(items), entries)
+
+
+# The listing fields that mirror the state a full fetch stores on an item. The
+# item's body and people are left alone: the listing does not carry them.
+_LISTING_STATE_KEYS = ("state", "is_draft", "merged_at", "created_at", "author")
+
+
+def _merge_listing(item: SourceItem, entry: dict, now) -> bool:
+    """Merge one ghx listing row into an item; True when something changed."""
+    title = item.title
+    if not item.title_custom and entry.get("title"):
+        title = entry["title"]
+    metadata = dict(item.metadata_json or {})
+    for key in _LISTING_STATE_KEYS:
+        if entry.get(key) is not None:
+            metadata[key] = entry[key]
+    if title == item.title and metadata == (item.metadata_json or {}):
+        return False
+    item.title = title
+    item.metadata_json = metadata
+    item.updated_at = now
+    return True
+
+
+def sync_github_listing(session: Session, owner: str, repo: str, entries: list[dict], now=None) -> int:
+    """Write a repository listing's state back onto the items it names.
+
+    The repository view reads ghx on every visit (re-fetching when its cache has
+    expired) and merges that listing over the stored items for display, so the
+    view is never staler than the items. The stored items themselves are only
+    written by a policy-driven or on-demand fetch, so without this they keep the
+    state they had at their last fetch and read as older than the repository.
+
+    Merging the listing's state into the matching stored items (by GitHub
+    owner/repo, number, and kind) keeps an item from being staler than the
+    repository that shows it. Only the listing's state fields are written; the
+    item's body and people still come from a full fetch. Returns how many items
+    changed; a listing that matches the stored state writes nothing.
+    """
+    now = now or utcnow()
+    wanted = {}
+    for entry in entries or []:
+        number = entry.get("number")
+        if number is None:
+            continue
+        kind = "pr" if entry.get("kind") == "pr" else "issue"
+        wanted[(kind, str(number))] = entry
+    if not wanted:
+        return 0
+
+    target = f"{owner}/{repo}".lower()
+    changed = 0
+    for item in session.exec(select(SourceItem).where(SourceItem.source == "github")).all():
+        parsed = parse_github(item.url or "")
+        if parsed is None or f"{parsed['owner']}/{parsed['repo']}".lower() != target:
+            continue
+        kind = "pr" if parsed["kind"] == "pull_request" else "issue"
+        entry = wanted.get((kind, parsed["number"]))
+        if entry is None:
+            continue
+        if _merge_listing(item, entry, now):
+            session.add(item)
+            changed += 1
+    if changed:
+        session.commit()
+    return changed

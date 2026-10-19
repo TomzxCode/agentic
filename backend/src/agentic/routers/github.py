@@ -18,6 +18,7 @@ from ..services.github import (
     refresh_github_cache,
 )
 from ..services.parsing import parse_github
+from .items_refresh import sync_github_listing
 
 router = APIRouter(prefix="/api/github", tags=["github"])
 
@@ -106,7 +107,9 @@ def list_repository(
     Backs the repository view, which shows the whole repository rather than only
     the items already associated to tasks. With ``refresh``, ghx re-fetches the
     repository from GitHub first, so the call is a real refresh and not just a
-    read of ghx's cache.
+    read of ghx's cache. Either way the listing's state is written back onto the
+    stored items it names, so the associated item is never read as older than the
+    repository that shows it.
     """
     owner, repo = _resolve_owner_repo(session, repository_id, owner, repo)
 
@@ -118,4 +121,5 @@ def list_repository(
             status_code=502,
             detail="Could not read GitHub issues (is `ghx` installed and authenticated?)",
         )
+    sync_github_listing(session, owner, repo, listing["items"])
     return GithubRepoListing.model_validate(listing)

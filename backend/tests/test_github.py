@@ -225,6 +225,81 @@ def test_repository_endpoint_forces_a_refresh(monkeypatch):
     assert seen and seen[0][:2] == ["ghx", "cache"]
 
 
+def test_repository_endpoint_syncs_the_items_it_names(monkeypatch):
+    """The repository listing writes its state back onto the stored items."""
+    issue = json.dumps(
+        [
+            {
+                "number": 1,
+                "title": "Bug",
+                "url": "https://github.com/o/r/issues/1",
+                "state": "CLOSED",
+                "author": {"login": "alice"},
+                "body": "b",
+            }
+        ]
+    )
+    pull = json.dumps(
+        [
+            {
+                "number": 2,
+                "title": "Fix",
+                "url": "https://github.com/o/r/pull/2",
+                "state": "MERGED",
+                "isDraft": False,
+                "mergedAt": "2026-10-11T05:23:53Z",
+                "author": {"login": "bob"},
+            }
+        ]
+    )
+    monkeypatch.setattr(shell, "_run_cli", lambda cmd, timeout=60: issue if cmd[1] == "issue" else pull)
+    with TestClient(app) as client:
+        item = client.post(
+            "/api/items", json={"url": "https://github.com/o/r/issues/1", "title": "Bug", "fetch": False}
+        ).json()
+        assert item["metadata_json"].get("state") is None
+
+        client.get("/api/github/repository", params={"owner": "o", "repo": "r"})
+        refreshed = client.get(f"/api/items/{item['id']}").json()
+        assert refreshed["metadata_json"]["state"] == "CLOSED"
+        assert refreshed["metadata_json"]["author"] == "alice"
+
+        # A second, identical listing has no drift to write, so the item stands.
+        updated_at = refreshed["updated_at"]
+        client.get("/api/github/repository", params={"owner": "o", "repo": "r"})
+        assert client.get(f"/api/items/{item['id']}").json()["updated_at"] == updated_at
+        client.delete(f"/api/items/{item['id']}")
+
+
+def test_repository_endpoint_leaves_other_repositories_items_alone(monkeypatch):
+    """A listing touches only the items of the repository it lists."""
+    pull = json.dumps(
+        [
+            {
+                "number": 2,
+                "title": "Fix",
+                "url": "https://github.com/o/r/pull/2",
+                "state": "OPEN",
+                "isDraft": True,
+                "mergedAt": None,
+                "author": {"login": "bob"},
+            }
+        ]
+    )
+    monkeypatch.setattr(shell, "_run_cli", lambda cmd, timeout=60: "[]" if cmd[1] == "issue" else pull)
+    with TestClient(app) as client:
+        other = client.post(
+            "/api/items", json={"url": "https://github.com/x/y/issues/1", "title": "Elsewhere", "fetch": False}
+        ).json()
+
+        client.get("/api/github/repository", params={"owner": "o", "repo": "r"})
+
+        after = client.get(f"/api/items/{other['id']}").json()
+        assert after["metadata_json"] == {}
+        assert after["updated_at"] == other["updated_at"]
+        client.delete(f"/api/items/{other['id']}")
+
+
 def test_issue_endpoint(monkeypatch):
     payload = json.dumps({"number": 9, "title": "Single", "url": "http://x", "author": {"login": "a"}, "body": "b"})
     monkeypatch.setattr(shell, "_run_cli", lambda cmd, timeout=60: payload)
