@@ -376,7 +376,12 @@ watch(
     </div>
 
     <TaskIssuePanel v-if="mode === 'issue'" :task="task" :harnesses="store.harnesses" @changed="onChanged" />
-    <TaskReviewPanel v-else-if="mode === 'pr'" :task="task" />
+    <TaskReviewPanel
+      v-else-if="mode === 'pr'"
+      :task="task"
+      :harnesses="store.harnesses"
+      @changed="onChanged"
+    />
 
     <template v-else>
       <div v-if="showCreateIssue" class="row create-issue-pick">

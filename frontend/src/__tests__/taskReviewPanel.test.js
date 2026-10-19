@@ -21,7 +21,9 @@ import TaskReviewPanel from '../components/TaskReviewPanel.vue'
 import { store } from '../store'
 
 const RouterLinkStub = { props: ['to'], template: '<a :href="to"><slot /></a>' }
-const stub = { global: { stubs: { RouterLink: RouterLinkStub } } }
+const stub = {
+  global: { stubs: { RouterLink: RouterLinkStub, AgentPanel: { template: '<div class="agent-stub" />' } } }
+}
 
 function finding(overrides = {}) {
   return {
@@ -147,6 +149,23 @@ describe('TaskReviewPanel', () => {
     const wrapper = mount(TaskReviewPanel, { props: { task: { id: 't1', associations: [] } }, ...stub })
     await flushPromises()
     expect(wrapper.text()).toContain('not linked to a pull request')
+  })
+
+  it('shows the agent panel so the pull requests can be worked through an agent', async () => {
+    const wrapper = mount(TaskReviewPanel, { props: { task, harnesses: [] }, ...stub })
+    await flushPromises()
+    // The Agent panel is the interface for acting on the pull requests, as in
+    // issue mode.
+    expect(wrapper.get('.agent-stub').exists()).toBe(true)
+  })
+
+  it('keeps the agent panel when the review queue cannot be read', async () => {
+    mocks.taskReviews.mockRejectedValue(new Error('queue failed'))
+    const wrapper = mount(TaskReviewPanel, { props: { task, harnesses: [] }, ...stub })
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Could not load the review queue')
+    expect(wrapper.get('.agent-stub').exists()).toBe(true)
   })
 
   it('lists the PR findings inline below the review-step row', async () => {

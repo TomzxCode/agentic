@@ -17,14 +17,20 @@ import {
 } from '../reviews'
 import { personForHandle } from '../repositories/parse'
 import { store, timeAgo } from '../store'
+import AgentPanel from './AgentPanel.vue'
 import FindingsSelector from './FindingsSelector.vue'
 
 // The task's pull-request mode: for each PR the task is linked to, the review
 // queue's information for that PR (readiness, reviewed commit, per-step
 // verdicts) read from the user-global store the review skills write to. A PR the
 // store has no reports for still shows its link, with a note instead of steps.
+// The agent panel below them works the pull requests through an agent.
 
-const props = defineProps({ task: { type: Object, required: true } })
+const props = defineProps({
+  task: { type: Object, required: true },
+  harnesses: { type: Array, default: () => [] }
+})
+const emit = defineEmits(['changed'])
 
 // The pull requests the task links, from its associated items.
 const linked = computed(() => taskPullRequests(props.task))
@@ -238,6 +244,12 @@ watch(signature, () => load())
 
       <div v-if="!items.length" class="empty">This task is not linked to a pull request.</div>
     </template>
+
+    <!-- The interface for interacting with the pull requests: the task's agent
+         panel, whose prompt buttons include the configured PR prompts. It stays
+         available while the review queue loads or when it cannot be read, so the
+         pull requests can still be worked on through an agent. -->
+    <AgentPanel :task="task" :harnesses="harnesses" @changed="emit('changed')" />
 
     <div v-if="openPr" class="modal-backdrop" @click.self="closeReport">
       <div class="modal review-modal">
