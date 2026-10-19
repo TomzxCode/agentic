@@ -17,11 +17,11 @@ const busy = ref('')
 // The section each suggestion kind belongs to, in the order they are shown. The
 // API returns them already ordered by kind, so a stable grouping keeps that.
 const SECTIONS = {
-  close_task_merged_pr: 'Close finished tasks',
+  close_task_finished_items: 'Close finished tasks',
   record_change_merged_pr: 'Record changes',
   remove_worktree_done_task: 'Clean up worktrees'
 }
-const SECTION_ORDER = ['close_task_merged_pr', 'record_change_merged_pr', 'remove_worktree_done_task']
+const SECTION_ORDER = ['close_task_finished_items', 'record_change_merged_pr', 'remove_worktree_done_task']
 
 const suggestions = computed(() => store.inbox)
 

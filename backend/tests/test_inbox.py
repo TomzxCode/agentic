@@ -1,10 +1,12 @@
 from fastapi.testclient import TestClient
 
 from agentic.inbox import (
-    CLOSE_TASK_MERGED_PR,
+    CLOSE_TASK_FINISHED_ITEMS,
     RECORD_CHANGE_MERGED_PR,
     REMOVE_WORKTREE_DONE_TASK,
     build_suggestions,
+    is_finished_item,
+    is_issue,
     is_merged_pr,
     is_pull_request,
 )
@@ -32,6 +34,22 @@ def _pr(item_id: str, number: int, state: str = "MERGED", author: str | None = N
         external_id=f"o/r#{number}",
         metadata_json={"state": state, "merged_at": MERGED_AT if state == "MERGED" else None, "author": author},
     )
+
+
+def _issue(item_id: str, number: int, state: str = "CLOSED") -> SourceItem:
+    return SourceItem(
+        id=item_id,
+        source="github",
+        kind="issue",
+        title=f"Issue {number}",
+        url=f"https://github.com/o/r/issues/{number}",
+        external_id=f"o/r#{number}",
+        metadata_json={"state": state},
+    )
+
+
+def _note(item_id: str) -> SourceItem:
+    return SourceItem(id=item_id, source="note", kind="", title="Scratch note", content="remember this")
 
 
 def _worktree(worktree_id: str, task_id: str, status: WorktreeStatus = WorktreeStatus.active) -> Worktree:
@@ -62,10 +80,11 @@ def test_single_merged_pr_offers_close_and_record_change():
     suggestions = _run([task], [pr], {"t1": ["i1"]})
 
     kinds = [s["kind"] for s in suggestions]
-    assert kinds == [CLOSE_TASK_MERGED_PR, RECORD_CHANGE_MERGED_PR]
+    assert kinds == [CLOSE_TASK_FINISHED_ITEMS, RECORD_CHANGE_MERGED_PR]
     close = suggestions[0]
     assert close["task_id"] == "t1"
     assert close["task_title"] == "Task t1"
+    assert close["reason"] == "PR #5 is merged."
     action = close["actions"][0]
     assert action["kind"] == "set_task_status"
     assert action["status"] == "done"
@@ -77,17 +96,56 @@ def test_recorded_change_suppresses_the_change_suggestion():
     pr = _pr("i1", 5)
     change = Change(task_id="t1", external_ref="https://github.com/o/r/pull/5")
     suggestions = _run([task], [pr], {"t1": ["i1"]}, changes={"t1": [change]})
-    assert [s["kind"] for s in suggestions] == [CLOSE_TASK_MERGED_PR]
+    assert [s["kind"] for s in suggestions] == [CLOSE_TASK_FINISHED_ITEMS]
 
 
-def test_two_linked_prs_are_not_offered_for_closing():
+def test_two_merged_prs_are_offered_for_closing():
     task = _task("t1")
     a, b = _pr("i1", 5), _pr("i2", 6)
     suggestions = _run([task], [a, b], {"t1": ["i1", "i2"]})
     kinds = [s["kind"] for s in suggestions]
-    assert CLOSE_TASK_MERGED_PR not in kinds
-    # Each merged PR still asks for its own change record.
-    assert kinds == [RECORD_CHANGE_MERGED_PR, RECORD_CHANGE_MERGED_PR]
+    assert kinds == [CLOSE_TASK_FINISHED_ITEMS, RECORD_CHANGE_MERGED_PR, RECORD_CHANGE_MERGED_PR]
+    assert suggestions[0]["reason"] == "All 2 linked issues and pull requests are closed or merged."
+
+
+def test_a_closed_issue_offers_close():
+    task = _task("t1")
+    issue = _issue("i1", 7)
+    suggestions = _run([task], [issue], {"t1": ["i1"]})
+    assert [s["kind"] for s in suggestions] == [CLOSE_TASK_FINISHED_ITEMS]
+    assert suggestions[0]["reason"] == "Issue #7 is closed."
+
+
+def test_an_open_issue_keeps_the_task_out_of_the_close_suggestion():
+    task = _task("t1")
+    issue = _issue("i1", 7, state="OPEN")
+    assert is_issue(issue) and not is_finished_item(issue)
+    assert _run([task], [issue], {"t1": ["i1"]}) == []
+
+
+def test_a_closed_unmerged_pr_offers_close():
+    task = _task("t1")
+    pr = _pr("i1", 5, state="CLOSED")
+    # A PR closed without merging still counts: GitHub reports it as closed.
+    assert is_finished_item(pr)
+    suggestions = _run([task], [pr], {"t1": ["i1"]})
+    assert [s["kind"] for s in suggestions] == [CLOSE_TASK_FINISHED_ITEMS]
+    assert suggestions[0]["reason"] == "PR #5 is closed."
+
+
+def test_a_closed_issue_and_a_merged_pr_are_offered_for_closing():
+    task = _task("t1")
+    merged, closed = _pr("i1", 5), _issue("i2", 7)
+    suggestions = _run([task], [merged, closed], {"t1": ["i1", "i2"]})
+    kinds = [s["kind"] for s in suggestions]
+    assert kinds == [CLOSE_TASK_FINISHED_ITEMS, RECORD_CHANGE_MERGED_PR]
+    assert suggestions[0]["reason"] == "All 2 linked issues and pull requests are closed or merged."
+
+
+def test_a_task_with_no_github_item_is_left_alone():
+    task = _task("t1")
+    note = _note("i1")
+    assert _run([task], [note], {"t1": ["i1"]}) == []
 
 
 def test_only_the_viewers_merged_prs_are_offered_a_change():
@@ -95,23 +153,23 @@ def test_only_the_viewers_merged_prs_are_offered_a_change():
     mine, theirs = _pr("i1", 5, author="Me"), _pr("i2", 6, author="someone")
     suggestions = _run([task], [mine, theirs], {"t1": ["i1", "i2"]}, viewer_login="me")
 
-    # Only the PR the viewer authored; the other author is not their change
-    # to record. Two PRs, so neither is offered for closing.
-    assert [s["kind"] for s in suggestions] == [RECORD_CHANGE_MERGED_PR]
-    assert suggestions[0]["actions"][0]["item_id"] == "i1"
+    # Both PRs are merged, so the task is offered for closing; only the PR the
+    # viewer authored is offered a change, the other author's is not.
+    assert [s["kind"] for s in suggestions] == [CLOSE_TASK_FINISHED_ITEMS, RECORD_CHANGE_MERGED_PR]
+    assert suggestions[1]["actions"][0]["item_id"] == "i1"
 
 
 def test_an_unknown_viewer_does_not_filter_by_author():
     task = _task("t1")
     pr = _pr("i1", 5, author="someone")
     kinds = [s["kind"] for s in _run([task], [pr], {"t1": ["i1"]}, viewer_login="")]
-    assert kinds == [CLOSE_TASK_MERGED_PR, RECORD_CHANGE_MERGED_PR]
+    assert kinds == [CLOSE_TASK_FINISHED_ITEMS, RECORD_CHANGE_MERGED_PR]
 
 
 def test_a_pr_with_no_stored_author_is_not_the_viewers():
     task = _task("t1")
     pr = _pr("i1", 5)
-    assert [s["kind"] for s in _run([task], [pr], {"t1": ["i1"]}, viewer_login="me")] == [CLOSE_TASK_MERGED_PR]
+    assert [s["kind"] for s in _run([task], [pr], {"t1": ["i1"]}, viewer_login="me")] == [CLOSE_TASK_FINISHED_ITEMS]
 
 
 def test_an_open_pull_request_is_not_merged():
@@ -164,7 +222,7 @@ def test_suggestions_are_ordered_by_kind():
         {"t1": [_worktree("w1", "t1")]},
     )
     assert [s["kind"] for s in suggestions] == [
-        CLOSE_TASK_MERGED_PR,
+        CLOSE_TASK_FINISHED_ITEMS,
         RECORD_CHANGE_MERGED_PR,
         REMOVE_WORKTREE_DONE_TASK,
     ]
@@ -188,7 +246,7 @@ def test_inbox_endpoint_lists_a_close_suggestion_for_a_merged_pr():
 
         report = client.get("/api/inbox").json()
         mine = [s for s in report["suggestions"] if s["task_id"] == task["id"]]
-        assert [s["kind"] for s in mine] == [CLOSE_TASK_MERGED_PR, RECORD_CHANGE_MERGED_PR]
+        assert [s["kind"] for s in mine] == [CLOSE_TASK_FINISHED_ITEMS, RECORD_CHANGE_MERGED_PR]
         assert report["count"] == len(report["suggestions"])
 
         # Closing the task through the offered action drops the close suggestion,
@@ -222,7 +280,7 @@ def test_inbox_endpoint_hides_a_change_for_a_pr_the_viewer_did_not_author():
             mine = [s for s in client.get("/api/inbox").json()["suggestions"] if s["task_id"] == task["id"]]
             # The close suggestion stays; the change offer is hidden because the
             # viewer did not author the PR.
-            assert [s["kind"] for s in mine] == [CLOSE_TASK_MERGED_PR]
+            assert [s["kind"] for s in mine] == [CLOSE_TASK_FINISHED_ITEMS]
 
             client.delete(f"/api/tasks/{task['id']}")
             client.delete(f"/api/items/{theirs['id']}")

@@ -30,8 +30,8 @@ const stub = { global: { stubs: { RouterLink: RouterLinkStub, StatusIcon: Status
 
 function closeSuggestion() {
   return {
-    id: 'close_task_merged_pr:t1:close',
-    kind: 'close_task_merged_pr',
+    id: 'close_task_finished_items:t1:close',
+    kind: 'close_task_finished_items',
     reason: 'PR #5 is merged.',
     task_id: 't1',
     task_title: 'Do the thing',

@@ -235,11 +235,13 @@ against a stored baseline with a direction (improving, worsening, or flat).
 The **Inbox** page (`/inbox`, the envelope icon in the sidebar, with a count
 badge) suggests things to do, derived from the current state rather than stored:
 it recomputes on every read, so acting on a suggestion makes it disappear. It
-groups suggestions by intent: close a task whose only linked pull request is
-merged, record a change for a merged PR that has none, and remove a worktree
-left behind by a closed task. A merged PR is only offered a change record when
-you authored it (the login in Settings → Identity, else the authenticated `gh`
-account); a PR someone else wrote is not your change to record. Each suggestion
+groups suggestions by intent: close a task whose linked GitHub issues and pull
+requests are all wrapped up (every issue closed, every pull request closed or
+merged), record a change for a merged PR that has none, and remove a worktree
+left behind by a closed task. A task with no linked issue or PR is left alone.
+A merged PR is only offered a change record when you authored it (the login in
+Settings → Identity, else the authenticated `gh` account); a PR someone else
+wrote is not your change to record. Each suggestion
 names the task it is about and offers the action as a button that calls the
 same endpoint the rest of the app uses.
 
