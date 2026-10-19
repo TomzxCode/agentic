@@ -102,7 +102,9 @@ class ReviewFindingRead(BaseModel):
     ``step`` is the skill that recorded it, ``severity`` is one of must, should,
     or may, and ``status`` is the skill's own status for the finding (open,
     addressed, conforms, ...). ``sha`` is the commit the finding was first seen
-    at, informational only.
+    at, informational only. ``decision`` is the reviewer's own choice about
+    forwarding it (``include`` or ``skip``), empty until one is recorded, and
+    ``decided_at`` is when that choice was made.
     """
 
     step: str
@@ -111,6 +113,23 @@ class ReviewFindingRead(BaseModel):
     severity: str
     status: str = ""
     sha: str = ""
+    decision: str = ""
+    decided_at: str = ""
+
+
+class ReviewFindingDecision(BaseModel):
+    """The reviewer's decision on one finding, addressed by skill and title."""
+
+    step: str
+    title: str
+    decision: str
+
+
+class ReviewFindingsDecisions(BaseModel):
+    """The decisions to record on one pull request's findings in one write."""
+
+    repository: str
+    decisions: list[ReviewFindingDecision] = []
 
 
 class ReviewPrRead(BaseModel):

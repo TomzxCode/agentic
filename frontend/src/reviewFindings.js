@@ -33,10 +33,16 @@ export function findingsBySeverity(findings) {
 const ACTIONABLE_STATUSES = new Set(['open', 'fails', 'unverified'])
 
 // The findings selected by default when the share list opens: the must and
-// should items that still ask something of the author, as an array of keys.
+// should items that still ask something of the author, as an array of keys. A
+// decision the reviewer recorded earlier wins over that rule, so reopening the
+// list shows the selection they left behind.
 export function defaultSelectedFindings(findings) {
   return (findings || [])
-    .filter((finding) => finding.severity !== 'may' && ACTIONABLE_STATUSES.has(finding.status))
+    .filter((finding) => {
+      if (finding.decision === 'include') return true
+      if (finding.decision === 'skip') return false
+      return finding.severity !== 'may' && ACTIONABLE_STATUSES.has(finding.status)
+    })
     .map(findingKey)
 }
 

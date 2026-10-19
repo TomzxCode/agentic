@@ -47,6 +47,16 @@ describe('defaultSelectedFindings', () => {
     ])
     expect(selected).toEqual(['review-pr:must-open', 'review-pr:should-open', 'review-pr:criterion-fails'])
   })
+
+  it('keeps the decisions recorded earlier over the severity default', () => {
+    const selected = defaultSelectedFindings([
+      finding({ title: 'must-included', decision: 'include' }),
+      finding({ title: 'must-skipped', decision: 'skip' }),
+      finding({ title: 'may-included', severity: 'may', decision: 'include' }),
+      finding({ title: 'should-undecided', severity: 'should' })
+    ])
+    expect(selected).toEqual(['review-pr:must-included', 'review-pr:may-included', 'review-pr:should-undecided'])
+  })
 })
 
 describe('buildFindingsPrompt', () => {

@@ -126,6 +126,10 @@ export const api = {
     // The must/should/may findings the review skills recorded for one PR.
     findings: (repository, number) =>
       request(`/reviews/findings/${number}?${new URLSearchParams({ repository }).toString()}`),
+    // Record the reviewer's include/skip decisions on those findings; the
+    // updated list comes back.
+    decide: (repository, number, decisions) =>
+      request(`/reviews/findings/${number}/decisions`, { method: 'POST', body: { repository, decisions } }),
     // One PR's report, addressed by "owner/name" and its path in the store.
     report: (repository, number, name) =>
       request(

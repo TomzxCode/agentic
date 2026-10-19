@@ -10,13 +10,14 @@ from ..crud import get_task_or_404
 from ..db import get_session
 from ..models.base import utcnow
 from ..models.items import Association, SourceItem
-from ..review_findings import collect_findings
+from ..review_findings import DECISIONS, collect_findings, record_decisions
 from ..review_queue import collect_review_prs, enrich_from_github
 from ..review_scan import ReviewRequest, review_scan_state, run_review_scan, stored_review_requests
 from ..reviews import read_report
 from ..schemas.items import (
     ItemReviewContent,
     ReviewFindingRead,
+    ReviewFindingsDecisions,
     ReviewPrRead,
     ReviewQueueRead,
     ReviewScanRead,
@@ -272,6 +273,29 @@ def list_review_findings(number: int, repository: str) -> list[ReviewFindingRead
     owner, _, repo = repository.partition("/")
     if not repo:
         owner, repo = "", owner
+    return [ReviewFindingRead(**finding) for finding in collect_findings(owner, repo, number)]
+
+
+@router.post("/findings/{number}/decisions", response_model=list[ReviewFindingRead])
+def record_review_finding_decisions(number: int, payload: ReviewFindingsDecisions) -> list[ReviewFindingRead]:
+    """Record the reviewer's include/skip decisions on a PR's findings.
+
+    The decision is written onto the finding's entry in its skill's state file,
+    beside the skill's own status, so the choice outlives the page and the review
+    skills can read it. The updated findings are returned, which is what the
+    share list re-renders. A decision for a finding the store does not hold (the
+    skill rewrote its state in the meantime) is a 404 and writes nothing.
+    """
+    owner, _, repo = payload.repository.partition("/")
+    if not repo:
+        owner, repo = "", owner
+    for decision in payload.decisions:
+        if decision.decision not in DECISIONS:
+            raise HTTPException(status_code=400, detail=f"decision must be one of {', '.join(DECISIONS)}")
+    missing = record_decisions(owner, repo, number, [decision.model_dump() for decision in payload.decisions])
+    if missing:
+        titles = ", ".join(f"{item['step']}: {item['title']}" for item in missing)
+        raise HTTPException(status_code=404, detail=f"Finding not found: {titles}")
     return [ReviewFindingRead(**finding) for finding in collect_findings(owner, repo, number)]
 
 

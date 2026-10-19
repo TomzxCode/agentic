@@ -5,13 +5,14 @@ enableAutoUnmount(afterEach)
 
 const mocks = vi.hoisted(() => ({
   findings: vi.fn(),
+  decide: vi.fn(),
   createTask: vi.fn(),
   createRun: vi.fn()
 }))
 
 vi.mock('../api', () => ({
   api: {
-    reviews: { findings: mocks.findings },
+    reviews: { findings: mocks.findings, decide: mocks.decide },
     tasks: { create: mocks.createTask },
     runs: { create: mocks.createRun }
   }
@@ -40,6 +41,9 @@ beforeEach(() => {
   vi.clearAllMocks()
   store.toast = null
   mocks.findings.mockResolvedValue([finding()])
+  mocks.decide.mockImplementation(async (repository, number, decisions) =>
+    decisions.map((decision) => finding({ title: decision.title, decision: decision.decision }))
+  )
   mocks.createTask.mockResolvedValue({ id: 't9', title: 'Imported', status: 'open' })
   mocks.createRun.mockResolvedValue({ id: 'r1', status: 'queued' })
 })
@@ -96,5 +100,42 @@ describe('ShareFindingsModal', () => {
     const wrapper = mountModal({ taskId: 't1' })
     await flushPromises()
     expect(wrapper.text()).toContain('No must/should/may findings')
+  })
+
+  it('records the decision on a finding when the reviewer unchecks it', async () => {
+    mocks.findings.mockResolvedValue([
+      finding({ title: 'Fix the thing' }),
+      finding({ title: 'Tidy the helper', severity: 'may' })
+    ])
+    const wrapper = mountModal({ taskId: 't1' })
+    await flushPromises()
+
+    // The must finding starts checked; unchecking records the skip.
+    await wrapper.findAll('input[type=checkbox]')[0].trigger('change')
+    await flushPromises()
+
+    expect(mocks.decide).toHaveBeenCalledWith('acme/api', 42, [
+      { step: 'review-pr', title: 'Fix the thing', decision: 'skip' }
+    ])
+  })
+
+  it('records include decisions for every finding on select all', async () => {
+    mocks.findings.mockResolvedValue([
+      finding({ title: 'Fix the thing' }),
+      finding({ title: 'Tidy the helper', severity: 'may' })
+    ])
+    const wrapper = mountModal({ taskId: 't1' })
+    await flushPromises()
+
+    await wrapper
+      .findAll('button')
+      .find((button) => button.text() === 'Select all')
+      .trigger('click')
+    await flushPromises()
+
+    expect(mocks.decide).toHaveBeenCalledWith('acme/api', 42, [
+      { step: 'review-pr', title: 'Fix the thing', decision: 'include' },
+      { step: 'review-pr', title: 'Tidy the helper', decision: 'include' }
+    ])
   })
 })

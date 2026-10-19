@@ -40,19 +40,43 @@ function isSelected(finding) {
   return selected.value.includes(findingKey(finding))
 }
 
+// Record the reviewer's choice on the finding's own state file, so it survives a
+// reload and the review skills can read it. The list is updated optimistically
+// and rolled back when the write fails.
+async function record(changes) {
+  const before = changes.map(({ finding }) => ({ finding, decision: finding.decision || '' }))
+  for (const { finding, decision } of changes) finding.decision = decision
+  try {
+    findings.value = await api.reviews.decide(
+      props.repository,
+      props.number,
+      changes.map(({ finding, decision }) => ({ step: finding.step, title: finding.title, decision }))
+    )
+  } catch (e) {
+    for (const { finding, decision } of before) finding.decision = decision
+    store.notify(e.message, true)
+  }
+}
+
 function toggle(finding) {
   const key = findingKey(finding)
-  selected.value = selected.value.includes(key)
-    ? selected.value.filter((item) => item !== key)
-    : [...selected.value, key]
+  const include = !selected.value.includes(key)
+  selected.value = include ? [...selected.value, key] : selected.value.filter((item) => item !== key)
+  record([{ finding, decision: include ? 'include' : 'skip' }])
 }
 
 function selectAll() {
   selected.value = findings.value.map(findingKey)
+  if (findings.value.length) {
+    record(findings.value.map((finding) => ({ finding, decision: 'include' })))
+  }
 }
 
 function clearSelection() {
   selected.value = []
+  if (findings.value.length) {
+    record(findings.value.map((finding) => ({ finding, decision: 'skip' })))
+  }
 }
 
 async function load() {

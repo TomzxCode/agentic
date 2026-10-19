@@ -5,7 +5,7 @@ from fastapi.testclient import TestClient
 
 from agentic.config import settings
 from agentic.main import app
-from agentic.review_findings import collect_findings
+from agentic.review_findings import collect_findings, record_decisions
 
 
 def _write_state(root, name, findings):
@@ -24,6 +24,10 @@ def _yaml(findings):
         lines.append(f"    severity: {finding['severity']}")
         lines.append(f"    status: {finding.get('status', 'open')}")
         lines.append(f"    first_seen_sha: {finding.get('sha', 'abc1234')}")
+        if finding.get("decision"):
+            lines.append(f"    decision: {finding['decision']}")
+        if finding.get("decided_at"):
+            lines.append(f"    decided_at: {finding['decided_at']}")
     return "\n".join(lines) + "\n"
 
 
@@ -113,7 +117,162 @@ def test_findings_endpoint(tmp_path):
                 "severity": "must",
                 "status": "open",
                 "sha": "abc1234",
+                "decision": "",
+                "decided_at": "",
             }
         ]
         # A PR with no review directory returns an empty list, not an error.
         assert client.get("/api/reviews/findings/9", params={"repository": "TomzxCode/agentic"}).json() == []
+
+
+def test_collect_findings_reads_a_recorded_decision(tmp_path):
+    _write_state(
+        tmp_path,
+        "review.yaml",
+        [{"title": "Fix the thing", "severity": "must", "decision": "skip"}],
+    )
+    directory = tmp_path / "TomzxCode" / "agentic" / "pull-requests" / "42"
+    path = directory / "review.yaml"
+    path.write_text(path.read_text() + "    decided_at: 2026-01-12T06:00:00Z\n")
+
+    finding = collect_findings("TomzxCode", "agentic", 42)[0]
+    assert finding["decision"] == "skip"
+    assert finding["decided_at"] == "2026-01-12T06:00:00Z"
+
+
+def test_record_decisions_writes_one_entry_and_leaves_the_rest(tmp_path):
+    directory = tmp_path / "TomzxCode" / "agentic" / "pull-requests" / "42"
+    directory.mkdir(parents=True)
+    path = directory / "review.yaml"
+    original = (
+        "pr: 42\n"
+        "updated_at: 2026-01-12T06:00:00Z\n"
+        "findings:\n"
+        "  - title: Fix it\n"
+        "    description: >-\n"
+        "      First line\n"
+        "      folded onto one line\n"
+        "    severity: must\n"
+        "    status: open\n"
+        "  - title: Needs quoting\n"
+        "    description: A plain scalar: with a colon\n"
+        "    severity: should\n"
+        "    status: open\n"
+    )
+    path.write_text(original)
+
+    missing = record_decisions(
+        "TomzxCode",
+        "agentic",
+        42,
+        [{"step": "review-pr", "title": "Needs quoting", "decision": "include"}],
+        decided_at="2026-01-12T07:00:00Z",
+    )
+
+    assert missing == []
+    text = path.read_text()
+    # Only the chosen entry gains the keys; the invalid-YAML description beside
+    # it and the other entry are untouched.
+    assert text.startswith(original.split("  - title: Needs quoting")[0])
+    assert "    description: A plain scalar: with a colon\n" in text
+    assert text.endswith("    status: open\n    decision: include\n    decided_at: 2026-01-12T07:00:00Z\n")
+    finding = collect_findings("TomzxCode", "agentic", 42)[1]
+    assert finding["decision"] == "include"
+    assert finding["decided_at"] == "2026-01-12T07:00:00Z"
+
+
+def test_record_decisions_replaces_an_existing_decision(tmp_path):
+    _write_state(
+        tmp_path,
+        "review.yaml",
+        [{"title": "Fix the thing", "severity": "must", "decision": "include"}],
+    )
+    directory = tmp_path / "TomzxCode" / "agentic" / "pull-requests" / "42"
+    path = directory / "review.yaml"
+    path.write_text(path.read_text() + "    decided_at: 2026-01-12T06:00:00Z\n")
+
+    record_decisions(
+        "TomzxCode",
+        "agentic",
+        42,
+        [{"step": "review-pr", "title": "Fix the thing", "decision": "skip"}],
+        decided_at="2026-01-12T07:00:00Z",
+    )
+
+    text = path.read_text()
+    # The keys are replaced in place rather than appended a second time.
+    assert text.count("decision:") == 1
+    assert text.count("decided_at:") == 1
+    assert "decision: skip" in text
+    assert "decided_at: 2026-01-12T07:00:00Z" in text
+
+
+def test_record_decisions_writes_nothing_when_one_finding_is_missing(tmp_path):
+    _write_state(tmp_path, "review.yaml", [{"title": "Fix the thing", "severity": "must"}])
+    directory = tmp_path / "TomzxCode" / "agentic" / "pull-requests" / "42"
+    path = directory / "review.yaml"
+    before = path.read_text()
+
+    missing = record_decisions(
+        "TomzxCode",
+        "agentic",
+        42,
+        [
+            {"step": "review-pr", "title": "Fix the thing", "decision": "include"},
+            {"step": "review-pr", "title": "Gone", "decision": "skip"},
+        ],
+    )
+
+    assert [item["title"] for item in missing] == ["Gone"]
+    assert path.read_text() == before
+
+
+def test_findings_decision_endpoint(tmp_path):
+    _write_state(
+        tmp_path,
+        "review.yaml",
+        [{"title": "Fix the thing", "severity": "must"}, {"title": "Tidy", "severity": "may"}],
+    )
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/reviews/findings/42/decisions",
+            json={
+                "repository": "TomzxCode/agentic",
+                "decisions": [
+                    {"step": "review-pr", "title": "Fix the thing", "decision": "include"},
+                    {"step": "review-pr", "title": "Tidy", "decision": "skip"},
+                ],
+            },
+        )
+        assert response.status_code == 200
+        findings = response.json()
+        assert [(f["title"], f["decision"]) for f in findings] == [
+            ("Fix the thing", "include"),
+            ("Tidy", "skip"),
+        ]
+        assert all(f["decided_at"] for f in findings)
+
+        # The recorded decisions survive a re-read.
+        reread = client.get("/api/reviews/findings/42", params={"repository": "TomzxCode/agentic"}).json()
+        assert [(f["title"], f["decision"]) for f in reread] == [
+            ("Fix the thing", "include"),
+            ("Tidy", "skip"),
+        ]
+
+        bad = client.post(
+            "/api/reviews/findings/42/decisions",
+            json={
+                "repository": "TomzxCode/agentic",
+                "decisions": [{"step": "review-pr", "title": "Fix the thing", "decision": "later"}],
+            },
+        )
+        assert bad.status_code == 400
+
+        gone = client.post(
+            "/api/reviews/findings/42/decisions",
+            json={
+                "repository": "TomzxCode/agentic",
+                "decisions": [{"step": "review-pr", "title": "Gone", "decision": "skip"}],
+            },
+        )
+        assert gone.status_code == 404

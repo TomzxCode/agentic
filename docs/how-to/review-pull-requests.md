@@ -41,6 +41,7 @@ The reports live under `AGENTIC_SDLC_DIR` (`~/.sdlc` by default), at `{owner}/{r
 6. Click a cell to open that step's report.
 7. Use the row's **📝** to open the linked task in its PR view, or **➕** to import the pull request into a new task, the same as the repository view's **New task**.
 8. Use **Share** to pick the must/should/may findings the skills recorded and hand the selection to an agent run on the task, whose skills post them to the pull request.
+   Each check or uncheck writes your decision (`include` or `skip`) onto that finding in its skill's state file, so the selection is still there when you come back.
    The app itself posts nothing to GitHub.
 9. Click **Refresh** to re-read the store and bypass the short cache of the pull request field lookups.
 
