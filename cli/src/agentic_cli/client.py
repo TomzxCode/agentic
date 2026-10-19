@@ -227,11 +227,20 @@ class AgenticClient:
         harness_id: str | None = None,
         worktree_id: str | None = None,
         cwd: str | None = None,
+        model: str | None = None,
     ) -> dict:
         return self._request(
             "POST",
             f"/api/tasks/{task_id}/runs",
-            json=_compact({"prompt": prompt, "harness_id": harness_id, "worktree_id": worktree_id, "cwd": cwd}),
+            json=_compact(
+                {
+                    "prompt": prompt,
+                    "harness_id": harness_id,
+                    "worktree_id": worktree_id,
+                    "cwd": cwd,
+                    "model": model,
+                }
+            ),
         )
 
     def cancel_run(self, run_id: str) -> dict:

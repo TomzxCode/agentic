@@ -9,6 +9,11 @@ import pytest
 # shared by every worker and they would all write to one SQLite file.
 os.environ["AGENTIC_DATA_DIR"] = tempfile.mkdtemp(prefix="agentic-test-")
 
+# Never keep a real ACP harness process alive for the test suite: the lifespan
+# would spawn the machine's default harness on every TestClient startup. The
+# pool's own tests build a pool with a fake spawn.
+os.environ["AGENTIC_WARM_HARNESS_SESSION"] = "0"
+
 
 @pytest.fixture(scope="session", autouse=True)
 def _dispose_engine():

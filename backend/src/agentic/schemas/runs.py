@@ -15,6 +15,10 @@ class RunCreate(BaseModel):
     harness_id: str | None = None
     worktree_id: str | None = None
     cwd: str | None = None
+    # The model to answer with, chosen in the task view. Takes precedence over
+    # the harness's own configured model for this run only; empty means the
+    # harness decides.
+    model: str | None = None
 
 
 class SessionLink(BaseModel):
@@ -37,6 +41,8 @@ class RunRead(ORMModel):
     status: str
     session_id: str | None = None
     model: str | None = None
+    model_name: str | None = None
+    requested_model: str | None = None
     stop_reason: str | None = None
     error: str | None = None
     created_at: datetime

@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   runsGet: vi.fn(),
   runsEvents: vi.fn(),
   runsCancel: vi.fn(),
+  harnessModels: vi.fn(),
   openRunStream: vi.fn()
 }))
 
@@ -20,6 +21,7 @@ vi.mock('../api', () => ({
   api: {
     groups: { create: mocks.groupsCreate, update: mocks.groupsUpdate, remove: mocks.groupsRemove },
     fs: { list: mocks.fsList },
+    harnesses: { models: mocks.harnessModels },
     runs: {
       list: mocks.runsList,
       create: mocks.runsCreate,
@@ -173,6 +175,7 @@ describe('AgentPanel', () => {
 
   beforeEach(() => {
     mocks.runsList.mockResolvedValue([])
+    mocks.harnessModels.mockResolvedValue({ harness_id: 'opencode2', models: [], live: false })
   })
 
   it('loads runs on mount and shows the working directory', async () => {
@@ -197,7 +200,7 @@ describe('AgentPanel', () => {
     expect(wrapper.get('.ss-label').text()).toContain('OpenCode v2')
   })
 
-  it('shows the harness model alongside its name', async () => {
+  it('shows the harness model on the model picker, not on the harness picker', async () => {
     const wrapper = mount(AgentPanel, {
       props: {
         task,
@@ -206,7 +209,10 @@ describe('AgentPanel', () => {
       global: { stubs: { SessionLinks: true } }
     })
     await flushPromises()
-    expect(wrapper.get('.ss-label').text()).toContain('zai/glm')
+    // The harness picker names harnesses; the model picker names the model.
+    expect(wrapper.get('.ss-label').text()).toContain('OpenCode v2')
+    expect(wrapper.get('.ss-label').text()).not.toContain('zai/glm')
+    expect(wrapper.get('.model-select .ss-label').text()).toContain('zai/glm')
   })
 
   it('falls back to the model the harness config file names', async () => {
@@ -227,7 +233,77 @@ describe('AgentPanel', () => {
       global: { stubs: { SessionLinks: true } }
     })
     await flushPromises()
-    expect(wrapper.get('.ss-label').text()).toContain('zai-coding-plan/glm-5.3-flash')
+    expect(wrapper.get('.model-select .ss-label').text()).toContain('zai-coding-plan/glm-5.3-flash')
+  })
+
+  it('lists the models the harness reports and sends the chosen one with the run', async () => {
+    mocks.harnessModels.mockResolvedValue({
+      harness_id: 'opencode2',
+      models: [
+        { value: 'zai/glm-5.3', name: 'Zai GLM 5.3' },
+        { value: 'opencode/big-pickle', name: 'Big Pickle' }
+      ],
+      current: 'zai/glm-5.3',
+      live: true
+    })
+    mocks.runsCreate.mockResolvedValue({ id: 'r1', status: 'running', kind: 'chat', links: [] })
+    mocks.openRunStream.mockReturnValue(vi.fn())
+
+    const wrapper = mount(AgentPanel, {
+      props: {
+        task,
+        harnesses: [{ id: 'opencode2', name: 'OpenCode v2', available: true, is_default: true }]
+      },
+      global: { stubs: { SessionLinks: true } }
+    })
+    await flushPromises()
+    // The list comes from the API for the harness the run will use.
+    expect(mocks.harnessModels).toHaveBeenCalledWith('opencode2')
+
+    const picker = wrapper.getComponent('.model-select')
+    expect(picker.props('options').map((o) => o.value)).toEqual(['', 'zai/glm-5.3', 'opencode/big-pickle'])
+
+    picker.vm.$emit('update:modelValue', 'opencode/big-pickle')
+    await wrapper.get('textarea').setValue('do work')
+    await wrapper.get('.btn.primary').trigger('click')
+    await flushPromises()
+    const body = mocks.runsCreate.mock.calls[0][1]
+    expect(body.model).toBe('opencode/big-pickle')
+    expect(body.prompt.startsWith('do work')).toBe(true)
+  })
+
+  it('reloads the model list when the harness changes', async () => {
+    const wrapper = mount(AgentPanel, {
+      props: {
+        task,
+        harnesses: [
+          { id: 'opencode2', name: 'OpenCode v2', available: true, is_default: true },
+          { id: 'pi', name: 'pi', available: true, is_default: false }
+        ]
+      },
+      global: { stubs: { SessionLinks: true } }
+    })
+    await flushPromises()
+    expect(mocks.harnessModels).toHaveBeenCalledWith('opencode2')
+
+    wrapper.getComponent('.w-170').vm.$emit('update:modelValue', 'pi')
+    await flushPromises()
+    expect(mocks.harnessModels).toHaveBeenCalledWith('pi')
+  })
+
+  it('loads the model list when the harness list arrives after mount', async () => {
+    const wrapper = mount(AgentPanel, {
+      props: { task, harnesses: [] },
+      global: { stubs: { SearchSelect: true, SessionLinks: true } }
+    })
+    await flushPromises()
+    expect(mocks.harnessModels).not.toHaveBeenCalled()
+
+    await wrapper.setProps({
+      harnesses: [{ id: 'opencode2', name: 'OpenCode v2', available: true, is_default: true }]
+    })
+    await flushPromises()
+    expect(mocks.harnessModels).toHaveBeenCalledWith('opencode2')
   })
 
   it('starts a run, streams events into blocks, and finishes', async () => {
@@ -347,6 +423,7 @@ describe('AgentPanel', () => {
         kind: 'chat',
         prompt: 'old prompt',
         model: 'zai-coding-plan/glm-5.3',
+        model_name: 'GLM 5.3',
         created_at: new Date().toISOString()
       }
     ])
@@ -359,18 +436,52 @@ describe('AgentPanel', () => {
     const wrapper = mountPanel()
     await flushPromises()
 
-    // The history row carries the model the stored run recorded.
-    expect(wrapper.text()).toContain('zai-coding-plan/glm-5.3')
+    // The history row names the model the harness called it, keeping the id it
+    // selects with as the row's tooltip.
+    expect(wrapper.text()).toContain('GLM 5.3')
+    expect(wrapper.text()).not.toContain('zai-coding-plan/glm-5.3')
+    const named = wrapper.findAll('.faint.mono').find((el) => el.attributes('title') === 'zai-coding-plan/glm-5.3')
+    expect(named.text()).toBe('GLM 5.3')
 
     // A live run has no stored model yet, so the ACP-reported one heads the
     // transcript as soon as the harness says what it selected.
     await wrapper.get('textarea').setValue('do work')
     await wrapper.get('.btn.primary').trigger('click')
     await flushPromises()
-    onEvent({ type: 'model', text: 'opencode/its-own-default' })
+    onEvent({ type: 'model', text: 'GLM 5.2' })
     await flushPromises()
 
-    expect(wrapper.get('.transcript-head').text()).toContain('opencode/its-own-default')
+    expect(wrapper.get('.transcript-head').text()).toContain('GLM 5.2')
+  })
+
+  it('heads a replayed transcript with the model name the run stored', async () => {
+    mocks.runsList.mockResolvedValue([
+      {
+        id: 'r9',
+        status: 'succeeded',
+        kind: 'chat',
+        prompt: 'old',
+        model: 'google/gemini-3-pro',
+        model_name: 'Gemini 3 Pro',
+        created_at: new Date().toISOString()
+      }
+    ])
+    mocks.runsGet.mockResolvedValue({
+      id: 'r9',
+      status: 'succeeded',
+      kind: 'chat',
+      prompt: 'old',
+      model: 'google/gemini-3-pro',
+      model_name: 'Gemini 3 Pro',
+      links: []
+    })
+    mocks.runsEvents.mockResolvedValue([{ type: 'message', text: 'old transcript' }])
+
+    const wrapper = mountPanel()
+    await flushPromises()
+    await wrapper.get('.item').trigger('click')
+    await flushPromises()
+    expect(wrapper.get('.transcript-head').text()).toContain('Gemini 3 Pro')
   })
 
   it('cancels the active run', async () => {

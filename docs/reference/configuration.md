@@ -18,6 +18,7 @@ The backend reads environment variables prefixed with `AGENTIC_`, or the same ke
 | `AGENTIC_DEFAULT_HARNESS` | `opencode` | Fallback harness by name, used when no harness is marked default. |
 | `AGENTIC_GITHUB_LOGIN` | (empty) | The GitHub login that counts as "you": the inbox and a repository's pull requests only offer to record a change for a merged PR this account authored. Empty auto-detects the authenticated `gh` account. |
 | `AGENTIC_AUTO_APPROVE_PERMISSIONS` | `true` | Auto-approve ACP permission requests. |
+| `AGENTIC_WARM_HARNESS_SESSION` | `true` | Hold an ACP session open for the default harness from API startup, so the task view lists its model choices without spawning it. Runs still spawn their own session. |
 | `AGENTIC_QUEUE_URL` | `sqlite:///<data_dir>/queue.db` | Agent-run queue. Use a `redis://` or `postgres://` URL to share the queue across machines. |
 | `AGENTIC_WORKER_CONCURRENCY` | `4` | Agent runs a worker processes concurrently. |
 | `AGENTIC_WORKER_SWEEP` | `60` | Seconds between sweeps for stuck jobs left by a dead worker. |

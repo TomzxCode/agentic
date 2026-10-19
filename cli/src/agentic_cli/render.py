@@ -50,7 +50,11 @@ def _run_line(run: dict) -> str:
 def _run_text(run: dict) -> str:
     lines = [_run_line(run)]
     if run.get("model"):
-        lines.append(f"  model: {run['model']}")
+        # The harness's label for the model, with the id it selects with when the
+        # harness named it something else.
+        label = run.get("model_name") or run["model"]
+        suffix = f" ({run['model']})" if run.get("model_name") and run["model_name"] != run["model"] else ""
+        lines.append(f"  model: {label}{suffix}")
     if run.get("session_id"):
         lines.append(f"  session: {run['session_id']}")
     if run.get("cwd"):

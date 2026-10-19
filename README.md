@@ -97,6 +97,14 @@ field's placeholder: the server reads it from the harness's config file
 OpenCode and `~/.pi/agent/settings.json#{defaultProvider}/{defaultModel}` for
 `pi`) instead of spawning the harness to ask.
 
+The task view's agent panel has its own **model** picker beside the harness
+picker, so a single run can answer with a different model without changing the
+harness. Its choices are the ones the harness's ACP session offers; the server
+holds one session open for the default harness from startup
+(`AGENTIC_WARM_HARNESS_SESSION`), so the list arrives in one request. A run's
+choice applies to that run only; leaving the picker on its default uses the
+harness's own model.
+
 ## Quickstart
 
 Prerequisites: Python 3.12+, [uv](https://docs.astral.sh/uv/), Node 20+, and at

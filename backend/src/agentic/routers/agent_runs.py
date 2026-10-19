@@ -76,6 +76,7 @@ def _spawn(
     harness_id: str | None,
     cwd: str,
     worktree_id: str | None,
+    model: str | None = None,
 ) -> AgentRun:
     harness = get_harness(session, harness_id or task.harness_id)
     run = AgentRun(
@@ -85,6 +86,7 @@ def _spawn(
         worktree_id=worktree_id,
         prompt=prompt,
         kind=kind,
+        requested_model=(model or "").strip() or None,
         status=RunStatus.queued,
     )
     session.add(run)
@@ -107,6 +109,7 @@ async def create_run(task_id: str, payload: RunCreate, session: Session = Depend
         harness_id=payload.harness_id,
         cwd=cwd,
         worktree_id=payload.worktree_id,
+        model=payload.model,
     )
     add_timeline(session, task_id, "run_started", f"Agent run: {payload.prompt[:120]}", {"run_id": run.id})
     await enqueue_run(run.id)

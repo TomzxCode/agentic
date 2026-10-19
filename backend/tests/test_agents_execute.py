@@ -31,7 +31,12 @@ async def test_execute_run_succeeds_and_persists_events(monkeypatch):
 
         async def fake_run_agent(*, run_id, harness, cwd, prompt, publish, cancel_event, **kwargs):
             await publish({"seq": 1, "type": "message", "text": "hello", "data": {"k": "v"}})
-            return {"session_id": "ses_1", "stop_reason": "end_turn", "model": "zai-coding-plan/glm-5.3"}
+            return {
+                "session_id": "ses_1",
+                "stop_reason": "end_turn",
+                "model": "zai-coding-plan/glm-5.3",
+                "model_name": "GLM 5.3 Flash",
+            }
 
         monkeypatch.setattr(executions, "run_agent", fake_run_agent)
         await executions.execute_run(run_id=run_id, harness_id=None, cwd=".", prompt="p", cancel_event=asyncio.Event())
@@ -42,6 +47,7 @@ async def test_execute_run_succeeds_and_persists_events(monkeypatch):
             assert run.status == RunStatus.succeeded
             assert run.session_id == "ses_1"
             assert run.model == "zai-coding-plan/glm-5.3"
+            assert run.model_name == "GLM 5.3 Flash"
             assert run.stop_reason == "end_turn"
             assert run.started_at is not None and run.ended_at is not None
             events = session.exec(select(AgentEvent).where(AgentEvent.run_id == run_id)).all()
@@ -104,7 +110,16 @@ async def test_execute_run_records_the_session_before_the_turn_finishes(monkeypa
     try:
 
         async def fake_run_agent(
-            *, run_id, harness, cwd, prompt, publish, cancel_event, resume_session_id=None, on_session=None
+            *,
+            run_id,
+            harness,
+            cwd,
+            prompt,
+            publish,
+            cancel_event,
+            resume_session_id=None,
+            model_override=None,
+            on_session=None,
         ):
             assert on_session is not None
             await on_session("ses_early")
@@ -138,7 +153,16 @@ async def test_execute_run_resumes_an_existing_session(monkeypatch):
         seen: dict = {}
 
         async def fake_run_agent(
-            *, run_id, harness, cwd, prompt, publish, cancel_event, resume_session_id=None, on_session=None
+            *,
+            run_id,
+            harness,
+            cwd,
+            prompt,
+            publish,
+            cancel_event,
+            resume_session_id=None,
+            model_override=None,
+            on_session=None,
         ):
             seen["resume"] = resume_session_id
             return {"session_id": resume_session_id or "ses_new", "stop_reason": "end_turn"}
@@ -146,5 +170,30 @@ async def test_execute_run_resumes_an_existing_session(monkeypatch):
         monkeypatch.setattr(executions, "run_agent", fake_run_agent)
         await executions.execute_run(run_id=run_id, harness_id=None, cwd=".", prompt="p", cancel_event=asyncio.Event())
         assert seen == {"resume": "ses_prev"}
+    finally:
+        _delete_task(task_id)
+
+
+@pytest.mark.asyncio
+async def test_execute_run_passes_the_runs_requested_model(monkeypatch):
+    task_id, run_id = _create_task_and_run()
+    try:
+        with Session(engine) as session:
+            run = session.get(AgentRun, run_id)
+            assert run is not None
+            run.requested_model = "zai-coding-plan/glm-5.3"
+            session.add(run)
+            session.commit()
+
+        seen: dict = {}
+
+        async def fake_run_agent(*, run_id, harness, cwd, prompt, publish, cancel_event, model_override=None, **kwargs):
+            seen["model"] = model_override
+            return {"session_id": "ses_m", "stop_reason": "end_turn"}
+
+        monkeypatch.setattr(executions, "run_agent", fake_run_agent)
+        await executions.execute_run(run_id=run_id, harness_id=None, cwd=".", prompt="p", cancel_event=asyncio.Event())
+        # The model chosen for this run reaches the harness selection.
+        assert seen == {"model": "zai-coding-plan/glm-5.3"}
     finally:
         _delete_task(task_id)

@@ -16,6 +16,7 @@ from sqlmodel import Session
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from .agents.harnesses import seed_harnesses
+from .agents.pool import pool
 from .config import settings
 from .db import create_db_and_tables, engine
 from .jobs import close_queue, get_queue, reconcile_runs
@@ -132,8 +133,15 @@ async def lifespan(app: FastAPI):
     scan_task = asyncio.create_task(_review_scan_forever())
     # Fire the user-defined scheduled tasks whose time has come.
     schedule_task = asyncio.create_task(scheduler_loop())
+    # Hold an ACP session for the default harness so the task view can list its
+    # model choices without spawning it. Best effort: an unavailable harness
+    # retries in the background and never delays startup.
+    if settings.warm_harness_session:
+        pool.start()
     log.info("agentic ready", data_dir=str(settings.data_dir))
     yield
+    if settings.warm_harness_session:
+        await pool.stop()
     refresh_task.cancel()
     scan_task.cancel()
     schedule_task.cancel()

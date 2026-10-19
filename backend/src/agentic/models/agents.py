@@ -51,6 +51,14 @@ class AgentRun(SQLModel, table=True):
     # ``model`` config option. Empty when the harness exposes none, so the
     # transcript says nothing rather than naming the harness's own default.
     model: str | None = None
+    # The harness's own label for that model, read from the same session's model
+    # list, so the UI shows "GLM 5.3" rather than the id the run selects with.
+    # Empty when the harness does not name it.
+    model_name: str | None = None
+    # The model this run asked for, chosen in the task view; it takes precedence
+    # over the harness's own configured model for this run only. Empty means the
+    # harness decides.
+    requested_model: str | None = None
     stop_reason: str | None = None
     error: str | None = None
     created_at: datetime = Field(default_factory=utcnow)

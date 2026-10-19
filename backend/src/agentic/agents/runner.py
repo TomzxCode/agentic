@@ -26,39 +26,90 @@ from .client import AgenticClient, EventPublisher, _dump
 log = structlog.get_logger(__name__)
 
 
-async def _acquire_session(conn: Any, cwd: str, resume_session_id: str | None) -> tuple[str, str | None]:
+async def initialize(conn: Any) -> dict[str, Any]:
+    """Hand a harness the client's capabilities and return its agent info."""
+    init = await conn.initialize(
+        protocol_version=PROTOCOL_VERSION,
+        client_capabilities=ClientCapabilities(
+            terminal=False,
+            fs={"readTextFile": True, "writeTextFile": True},
+        ),
+        client_info=Implementation(name="agentic", title="Agentic", version="0.1.0"),
+    )
+    return _dump(getattr(init, "agent_info", None) or getattr(init, "agentInfo", None))
+
+
+async def _acquire_session(
+    conn: Any, cwd: str, resume_session_id: str | None
+) -> tuple[str, str | None, list[dict[str, str]]]:
     """Resume an existing session when asked, else open a new one.
 
     Resuming keeps the conversation context, so a retried run continues where the
-    previous attempt stopped instead of starting over. Returns the session id and
-    the model the harness reports for that session, so a run can say what
-    answered even when it selects no model of its own.
+    previous attempt stopped instead of starting over. Returns the session id, the
+    model the harness reports for that session, and the models the session offers,
+    so a run can say what answered (and show the harness's label for it) even when
+    it selects no model of its own.
     """
     if resume_session_id:
         try:
             resumed = await conn.resume_session(session_id=resume_session_id, cwd=cwd)
-            return resume_session_id, _session_model(resumed)
+            return resume_session_id, session_model(resumed), session_model_choices(resumed)
         except Exception as exc:  # noqa: BLE001 - a missing session is recoverable
             log.info("could not resume session; starting a new one", session_id=resume_session_id, error=str(exc))
     session = await conn.new_session(cwd=cwd)
-    return session.session_id, _session_model(session)
+    return session.session_id, session_model(session), session_model_choices(session)
 
 
-def _session_model(response: Any) -> str | None:
-    """The model an ACP session response reports, or None when it reports none.
+def _model_option(response: Any) -> Any | None:
+    """The session's model config option, whichever id the harness gives it.
 
-    ACP carries the session's model as a config option whose ``currentValue`` is
-    the model in use. The option's id is ``model``; its ``category`` says the
-    same when a harness picks another id. A harness with no such option says
-    nothing, and the run then has no model to print rather than a guess.
+    ACP carries the session's model as a config option whose id is ``model``;
+    its ``category`` says the same when a harness picks another id.
     """
     options = getattr(response, "config_options", None) or []
     for option in options:
-        value = getattr(option, "current_value", None)
-        if value is None:
-            continue
         if getattr(option, "id", None) == "model" or getattr(option, "category", None) == "model":
-            return str(value)
+            return option
+    return None
+
+
+def session_model(response: Any) -> str | None:
+    """The model an ACP session response reports, or None when it reports none.
+
+    A harness with no model option says nothing, and the run then has no model to
+    print rather than a guess.
+    """
+    value = getattr(_model_option(response), "current_value", None)
+    return None if value is None else str(value)
+
+
+def session_model_choices(response: Any) -> list[dict[str, str]]:
+    """The models a session response offers for its model option.
+
+    ACP nests the choices under the option's ``options``: a flat list, or grouped
+    by provider (the groups are flattened here). An entry is ``{value, name}``,
+    the value being the id a run selects and the name the label to show. A
+    harness with no model option, or one that reports it as a non-select, offers
+    nothing rather than a guess.
+    """
+    choices: list[dict[str, str]] = []
+    for item in getattr(_model_option(response), "options", None) or []:
+        nested = getattr(item, "options", None)
+        for entry in nested if nested is not None else [item]:
+            value = getattr(entry, "value", None)
+            if value is None:
+                continue
+            choices.append({"value": str(value), "name": str(getattr(entry, "name", None) or value)})
+    return choices
+
+
+def model_name(choices: list[dict[str, str]], model: str | None) -> str | None:
+    """The label a harness gives a model id, or None when it does not name it."""
+    if not model:
+        return None
+    for choice in choices:
+        if choice["value"] == model:
+            return choice["name"]
     return None
 
 
@@ -82,7 +133,7 @@ async def _apply_model(conn: Any, session_id: str, model: str | None) -> tuple[s
     except Exception as exc:  # noqa: BLE001 - an unsupported option must not fail the run
         log.warning("could not select harness model", model=model, error=str(exc))
         return None, str(exc)
-    return _session_model(response) or model, None
+    return session_model(response) or model, None
 
 
 def harness_env(harness: Harness) -> dict[str, str]:
@@ -104,6 +155,7 @@ async def run_agent(
     publish: EventPublisher,
     cancel_event: asyncio.Event,
     resume_session_id: str | None = None,
+    model_override: str | None = None,
     on_session: Callable[[str], Awaitable[None]] | None = None,
 ) -> dict[str, Any]:
     """Spawn a harness, run one prompt, stream updates through ``publish``.
@@ -111,8 +163,10 @@ async def run_agent(
     ``on_session`` is called with the session id as soon as it exists (created or
     resumed), so the caller can persist it before the turn finishes. A
     ``resume_session_id`` continues an existing session rather than starting a new
-    one. Returns a summary dict (``session_id``, ``stop_reason``), plus ``model``
-    when the harness names the model the session answers with.
+    one. ``model_override`` selects the session model for this run, taking
+    precedence over the harness's own configured model. Returns a summary dict
+    (``session_id``, ``stop_reason``), plus ``model`` when the harness names the
+    model the session answers with.
     """
     env = harness_env(harness)
     args = list(harness.args or [])
@@ -121,31 +175,30 @@ async def run_agent(
     result: dict[str, Any] = {}
 
     async with spawn_agent_process(client, harness.command, *args, env=env, cwd=cwd) as (conn, process):
-        init = await conn.initialize(
-            protocol_version=PROTOCOL_VERSION,
-            client_capabilities=ClientCapabilities(
-                terminal=False,
-                fs={"readTextFile": True, "writeTextFile": True},
-            ),
-            client_info=Implementation(name="agentic", title="Agentic", version="0.1.0"),
-        )
-        result["agent_info"] = _dump(getattr(init, "agent_info", None) or getattr(init, "agentInfo", None))
-        session_id, session_model = await _acquire_session(conn, cwd, resume_session_id)
+        result["agent_info"] = await initialize(conn)
+        session_id, reported_model, session_choices = await _acquire_session(conn, cwd, resume_session_id)
         result["session_id"] = session_id
         if on_session is not None:
             # Persist the handle before the turn runs, so a crash leaves a resumable run.
             await on_session(session_id)
-        selected_model, model_error = await _apply_model(conn, session_id, harness.model)
+        requested_model = model_override or harness.model
+        selected_model, model_error = await _apply_model(conn, session_id, requested_model)
         if model_error is not None:
-            await client.emit("warning", f"Could not select model {harness.model}: {model_error}")
+            await client.emit("warning", f"Could not select model {requested_model}: {model_error}")
         # What the session answers with: the model the harness reported after the
-        # selection, else the one it reported for the session, else the harness's
-        # own configured model. The transcript header and the run row read this,
-        # so a live run names its model before its first token.
-        model = selected_model or session_model or harness.model
+        # selection, else the one it reported for the session, else the model the
+        # run asked for. The transcript header and the run row read this, so a
+        # live run names its model before its first token.
+        model = selected_model or reported_model or requested_model
         if model:
             result["model"] = model
-            await client.emit("model", model)
+            # The harness's own label for that model, so a run reads as "GLM 5.3"
+            # rather than the id it selects with. A harness that names nothing
+            # leaves the run's model as the id.
+            label = model_name(session_choices, model)
+            if label:
+                result["model_name"] = label
+            await client.emit("model", label or model)
 
         cancel_task = asyncio.create_task(cancel_event.wait())
         prompt_task = asyncio.create_task(conn.prompt(session_id, [TextContentBlock(type="text", text=prompt)]))

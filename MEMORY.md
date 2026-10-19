@@ -1,5 +1,11 @@
 # Memory
 
+## 2026-10-19: the model picker reads a warm ACP session the API process holds
+
+- The API process keeps one ACP connection + session open for the default harness from startup (`agents/pool.py`, started in the `main.py` lifespan, gated by `AGENTIC_WARM_HARNESS_SESSION`). It is introspection-only: `GET /api/harnesses/{id}/models` answers from it instantly (the default harness) or from a short-lived session otherwise, and runs are untouched because the worker still spawns its own session per run (that is what keeps a run alive across an API restart). Do not wire runs onto the pooled session.
+- The test suite sets `AGENTIC_WARM_HARNESS_SESSION=0` in `backend/tests/conftest.py`; without it every `TestClient` lifespan spawns the machine's real default harness (~2s and a stray process). Pool tests build their own `HarnessSessionPool` with a fake `spawn`, never the singleton.
+- A harness's model list exists only on its ACP session: `new_session` returns it as the `model` config option's `options` (opencode reports ~726 flat `{value, name}` entries; a harness may instead group them, which `session_model_choices` flattens). A per-run model lives on `AgentRun.requested_model` (added by `_ensure_columns`) and overrides the harness's own model for that run only; `RunCreate.model` sets it. The harness's own label for the model it answered with is stored on `AgentRun.model_name` (`_ensure_columns`), resolved from the session's model options by `runner.model_name` while the run streams, so the history, the API, and `agentic run get` can show a name instead of an id; rows recorded before the column existed fall back to the id.
+
 ## 2026-10-18: the backend packages have no re-export barrels
 
 - `agentic.models`, `agentic.schemas`, `agentic.services`, and `agentic.agents` are packages whose `__init__.py` holds only a docstring. Import the defining submodule directly (`from agentic.models.tasks import Task`, `from agentic.services.prompts import build_context_prompt`); never re-export the whole surface from an `__init__.py`.

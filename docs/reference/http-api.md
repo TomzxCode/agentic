@@ -33,7 +33,7 @@ There is no authentication, so expose it only on a trusted network.
 | `DELETE` | `/api/tasks/{id}/worktrees/{worktree_id}` | Remove a worktree. |
 | `GET` / `POST` | `/api/tasks/{id}/sessions` | List and record agent sessions. |
 | `GET` / `PATCH` / `DELETE` | `/api/tasks/{id}/sessions/{session_id}` | Read, update, and remove one recorded session. |
-| `GET` / `POST` | `/api/tasks/{id}/runs` | List runs and enqueue a run. |
+| `GET` / `POST` | `/api/tasks/{id}/runs` | List runs and enqueue a run (a `model` in the body overrides the harness's model for that run). |
 | `POST` | `/api/tasks/{id}/context/refresh` | Enqueue a context-refresh run. |
 | `GET` | `/api/tasks/{id}/context` | Preview the context a refresh would read. |
 | `POST` | `/api/tasks/{id}/summary/refresh` | Enqueue a summary-refresh run. |
@@ -139,6 +139,7 @@ There is no authentication, so expose it only on a trusted network.
 | --- | --- | --- |
 | `GET` | `/api/harnesses` | Harness availability and the default flag. |
 | `GET` | `/api/harnesses/full` | Full harness rows. |
+| `GET` | `/api/harnesses/{id}/models` | The models a harness offers, read from its ACP session. |
 | `POST` | `/api/harnesses` | Create a harness. |
 | `PATCH` / `DELETE` | `/api/harnesses/{id}` | Update or remove a harness. |
 | `GET` / `PATCH` | `/api/settings` | Effective settings and overrides. |

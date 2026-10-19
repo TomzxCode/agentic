@@ -15,6 +15,7 @@ from agentic.models.base import RunStatus, utcnow
 from agentic.models.tasks import Task
 from agentic.routers import agent_runs as agents_router
 from agentic.routers import agent_streams
+from agentic.routers import harnesses as harnesses_router
 from agentic.routers import worktrees as worktrees_router
 
 
@@ -93,6 +94,48 @@ def test_harness_crud_and_delete_detaches_task():
         # The task's reference is cleared rather than left dangling.
         assert client.get(f"/api/tasks/{task['id']}").json()["harness_id"] is None
         assert client.delete("/api/harnesses/missing").status_code == 404
+
+        client.delete(f"/api/tasks/{task['id']}")
+
+
+def test_harness_models_returns_what_the_harness_offers(monkeypatch):
+    from agentic.agents.pool import HarnessModels
+
+    async def fake_models(harness):
+        return HarnessModels(
+            harness.id,
+            [{"value": "zai/glm", "name": "Zai GLM"}],
+            current="zai/glm",
+            live=True,
+        )
+
+    # The picker's list comes from the pool, so no harness is spawned here.
+    monkeypatch.setattr(harnesses_router.pool, "models", fake_models)
+    with TestClient(app) as client:
+        harness_id = client.get("/api/harnesses").json()[0]["id"]
+        body = client.get(f"/api/harnesses/{harness_id}/models").json()
+        assert body["harness_id"] == harness_id
+        assert body["models"] == [{"value": "zai/glm", "name": "Zai GLM"}]
+        assert body["current"] == "zai/glm"
+        assert body["live"] is True
+        assert body["error"] is None
+        assert client.get("/api/harnesses/missing/models").status_code == 404
+
+
+def test_create_run_records_the_requested_model(monkeypatch):
+    monkeypatch.setattr(agents_router, "enqueue_run", _no_enqueue)
+    with TestClient(app) as client:
+        task = client.post("/api/tasks", json={"title": "M"}).json()
+
+        run = client.post(f"/api/tasks/{task['id']}/runs", json={"prompt": "x", "model": "zai/glm"}).json()
+        assert run["requested_model"] == "zai/glm"
+        # The harness's label for the model is filled in when the run answers.
+        assert run["model_name"] is None
+        assert client.get(f"/api/runs/{run['id']}").json()["requested_model"] == "zai/glm"
+
+        # A blank model means the harness decides, not a run against "".
+        plain = client.post(f"/api/tasks/{task['id']}/runs", json={"prompt": "x", "model": "  "}).json()
+        assert plain["requested_model"] is None
 
         client.delete(f"/api/tasks/{task['id']}")
 

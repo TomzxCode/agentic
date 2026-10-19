@@ -1,5 +1,5 @@
 <script setup>
-import { computed, nextTick, onMounted, ref } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { api, openRunStream } from '../api'
 import {
   LINKED_ITEM_VARIABLES,
@@ -31,6 +31,10 @@ const emit = defineEmits(['changed'])
 const prompt = ref('')
 const promptEl = ref(null)
 const harnessId = ref('')
+const modelId = ref('')
+const modelChoices = ref([])
+const modelsLoading = ref(false)
+const modelsError = ref('')
 const worktreeId = ref('')
 const activeRunId = ref('')
 const activeRun = ref(null)
@@ -107,26 +111,65 @@ const liveCwd = computed(() => {
 // The model a harness answers with when a run selects none: the model set on
 // the harness, else the default its own config file names.
 function harnessModel(harness) {
-  return harness.model || harness.default_model || ''
+  return harness?.model || harness?.default_model || ''
 }
+
+// The harness a run uses when the picker keeps its default option.
+const effectiveHarness = computed(
+  () => props.harnesses.find((h) => h.id === harnessId.value) || props.harnesses.find((h) => h.is_default) || null
+)
+const effectiveHarnessId = computed(() => effectiveHarness.value?.id || '')
 
 const defaultHarnessLabel = computed(() => {
   const harness = props.harnesses.find((h) => h.is_default)
   if (!harness) return 'Default harness'
-  const model = harnessModel(harness)
-  return `Default harness (${harness.name}${model ? ` · ${model}` : ''}${harness.available === false ? ', unavailable' : ''})`
+  return `Default harness (${harness.name}${harness.available === false ? ', unavailable' : ''})`
 })
+// The harness picker names harnesses; the model is its own picker, so it never
+// repeats the model here.
 const harnessOptions = computed(() => [
   { value: '', label: defaultHarnessLabel.value },
-  ...props.harnesses.map((h) => ({
-    value: h.id,
-    label: `${h.name}${harnessModel(h) ? ` · ${harnessModel(h)}` : ''}${h.available ? '' : ' (unavailable)'}`
-  }))
+  ...props.harnesses.map((h) => ({ value: h.id, label: `${h.name}${h.available ? '' : ' (unavailable)'}` }))
 ])
 const worktreeOptions = computed(() => [
   { value: '', label: 'Auto working directory' },
   ...(props.task.worktrees || []).filter((w) => w.status === 'active').map((w) => ({ value: w.id, label: w.branch }))
 ])
+
+// The models the selected harness offers. They live on its ACP session and are
+// read by the API (the default harness answers from the session the server holds
+// open), so the picker is filled in one request rather than by spawning one.
+const modelOptions = computed(() => [
+  {
+    value: '',
+    label: `Harness default${harnessModel(effectiveHarness.value) ? ` · ${harnessModel(effectiveHarness.value)}` : ''}`
+  },
+  ...modelChoices.value.map((m) => ({ value: m.value, label: m.name }))
+])
+
+async function loadModels() {
+  // The model is chosen per run, so switching harnesses starts over from the
+  // harness's own default.
+  modelId.value = ''
+  modelChoices.value = []
+  modelsError.value = ''
+  const harness = effectiveHarness.value
+  if (!harness) return
+  modelsLoading.value = true
+  try {
+    const result = await api.harnesses.models(harness.id)
+    modelChoices.value = result.models || []
+    modelsError.value = result.error || ''
+  } catch (e) {
+    modelsError.value = e.message
+  } finally {
+    modelsLoading.value = false
+  }
+}
+
+// The list belongs to the harness a run would use, so it follows the picker and
+// also fills in when the harness list arrives after the panel mounts.
+watch(effectiveHarnessId, () => loadModels(), { immediate: true })
 
 // User-defined prompts (Settings → Agent prompts) that apply here: each shows
 // only when the task has exactly one associated GitHub item of its kind.
@@ -216,15 +259,25 @@ function toolDetail(block, cwd) {
   return text.length > TOOL_DETAIL_LIMIT ? `${text.slice(0, TOOL_DETAIL_LIMIT - 1)}…` : text
 }
 
-// The model the run answers with. ACP reports it as the session's `model`
-// config option, so the run reaches the page as a `model` event while it
-// streams and as the run's own `model` field once it is stored.
+// The model a run answers with, named the way the harness names it. A stored run
+// carries the label (`model_name`) beside the id it selects with; a live one
+// arrives as a `model` event whose text is already that label.
 const modelName = computed(() => {
-  const stored = String(activeRun.value?.model || '').trim()
+  const stored = String(activeRun.value?.model_name || '').trim()
   if (stored) return stored
   const reported = events.value.find((ev) => ev.type === 'model')
-  return String(reported?.text || '').trim()
+  return String(reported?.text || activeRun.value?.model || '').trim()
 })
+
+// What to show for a stored run: the harness's name for the model, with the id
+// hovering when the two differ.
+function runModel(run) {
+  return run.model_name || run.model || ''
+}
+
+function runModelTitle(run) {
+  return run.model_name && run.model_name !== run.model ? run.model : ''
+}
 
 // The agent streams tiny chunks; merge consecutive ones into readable blocks so
 // a message reads as a message instead of one line per token.
@@ -334,6 +387,7 @@ async function start(text) {
     const body = { prompt: value }
     if (harnessId.value) body.harness_id = harnessId.value
     if (worktreeId.value) body.worktree_id = worktreeId.value
+    if (modelId.value) body.model = modelId.value
     const run = await api.runs.create(props.task.id, body)
     activeRun.value = run
     activeRunId.value = run.id
@@ -366,7 +420,9 @@ async function viewRun(run) {
   }
 }
 
-onMounted(loadRuns)
+onMounted(() => {
+  loadRuns()
+})
 </script>
 
 <template>
@@ -375,8 +431,16 @@ onMounted(loadRuns)
 
     <div class="row">
       <SearchSelect v-model="harnessId" class="w-170" :options="harnessOptions" placeholder="Default harness" />
+      <SearchSelect
+        v-model="modelId"
+        class="grow model-select"
+        :options="modelOptions"
+        :disabled="modelsLoading"
+        placeholder="Harness default"
+      />
       <SearchSelect v-model="worktreeId" class="grow" :options="worktreeOptions" placeholder="Auto working directory" />
     </div>
+    <div v-if="modelsError" class="faint" style="margin-bottom: 8px">Model list: {{ modelsError }}</div>
     <div class="faint mono" style="margin: 6px 0 8px">cwd: {{ liveCwd }}</div>
 
     <div v-if="promptButtons.length" class="row" style="margin-bottom: 8px">
@@ -477,7 +541,7 @@ onMounted(loadRuns)
         <span class="title">{{ run.prompt.slice(0, 90) }}</span>
       </template>
       <template #actions>
-        <span v-if="run.model" class="faint mono">{{ run.model }}</span>
+        <span v-if="runModel(run)" class="faint mono" :title="runModelTitle(run)">{{ runModel(run) }}</span>
         <span class="faint">{{ timeAgo(run.created_at) }}</span>
       </template>
       <div v-if="run.links?.length" @click.stop>

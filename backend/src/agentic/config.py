@@ -80,6 +80,12 @@ class Settings(BaseSettings):
     # permission requests are surfaced to the UI and the run waits.
     auto_approve_permissions: bool = True
 
+    # Keep an ACP session open for the default harness from API startup, so the
+    # task view can list the harness's model choices without spawning it. Runs
+    # are unaffected (the worker spawns its own session per run). False starts
+    # nothing; the model list then comes from a short-lived session on request.
+    warm_harness_session: bool = True
+
     # Scheduled shell tasks. How often (seconds) the API checks for due
     # scheduled tasks; 0 disables the scheduler. A task's command is killed
     # after scheduled_task_timeout seconds; 0 means no timeout.

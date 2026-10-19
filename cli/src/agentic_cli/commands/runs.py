@@ -68,10 +68,15 @@ def run_create(
     harness_id: str | None = None,
     worktree_id: str | None = None,
     cwd: str | None = None,
+    model: str | None = None,
 ) -> str:
-    """Start an agent run against a task."""
+    """Start an agent run against a task.
+
+    --model selects the model this run answers with, overriding the harness's own
+    configured model for this run only; empty means the harness decides.
+    """
     with runtime._client() as client:
-        run = client.create_run(task_id, prompt, harness_id=harness_id, worktree_id=worktree_id, cwd=cwd)
+        run = client.create_run(task_id, prompt, harness_id=harness_id, worktree_id=worktree_id, cwd=cwd, model=model)
     return emit(run, f"started run {run['id']} ({run['status']}) in {run.get('cwd')}")
 
 

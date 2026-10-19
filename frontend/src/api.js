@@ -256,6 +256,7 @@ export const api = {
   harnesses: {
     list: () => request('/harnesses'),
     full: () => request('/harnesses/full'),
+    models: (id) => request(`/harnesses/${id}/models`),
     create: (body) => request('/harnesses', { method: 'POST', body }),
     update: (id, body) => request(`/harnesses/${id}`, { method: 'PATCH', body }),
     remove: (id) => request(`/harnesses/${id}`, { method: 'DELETE' })

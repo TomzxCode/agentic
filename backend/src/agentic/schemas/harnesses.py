@@ -54,3 +54,24 @@ class HarnessStatus(BaseModel):
     is_default: bool = False
     model: str | None = None
     default_model: str | None = None
+
+
+class HarnessModelChoice(BaseModel):
+    value: str
+    name: str
+
+
+class HarnessModelsRead(BaseModel):
+    """The models a harness offers, read from a live ACP session.
+
+    ``live`` says the answer came from a session the API holds open (the default
+    harness); otherwise it came from a short-lived session on request. ``error``
+    is set when the harness could not be asked, so the caller shows why rather
+    than an empty list.
+    """
+
+    harness_id: str
+    models: list[HarnessModelChoice] = []
+    current: str | None = None
+    live: bool = False
+    error: str | None = None

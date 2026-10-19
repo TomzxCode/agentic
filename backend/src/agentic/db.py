@@ -143,6 +143,12 @@ def _ensure_columns() -> None:
         if "model" not in run_columns:
             with engine.begin() as connection:
                 connection.execute(text("ALTER TABLE agentrun ADD COLUMN model VARCHAR"))
+        if "requested_model" not in run_columns:
+            with engine.begin() as connection:
+                connection.execute(text("ALTER TABLE agentrun ADD COLUMN requested_model VARCHAR"))
+        if "model_name" not in run_columns:
+            with engine.begin() as connection:
+                connection.execute(text("ALTER TABLE agentrun ADD COLUMN model_name VARCHAR"))
     if "task" in inspector.get_table_names():
         task_columns = {column["name"] for column in inspector.get_columns("task")}
         if "group_id" not in task_columns:

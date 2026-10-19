@@ -11,11 +11,18 @@ from sqlalchemy import update as sa_update
 from sqlmodel import Session, col, select
 
 from ..agents.harnesses import harness_available, resolve_default_model, seed_harnesses
+from ..agents.pool import pool
 from ..crud import get_or_404
 from ..db import get_session
 from ..models.agents import AgentRun, AgentSession, Harness
 from ..models.tasks import Task
-from ..schemas.harnesses import HarnessCreate, HarnessRead, HarnessStatus, HarnessUpdate
+from ..schemas.harnesses import (
+    HarnessCreate,
+    HarnessModelsRead,
+    HarnessRead,
+    HarnessStatus,
+    HarnessUpdate,
+)
 
 router = APIRouter(prefix="/api", tags=["agents"])
 
@@ -53,6 +60,25 @@ def list_harnesses_full(session: Session = Depends(get_session)) -> list[Harness
     return [_harness_read(harness) for harness in session.exec(select(Harness)).all()]
 
 
+@router.get("/harnesses/{harness_id}/models", response_model=HarnessModelsRead)
+async def list_harness_models(harness_id: str, session: Session = Depends(get_session)) -> HarnessModelsRead:
+    """The models a harness offers, for the task view's model picker.
+
+    Answered from the warm session the API holds for the default harness, or
+    from a short-lived session for any other harness. A harness that cannot be
+    asked returns an empty list and the reason in ``error``.
+    """
+    harness = get_or_404(session, Harness, harness_id, "Harness not found")
+    models = await pool.models(harness)
+    return HarnessModelsRead(
+        harness_id=models.harness_id,
+        models=models.choices,
+        current=models.current,
+        live=models.live,
+        error=models.error,
+    )
+
+
 @router.post("/harnesses", response_model=HarnessRead, status_code=201)
 def create_harness(payload: HarnessCreate, session: Session = Depends(get_session)) -> HarnessRead:
     harness = Harness(**payload.model_dump())
@@ -61,6 +87,7 @@ def create_harness(payload: HarnessCreate, session: Session = Depends(get_sessio
     session.add(harness)
     session.commit()
     session.refresh(harness)
+    pool.refresh()
     return _harness_read(harness)
 
 
@@ -76,6 +103,7 @@ def update_harness(harness_id: str, payload: HarnessUpdate, session: Session = D
     session.add(harness)
     session.commit()
     session.refresh(harness)
+    pool.refresh()
     return _harness_read(harness)
 
 
@@ -87,6 +115,7 @@ def delete_harness(harness_id: str, session: Session = Depends(get_session)) -> 
     session.exec(sa_update(AgentSession).where(col(AgentSession.harness_id) == harness.id).values(harness_id=None))
     session.exec(sa_delete(Harness).where(col(Harness.id) == harness.id))
     session.commit()
+    pool.refresh()
 
 
 __all__ = ["router"]

@@ -66,6 +66,8 @@ async def execute_run(
             task_id = run.task_id
             # A retry of an interrupted run resumes the harness session it left behind.
             resume_session_id = run.session_id
+            # A per-run model chosen in the task view overrides the harness's own.
+            model_override = run.requested_model
             run.status = RunStatus.running
             run.started_at = utcnow()
             session.add(run)
@@ -80,6 +82,7 @@ async def execute_run(
             publish=publish,
             cancel_event=cancel_event,
             resume_session_id=resume_session_id,
+            model_override=model_override,
             on_session=record_session,
         )
         with Session(engine) as s:
@@ -90,6 +93,8 @@ async def execute_run(
                 # reporting its model keeps whatever the first attempt recorded.
                 if summary.get("model"):
                     run.model = str(summary["model"])
+                if summary.get("model_name"):
+                    run.model_name = str(summary["model_name"])
                 run.stop_reason = str(summary.get("stop_reason") or "")
                 run.status = RunStatus.cancelled if summary.get("stop_reason") == "cancelled" else RunStatus.succeeded
                 run.ended_at = utcnow()
