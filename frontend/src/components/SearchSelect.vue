@@ -13,7 +13,11 @@ const props = defineProps({
   keepOpen: { type: Boolean, default: false },
   // Multi-select: `modelValue` is an array, choosing toggles a value, and the
   // list stays open so several can be picked in a row.
-  multiple: { type: Boolean, default: false }
+  multiple: { type: Boolean, default: false },
+  // Above the option list's choices, offer "Select all" and "Deselect all" so a
+  // long multi-select can be taken or cleared in one click. Only used in
+  // multiple mode.
+  bulkActions: { type: Boolean, default: false }
 })
 const emit = defineEmits(['update:modelValue'])
 
@@ -60,6 +64,32 @@ const filtered = computed(() => {
   const q = query.value.trim().toLowerCase()
   return q ? normalized.value.filter((option) => option.label.toLowerCase().includes(q)) : normalized.value
 })
+
+// The bulk actions' values: every real option currently listed, ignoring the
+// empty-value sentinel. "Select all" therefore follows the search box, so a
+// query can take one group of options at once.
+const selectableValues = computed(() => filtered.value.map((option) => option.value).filter((value) => value !== ''))
+const allSelected = computed(
+  () =>
+    props.multiple &&
+    selectableValues.value.length > 0 &&
+    selectableValues.value.every((value) => selectedValues.value.has(value))
+)
+
+// Choose every listed option in one click, keeping the panel open for the next
+// action.
+function selectAll() {
+  const next = new Set(selectedValues.value)
+  for (const value of selectableValues.value) next.add(value)
+  emit('update:modelValue', [...next])
+  nextTick(() => input.value?.focus())
+}
+
+// Clear the whole selection, whatever the search box currently lists.
+function deselectAll() {
+  emit('update:modelValue', [])
+  nextTick(() => input.value?.focus())
+}
 
 function toggle() {
   if (props.disabled) return
@@ -152,6 +182,12 @@ defineExpose({ activate: show })
 
     <div v-if="open" class="ss-panel">
       <input ref="input" v-model="query" class="ss-search" placeholder="Filter…" @keydown="onKeydown" />
+      <div v-if="multiple && bulkActions" class="ss-bulk">
+        <button type="button" class="ss-bulk-action" :disabled="allSelected" @click="selectAll">Select all</button>
+        <button type="button" class="ss-bulk-action" :disabled="!selectedOptions.length" @click="deselectAll">
+          Deselect all
+        </button>
+      </div>
       <div class="ss-options">
         <div v-if="!filtered.length" class="ss-empty faint">No matches</div>
         <button

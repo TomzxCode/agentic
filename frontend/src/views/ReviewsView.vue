@@ -7,10 +7,12 @@ import {
   groupQueueByRepository,
   matchesAuthorFilter,
   matchesQueueSearch,
+  matchesRepositoryFilter,
   matchesStateFilter,
   PR_STATE_FILTERS,
   QUEUE_STEPS,
   queueAuthors,
+  queueRepositories,
   READINESS_LIGHTS,
   READINESS_TITLES,
   riskTone,
@@ -39,9 +41,10 @@ const creatingKey = ref('')
 const sharing = ref(null)
 
 // The filters: a PR's status (open by default, so the queue shows the pull
-// requests still awaiting a review), one or more authors, and a text search over
-// the row's fields.
+// requests still awaiting a review), one or more repositories, one or more
+// authors, and a text search over the row's fields.
 const stateFilter = ref('open')
+const repositoryFilter = ref([])
 const authorFilter = ref([])
 const search = ref('')
 
@@ -53,11 +56,13 @@ const reportLoading = ref(false)
 const reportTruncated = ref(false)
 
 const reportHtml = computed(() => renderMarkdown(stripReportMarker(reportContent.value)))
-// The rows the filters keep: status, then author, then the search text.
+// The rows the filters keep: status, then repository, then author, then the
+// search text.
 const filteredPrs = computed(() =>
   queue.value.prs.filter(
     (pr) =>
       matchesStateFilter(pr, stateFilter.value) &&
+      matchesRepositoryFilter(pr, repositoryFilter.value) &&
       matchesAuthorFilter(pr, authorFilter.value) &&
       matchesQueueSearch(pr, search.value)
   )
@@ -65,6 +70,15 @@ const filteredPrs = computed(() =>
 const groups = computed(() => groupQueueByRepository(filteredPrs.value))
 // Per-status counts for the filter chips, over the whole queue.
 const stateCounts = computed(() => stateFilterCounts(queue.value.prs))
+// The repositories to offer, with their row counts, over the whole queue.
+const repositories = computed(() => queueRepositories(queue.value.prs))
+// The repository dropdown's options, each carrying its row count.
+const repositoryOptions = computed(() =>
+  repositories.value.map((repository) => ({
+    value: repository.value,
+    label: `${repository.value} (${repository.count})`
+  }))
+)
 // The authors to offer, with their row counts, over the whole queue.
 const authors = computed(() => queueAuthors(queue.value.prs))
 // The author dropdown's options, each carrying its row count.
@@ -89,8 +103,13 @@ async function load(refresh = false) {
     await store.loadRepositories().catch(() => {})
     await store.loadTasks().catch(() => {})
     queue.value = await api.reviews.queue({ refresh })
-    // Drop any selected author the refreshed queue no longer carries, so the
-    // control never filters on someone it cannot show as selected.
+    // Drop any selected repository or author the refreshed queue no longer
+    // carries, so a control never filters on something it cannot show as
+    // selected.
+    const knownRepositories = new Set(repositories.value.map((repository) => repository.value.toLowerCase()))
+    repositoryFilter.value = repositoryFilter.value.filter((value) =>
+      knownRepositories.has(String(value).toLowerCase())
+    )
     const known = new Set(authors.value.map((author) => author.value.toLowerCase()))
     authorFilter.value = authorFilter.value.filter((value) => known.has(String(value).toLowerCase()))
   } catch (e) {
@@ -256,9 +275,20 @@ onMounted(load)
         </button>
       </div>
       <SearchSelect
+        v-model="repositoryFilter"
+        class="review-repository-select"
+        multiple
+        bulk-actions
+        :sort="false"
+        :options="repositoryOptions"
+        placeholder="All repositories"
+        title="Filter by one or more repositories"
+      />
+      <SearchSelect
         v-model="authorFilter"
         class="review-author-select"
         multiple
+        bulk-actions
         :sort="false"
         :options="authorOptions"
         placeholder="All authors"
@@ -286,9 +316,13 @@ onMounted(load)
 
     <div v-else-if="!filteredPrs.length" class="empty">
       <p v-if="search">No pull requests match “{{ search }}”.</p>
+      <p v-else-if="repositoryFilter.length">No pull requests in {{ repositoryFilter.join(', ') }}.</p>
       <p v-else-if="authorFilter.length">No pull requests by {{ authorFilter.join(', ') }}.</p>
       <p v-else>No {{ stateFilter === 'all' ? '' : `${stateFilter} ` }}pull requests.</p>
       <button v-if="search" class="btn sm ghost" @click="search = ''">Clear search</button>
+      <button v-if="repositoryFilter.length" class="btn sm ghost" @click="repositoryFilter = []">
+        Clear repositories
+      </button>
       <button v-if="authorFilter.length" class="btn sm ghost" @click="authorFilter = []">Clear author</button>
       <button v-if="stateFilter !== 'all'" class="btn sm ghost" @click="stateFilter = 'all'">Show all</button>
     </div>

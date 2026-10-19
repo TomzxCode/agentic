@@ -23,9 +23,12 @@ The reports live under `AGENTIC_SDLC_DIR` (`~/.sdlc` by default), at `{owner}/{r
 
 2. Filter the queue. By default it shows only **open** pull requests; a pull request whose state could not be read is treated as open.
    The status chips (**Open**, **Merged**, **Closed**, **All**) each carry a count over the whole queue, and the header totals follow what the filter shows.
-   Use the **All authors** dropdown to pick one or more authors; type in its filter box to narrow the list, and each choice toggles on and off.
+   Use the **All repositories** dropdown to pick one or more repositories; type in its filter box to narrow the list, and each choice toggles on and off.
+   With nothing chosen it shows every repository, and the queue keeps only the rows of the chosen ones.
+   Use the **All authors** dropdown the same way to pick one or more authors.
+   At the top of either list, **Select all** takes every option the filter box currently lists and **Deselect all** clears the choice.
    Type in the search box to narrow by repository, number, title, or author.
-   When nothing matches, the empty state offers to clear the search or author, or show all statuses.
+   When nothing matches, the empty state offers to clear the search, repositories, or author, or show all statuses.
 3. Read the row's own columns: the pull request number and title, its author, its age, the last comment and who made it, the commit last reviewed, and when the last review ran.
    Click the number to open the pull request on GitHub.
 4. Read the merge-readiness light beside the number:

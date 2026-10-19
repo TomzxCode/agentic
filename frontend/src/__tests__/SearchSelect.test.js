@@ -137,4 +137,58 @@ describe('SearchSelect', () => {
       expect(wrapper.get('.ss-label').classes()).toContain('placeholder')
     })
   })
+
+  describe('bulk actions', () => {
+    const bulk = (props = {}) =>
+      mount(SearchSelect, { props: { modelValue: [], options, multiple: true, bulkActions: true, ...props } })
+
+    it('takes every real option in one click, skipping the empty sentinel', async () => {
+      const wrapper = bulk({ modelValue: ['a'] })
+      await open(wrapper)
+      const actions = wrapper.findAll('.ss-bulk-action')
+      expect(actions.map((action) => action.text())).toEqual(['Select all', 'Deselect all'])
+
+      await actions[0].trigger('click')
+      expect(wrapper.emitted('update:modelValue')).toEqual([[['a', 'b']]])
+      // The panel stays open and the search box keeps the focus.
+      expect(wrapper.find('.ss-panel').exists()).toBe(true)
+    })
+
+    it('selects only the options the search box lists', async () => {
+      const wrapper = bulk()
+      await open(wrapper)
+      await wrapper.get('.ss-search').setValue('be')
+      await wrapper.get('.ss-bulk-action').trigger('click')
+      expect(wrapper.emitted('update:modelValue')).toEqual([[['b']]])
+    })
+
+    it('clears the whole selection in one click', async () => {
+      const wrapper = bulk({ modelValue: ['a', 'b'] })
+      await open(wrapper)
+      await wrapper.findAll('.ss-bulk-action')[1].trigger('click')
+      expect(wrapper.emitted('update:modelValue')).toEqual([[[]]])
+    })
+
+    it('disables each action when it would change nothing', async () => {
+      const none = bulk()
+      await open(none)
+      expect(none.findAll('.ss-bulk-action')[0].attributes('disabled')).toBeUndefined()
+      expect(none.findAll('.ss-bulk-action')[1].attributes('disabled')).toBeDefined()
+
+      const all = bulk({ modelValue: ['a', 'b'] })
+      await open(all)
+      expect(all.findAll('.ss-bulk-action')[0].attributes('disabled')).toBeDefined()
+      expect(all.findAll('.ss-bulk-action')[1].attributes('disabled')).toBeUndefined()
+    })
+
+    it('stays out of a single select and of a multi-select without the option', async () => {
+      const single = mount(SearchSelect, { props: { modelValue: '', options, bulkActions: true } })
+      await open(single)
+      expect(single.find('.ss-bulk').exists()).toBe(false)
+
+      const multi = mount(SearchSelect, { props: { modelValue: [], options, multiple: true } })
+      await open(multi)
+      expect(multi.find('.ss-bulk').exists()).toBe(false)
+    })
+  })
 })

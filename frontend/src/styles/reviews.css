@@ -51,6 +51,7 @@
   min-width: 0;
   max-width: 360px;
 }
+.review-repository-select,
 .review-author-select {
   flex: 0 1 auto;
   min-width: 160px;

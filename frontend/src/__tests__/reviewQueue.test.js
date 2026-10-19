@@ -34,6 +34,17 @@ async function toggleAuthor(wrapper, name) {
   await flushPromises()
 }
 
+// Open the repository dropdown (a SearchSelect) and toggle one repository's
+// option.
+async function openRepositories(wrapper) {
+  await wrapper.get('.review-repository-select .ss-trigger').trigger('click')
+}
+async function toggleRepository(wrapper, name) {
+  const option = wrapper.findAll('.ss-option').find((entry) => entry.text().includes(name))
+  await option.trigger('click')
+  await flushPromises()
+}
+
 function step(overrides = {}) {
   return {
     step: 'review-pr',
@@ -80,6 +91,20 @@ function pr(overrides = {}) {
     task_ids: [],
     ...overrides
   }
+}
+
+// A row in another repository, with its own URL and coordinates.
+function prIn(repository, overrides = {}) {
+  const [owner, name] = repository.split('/')
+  const number = overrides.number ?? 42
+  return pr({
+    owner,
+    name,
+    repository,
+    number,
+    url: `https://github.com/${repository}/pull/${number}`,
+    ...overrides
+  })
 }
 
 beforeEach(() => {
@@ -361,6 +386,113 @@ describe('ReviewsView', () => {
     expect(wrapper.find('a[href="https://github.com/TomzxCode/agentic/pull/7"]').exists()).toBe(true)
     expect(wrapper.find('a[href="https://github.com/TomzxCode/agentic/pull/9"]').exists()).toBe(false)
     expect(wrapper.get('.review-author-select .ss-label').text()).toBe('alice (1), carol (1)')
+  })
+
+  it('filters the rows by repository picked from the searchable dropdown', async () => {
+    mocks.queue.mockResolvedValue({
+      root: null,
+      counts: { total: 2 },
+      prs: [prIn('TomzxCode/agentic', { number: 42 }), prIn('acme/api', { number: 9 })]
+    })
+    const wrapper = mount(ReviewsView, stub)
+    await flushPromises()
+
+    await openRepositories(wrapper)
+    expect(wrapper.findAll('.ss-option').map((option) => option.text())).toEqual([
+      'acme/api (1)',
+      'TomzxCode/agentic (1)'
+    ])
+
+    await toggleRepository(wrapper, 'acme/api')
+
+    expect(wrapper.find('a[href="https://github.com/acme/api/pull/9"]').exists()).toBe(true)
+    expect(wrapper.find('a[href="https://github.com/TomzxCode/agentic/pull/42"]').exists()).toBe(false)
+    expect(wrapper.findAll('.group-head').map((head) => head.text())).toEqual(['acme/api1'])
+    // The trigger summarizes the chosen repository.
+    expect(wrapper.get('.review-repository-select .ss-label').text()).toBe('acme/api (1)')
+  })
+
+  it('takes several repositories and clears them from the empty state', async () => {
+    mocks.queue.mockResolvedValue({
+      root: null,
+      counts: { total: 3 },
+      prs: [prIn('TomzxCode/agentic', { number: 42 }), prIn('acme/api', { number: 9 }), prIn('acme/web', { number: 7 })]
+    })
+    const wrapper = mount(ReviewsView, stub)
+    await flushPromises()
+
+    await openRepositories(wrapper)
+    await toggleRepository(wrapper, 'acme/api')
+    await toggleRepository(wrapper, 'acme/web')
+
+    expect(wrapper.find('a[href="https://github.com/acme/api/pull/9"]').exists()).toBe(true)
+    expect(wrapper.find('a[href="https://github.com/acme/web/pull/7"]').exists()).toBe(true)
+    expect(wrapper.find('a[href="https://github.com/TomzxCode/agentic/pull/42"]').exists()).toBe(false)
+    expect(wrapper.get('.review-repository-select .ss-label').text()).toBe('acme/api (1), acme/web (1)')
+
+    // Choosing a repository with no matching rows under the status filter names
+    // it and offers to clear the selection.
+    await wrapper.findAll('.review-state-filter')[1].trigger('click')
+    await flushPromises()
+    expect(wrapper.text()).toContain('No pull requests in acme/api, acme/web.')
+
+    const clear = wrapper.findAll('button').find((button) => button.text() === 'Clear repositories')
+    await clear.trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('a[href="https://github.com/TomzxCode/agentic/pull/42"]').exists()).toBe(false)
+    // Merged still applies, so the open agentic row stays hidden and the clear
+    // button is gone now that no repository is chosen.
+    expect(wrapper.findAll('button').some((button) => button.text() === 'Clear repositories')).toBe(false)
+  })
+
+  it('selects every repository and clears the selection from the dropdown', async () => {
+    mocks.queue.mockResolvedValue({
+      root: null,
+      counts: { total: 2 },
+      prs: [prIn('TomzxCode/agentic', { number: 42 }), prIn('acme/api', { number: 9 })]
+    })
+    const wrapper = mount(ReviewsView, stub)
+    await flushPromises()
+
+    await openRepositories(wrapper)
+    await toggleRepository(wrapper, 'acme/api')
+    expect(wrapper.find('a[href="https://github.com/TomzxCode/agentic/pull/42"]').exists()).toBe(false)
+
+    await wrapper.findAll('.ss-bulk-action')[0].trigger('click')
+    await flushPromises()
+    expect(wrapper.find('a[href="https://github.com/TomzxCode/agentic/pull/42"]').exists()).toBe(true)
+    expect(wrapper.find('a[href="https://github.com/acme/api/pull/9"]').exists()).toBe(true)
+    expect(wrapper.get('.review-repository-select .ss-label').text()).toBe('acme/api (1), TomzxCode/agentic (1)')
+
+    await wrapper.findAll('.ss-bulk-action')[1].trigger('click')
+    await flushPromises()
+    expect(wrapper.get('.review-repository-select .ss-label').text()).toBe('All repositories')
+    expect(wrapper.find('a[href="https://github.com/TomzxCode/agentic/pull/42"]').exists()).toBe(true)
+  })
+
+  it('selects every author and clears the selection from the dropdown', async () => {
+    mocks.queue.mockResolvedValue({
+      root: null,
+      counts: { total: 2 },
+      prs: [pr({ number: 42, author: 'alice' }), pr({ number: 9, author: 'carol' })]
+    })
+    const wrapper = mount(ReviewsView, stub)
+    await flushPromises()
+
+    await openAuthors(wrapper)
+    await toggleAuthor(wrapper, 'carol')
+    expect(wrapper.find('a[href="https://github.com/TomzxCode/agentic/pull/42"]').exists()).toBe(false)
+
+    await wrapper.findAll('.ss-bulk-action')[0].trigger('click')
+    await flushPromises()
+    expect(wrapper.find('a[href="https://github.com/TomzxCode/agentic/pull/42"]').exists()).toBe(true)
+    expect(wrapper.get('.review-author-select .ss-label').text()).toBe('alice (1), carol (1)')
+
+    await wrapper.findAll('.ss-bulk-action')[1].trigger('click')
+    await flushPromises()
+    expect(wrapper.get('.review-author-select .ss-label').text()).toBe('All authors')
+    expect(wrapper.find('a[href="https://github.com/TomzxCode/agentic/pull/9"]').exists()).toBe(true)
   })
 
   it('names the chosen authors in the empty state and clears them', async () => {

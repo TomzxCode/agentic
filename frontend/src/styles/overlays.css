@@ -186,6 +186,30 @@
   max-height: 240px;
   overflow: auto;
 }
+/* The Select all / Deselect all row above a multi-select's options. */
+.ss-bulk {
+  display: flex;
+  gap: 12px;
+  padding: 2px 8px 6px;
+  margin-bottom: 2px;
+  border-bottom: 1px solid var(--border);
+}
+.ss-bulk-action {
+  padding: 0;
+  background: transparent;
+  border: none;
+  color: var(--accent);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 12px;
+}
+.ss-bulk-action:hover:not(:disabled) {
+  text-decoration: underline;
+}
+.ss-bulk-action:disabled {
+  color: var(--faint);
+  cursor: default;
+}
 .ss-option {
   display: flex;
   align-items: center;

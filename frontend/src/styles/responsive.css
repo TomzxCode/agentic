@@ -160,9 +160,10 @@
     font-size: 16px;
     padding: 10px 12px;
   }
-  /* The searchable select beside the review queue's search box matches the other
+  /* The searchable selects beside the review queue's search box match the other
      form controls on a phone, instead of sitting shorter than them. */
-  .search-select.review-author-select .ss-trigger {
+  .search-select.review-author-select .ss-trigger,
+  .search-select.review-repository-select .ss-trigger {
     font-size: 16px;
     padding: 10px 12px;
   }

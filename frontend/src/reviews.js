@@ -226,6 +226,39 @@ export function matchesAuthorFilter(pr, value) {
   return wanted.includes(author)
 }
 
+// The distinct repositories in the queue, each with the number of rows it
+// carries, ordered by name case-insensitively. Rows with no repository are left
+// out of the list: they match only the unfiltered queue.
+export function queueRepositories(prs) {
+  const counts = new Map()
+  for (const pr of prs || []) {
+    const repository = String(pr?.repository || '').trim()
+    if (!repository) continue
+    counts.set(repository, (counts.get(repository) || 0) + 1)
+  }
+  return [...counts.entries()]
+    .map(([value, count]) => ({ value, count }))
+    .sort((a, b) => a.value.toLowerCase().localeCompare(b.value.toLowerCase()))
+}
+
+// Whether a row matches the repository filter. An empty selection matches every
+// row; otherwise its repository must be one of the chosen ones
+// (case-insensitively). Accepts a single value or a list of them.
+export function matchesRepositoryFilter(pr, value) {
+  const wanted = (Array.isArray(value) ? value : [value])
+    .map((entry) =>
+      String(entry || '')
+        .trim()
+        .toLowerCase()
+    )
+    .filter(Boolean)
+  if (!wanted.length) return true
+  const repository = String(pr?.repository || '')
+    .trim()
+    .toLowerCase()
+  return wanted.includes(repository)
+}
+
 // The queue grouped by repository, repositories in name order and the PRs in
 // each group newest first (the API already orders them that way).
 export function groupQueueByRepository(prs) {
