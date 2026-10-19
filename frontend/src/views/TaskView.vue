@@ -14,6 +14,7 @@ import SessionsPanel from '../components/SessionsPanel.vue'
 import TimelinePanel from '../components/TimelinePanel.vue'
 import SessionLinks from '../components/SessionLinks.vue'
 import TaskReviewPanel from '../components/TaskReviewPanel.vue'
+import TaskIssuePanel from '../components/TaskIssuePanel.vue'
 import EditableText from '../components/EditableText.vue'
 import DeadlinePicker from '../components/DeadlinePicker.vue'
 import SearchSelect from '../components/SearchSelect.vue'
@@ -22,7 +23,7 @@ import PeopleSelect from '../components/PeopleSelect.vue'
 import TagInput from '../components/TagInput.vue'
 import StatusIcon from '../components/StatusIcon.vue'
 import PriorityIcon from '../components/PriorityIcon.vue'
-import { taskPullRequests } from '../reviews'
+import { taskIssues, taskPullRequests } from '../reviews'
 
 const props = defineProps({ id: { type: String, required: true } })
 const emit = defineEmits(['changed'])
@@ -46,21 +47,52 @@ let closeStream = null
 
 // The pull requests the task is linked to, so PR mode is offered only then.
 const linkedPrs = computed(() => taskPullRequests(task.value))
+// The GitHub issues the task is linked to, for the issue mode.
+const linkedIssues = computed(() => taskIssues(task.value))
 
-// Adopt the URL's view: `?view=pr` opens PR mode, anything else (or a task with
-// no linked pull request) falls back to the default view.
+// The view modes the switch offers, in order. Each names the title it shows
+// when it is available and the hint it shows when it is not.
+const MODES = [
+  { value: 'default', label: 'Default', title: 'Show the task' },
+  {
+    value: 'pr',
+    label: 'PR',
+    title: 'Show the pull request review queue for this task',
+    disabledTitle: 'This task is not linked to a pull request'
+  },
+  {
+    value: 'issue',
+    label: 'Issue',
+    title: 'Show the linked issues and work them through an agent',
+    disabledTitle: 'This task is not linked to an issue'
+  }
+]
+
+function modeAvailable(value) {
+  if (value === 'pr') return linkedPrs.value.length > 0
+  if (value === 'issue') return linkedIssues.value.length > 0
+  return true
+}
+
+function modeTitle(entry) {
+  return modeAvailable(entry.value) ? entry.title : entry.disabledTitle
+}
+
+// Adopt the URL's view (`?view=pr` or `?view=issue`), falling back to the
+// default view when the query names a mode the task cannot offer.
 function applyViewQuery() {
-  mode.value = route.query.view === 'pr' && linkedPrs.value.length ? 'pr' : 'default'
+  const wanted = route.query.view
+  mode.value = (wanted === 'pr' || wanted === 'issue') && modeAvailable(wanted) ? wanted : 'default'
 }
 
 // Switch view and keep the URL in step, so the mode can be linked to and the
 // back button restores it.
 function setMode(next) {
-  if (next === 'pr' && !linkedPrs.value.length) return
+  if (!modeAvailable(next)) return
   mode.value = next
   const query = { ...route.query }
-  if (next === 'pr') query.view = 'pr'
-  else delete query.view
+  if (next === 'default') delete query.view
+  else query.view = next
   router.replace({ query })
 }
 
@@ -273,12 +305,18 @@ watch(
     subscribe()
   }
 )
-// A task that loses its last linked pull request falls back to the default
-// view, so the switch never shows an empty PR mode.
+// A task that loses its last linked pull request or issue falls back to the
+// default view, so the switch never shows an empty mode.
 watch(
   () => linkedPrs.value.length,
   (count) => {
     if (!count && mode.value === 'pr') setMode('default')
+  }
+)
+watch(
+  () => linkedIssues.value.length,
+  (count) => {
+    if (!count && mode.value === 'issue') setMode('default')
   }
 )
 // The browser's back and forward buttons move between the modes.
@@ -306,29 +344,17 @@ watch(
       <div class="row task-head-tools">
         <div class="view-switch" role="group" aria-label="View mode">
           <button
+            v-for="entry in MODES"
+            :key="entry.value"
             type="button"
             class="view-switch-btn"
-            :class="{ active: mode === 'default' }"
-            :aria-pressed="mode === 'default'"
-            title="Show the task"
-            @click="setMode('default')"
+            :class="{ active: mode === entry.value }"
+            :aria-pressed="mode === entry.value"
+            :disabled="!modeAvailable(entry.value)"
+            :title="modeTitle(entry)"
+            @click="setMode(entry.value)"
           >
-            Default
-          </button>
-          <button
-            type="button"
-            class="view-switch-btn"
-            :class="{ active: mode === 'pr' }"
-            :aria-pressed="mode === 'pr'"
-            :disabled="!linkedPrs.length"
-            :title="
-              linkedPrs.length
-                ? 'Show the pull request review queue for this task'
-                : 'This task is not linked to a pull request'
-            "
-            @click="setMode('pr')"
-          >
-            PR
+            {{ entry.label }}
           </button>
         </div>
       </div>
@@ -349,7 +375,8 @@ watch(
       </div>
     </div>
 
-    <TaskReviewPanel v-if="mode === 'pr'" :task="task" />
+    <TaskIssuePanel v-if="mode === 'issue'" :task="task" :harnesses="store.harnesses" @changed="onChanged" />
+    <TaskReviewPanel v-else-if="mode === 'pr'" :task="task" />
 
     <template v-else>
       <div v-if="showCreateIssue" class="row create-issue-pick">

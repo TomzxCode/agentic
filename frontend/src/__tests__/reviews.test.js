@@ -9,6 +9,7 @@ import {
   riskTone,
   shortCommit,
   stripReportMarker,
+  taskIssues,
   taskPullRequests,
   verdictLabel,
   verdictTone
@@ -151,7 +152,7 @@ describe('taskPullRequests', () => {
         { item: { id: 'i2', url: 'https://github.com/acme/api/issues/7', kind: 'issue' } }
       ]
     })
-    expect(prs).toEqual([
+    expect(prs).toMatchObject([
       { owner: 'acme', repo: 'api', number: 42, url: 'https://github.com/Acme/API/pull/42', item_id: 'i1' }
     ])
   })
@@ -166,6 +167,25 @@ describe('taskPullRequests', () => {
   it('returns nothing for a task with no pull request', () => {
     expect(taskPullRequests({ associations: [] })).toEqual([])
     expect(taskPullRequests(null)).toEqual([])
+  })
+})
+
+describe('taskIssues', () => {
+  it('reads the GitHub issues a task links, not its pull requests', () => {
+    const issues = taskIssues({
+      associations: [
+        { item: { id: 'i1', url: 'https://github.com/Acme/API/issues/7', kind: 'issue' } },
+        { item: { id: 'i2', url: 'https://github.com/acme/api/pull/42', kind: 'pull_request' } }
+      ]
+    })
+    expect(issues).toMatchObject([
+      { owner: 'acme', repo: 'api', number: 7, url: 'https://github.com/Acme/API/issues/7', item_id: 'i1' }
+    ])
+  })
+
+  it('returns nothing for a task with no issue', () => {
+    expect(taskIssues({ associations: [] })).toEqual([])
+    expect(taskIssues(null)).toEqual([])
   })
 })
 

@@ -137,7 +137,8 @@ describe('TaskView', () => {
     DependenciesSelect: passthrough,
     TimelinePanel: passthrough,
     SessionLinks: SessionLinksStub,
-    TaskReviewPanel: { template: '<div class="task-review-stub" />' }
+    TaskReviewPanel: { template: '<div class="task-review-stub" />' },
+    TaskIssuePanel: { template: '<div class="task-issue-stub" />' }
   }
 
   beforeEach(() => {
@@ -271,6 +272,16 @@ describe('TaskView', () => {
       metadata_json: {}
     }
   }
+  const issueAssoc = {
+    id: 'a2',
+    item: {
+      id: 'i2',
+      source: 'github',
+      kind: 'issue',
+      url: 'https://github.com/acme/api/issues/7',
+      metadata_json: {}
+    }
+  }
   const viewButton = (wrapper, label) => wrapper.findAll('.view-switch-btn').find((button) => button.text() === label)
 
   it('offers PR mode only when the task links a pull request', async () => {
@@ -350,6 +361,42 @@ describe('TaskView', () => {
     await viewButton(wrapper, 'Default').trigger('click')
     await flushPromises()
     expect(mocks.replace).toHaveBeenLastCalledWith({ query: {} })
+  })
+
+  it('offers Issue mode only when the task links an issue', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+    expect(viewButton(wrapper, 'Issue').attributes('disabled')).toBeDefined()
+
+    mocks.tasksGet.mockResolvedValue({ ...task, associations: [issueAssoc] })
+    const linked = mountView()
+    await flushPromises()
+    expect(viewButton(linked, 'Issue').attributes('disabled')).toBeUndefined()
+  })
+
+  it('switches to the issue view and opens it from the URL query', async () => {
+    mocks.tasksGet.mockResolvedValue({ ...task, associations: [issueAssoc] })
+    const wrapper = mountView()
+    await flushPromises()
+
+    await viewButton(wrapper, 'Issue').trigger('click')
+    await flushPromises()
+    expect(wrapper.find('.task-issue-stub').exists()).toBe(true)
+    expect(wrapper.find('.properties').exists()).toBe(false)
+    expect(mocks.replace).toHaveBeenCalledWith({ query: { view: 'issue' } })
+
+    mocks.routeQuery = { view: 'issue' }
+    const fromUrl = mountView()
+    await flushPromises()
+    expect(fromUrl.find('.task-issue-stub').exists()).toBe(true)
+  })
+
+  it('ignores an issue-mode query when the task links no issue', async () => {
+    mocks.routeQuery = { view: 'issue' }
+    const wrapper = mountView()
+    await flushPromises()
+    expect(wrapper.find('.task-issue-stub').exists()).toBe(false)
+    expect(wrapper.find('.properties').exists()).toBe(true)
   })
 
   it('blurs the focused field on Escape', async () => {

@@ -128,9 +128,9 @@ watch(signature, () => load())
     </div>
 
     <template v-else>
-      <section v-for="{ pr, row } in items" :key="`${pr.owner}/${pr.repo}#${pr.number}`" class="panel task-pr-panel">
-        <div class="panel-head task-pr-head">
-          <h2 class="task-pr-title">
+      <section v-for="{ pr, row } in items" :key="`${pr.owner}/${pr.repo}#${pr.number}`" class="panel task-item-panel">
+        <div class="panel-head task-item-head">
+          <h2 class="task-item-title">
             <a
               :href="row?.url || pr.url"
               target="_blank"
@@ -141,7 +141,7 @@ watch(signature, () => load())
               {{ row ? `${row.repository}#${row.number}` : `${pr.owner}/${pr.repo}#${pr.number}` }}
             </a>
             <span v-if="row?.draft" class="badge st-draft">draft</span>
-            <span v-if="row?.title" class="faint task-pr-name" :title="row.title">{{ row.title }}</span>
+            <span v-if="row?.title" class="faint task-item-name" :title="row.title">{{ row.title }}</span>
           </h2>
           <button class="btn sm ghost" :disabled="loading" title="Re-read the store and GitHub" @click="load(true)">
             Refresh
@@ -149,7 +149,7 @@ watch(signature, () => load())
         </div>
 
         <template v-if="row">
-          <div class="task-pr-meta">
+          <div class="task-item-meta">
             <span v-if="row.author">
               by
               <router-link v-if="personFor(row.author)" :to="`/person/${personFor(row.author).id}`">{{

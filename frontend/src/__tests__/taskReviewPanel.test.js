@@ -111,9 +111,9 @@ describe('TaskReviewPanel', () => {
     expect(wrapper.text()).toContain('Do the thing')
     expect(wrapper.text()).toContain('alice')
     // The readiness light is the PR link's tooltip.
-    expect(wrapper.get('.task-pr-title a').attributes('title')).toContain('Still needs attention')
+    expect(wrapper.get('.task-item-title a').attributes('title')).toContain('Still needs attention')
     // The reviewed commit and the review step's verdict are shown.
-    expect(wrapper.get('.task-pr-meta a').text()).toBe('abc1234')
+    expect(wrapper.get('.task-item-meta a').text()).toBe('abc1234')
     expect(wrapper.text()).toContain('Review')
   })
 

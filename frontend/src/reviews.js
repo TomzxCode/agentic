@@ -97,30 +97,41 @@ export function riskTone(risk) {
   return ''
 }
 
-// The GitHub pull requests a task is linked to, from its associated items.
-// Each entry names the PR's coordinates and its item, so the task view can offer
-// a pull-request mode and match the PR against the review queue. Pure: it reads
-// the task the view already holds. Duplicate items (one PR linked twice) are
-// collapsed by their owner/repo/number key.
-export function taskPullRequests(task) {
-  const prs = []
+// The GitHub items of one kind ("pr" or "issue") a task links, from its
+// associated items. Each entry names the item's coordinates, its item, and its
+// id, so a view can offer a mode for that kind and match the item against other
+// data. Pure: it reads the task the view already holds. Duplicate items (the
+// same one linked twice) are collapsed by their owner/repo/number key.
+function linkedGithubItems(task, kind) {
+  const items = []
   const seen = new Set()
   for (const assoc of task?.associations || []) {
     const item = assoc.item
     const parsed = parseGithubUrl(item?.url)
-    if (!parsed || parsed.kind !== 'pr') continue
+    if (!parsed || parsed.kind !== kind) continue
     const key = `${parsed.owner}/${parsed.repo}#${parsed.number}`
     if (seen.has(key)) continue
     seen.add(key)
-    prs.push({
+    items.push({
       owner: parsed.owner,
       repo: parsed.repo,
       number: Number(parsed.number),
       url: item.url,
-      item_id: item.id
+      item_id: item.id,
+      item
     })
   }
-  return prs
+  return items
+}
+
+// The GitHub pull requests a task links, for the task view's PR mode.
+export function taskPullRequests(task) {
+  return linkedGithubItems(task, 'pr')
+}
+
+// The GitHub issues a task links, for the task view's issue mode.
+export function taskIssues(task) {
+  return linkedGithubItems(task, 'issue')
 }
 
 // A review-queue row for a pull request, matched by its coordinates. The store
