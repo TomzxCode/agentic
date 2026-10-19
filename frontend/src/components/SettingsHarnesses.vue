@@ -13,6 +13,21 @@ const fullHarnesses = ref([])
 const harnessStatus = ref({})
 const resumeDrafts = reactive({})
 const modelDrafts = reactive({})
+const savingField = ref('')
+const savedField = ref('')
+let savedTimer
+
+function fieldKey(harness, field) {
+  return `${harness.id}:${field}`
+}
+
+function isSaving(harness, field) {
+  return savingField.value === fieldKey(harness, field)
+}
+
+function isSaved(harness, field) {
+  return savedField.value === fieldKey(harness, field)
+}
 
 async function loadHarnesses() {
   const [full, status] = await Promise.all([api.harnesses.full(), api.harnesses.list()])
@@ -49,23 +64,27 @@ async function addHarness() {
   }
 }
 
-async function saveResume(id) {
-  try {
-    await api.harnesses.update(id, { resume_command: resumeDrafts[id] })
-    store.notify('Resume command saved')
-    await loadHarnesses()
-  } catch (e) {
-    store.notify(e.message, true)
-  }
-}
+// Fields save when they lose focus, like the other settings sections. Nothing
+// is written when the value did not change, so tabbing through the inputs does
+// not send requests.
+async function saveField(harness, field) {
+  const isModel = field === 'model'
+  const value = isModel ? modelDrafts[harness.id].trim() || null : (resumeDrafts[harness.id] ?? '')
+  const previous = isModel ? harness.model || null : harness.resume_command || ''
+  if (value === previous) return
 
-async function saveModel(id) {
+  const key = fieldKey(harness, field)
+  savingField.value = key
   try {
-    await api.harnesses.update(id, { model: modelDrafts[id].trim() || null })
-    store.notify('Model saved')
-    await loadHarnesses()
+    await api.harnesses.update(harness.id, { [field]: value })
+    harness[field] = value
+    savedField.value = key
+    clearTimeout(savedTimer)
+    savedTimer = setTimeout(() => (savedField.value = ''), 1500)
   } catch (e) {
     store.notify(e.message, true)
+  } finally {
+    if (savingField.value === key) savingField.value = ''
   }
 }
 
@@ -89,7 +108,7 @@ onMounted(() => loadHarnesses().catch((e) => store.notify(e.message, true)))
     <p class="faint" style="margin-top: 0">
       Any ACP-compatible coding agent. OpenCode v2 (<code>opencode2 acp</code>), v1 (<code>opencode acp</code>), and pi
       (<code>pi-acp</code>) are preconfigured. The default harness runs when a task does not pick one; the resume
-      command is what "open in terminal" copies.
+      command is what "open in terminal" copies. Each field saves when you leave it.
     </p>
     <EntityCard v-for="h in fullHarnesses" :key="h.id">
       <template #title>
@@ -103,13 +122,25 @@ onMounted(() => loadHarnesses().catch((e) => store.notify(e.message, true)))
       </template>
       <div class="faint mono">{{ harnessStatus[h.id]?.detail || h.command }}</div>
       <div class="row" style="margin-top: 8px">
-        <input v-model="resumeDrafts[h.id]" class="input grow mono" placeholder="opencode --session {session}" />
-        <button class="btn sm" @click="saveResume(h.id)">Save</button>
+        <input
+          v-model="resumeDrafts[h.id]"
+          class="input grow mono"
+          placeholder="opencode --session {session}"
+          @blur="saveField(h, 'resume_command')"
+        />
+        <span v-if="isSaving(h, 'resume_command')" class="faint">saving…</span>
+        <span v-else-if="isSaved(h, 'resume_command')" class="faint">saved</span>
         <button v-if="!h.is_default" class="btn sm" @click="setDefault(h.id)">Set default</button>
       </div>
       <div class="row" style="margin-top: 8px">
-        <input v-model="modelDrafts[h.id]" class="input grow mono" :placeholder="modelPlaceholder(h)" />
-        <button class="btn sm" @click="saveModel(h.id)">Save</button>
+        <input
+          v-model="modelDrafts[h.id]"
+          class="input grow mono"
+          :placeholder="modelPlaceholder(h)"
+          @blur="saveField(h, 'model')"
+        />
+        <span v-if="isSaving(h, 'model')" class="faint">saving…</span>
+        <span v-else-if="isSaved(h, 'model')" class="faint">saved</span>
       </div>
     </EntityCard>
     <div class="row" style="margin-top: 10px">

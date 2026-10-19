@@ -487,20 +487,16 @@ describe('SettingsView', () => {
     })
   })
 
-  it('saves a harness model', async () => {
+  it('saves a harness model when the field loses focus', async () => {
     mocks.harnessesUpdate.mockResolvedValue({})
     const wrapper = mountView()
     await flushPromises()
-    await wrapper
-      .get('input[placeholder="model, e.g. provider/model (empty uses the harness default)"]')
-      .setValue('zai-coding-plan/glm-5.3')
-    await wrapper
-      .findAll('button')
-      .filter((b) => b.text() === 'Save')[1]
-      .trigger('click')
+    const input = wrapper.get('input[placeholder="model, e.g. provider/model (empty uses the harness default)"]')
+    await input.setValue('zai-coding-plan/glm-5.3')
+    await input.trigger('blur')
     await flushPromises()
     expect(mocks.harnessesUpdate).toHaveBeenCalledWith('opencode', { model: 'zai-coding-plan/glm-5.3' })
-    expect(store.toast.message).toBe('Model saved')
+    expect(store.toast).toBeNull()
   })
 
   it('shows the model the harness config file names while the field is blank', async () => {
@@ -540,18 +536,30 @@ describe('SettingsView', () => {
     })
   })
 
-  it('saves a resume command', async () => {
+  it('saves a resume command when the field loses focus', async () => {
     mocks.harnessesUpdate.mockResolvedValue({})
 
     const wrapper = mountView()
     await flushPromises()
-    await wrapper
-      .findAll('button')
-      .find((b) => b.text() === 'Save')
-      .trigger('click')
+    const input = wrapper.get('input[placeholder="opencode --session {session}"]')
+    await input.setValue('opencode2 --session {session}')
+    await input.trigger('blur')
     await flushPromises()
-    expect(mocks.harnessesUpdate).toHaveBeenCalledWith('opencode', { resume_command: 'opencode --session {session}' })
-    expect(store.toast.message).toBe('Resume command saved')
+    expect(mocks.harnessesUpdate).toHaveBeenCalledWith('opencode', {
+      resume_command: 'opencode2 --session {session}'
+    })
+    expect(wrapper.text()).toContain('saved')
+  })
+
+  it('does not save a harness field that did not change', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+    await wrapper.get('input[placeholder="opencode --session {session}"]').trigger('blur')
+    await wrapper
+      .get('input[placeholder="model, e.g. provider/model (empty uses the harness default)"]')
+      .trigger('blur')
+    await flushPromises()
+    expect(mocks.harnessesUpdate).not.toHaveBeenCalled()
   })
 
   it('sets a default harness', async () => {
