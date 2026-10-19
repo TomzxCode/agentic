@@ -2,6 +2,8 @@
 
 import subprocess
 
+import structlog
+
 from agentic.services import shell, sources
 
 
@@ -31,6 +33,22 @@ def test_run_cli_swallows_a_timeout(monkeypatch):
 
     monkeypatch.setattr(shell.subprocess, "run", boom)
     assert shell._run_cli(["x"]) is None
+
+
+def test_run_cli_logs_ghx_and_slackx_calls_at_info(monkeypatch):
+    monkeypatch.setattr(shell.shutil, "which", lambda name: "/usr/bin/" + name)
+    monkeypatch.setattr(
+        shell.subprocess, "run", lambda *args, **kwargs: subprocess.CompletedProcess(args, 0, "out", "")
+    )
+
+    with structlog.testing.capture_logs() as logs:
+        shell._run_cli(["ghx", "issue", "list", "--repo", "o/r"])
+        shell._run_cli(["slackx", "users", "list"])
+        shell._run_cli(["gh", "api", "user"])  # not a tracked CLI
+        shell.run_cli_raw(["ghx", "cache", "--force"])
+
+    assert [entry["log_level"] for entry in logs] == ["info", "info", "info"]
+    assert [entry["cmd"][0] for entry in logs] == ["ghx", "slackx", "ghx"]
 
 
 def test_fetch_source_dispatches_and_swallows_errors(monkeypatch):

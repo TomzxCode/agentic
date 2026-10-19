@@ -20,7 +20,7 @@
 ## Log Aggregation
 
 Logs are emitted to stdout as structured events and are not shipped anywhere.
-Notable events: `agentic ready`, `cli fetch failed`, `fetch_source failed`, `failed to persist agent event`, `agent run failed`.
+Notable events: `agentic ready`, `cli call`, `cli fetch failed`, `fetch_source failed`, `failed to persist agent event`, `agent run failed`.
 
 ## Tracing
 
