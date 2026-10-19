@@ -39,6 +39,7 @@ The web app is organized into these pages:
 | Item (`/items/:id`) | One resource, laid out for its type, with its linked tasks and people. |
 | People (`/people`) | The people directory and what each is attached to. |
 | Person (`/person/:id`) | One person and the tasks and items they are attached to. |
+| New person (`/person/new`) | Create a person from an unresolved handle; a handle no person carries links here, kept grey. |
 | Repositories (`/repositories`) | Registered checkouts and their issues and pull requests. |
 | Repository (`/repositories/:id`) | One repository's issues and pull requests, read fresh from GitHub. |
 | Scheduled tasks (`/schedules`) | Cron-scheduled shell tasks, with run history and output. |

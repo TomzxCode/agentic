@@ -107,6 +107,15 @@ describe('ItemDetailView', () => {
     expect(wrapper.get('a[href="/person/p1"]').text()).toContain('@alice')
   })
 
+  it('links the GitHub author to the creation page when nobody carries the login', async () => {
+    mocks.itemsGet.mockResolvedValue(item())
+    const wrapper = mountView()
+    await flushPromises()
+    const link = wrapper.get('a[href="/person/new?name=alice&alias=alice"]')
+    expect(link.text()).toContain('@alice')
+    expect(link.classes()).toContain('faint')
+  })
+
   it('renders a Slack thread as a transcript', async () => {
     mocks.itemsGet.mockResolvedValue(
       item({ source: 'slack', kind: 'thread', title: 'Design chat', content: 'ada: hello\nbob: hi' })

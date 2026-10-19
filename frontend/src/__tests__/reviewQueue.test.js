@@ -122,7 +122,9 @@ describe('ReviewsView', () => {
     // The readiness light is the row's tooltip; the status column is gone.
     expect(wrapper.get('.review-pr-cell a').attributes('title')).toContain('Still needs attention')
     expect(wrapper.text()).not.toContain('Needs review')
-    expect(wrapper.find('table a[href^="/person/"]').exists()).toBe(false)
+    // Nobody in the directory carries alice or bob, so both read grey and link
+    // to the prefilled creation page rather than a person page.
+    expect(wrapper.get('table a[href="/person/new?name=alice&alias=alice"]').classes()).toContain('faint')
     // The last review event reads as an absolute local date and time.
     expect(wrapper.get('.review-reviewed-at').text()).toBe(formatDateTime('2026-01-12T06:20:00Z'))
     // The validate step is stale, so its reviewed commit is shown in red.

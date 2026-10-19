@@ -18,7 +18,7 @@ export const SIDEBAR_NAV_ITEMS = [
   { id: 'graph', label: 'Graph', to: '/graph', icon: 'graph', routeNames: ['graph'] },
   { id: 'metrics', label: 'Metrics', to: '/metrics', icon: 'metrics', routeNames: ['metrics'] },
   { id: 'items', label: 'Items', to: '/items', icon: 'items', routeNames: ['items'] },
-  { id: 'people', label: 'People', to: '/people', icon: 'people', routeNames: ['people', 'person'] },
+  { id: 'people', label: 'People', to: '/people', icon: 'people', routeNames: ['people', 'person', 'person-new'] },
   {
     id: 'repositories',
     label: 'Repositories',

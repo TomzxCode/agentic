@@ -23,6 +23,7 @@ const baseRow = (overrides) => ({
   stateClass: 'st-open',
   authorLabel: '',
   personId: '',
+  authorPath: '',
   tasks: [],
   statuses: [],
   changes: [],
@@ -53,8 +54,17 @@ describe('RepositoryItemsGrid', () => {
   })
 
   it('links an author to the person carrying the login', async () => {
-    const wrapper = await mountGrid([baseRow({ authorLabel: '@alice', personId: 'p1' })])
+    const wrapper = await mountGrid([baseRow({ authorLabel: '@alice', personId: 'p1', authorPath: '/person/p1' })])
     expect(wrapper.get('a[href="/person/p1"]').text()).toBe('@alice')
+  })
+
+  it('links an unresolved author to the person-creation page, kept grey', async () => {
+    const wrapper = await mountGrid([
+      baseRow({ authorLabel: '@ghost', authorPath: '/person/new?name=ghost&alias=ghost' })
+    ])
+    const link = wrapper.get('a[href="/person/new?name=ghost&alias=ghost"]')
+    expect(link.text()).toBe('@ghost')
+    expect(link.classes()).toContain('faint')
   })
 
   it('shows the tasks a row is associated with as chips', async () => {

@@ -447,13 +447,15 @@ describe('RepositoryDetailView', () => {
     expect(wrapper.get('a[href="/person/p1"]').text()).toBe('@alice')
   })
 
-  it('leaves the author unlinked when no person carries the login', async () => {
+  it('links the author to the prefilled creation page when no person carries the login', async () => {
     store.people = [{ id: 'p1', name: 'Alice', aliases: ['alice'] }]
     store.items = [ghItem('i1', 'issue', 1, 'Open issue', { state: 'OPEN', author: 'ghost' })]
     const wrapper = await mountRepoLinked()
     await flushPromises()
     expect(wrapper.text()).toContain('@ghost')
-    expect(wrapper.find('a[href^="/person/"]').exists()).toBe(false)
+    const link = wrapper.get('a[href="/person/new?name=ghost&alias=ghost"]')
+    expect(link.text()).toBe('@ghost')
+    expect(link.classes()).toContain('faint')
   })
 
   it('refreshes the repository listing from GitHub', async () => {

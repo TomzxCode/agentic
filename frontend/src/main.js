@@ -7,6 +7,7 @@ import ItemsView from './views/ItemsView.vue'
 import ItemDetailView from './views/ItemDetailView.vue'
 import PeopleView from './views/PeopleView.vue'
 import PersonView from './views/PersonView.vue'
+import PersonCreateView from './views/PersonCreateView.vue'
 import RepositoriesView from './views/RepositoriesView.vue'
 import RepositoryDetailView from './views/RepositoryDetailView.vue'
 import GanttView from './views/GanttView.vue'
@@ -46,6 +47,7 @@ const router = createRouter({
     { path: '/items', name: 'items', component: ItemsView },
     { path: '/items/:id', name: 'item', component: ItemDetailView, props: true },
     { path: '/people', name: 'people', component: PeopleView },
+    { path: '/person/new', name: 'person-new', component: PersonCreateView },
     { path: '/person/:id', name: 'person', component: PersonView, props: true },
     { path: '/repositories', name: 'repositories', component: RepositoriesView },
     { path: '/repositories/:id', name: 'repository', component: RepositoryDetailView, props: true },

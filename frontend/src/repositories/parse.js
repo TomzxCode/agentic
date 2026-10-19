@@ -109,6 +109,19 @@ export function personForHandle(people, handle) {
   )
 }
 
+// Where a handle's person lives: the person who carries it, or the page that
+// creates that person when nobody does yet, prefilled with the handle as the
+// name and alias. Returns { path, missing }, or null for an empty handle, so a
+// caller can render an unresolved handle as a grey link to the creation page.
+export function personLink(people, handle) {
+  const value = String(handle || '').trim()
+  if (!value) return null
+  const person = personForHandle(people, value)
+  if (person) return { path: `/person/${person.id}`, missing: false }
+  const query = `name=${encodeURIComponent(value)}&alias=${encodeURIComponent(value)}`
+  return { path: `/person/new?${query}`, missing: true }
+}
+
 // The state breakdown of a set of items: one entry per state present, in
 // display order, with its value, label, and count. Items with no stored state
 // are not counted.

@@ -3,7 +3,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { api } from '../api'
 import { formatDateTime, sourceLabel, store, timeAgo } from '../store'
-import { itemAuthor, itemStatus, parseGithubUrl, personForHandle } from '../repositories/parse'
+import { itemAuthor, itemStatus, parseGithubUrl, personLink } from '../repositories/parse'
 import { renderMarkdown } from '../markdown'
 import { groupReviewFiles, reviewLabel, stripReportMarker } from '../reviews'
 import EditableText from '../components/EditableText.vue'
@@ -61,9 +61,10 @@ const repoLabel = computed(() =>
   github.value ? `${github.value.owner}/${github.value.repo}` : String(item.value?.external_id || '')
 )
 const authorHandle = computed(() => itemAuthor(item.value))
-// The directory person behind the item's GitHub author, when one carries the
-// login as an alias; null leaves the handle unlinked.
-const authorPerson = computed(() => personForHandle(store.people, authorHandle.value))
+// Where the item's GitHub author links: the directory person carrying the login
+// as an alias, or the prefilled person-creation page when nobody does yet
+// (rendered grey). Null when the item names no author.
+const authorLink = computed(() => personLink(store.people, authorHandle.value))
 const openedAt = computed(() => item.value?.metadata_json?.created_at || null)
 const mergedAt = computed(() => item.value?.metadata_json?.merged_at || null)
 
@@ -258,8 +259,9 @@ onMounted(async () => {
           <div class="field" style="margin-bottom: 0">
             <label>Author</label>
             <div>
-              <router-link v-if="authorPerson" :to="`/person/${authorPerson.id}`"> @{{ authorHandle }} </router-link>
-              <span v-else-if="authorHandle">@{{ authorHandle }}</span>
+              <router-link v-if="authorLink" :to="authorLink.path" :class="{ faint: authorLink.missing }">
+                @{{ authorHandle }}
+              </router-link>
               <span v-else class="faint">unknown</span>
             </div>
           </div>

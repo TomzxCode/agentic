@@ -8,7 +8,8 @@ import {
   itemState,
   itemStatus,
   itemAuthor,
-  personForHandle
+  personForHandle,
+  personLink
 } from '../repositories/parse'
 
 describe('remoteLabel', () => {
@@ -170,5 +171,33 @@ describe('personForHandle', () => {
     expect(personForHandle(people, '')).toBeNull()
     expect(personForHandle(people, null)).toBeNull()
     expect(personForHandle(null, 'alice')).toBeNull()
+  })
+})
+
+describe('personLink', () => {
+  const people = [{ id: 'p1', name: 'Alice', aliases: ['alice'] }]
+
+  it('points at the person carrying the handle', () => {
+    expect(personLink(people, 'alice')).toEqual({ path: '/person/p1', missing: false })
+  })
+
+  it('points at the prefilled creation page when nobody carries the handle', () => {
+    expect(personLink(people, 'ghost')).toEqual({
+      path: '/person/new?name=ghost&alias=ghost',
+      missing: true
+    })
+  })
+
+  it('encodes a handle that needs it', () => {
+    expect(personLink(people, 'ghost user')).toEqual({
+      path: '/person/new?name=ghost%20user&alias=ghost%20user',
+      missing: true
+    })
+  })
+
+  it('is null for an empty handle', () => {
+    expect(personLink(people, '')).toBeNull()
+    expect(personLink(people, '   ')).toBeNull()
+    expect(personLink(people, null)).toBeNull()
   })
 })

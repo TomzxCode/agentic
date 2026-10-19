@@ -46,14 +46,19 @@ export const TitleCell = defineComponent({
   }
 })
 
-// The author login, linked to the person carrying it as an alias when one does.
+// The author login, linked to the person carrying it as an alias when one does,
+// or to the prefilled person-creation page (grey) when nobody does yet.
 export const AuthorCell = defineComponent({
   props: { params },
   setup: (props) => () => {
     const row = props.params.data
     if (!row.authorLabel) return null
-    if (!row.personId) return h('span', { class: 'faint' }, row.authorLabel)
-    return h(props.params.context.RouterLink, { to: `/person/${row.personId}` }, () => row.authorLabel)
+    if (!row.authorPath) return h('span', { class: 'faint' }, row.authorLabel)
+    return h(
+      props.params.context.RouterLink,
+      { to: row.authorPath, class: row.personId ? undefined : 'faint' },
+      () => row.authorLabel
+    )
   }
 })
 

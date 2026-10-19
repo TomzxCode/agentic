@@ -3,7 +3,7 @@ import { computed, onMounted, ref, resolveComponent, shallowRef } from 'vue'
 import { api } from '../api'
 import { changeCreateBody, changesForItem } from '../changes'
 import { store, statusLabel, timeAgo } from '../store'
-import { itemAuthor, itemState, itemStatus, parseRemote, personForHandle } from '../repositories/parse'
+import { itemAuthor, itemState, itemStatus, parseRemote, personForHandle, personLink } from '../repositories/parse'
 import { itemsForRepository, repositoryRows, sortItems } from '../repositories/rows'
 import GridColumnChooser from '../components/GridColumnChooser.vue'
 import RepositoryItemsGrid from '../components/RepositoryItemsGrid.vue'
@@ -60,6 +60,7 @@ const tableRows = computed(() =>
     const status = itemStatus(row)
     const author = itemAuthor(row)
     const person = personForHandle(store.people, author)
+    const authorLink = personLink(store.people, author)
     return {
       key: `${row.kind}:${row.number || row.id}`,
       kind: row.kind,
@@ -70,6 +71,8 @@ const tableRows = computed(() =>
       stateClass: status?.className || '',
       authorLabel: author ? `@${author}` : '',
       personId: person?.id || '',
+      // Where the author links: the person, or the prefilled creation page.
+      authorPath: authorLink?.path || '',
       tasks: tasksFor(row),
       // The distinct statuses of the row's linked tasks, in first-seen order,
       // for the Task status column.

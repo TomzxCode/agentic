@@ -2,7 +2,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { api } from '../api'
 import { renderMarkdown } from '../markdown'
-import { STATE_LABELS, itemState, parseGithubUrl, personForHandle } from '../repositories/parse'
+import { STATE_LABELS, itemState, parseGithubUrl, personLink } from '../repositories/parse'
 import { store, timeAgo } from '../store'
 
 // The detail of one GitHub issue or pull request, read fresh from GitHub and
@@ -54,10 +54,9 @@ const status = computed(() =>
   entry.value.state ? { label: STATE_LABELS[entry.value.state], className: `st-${entry.value.state}` } : null
 )
 
-// The person carrying the item's GitHub login as an alias, or null.
-function personFor(handle) {
-  return personForHandle(store.people, handle)
-}
+// Where the item's author links: the person carrying the login as an alias, or
+// the prefilled person-creation page when nobody does yet (rendered grey).
+const authorLink = computed(() => personLink(store.people, entry.value.author))
 
 const bodyHtml = computed(() => renderMarkdown(entry.value.body))
 
@@ -83,9 +82,7 @@ watch(() => props.url, load)
     <div class="panel-head task-item-head">
       <h2 class="task-item-title">
         <span v-if="loading" class="spinner" aria-hidden="true"></span>
-        <a :href="entry.url" target="_blank" rel="noopener">
-          {{ entry.owner }}/{{ entry.repo }}#{{ entry.number }}
-        </a>
+        <a :href="entry.url" target="_blank" rel="noopener"> {{ entry.owner }}/{{ entry.repo }}#{{ entry.number }} </a>
         <span v-if="status" class="badge" :class="status.className">{{ status.label }}</span>
         <span v-if="entry.title" class="faint task-item-name" :title="entry.title">{{ entry.title }}</span>
       </h2>
@@ -98,10 +95,7 @@ watch(() => props.url, load)
     <div class="task-item-meta">
       <span v-if="entry.author">
         by
-        <router-link v-if="personFor(entry.author)" :to="`/person/${personFor(entry.author).id}`">{{
-          entry.author
-        }}</router-link>
-        <template v-else>{{ entry.author }}</template>
+        <router-link :to="authorLink.path" :class="{ faint: authorLink.missing }">{{ entry.author }}</router-link>
       </span>
       <span v-if="entry.created_at"
         >opened <span class="mono">{{ timeAgo(entry.created_at) }}</span></span

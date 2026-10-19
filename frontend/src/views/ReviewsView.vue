@@ -21,7 +21,7 @@ import {
   verdictTone
 } from '../reviews'
 import { store, timeAgo, formatDateTime } from '../store'
-import { parseRemote, personForHandle } from '../repositories/parse'
+import { parseRemote, personLink } from '../repositories/parse'
 import SearchSelect from '../components/SearchSelect.vue'
 import ShareFindingsModal from '../components/ShareFindingsModal.vue'
 
@@ -136,9 +136,10 @@ async function createTaskFrom(pr) {
   }
 }
 
-// The person carrying a GitHub login as an alias, or null when nobody does.
-function personFor(login) {
-  return personForHandle(store.people, login)
+// Where a GitHub login links: the person carrying it as an alias, or the
+// prefilled person-creation page when nobody does yet (rendered grey).
+function personLinkFor(login) {
+  return personLink(store.people, login)
 }
 
 // After the share modal imports a task for a PR, reflect it on the row so it
@@ -364,9 +365,12 @@ onMounted(load)
                   </button>
                 </td>
                 <td class="faint">
-                  <router-link v-if="personFor(pr.author)" :to="`/person/${personFor(pr.author).id}`">{{
-                    pr.author
-                  }}</router-link>
+                  <router-link
+                    v-if="personLinkFor(pr.author)"
+                    :to="personLinkFor(pr.author).path"
+                    :class="{ faint: personLinkFor(pr.author).missing }"
+                    >{{ pr.author }}</router-link
+                  >
                   <template v-else>{{ pr.author || '—' }}</template>
                 </td>
                 <td>
@@ -379,8 +383,9 @@ onMounted(load)
                     <span v-if="pr.last_comment_by" class="faint review-by">
                       by
                       <router-link
-                        v-if="personFor(pr.last_comment_by)"
-                        :to="`/person/${personFor(pr.last_comment_by).id}`"
+                        v-if="personLinkFor(pr.last_comment_by)"
+                        :to="personLinkFor(pr.last_comment_by).path"
+                        :class="{ faint: personLinkFor(pr.last_comment_by).missing }"
                         >{{ pr.last_comment_by }}</router-link
                       >
                       <template v-else>{{ pr.last_comment_by }}</template>

@@ -93,6 +93,15 @@ describe('TaskIssuePanel', () => {
     expect(wrapper.get('.task-item-meta a[href="/person/p1"]').text()).toBe('alice')
   })
 
+  it('links an author nobody carries to the prefilled creation page, kept grey', async () => {
+    const wrapper = mount(TaskIssuePanel, { props: { task, harnesses: [] }, ...stub })
+    await flushPromises()
+
+    const link = wrapper.get('.task-item-meta a[href="/person/new?name=alice&alias=alice"]')
+    expect(link.text()).toBe('alice')
+    expect(link.classes()).toContain('faint')
+  })
+
   it('says so when the task links no issue', async () => {
     const wrapper = mount(TaskIssuePanel, { props: { task: { id: 't1', associations: [] }, harnesses: [] }, ...stub })
     await flushPromises()
