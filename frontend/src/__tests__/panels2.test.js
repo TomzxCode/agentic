@@ -414,6 +414,22 @@ describe('AgentPanel', () => {
     expect(wrapper.text()).toContain('old transcript')
   })
 
+  it('adopts a run started elsewhere and follows it from queued', async () => {
+    mocks.runsList.mockResolvedValue([])
+    mocks.openRunStream.mockReturnValue(vi.fn())
+    const wrapper = mountPanel()
+    await flushPromises()
+
+    // The findings selector in the PR view creates the run and hands it over.
+    wrapper.vm.adopt({ id: 'r5', status: 'queued', kind: 'chat', prompt: 'sent findings' })
+    await flushPromises()
+
+    // A queued run is followed too, so its first event opens the transcript.
+    expect(mocks.openRunStream).toHaveBeenCalledWith('r5', expect.any(Function))
+    expect(mocks.runsList).toHaveBeenCalledTimes(2)
+    expect(wrapper.get('.transcript-head').text()).toContain('queued')
+  })
+
   it('names the model the run answers with, live and replayed', async () => {
     let onEvent
     mocks.runsList.mockResolvedValue([

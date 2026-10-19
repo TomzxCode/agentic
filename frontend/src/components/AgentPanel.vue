@@ -414,11 +414,27 @@ async function viewRun(run) {
   activeRun.value = await api.runs.get(run.id)
   activeRunId.value = run.id
   events.value = await api.runs.events(run.id)
-  if (run.status === 'running') {
+  // A queued run has not started yet; follow it so its first event arrives.
+  if (run.status === 'running' || run.status === 'queued') {
     closeStream?.()
     closeStream = openRunStream(run.id, handleEvent)
   }
 }
+
+// Show a run started outside this panel (the PR view's findings selector) the
+// way a run started here appears: its transcript streams and its row joins the
+// history without waiting for a reload.
+function adopt(run) {
+  if (!run?.id) return
+  activeRun.value = run
+  activeRunId.value = run.id
+  events.value = []
+  closeStream?.()
+  closeStream = openRunStream(run.id, handleEvent)
+  loadRuns()
+}
+
+defineExpose({ adopt })
 
 onMounted(() => {
   loadRuns()

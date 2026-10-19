@@ -1,5 +1,10 @@
 # Memory
 
+## 2026-10-19: the worker never hot-reloads; only the API does
+
+- `make run-dev` passes `--reload` to `agentic-server serve`, so the API picks up backend edits, but `agentic-server worker` is a separate long-lived process that keeps its imported classes. After adding a field to a SQLModel table, the API writes it while the old worker raises `AttributeError: 'X' object has no attribute 'y'` inside `execute_run` and the run fails. Restart the worker (or the whole `make run`) after backend model changes; `scripts/dev.py` does not restart a worker that exits, so killing it leaves runs stalling until it is started again.
+- A fresh worker started outside `scripts/dev.py` is not torn down when the dev script exits, so a later `make run` runs two workers against the same queue. Prefer restarting the dev script over starting an orphan worker.
+
 ## 2026-10-19: the model picker reads a warm ACP session the API process holds
 
 - The API process keeps one ACP connection + session open for the default harness from startup (`agents/pool.py`, started in the `main.py` lifespan, gated by `AGENTIC_WARM_HARNESS_SESSION`). It is introspection-only: `GET /api/harnesses/{id}/models` answers from it instantly (the default harness) or from a short-lived session otherwise, and runs are untouched because the worker still spawns its own session per run (that is what keeps a run alive across an API restart). Do not wire runs onto the pooled session.

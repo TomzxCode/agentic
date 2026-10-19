@@ -57,6 +57,16 @@ const reportTruncated = ref(false)
 
 const reportHtml = computed(() => renderMarkdown(stripReportMarker(reportContent.value)))
 
+// The agent panel at the bottom of this view, so a run started by the findings
+// selector below a PR shows up there right away.
+const agentPanel = ref(null)
+
+// FindingsSelector creates its own run; hand it to the agent panel so its
+// transcript opens and the run joins the history.
+function onFindingsShared({ run }) {
+  agentPanel.value?.adopt(run)
+}
+
 async function load(refresh = false) {
   loading.value = true
   error.value = false
@@ -123,7 +133,12 @@ watch(signature, () => load())
 
 <template>
   <div class="task-review">
-    <GithubItemPanel v-for="{ pr, row } in items" :key="`${pr.owner}/${pr.repo}#${pr.number}`" :url="pr.url" :item="pr.item">
+    <GithubItemPanel
+      v-for="{ pr, row } in items"
+      :key="`${pr.owner}/${pr.repo}#${pr.number}`"
+      :url="pr.url"
+      :item="pr.item"
+    >
       <template #head>
         <span v-if="row && READINESS_LIGHTS[row.readiness]" class="task-pr-readiness" :title="readinessTitle(row)">{{
           READINESS_LIGHTS[row.readiness]
@@ -210,6 +225,7 @@ watch(signature, () => load())
           :url="row.url"
           :task-id="task.id"
           :task-label="task.title"
+          @shared="onFindingsShared"
         />
       </template>
 
@@ -220,7 +236,13 @@ watch(signature, () => load())
 
     <div v-if="!items.length" class="empty">This task is not linked to a pull request.</div>
 
-    <AgentPanel :task="task" :harnesses="harnesses" context-kind="pull_request" @changed="emit('changed')" />
+    <AgentPanel
+      ref="agentPanel"
+      :task="task"
+      :harnesses="harnesses"
+      context-kind="pull_request"
+      @changed="emit('changed')"
+    />
 
     <div v-if="openPr" class="modal-backdrop" @click.self="closeReport">
       <div class="modal review-modal">

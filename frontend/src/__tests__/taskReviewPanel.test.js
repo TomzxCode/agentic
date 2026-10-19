@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
+import { h } from 'vue'
 
 enableAutoUnmount(afterEach)
 
@@ -22,9 +23,19 @@ vi.mock('../api', () => ({
 import TaskReviewPanel from '../components/TaskReviewPanel.vue'
 import { store } from '../store'
 
+// The agent panel's adopt(), so a test can see the run the findings selector
+// starts handed over to the panel.
+const adopt = vi.fn()
+
 const RouterLinkStub = { props: ['to'], template: '<a :href="to"><slot /></a>' }
+const AgentPanelStub = {
+  setup(_, { expose }) {
+    expose({ adopt })
+    return () => h('div', { class: 'agent-stub' })
+  }
+}
 const stub = {
-  global: { stubs: { RouterLink: RouterLinkStub, AgentPanel: { template: '<div class="agent-stub" />' } } }
+  global: { stubs: { RouterLink: RouterLinkStub, AgentPanel: AgentPanelStub } }
 }
 
 function finding(overrides = {}) {
@@ -230,5 +241,15 @@ describe('TaskReviewPanel', () => {
 
     expect(mocks.createRun).toHaveBeenCalledWith('t1', { prompt: expect.stringContaining('Fix the thing') })
     expect(store.toast).toEqual({ message: 'Sent the findings to an agent', isError: false })
+  })
+
+  it('hands the run it starts to the agent panel, so its history updates at once', async () => {
+    const wrapper = mount(TaskReviewPanel, { props: { task }, ...stub })
+    await flushPromises()
+
+    await wrapper.get('.findings-selector .btn.primary').trigger('click')
+    await flushPromises()
+
+    expect(adopt).toHaveBeenCalledWith({ id: 'r1', status: 'queued' })
   })
 })
