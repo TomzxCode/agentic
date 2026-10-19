@@ -145,6 +145,87 @@ export function queueRowFor(prs, pr) {
   )
 }
 
+// The pull-request status filters the queue offers, in display order. "Open" is
+// the default, so the queue shows the pull requests still awaiting a review
+// unless the user asks for the closed ones too.
+export const PR_STATE_FILTERS = [
+  { value: 'open', label: 'Open' },
+  { value: 'merged', label: 'Merged' },
+  { value: 'closed', label: 'Closed' },
+  { value: 'all', label: 'All' }
+]
+
+// The filter group a row's status belongs to: "open", "merged", or "closed".
+// ghx (and the store's gh pr view cache) report "OPEN", "MERGED", or "CLOSED";
+// a row whose status was never read is treated as open, so an offline queue
+// still shows the pull requests already in the store.
+export function prStateGroup(pr) {
+  const state = String(pr?.state || '').toUpperCase()
+  if (state === 'MERGED') return 'merged'
+  if (state === 'CLOSED') return 'closed'
+  return 'open'
+}
+
+// Whether a row passes the status filter; "all" passes every row.
+export function matchesStateFilter(pr, value) {
+  return value === 'all' || prStateGroup(pr) === value
+}
+
+// How many rows fall under each status filter value, keyed by that value. The
+// counts cover the whole queue, so a chip reads the same whichever filter is on.
+export function stateFilterCounts(prs) {
+  const counts = { open: 0, merged: 0, closed: 0, all: (prs || []).length }
+  for (const pr of prs || []) counts[prStateGroup(pr)] += 1
+  return counts
+}
+
+// Whether a row matches the search text: its repository, number, title, or
+// author. An empty query matches every row.
+export function matchesQueueSearch(pr, query) {
+  const q = String(query || '')
+    .trim()
+    .toLowerCase()
+  if (!q) return true
+  return [pr?.repository, pr?.number, pr?.title, pr?.author].some((value) =>
+    String(value ?? '')
+      .toLowerCase()
+      .includes(q)
+  )
+}
+
+// The distinct authors in the queue, each with the number of rows they carry,
+// ordered by name. A row with no author is left out of the list: it matches only
+// the "all authors" choice.
+export function queueAuthors(prs) {
+  const counts = new Map()
+  for (const pr of prs || []) {
+    const author = String(pr?.author || '').trim()
+    if (!author) continue
+    counts.set(author, (counts.get(author) || 0) + 1)
+  }
+  return [...counts.entries()]
+    .map(([value, count]) => ({ value, count }))
+    .sort((a, b) => a.value.toLowerCase().localeCompare(b.value.toLowerCase()))
+}
+
+// Whether a row matches the author filter. An empty selection matches every
+// row; otherwise its login must be one of the chosen authors
+// (case-insensitively). Accepts a single value or a list of them.
+export function matchesAuthorFilter(pr, value) {
+  const wanted = (Array.isArray(value) ? value : [value])
+    .map((entry) =>
+      String(entry || '')
+        .trim()
+        .toLowerCase()
+    )
+    .filter(Boolean)
+  if (!wanted.length) return true
+  const author = String(pr?.author || '')
+    .trim()
+    .toLowerCase()
+  return wanted.includes(author)
+}
+
 // The queue grouped by repository, repositories in name order and the PRs in
 // each group newest first (the API already orders them that way).
 export function groupQueueByRepository(prs) {

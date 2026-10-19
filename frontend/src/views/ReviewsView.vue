@@ -5,17 +5,24 @@ import { renderMarkdown } from '../markdown'
 import {
   commitUrl,
   groupQueueByRepository,
+  matchesAuthorFilter,
+  matchesQueueSearch,
+  matchesStateFilter,
+  PR_STATE_FILTERS,
   QUEUE_STEPS,
+  queueAuthors,
   READINESS_LIGHTS,
   READINESS_TITLES,
   riskTone,
   shortCommit,
+  stateFilterCounts,
   stripReportMarker,
   verdictLabel,
   verdictTone
 } from '../reviews'
 import { store, timeAgo, formatDateTime } from '../store'
 import { parseRemote, personForHandle } from '../repositories/parse'
+import SearchSelect from '../components/SearchSelect.vue'
 import ShareFindingsModal from '../components/ShareFindingsModal.vue'
 
 // The review queue: every pull request with review reports in the user-global
@@ -31,6 +38,13 @@ const creatingKey = ref('')
 // The PR whose review findings are being shared.
 const sharing = ref(null)
 
+// The filters: a PR's status (open by default, so the queue shows the pull
+// requests still awaiting a review), one or more authors, and a text search over
+// the row's fields.
+const stateFilter = ref('open')
+const authorFilter = ref([])
+const search = ref('')
+
 // The report open in the viewer: its PR, its relative store path, and content.
 const openPr = ref(null)
 const openName = ref('')
@@ -39,7 +53,30 @@ const reportLoading = ref(false)
 const reportTruncated = ref(false)
 
 const reportHtml = computed(() => renderMarkdown(stripReportMarker(reportContent.value)))
-const groups = computed(() => groupQueueByRepository(queue.value.prs))
+// The rows the filters keep: status, then author, then the search text.
+const filteredPrs = computed(() =>
+  queue.value.prs.filter(
+    (pr) =>
+      matchesStateFilter(pr, stateFilter.value) &&
+      matchesAuthorFilter(pr, authorFilter.value) &&
+      matchesQueueSearch(pr, search.value)
+  )
+)
+const groups = computed(() => groupQueueByRepository(filteredPrs.value))
+// Per-status counts for the filter chips, over the whole queue.
+const stateCounts = computed(() => stateFilterCounts(queue.value.prs))
+// The authors to offer, with their row counts, over the whole queue.
+const authors = computed(() => queueAuthors(queue.value.prs))
+// The author dropdown's options, each carrying its row count.
+const authorOptions = computed(() =>
+  authors.value.map((author) => ({ value: author.value, label: `${author.value} (${author.count})` }))
+)
+// The header's totals, over what the filters show, so they match the table.
+const counts = computed(() => ({
+  total: filteredPrs.value.length,
+  ready: filteredPrs.value.filter((pr) => pr.readiness === 'green').length,
+  blocked: filteredPrs.value.filter((pr) => pr.readiness === 'red').length
+}))
 
 async function load(refresh = false) {
   loading.value = true
@@ -52,6 +89,10 @@ async function load(refresh = false) {
     await store.loadRepositories().catch(() => {})
     await store.loadTasks().catch(() => {})
     queue.value = await api.reviews.queue({ refresh })
+    // Drop any selected author the refreshed queue no longer carries, so the
+    // control never filters on someone it cannot show as selected.
+    const known = new Set(authors.value.map((author) => author.value.toLowerCase()))
+    authorFilter.value = authorFilter.value.filter((value) => known.has(String(value).toLowerCase()))
   } catch (e) {
     error.value = true
     store.notify(e.message, true)
@@ -189,8 +230,8 @@ onMounted(load)
       <h1>Review queue</h1>
       <span class="row" style="gap: 8px; align-items: center">
         <span v-if="!loading && !error" class="faint">
-          {{ queue.counts.total }} PR{{ queue.counts.total === 1 ? '' : 's' }} · {{ queue.counts.ready }} ready ·
-          {{ queue.counts.blocked }} blocked
+          {{ counts.total }} PR{{ counts.total === 1 ? '' : 's' }} · {{ counts.ready }} ready ·
+          {{ counts.blocked }} blocked
         </span>
         <button class="btn sm ghost" :disabled="loading" title="Re-read the store and GitHub" @click="load(true)">
           <span v-if="loading" class="spinner" aria-hidden="true"></span>
@@ -199,6 +240,37 @@ onMounted(load)
       </span>
     </div>
     <p v-if="queue.root" class="faint review-root">Reports read from {{ queue.root }}</p>
+
+    <div v-if="!loading && !error && queue.prs.length" class="review-filters">
+      <div class="review-state-filters" role="group" aria-label="Filter by pull request status">
+        <button
+          v-for="option in PR_STATE_FILTERS"
+          :key="option.value"
+          class="review-state-filter"
+          :class="{ active: stateFilter === option.value }"
+          :aria-pressed="stateFilter === option.value"
+          @click="stateFilter = option.value"
+        >
+          {{ option.label }} <span class="count">{{ stateCounts[option.value] }}</span>
+        </button>
+      </div>
+      <SearchSelect
+        v-model="authorFilter"
+        class="review-author-select"
+        multiple
+        :sort="false"
+        :options="authorOptions"
+        placeholder="All authors"
+        title="Filter by one or more authors"
+      />
+      <input
+        v-model="search"
+        class="input review-search"
+        type="search"
+        placeholder="Search repository, number, title, or author…"
+        aria-label="Search the review queue"
+      />
+    </div>
 
     <div v-if="loading && !queue.prs.length" class="empty"><span class="spinner" aria-hidden="true"></span></div>
 
@@ -209,6 +281,15 @@ onMounted(load)
 
     <div v-else-if="!queue.prs.length" class="empty">
       No pull requests have review reports in the store yet. Run <code>/review-pr-full</code> on a PR to fill it.
+    </div>
+
+    <div v-else-if="!filteredPrs.length" class="empty">
+      <p v-if="search">No pull requests match “{{ search }}”.</p>
+      <p v-else-if="authorFilter.length">No pull requests by {{ authorFilter.join(', ') }}.</p>
+      <p v-else>No {{ stateFilter === 'all' ? '' : `${stateFilter} ` }}pull requests.</p>
+      <button v-if="search" class="btn sm ghost" @click="search = ''">Clear search</button>
+      <button v-if="authorFilter.length" class="btn sm ghost" @click="authorFilter = []">Clear author</button>
+      <button v-if="stateFilter !== 'all'" class="btn sm ghost" @click="stateFilter = 'all'">Show all</button>
     </div>
 
     <template v-else>

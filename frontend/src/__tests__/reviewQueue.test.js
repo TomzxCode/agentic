@@ -24,6 +24,16 @@ const stub = {
   global: { stubs: { RouterLink: RouterLinkStub, ShareFindingsModal: { template: '<div class="share-stub" />' } } }
 }
 
+// Open the author dropdown (a SearchSelect) and toggle one author's option.
+async function openAuthors(wrapper) {
+  await wrapper.get('.review-author-select .ss-trigger').trigger('click')
+}
+async function toggleAuthor(wrapper, name) {
+  const option = wrapper.findAll('.ss-option').find((entry) => entry.text().includes(name))
+  await option.trigger('click')
+  await flushPromises()
+}
+
 function step(overrides = {}) {
   return {
     step: 'review-pr',
@@ -39,13 +49,14 @@ function step(overrides = {}) {
 }
 
 function pr(overrides = {}) {
+  const number = overrides.number ?? 42
   return {
     owner: 'TomzxCode',
     name: 'agentic',
     repository: 'TomzxCode/agentic',
-    number: 42,
+    number,
     title: 'Do the thing',
-    url: 'https://github.com/TomzxCode/agentic/pull/42',
+    url: `https://github.com/TomzxCode/agentic/pull/${number}`,
     author: 'alice',
     state: 'OPEN',
     draft: false,
@@ -243,5 +254,143 @@ describe('ReviewsView', () => {
     await wrapper.get('.review-share').trigger('click')
     await flushPromises()
     expect(wrapper.find('.share-stub').exists()).toBe(true)
+  })
+
+  it('shows only open pull requests by default, with a count per status', async () => {
+    mocks.queue.mockResolvedValue({
+      root: null,
+      counts: { total: 3 },
+      prs: [pr({ number: 42, state: 'OPEN' }), pr({ number: 9, state: 'MERGED' }), pr({ number: 7, state: 'CLOSED' })]
+    })
+    const wrapper = mount(ReviewsView, stub)
+    await flushPromises()
+
+    expect(wrapper.find('a[href="https://github.com/TomzxCode/agentic/pull/42"]').exists()).toBe(true)
+    expect(wrapper.find('a[href="https://github.com/TomzxCode/agentic/pull/9"]').exists()).toBe(false)
+    expect(wrapper.find('a[href="https://github.com/TomzxCode/agentic/pull/7"]').exists()).toBe(false)
+
+    const chips = wrapper.findAll('.review-state-filter')
+    expect(chips.map((chip) => chip.text())).toEqual(['Open 1', 'Merged 1', 'Closed 1', 'All 3'])
+    // Open is the active filter, so its chip reads as pressed.
+    expect(chips[0].attributes('aria-pressed')).toBe('true')
+    // The header totals cover what the filter shows, not the whole queue.
+    expect(wrapper.text()).toContain('1 PR · 0 ready · 0 blocked')
+  })
+
+  it('switches the status when another chip is clicked', async () => {
+    mocks.queue.mockResolvedValue({
+      root: null,
+      counts: { total: 2 },
+      prs: [pr({ number: 42, state: 'OPEN' }), pr({ number: 9, state: 'MERGED' })]
+    })
+    const wrapper = mount(ReviewsView, stub)
+    await flushPromises()
+
+    await wrapper.findAll('.review-state-filter')[1].trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('a[href="https://github.com/TomzxCode/agentic/pull/9"]').exists()).toBe(true)
+    expect(wrapper.find('a[href="https://github.com/TomzxCode/agentic/pull/42"]').exists()).toBe(false)
+  })
+
+  it('treats a row with no status as open', async () => {
+    mocks.queue.mockResolvedValue({ root: null, counts: { total: 1 }, prs: [pr({ state: '' })] })
+    const wrapper = mount(ReviewsView, stub)
+    await flushPromises()
+
+    expect(wrapper.find('a[href="https://github.com/TomzxCode/agentic/pull/42"]').exists()).toBe(true)
+  })
+
+  it('filters the rows by the search text', async () => {
+    mocks.queue.mockResolvedValue({
+      root: null,
+      counts: { total: 2 },
+      prs: [pr({ number: 42, title: 'Add filters' }), pr({ number: 9, title: 'Fix the parser', author: 'carol' })]
+    })
+    const wrapper = mount(ReviewsView, stub)
+    await flushPromises()
+
+    await wrapper.get('.review-search').setValue('parser')
+    await flushPromises()
+
+    expect(wrapper.find('a[href="https://github.com/TomzxCode/agentic/pull/9"]').exists()).toBe(true)
+    expect(wrapper.find('a[href="https://github.com/TomzxCode/agentic/pull/42"]').exists()).toBe(false)
+    expect(wrapper.text()).toContain('1 PR ·')
+  })
+
+  it('filters the rows by author picked from the searchable dropdown', async () => {
+    mocks.queue.mockResolvedValue({
+      root: null,
+      counts: { total: 2 },
+      prs: [pr({ number: 42, author: 'alice' }), pr({ number: 9, author: 'carol' })]
+    })
+    const wrapper = mount(ReviewsView, stub)
+    await flushPromises()
+
+    await openAuthors(wrapper)
+    expect(wrapper.findAll('.ss-option').map((option) => option.text())).toEqual(['alice (1)', 'carol (1)'])
+
+    await toggleAuthor(wrapper, 'carol')
+
+    expect(wrapper.find('a[href="https://github.com/TomzxCode/agentic/pull/9"]').exists()).toBe(true)
+    expect(wrapper.find('a[href="https://github.com/TomzxCode/agentic/pull/42"]').exists()).toBe(false)
+    // The trigger summarizes the chosen author.
+    expect(wrapper.get('.review-author-select .ss-label').text()).toBe('carol (1)')
+  })
+
+  it('type-filters the author options and takes several authors', async () => {
+    mocks.queue.mockResolvedValue({
+      root: null,
+      counts: { total: 3 },
+      prs: [pr({ number: 42, author: 'alice' }), pr({ number: 9, author: 'bob' }), pr({ number: 7, author: 'carol' })]
+    })
+    const wrapper = mount(ReviewsView, stub)
+    await flushPromises()
+
+    await openAuthors(wrapper)
+    await wrapper.get('.ss-search').setValue('car')
+    expect(wrapper.findAll('.ss-option').map((option) => option.text())).toEqual(['carol (1)'])
+    await toggleAuthor(wrapper, 'carol')
+
+    await wrapper.get('.ss-search').setValue('ali')
+    await toggleAuthor(wrapper, 'alice')
+
+    expect(wrapper.find('a[href="https://github.com/TomzxCode/agentic/pull/42"]').exists()).toBe(true)
+    expect(wrapper.find('a[href="https://github.com/TomzxCode/agentic/pull/7"]').exists()).toBe(true)
+    expect(wrapper.find('a[href="https://github.com/TomzxCode/agentic/pull/9"]').exists()).toBe(false)
+    expect(wrapper.get('.review-author-select .ss-label').text()).toBe('alice (1), carol (1)')
+  })
+
+  it('names the chosen authors in the empty state and clears them', async () => {
+    mocks.queue.mockResolvedValue({
+      root: null,
+      counts: { total: 2 },
+      prs: [pr({ number: 42, author: 'alice', state: 'OPEN' }), pr({ number: 9, author: 'carol', state: 'MERGED' })]
+    })
+    const wrapper = mount(ReviewsView, stub)
+    await flushPromises()
+
+    await openAuthors(wrapper)
+    await toggleAuthor(wrapper, 'carol')
+
+    expect(wrapper.text()).toContain('No pull requests by carol.')
+    const clear = wrapper.findAll('button').find((button) => button.text() === 'Clear author')
+    await clear.trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('a[href="https://github.com/TomzxCode/agentic/pull/42"]').exists()).toBe(true)
+  })
+
+  it('offers to show all when no pull request matches the default status', async () => {
+    mocks.queue.mockResolvedValue({ root: null, counts: { total: 1 }, prs: [pr({ number: 9, state: 'MERGED' })] })
+    const wrapper = mount(ReviewsView, stub)
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('No open pull requests.')
+    const showAll = wrapper.findAll('button').find((button) => button.text() === 'Show all')
+    await showAll.trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('a[href="https://github.com/TomzxCode/agentic/pull/9"]').exists()).toBe(true)
   })
 })

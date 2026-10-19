@@ -212,6 +212,12 @@
 .ss-option.selected {
   color: var(--accent);
 }
+/* The tick gutter kept on every option in multiple mode, so labels line up. */
+.ss-check {
+  flex: none;
+  width: 12px;
+  color: var(--accent);
+}
 .ss-empty {
   padding: 6px 8px;
 }

@@ -2,7 +2,7 @@
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 
 const props = defineProps({
-  modelValue: { type: [String, Number], default: '' },
+  modelValue: { type: [String, Number, Array], default: '' },
   options: { type: Array, required: true }, // [{ value, label, icon?, iconProps? }]
   placeholder: { type: String, default: 'Select…' },
   variant: { type: String, default: 'field' }, // field | inline | icon
@@ -10,7 +10,10 @@ const props = defineProps({
   disabled: { type: Boolean, default: false },
   sort: { type: Boolean, default: true },
   // Keep the list open after choosing, so several options can be picked in a row.
-  keepOpen: { type: Boolean, default: false }
+  keepOpen: { type: Boolean, default: false },
+  // Multi-select: `modelValue` is an array, choosing toggles a value, and the
+  // list stays open so several can be picked in a row.
+  multiple: { type: Boolean, default: false }
 })
 const emit = defineEmits(['update:modelValue'])
 
@@ -33,9 +36,25 @@ const normalized = computed(() => {
   return [...sorted.filter((o) => o.value === ''), ...sorted.filter((o) => o.value !== '')]
 })
 
-const current = computed(() => String(props.modelValue ?? ''))
+const current = computed(() => (props.multiple ? '' : String(props.modelValue ?? '')))
 const selected = computed(() => normalized.value.find((option) => option.value === current.value))
-const hasValue = computed(() => Boolean(selected.value))
+// The chosen values as a set, only in multiple mode.
+const selectedValues = computed(() =>
+  props.multiple
+    ? new Set((Array.isArray(props.modelValue) ? props.modelValue : []).map((value) => String(value ?? '')))
+    : null
+)
+const selectedOptions = computed(() => normalized.value.filter((option) => selectedValues.value?.has(option.value)))
+const hasValue = computed(() => (props.multiple ? selectedOptions.value.length > 0 : Boolean(selected.value)))
+// The trigger's text: the chosen option, or, in multiple mode, their labels.
+const label = computed(() =>
+  props.multiple ? selectedOptions.value.map((option) => option.label).join(', ') : selected.value?.label || ''
+)
+
+// Whether an option reads as chosen, in both modes.
+function isSelected(option) {
+  return props.multiple ? selectedValues.value.has(option.value) : option.value === current.value
+}
 
 const filtered = computed(() => {
   const q = query.value.trim().toLowerCase()
@@ -68,6 +87,17 @@ function onOutside(event) {
 }
 
 function choose(option) {
+  if (props.multiple) {
+    const next = new Set(selectedValues.value)
+    if (next.has(option.value)) next.delete(option.value)
+    else next.add(option.value)
+    emit('update:modelValue', [...next])
+    // Stay open for the next pick: clear the filter and keep the keyboard focus.
+    query.value = ''
+    highlighted.value = Math.max(0, filtered.value.indexOf(option))
+    nextTick(() => input.value?.focus())
+    return
+  }
   emit('update:modelValue', option.value)
   if (!props.keepOpen) {
     close()
@@ -116,7 +146,7 @@ defineExpose({ activate: show })
     >
       <component :is="selected.icon" v-if="selected?.icon" v-bind="selected.iconProps" />
       <template v-if="variant !== 'icon'">
-        <span class="ss-label" :class="{ placeholder: !hasValue }">{{ selected ? selected.label : placeholder }}</span>
+        <span class="ss-label" :class="{ placeholder: !hasValue }">{{ hasValue ? label : placeholder }}</span>
       </template>
     </button>
 
@@ -129,10 +159,12 @@ defineExpose({ activate: show })
           :key="option.value"
           type="button"
           class="ss-option"
-          :class="{ active: index === highlighted, selected: option.value === current }"
+          :class="{ active: index === highlighted, selected: isSelected(option) }"
+          :aria-pressed="multiple ? isSelected(option) : undefined"
           @mouseenter="highlighted = index"
           @click="choose(option)"
         >
+          <span v-if="multiple" class="ss-check" aria-hidden="true">{{ isSelected(option) ? '✓' : '' }}</span>
           <component :is="option.icon" v-if="option.icon" v-bind="option.iconProps" />
           <span class="ss-option-label">{{ option.label }}</span>
         </button>

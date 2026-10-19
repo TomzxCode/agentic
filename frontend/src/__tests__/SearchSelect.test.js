@@ -97,4 +97,44 @@ describe('SearchSelect', () => {
     expect(wrapper.find('.ss-panel').exists()).toBe(true)
     expect(wrapper.get('.ss-search').element.value).toBe('')
   })
+
+  describe('multiple', () => {
+    const multi = () => mount(SearchSelect, { props: { modelValue: [], options, multiple: true } })
+
+    it('toggles a value and keeps the list open', async () => {
+      const wrapper = multi()
+      await open(wrapper)
+      await wrapper.findAll('.ss-option')[1].trigger('click')
+      await wrapper.setProps({ modelValue: ['a'] })
+      await wrapper.findAll('.ss-option')[2].trigger('click')
+
+      expect(wrapper.emitted('update:modelValue')).toEqual([[['a']], [['a', 'b']]])
+      expect(wrapper.find('.ss-panel').exists()).toBe(true)
+      expect(wrapper.get('.ss-search').element.value).toBe('')
+    })
+
+    it('untoggles a chosen value', async () => {
+      const wrapper = mount(SearchSelect, { props: { modelValue: ['a', 'b'], options, multiple: true } })
+      await open(wrapper)
+      await wrapper.findAll('.ss-option')[1].trigger('click')
+      expect(wrapper.emitted('update:modelValue')).toEqual([[['b']]])
+    })
+
+    it('summarizes the chosen labels on the trigger and ticks the options', async () => {
+      const wrapper = mount(SearchSelect, { props: { modelValue: ['b'], options, multiple: true } })
+      expect(wrapper.get('.ss-label').text()).toBe('Beta')
+      await open(wrapper)
+      const beta = wrapper.findAll('.ss-option').find((option) => option.text().includes('Beta'))
+      expect(beta.text()).toContain('✓')
+      expect(beta.attributes('aria-pressed')).toBe('true')
+    })
+
+    it('shows the placeholder when nothing is chosen', () => {
+      const wrapper = mount(SearchSelect, {
+        props: { modelValue: [], options, multiple: true, placeholder: 'All authors' }
+      })
+      expect(wrapper.get('.ss-label').text()).toBe('All authors')
+      expect(wrapper.get('.ss-label').classes()).toContain('placeholder')
+    })
+  })
 })

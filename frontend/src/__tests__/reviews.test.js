@@ -4,10 +4,17 @@ import {
   commitUrl,
   groupQueueByRepository,
   groupReviewFiles,
+  matchesAuthorFilter,
+  matchesQueueSearch,
+  matchesStateFilter,
+  PR_STATE_FILTERS,
+  prStateGroup,
+  queueAuthors,
   queueRowFor,
   reviewLabel,
   riskTone,
   shortCommit,
+  stateFilterCounts,
   stripReportMarker,
   taskIssues,
   taskPullRequests,
@@ -126,6 +133,78 @@ describe('shortCommit', () => {
   it('shortens a commit to seven characters', () => {
     expect(shortCommit('abc1234def')).toBe('abc1234')
     expect(shortCommit('')).toBe('')
+  })
+})
+
+describe('PR status filters', () => {
+  const pr = (state) => ({ state })
+
+  it('offers open, merged, closed, then all, with all as the fallback', () => {
+    expect(PR_STATE_FILTERS.map((filter) => filter.value)).toEqual(['open', 'merged', 'closed', 'all'])
+    expect(matchesStateFilter(pr('OPEN'), 'all')).toBe(true)
+  })
+
+  it('groups a status case-insensitively, treating an unknown one as open', () => {
+    expect(prStateGroup(pr('OPEN'))).toBe('open')
+    expect(prStateGroup(pr('merged'))).toBe('merged')
+    expect(prStateGroup(pr('CLOSED'))).toBe('closed')
+    // A row whose status was never read stays visible under the default filter.
+    expect(prStateGroup(pr(''))).toBe('open')
+    expect(prStateGroup({})).toBe('open')
+  })
+
+  it('matches a row only against its own status', () => {
+    expect(matchesStateFilter(pr('OPEN'), 'open')).toBe(true)
+    expect(matchesStateFilter(pr('OPEN'), 'merged')).toBe(false)
+    expect(matchesStateFilter(pr('MERGED'), 'merged')).toBe(true)
+  })
+
+  it('counts every row under its status plus the total', () => {
+    const counts = stateFilterCounts([pr('OPEN'), pr('MERGED'), pr(''), pr('CLOSED')])
+    expect(counts).toEqual({ open: 2, merged: 1, closed: 1, all: 4 })
+    expect(stateFilterCounts(undefined)).toEqual({ open: 0, merged: 0, closed: 0, all: 0 })
+  })
+})
+
+describe('matchesQueueSearch', () => {
+  const row = { repository: 'TomzxCode/agentic', number: 42, title: 'Do the thing', author: 'alice' }
+
+  it('matches the repository, number, title, or author case-insensitively', () => {
+    expect(matchesQueueSearch(row, 'tomzxcode')).toBe(true)
+    expect(matchesQueueSearch(row, '42')).toBe(true)
+    expect(matchesQueueSearch(row, 'DO THE')).toBe(true)
+    expect(matchesQueueSearch(row, 'alice')).toBe(true)
+    expect(matchesQueueSearch(row, 'nobody')).toBe(false)
+  })
+
+  it('matches every row for an empty or blank query', () => {
+    expect(matchesQueueSearch(row, '')).toBe(true)
+    expect(matchesQueueSearch(row, '   ')).toBe(true)
+    expect(matchesQueueSearch(row, undefined)).toBe(true)
+  })
+})
+
+describe('author filter', () => {
+  const pr = (author) => ({ author })
+
+  it('lists distinct authors with their counts, ordered by name', () => {
+    const authors = queueAuthors([pr('carol'), pr('alice'), pr('carol'), pr('')])
+    expect(authors).toEqual([
+      { value: 'alice', count: 1 },
+      { value: 'carol', count: 2 }
+    ])
+    expect(queueAuthors(undefined)).toEqual([])
+  })
+
+  it('matches a row against one or more authors, case-insensitively', () => {
+    expect(matchesAuthorFilter(pr('alice'), ['ALICE', 'bob'])).toBe(true)
+    expect(matchesAuthorFilter(pr('carol'), ['alice', 'bob'])).toBe(false)
+    // A single value is accepted too, and an empty selection matches every row.
+    expect(matchesAuthorFilter(pr('alice'), 'alice')).toBe(true)
+    expect(matchesAuthorFilter(pr('carol'), [])).toBe(true)
+    expect(matchesAuthorFilter(pr(''), [])).toBe(true)
+    expect(matchesAuthorFilter(pr(''), 'alice')).toBe(false)
+    expect(matchesAuthorFilter(pr('alice'), undefined)).toBe(true)
   })
 })
 
