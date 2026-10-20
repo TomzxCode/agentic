@@ -259,7 +259,8 @@ and shows one row per pull request, grouped by repository, with its author, age,
 last comment, reviewed commit, and the time of its last review event, then a
 column per review step (Behavior, Risk, Coverage, Validate, Verify, Review).
 Each cell shows the step's verdict, in red when its report does not cover the
-newest reviewed commit, and opens the report when clicked. A merge-readiness light
+newest reviewed commit, and opens the report when clicked. A step that is
+running right now shows a spinner until it writes its report. A merge-readiness light
 beside each PR number summarizes the signals: green when the PR could be
 approved automatically, yellow when something still needs attention, red when a
 verdict blocks approval. The page mirrors the `review_requested_prs` script's

@@ -237,6 +237,14 @@
   border-color: var(--border);
   background: var(--bg-2);
 }
+/* A step that is running for the PR's head: the spinner replaces its verdict
+   until the step finishes and writes its report. */
+.review-step-running {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 4px;
+}
 /* A verdict word longer than its narrow column ("inconclusive") truncates; the
    button's tooltip still carries the full value. */
 .review-verdict {

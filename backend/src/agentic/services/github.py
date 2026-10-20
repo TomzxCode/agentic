@@ -154,6 +154,9 @@ def fetch_github_issue(owner: str, repo: str, number: object, kind: str = "issue
         "is_draft": bool(data.get("isDraft")),
         # Set only once a pull request is merged; null for issues and open PRs.
         "merged_at": data.get("mergedAt"),
+        # The head commit, so a consumer can tell which commit a run targets.
+        # Only pull requests have one.
+        "head_sha": data.get("headRefOid") or "",
         # The object's own creation time, so a refresh policy can age it.
         "created_at": data.get("createdAt"),
         "author": (data.get("author") or {}).get("login"),

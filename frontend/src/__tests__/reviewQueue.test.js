@@ -83,6 +83,7 @@ function pr(overrides = {}) {
       'review-pr': step(),
       'validate-pr': step({ step: 'validate-pr', report: 'validate-pr.abc1234.md', stale: true })
     },
+    in_progress: {},
     stale_steps: ['validate-pr'],
     reviewed_steps: 2,
     readiness: 'yellow',
@@ -155,6 +156,40 @@ describe('ReviewsView', () => {
     expect(wrapper.get('.review-reviewed-at').text()).toBe(formatDateTime('2026-01-12T06:20:00Z'))
     // The validate step is stale, so its reviewed commit is shown in red.
     expect(wrapper.get('.review-stale').text()).toBe('abc1234')
+  })
+
+  it('shows a spinner for a review step that is running', async () => {
+    mocks.queue.mockResolvedValue({
+      root: null,
+      counts: { total: 1 },
+      prs: [
+        pr({
+          in_progress: { 'validate-pr': { sha: 'abc1234', started_at: '2026-01-12T08:00:00Z' } }
+        })
+      ]
+    })
+    const wrapper = mount(ReviewsView, stub)
+    await flushPromises()
+
+    const running = wrapper.get('.review-step-running')
+    expect(running.find('.spinner').exists()).toBe(true)
+    expect(running.attributes('title')).toBe(`Validate: running since ${formatDateTime('2026-01-12T08:00:00Z')}`)
+    // The running step shows the spinner in place of its stale report.
+    expect(wrapper.findAll('.review-col-step .review-step')).toHaveLength(1)
+  })
+
+  it('shows a spinner for a running step that has no report yet', async () => {
+    mocks.queue.mockResolvedValue({
+      root: null,
+      counts: { total: 1 },
+      prs: [pr({ steps: {}, in_progress: { 'review-pr': { sha: 'abc1234', started_at: null } } })]
+    })
+    const wrapper = mount(ReviewsView, stub)
+    await flushPromises()
+
+    const running = wrapper.get('.review-step-running')
+    expect(running.find('.spinner').exists()).toBe(true)
+    expect(running.attributes('title')).toBe('Review: running')
   })
 
   it('links the author and the last commenter to their person page', async () => {

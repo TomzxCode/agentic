@@ -77,6 +77,7 @@ function pr(overrides = {}) {
     draft: false,
     head_commit: 'abc1234',
     steps: { 'review-pr': step() },
+    in_progress: {},
     stale_steps: [],
     reviewed_steps: 1,
     readiness: 'yellow',
@@ -144,6 +145,24 @@ describe('TaskReviewPanel', () => {
     // The reviewed commit and the review step's verdict are shown.
     expect(wrapper.get('.task-pr-reviewed a').text()).toBe('abc1234')
     expect(wrapper.text()).toContain('Review')
+  })
+
+  it('shows a spinner for a review step that is running', async () => {
+    mocks.taskReviews.mockResolvedValue({
+      root: null,
+      counts: { total: 1 },
+      prs: [
+        pr({
+          in_progress: { 'validate-pr': { sha: 'abc1234', started_at: '2026-01-12T08:00:00Z' } }
+        })
+      ]
+    })
+    const wrapper = mount(TaskReviewPanel, { props: { task }, ...stub })
+    await flushPromises()
+
+    const running = wrapper.get('.review-step-running')
+    expect(running.find('.spinner').exists()).toBe(true)
+    expect(running.attributes('title')).toContain('Validate: running since')
   })
 
   it('shows the pull request description and metadata, as issue mode does', async () => {

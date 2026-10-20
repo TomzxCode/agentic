@@ -174,6 +174,17 @@ class ReviewFindingsDecisions(BaseModel):
     decisions: list[ReviewFindingDecision] = []
 
 
+class ReviewInProgressRead(BaseModel):
+    """A review step that is running for a pull request's head right now.
+
+    The step publishes an empty ``<step>.<sha>.in-progress`` marker while it
+    runs; ``started_at`` is the marker's write time.
+    """
+
+    sha: str = ""
+    started_at: datetime | None = None
+
+
 class ReviewPrRead(BaseModel):
     """One pull request in the review queue, with its review-step state.
 
@@ -203,6 +214,9 @@ class ReviewPrRead(BaseModel):
     # modification time. None when the store holds no step report.
     reviewed_at: datetime | None = None
     steps: dict[str, ReviewStepRead] = {}
+    # The steps running for the head right now, keyed by step. A running step
+    # has no report yet (or only an older one), so the queue shows a spinner.
+    in_progress: dict[str, ReviewInProgressRead] = {}
     stale_steps: list[str] = []
     reviewed_steps: int = 0
     readiness: str = "yellow"

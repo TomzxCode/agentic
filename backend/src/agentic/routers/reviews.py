@@ -111,6 +111,7 @@ def _scan_row(recorded: ReviewRequest) -> dict:
         "labels": [],
         "head_commit": "",
         "steps": {},
+        "in_progress": {},
         "stale_steps": [],
         "reviewed_steps": 0,
         "readiness": "yellow",

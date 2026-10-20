@@ -18,6 +18,10 @@ that would need a read nothing here makes (the diff size, the review approvers,
 the open-PR stack a PR blocks) is left out rather than guessed. The commit a
 report reviewed stands in for the PR's head, so a step is stale when its report
 does not cover the newest reviewed commit.
+
+A step that is running right now leaves an empty ``<step>.<sha>.in-progress``
+marker next to its reports (see the skills' ``shared.md``, In-progress marker);
+that marker is what the queue reads to show the step as running.
 """
 
 from __future__ import annotations
@@ -60,6 +64,11 @@ STEPS: tuple[str, ...] = (
 #: reviewer to look closer before deciding.
 BLOCKING_ROUTES = {"block", "hold"}
 SLOW_ROUTES = {"decide", "investigate"}
+
+#: The empty marker a step publishes while it runs
+#: (``<step>.<sha>.in-progress``). Its presence means the step is evaluating
+#: that commit now; the file's mtime is when the run started.
+IN_PROGRESS_SUFFIX = ".in-progress"
 
 MARKER_RE = re.compile(r"<!--\s*(\{.*?\})\s*-->", re.DOTALL)
 RISK_RE = re.compile(r"Risk:\s*(Low|Medium|High)\b", re.IGNORECASE)
@@ -170,6 +179,40 @@ def _step_state(directory: Path) -> tuple[dict[str, dict[str, Any]], str]:
             reference = commit
             reference_mtime = modified
     return steps, reference
+
+
+def _same_commit(left: str, right: str) -> bool:
+    """Whether two commit names refer to the same commit.
+
+    A report names the short (7-character) commit, while an in-progress marker
+    may carry the full one, so either can be the prefix of the other.
+    """
+    return left.startswith(right) or right.startswith(left)
+
+
+def in_progress_steps(directory: Path, head: str) -> dict[str, dict[str, Any]]:
+    """The steps currently evaluating *head*, from their in-progress markers.
+
+    Each running step leaves one empty ``<step>.<sha>.in-progress`` file, so
+    only its name is read. A marker counts only when its commit matches *head*:
+    a marker for an older commit belongs to a run that is over. With no known
+    head (a PR whose store holds no report) the marker is the only signal, so
+    it counts rather than being hidden.
+    """
+    markers: dict[str, dict[str, Any]] = {}
+    for path in directory.glob(f"*{IN_PROGRESS_SUFFIX}"):
+        stem = path.name[: -len(IN_PROGRESS_SUFFIX)]
+        step, _, sha = stem.rpartition(".")
+        if step not in STEPS or len(sha) < 7:
+            continue
+        if head and not _same_commit(sha, head):
+            continue
+        try:
+            started = path.stat().st_mtime
+        except OSError:
+            continue
+        markers[step] = {"sha": sha, "started_at": datetime.fromtimestamp(started)}
+    return markers
 
 
 def _assess_fields(text: str, marker: dict[str, Any]) -> tuple[str, str]:
@@ -324,6 +367,7 @@ def collect_review_prs() -> list[dict[str, Any]]:
         view = parse_view_cache(_read_text(directory / "gh-pr-view.md"))
         steps, reference = _step_state(directory)
         stale_steps = determine_stale_steps(steps, reference)
+        in_progress = in_progress_steps(directory, reference)
         # The last review event: the modification time of the newest step
         # report, i.e. when a review skill last wrote for this PR.
         reviewed_at = max((state["modified_at"] for state in steps.values()), default=None)
@@ -353,6 +397,7 @@ def collect_review_prs() -> list[dict[str, Any]]:
                 "head_commit": reference,
                 "reviewed_at": reviewed_at,
                 "steps": steps,
+                "in_progress": in_progress,
                 "stale_steps": stale_steps,
                 "reviewed_steps": len(steps),
                 "readiness": readiness_signal(steps, stale_steps, draft),

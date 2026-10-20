@@ -72,6 +72,12 @@ export const READINESS_TITLES = {
   red: 'A signal blocks approval'
 }
 
+// The in-progress marker a step published while it runs, or null when it is
+// not running. The marker is empty; its presence is the signal.
+export function runningStep(pr, key) {
+  return pr?.in_progress?.[key] || null
+}
+
 // A verdict rendered as its mark when it has one; a route or a "partial"
 // verdict has no mark and shows its own word.
 const VERDICT_MARKS = { pass: '✅', fail: '❌', informational: 'ℹ️' }

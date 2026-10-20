@@ -16,6 +16,7 @@ import {
   READINESS_LIGHTS,
   READINESS_TITLES,
   riskTone,
+  runningStep,
   shortCommit,
   stateFilterCounts,
   stripReportMarker,
@@ -265,6 +266,14 @@ function stepTitle(pr, key, step) {
   return parts.join(' · ')
 }
 
+// A running step's tooltip: when its marker was written.
+function runningTitle(pr, key) {
+  const marker = runningStep(pr, key)
+  const label = QUEUE_STEPS.find((entry) => entry.key === key)?.label || key
+  if (!marker) return label
+  return marker.started_at ? `${label}: running since ${formatDateTime(marker.started_at)}` : `${label}: running`
+}
+
 async function openReport(pr, step) {
   if (!step?.report) return
   openPr.value = pr
@@ -495,7 +504,15 @@ onMounted(load)
                 </td>
 
                 <td v-for="column in QUEUE_STEPS" :key="column.key" class="review-col-step">
-                  <template v-if="stepFor(pr, column.key)">
+                  <span
+                    v-if="runningStep(pr, column.key)"
+                    class="review-step-running"
+                    role="status"
+                    :title="runningTitle(pr, column.key)"
+                    :aria-label="runningTitle(pr, column.key)"
+                    ><span class="spinner" aria-hidden="true"></span
+                  ></span>
+                  <template v-else-if="stepFor(pr, column.key)">
                     <button
                       v-if="column.key === 'assess-pr-risk'"
                       class="review-step"

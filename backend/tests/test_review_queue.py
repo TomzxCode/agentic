@@ -96,6 +96,52 @@ def test_collect_review_prs_reads_markers_and_the_view_cache(tmp_path, monkeypat
     assert pr["steps"]["review-pr"]["stale"] is False
 
 
+def test_an_in_progress_marker_marks_its_step_running(tmp_path, monkeypatch):
+    monkeypatch.setattr(settings, "sdlc_dir", tmp_path)
+    directory = _write_pr(tmp_path, "TomzxCode", "agentic", 42, sha="abc1234", steps={"review-pr": "pass"})
+    (directory / "validate-pr.abc1234.in-progress").touch()
+
+    pr = collect_review_prs()[0]
+    assert set(pr["in_progress"]) == {"validate-pr"}
+    assert pr["in_progress"]["validate-pr"]["sha"] == "abc1234"
+    assert pr["in_progress"]["validate-pr"]["started_at"] is not None
+
+
+def test_an_in_progress_marker_for_another_commit_is_ignored(tmp_path, monkeypatch):
+    monkeypatch.setattr(settings, "sdlc_dir", tmp_path)
+    directory = _write_pr(tmp_path, "TomzxCode", "agentic", 42, sha="abc1234", steps={"review-pr": "pass"})
+    # A marker left behind by a run at an older commit is over, not running.
+    (directory / "validate-pr.fffffff.in-progress").touch()
+
+    assert collect_review_prs()[0]["in_progress"] == {}
+
+
+def test_a_running_step_with_no_report_yet_is_shown(tmp_path, monkeypatch):
+    monkeypatch.setattr(settings, "sdlc_dir", tmp_path)
+    directory = _write_pr(tmp_path, "TomzxCode", "agentic", 42, sha="abc1234", steps={})
+    (directory / "analyze-test-coverage.abc1234.in-progress").touch()
+
+    assert set(collect_review_prs()[0]["in_progress"]) == {"analyze-test-coverage"}
+
+
+def test_a_running_marker_at_a_newer_github_head_is_shown(tmp_path, monkeypatch):
+    monkeypatch.setattr(settings, "sdlc_dir", tmp_path)
+    directory = _write_pr(tmp_path, "TomzxCode", "agentic", 42, sha="abc1234", steps=ALL_STEPS)
+    # The head moved past the last report; ghx knows the commit the step runs on.
+    (directory / "validate-pr.fffffff.in-progress").touch()
+    monkeypatch.setattr(
+        review_queue,
+        "fetch_github_issue",
+        lambda *args, **kwargs: {"head_sha": "fffffff"},
+    )
+
+    prs = collect_review_prs()
+    assert prs[0]["in_progress"] == {}
+    review_queue.enrich_from_github(prs)
+    assert set(prs[0]["in_progress"]) == {"validate-pr"}
+    assert prs[0]["in_progress"]["validate-pr"]["sha"] == "fffffff"
+
+
 def test_a_step_that_does_not_cover_the_newest_commit_is_stale(tmp_path, monkeypatch):
     monkeypatch.setattr(settings, "sdlc_dir", tmp_path)
     directory = _write_pr(tmp_path, "TomzxCode", "agentic", 7, sha="aaaaaaa", steps={"validate-pr": "pass"})
@@ -176,7 +222,8 @@ def test_readiness_signal_red_yellow_green():
 
 def test_review_queue_endpoint(tmp_path, monkeypatch):
     monkeypatch.setattr(settings, "sdlc_dir", tmp_path)
-    _write_pr(tmp_path, "TomzxCode", "agentic", 42, sha="abc1234", steps=ALL_STEPS)
+    directory = _write_pr(tmp_path, "TomzxCode", "agentic", 42, sha="abc1234", steps=ALL_STEPS)
+    (directory / "verify-pr.abc1234.in-progress").touch()
 
     with TestClient(app) as client:
         queue = client.get("/api/reviews").json()
@@ -185,6 +232,8 @@ def test_review_queue_endpoint(tmp_path, monkeypatch):
         pr = queue["prs"][0]
         assert pr["repository"] == "TomzxCode/agentic" and pr["number"] == 42
         assert pr["steps"]["review-pr"]["verdict"] == "pass"
+        assert pr["in_progress"]["verify-pr"]["sha"] == "abc1234"
+        assert pr["in_progress"]["verify-pr"]["started_at"] is not None
 
         report = client.get(
             "/api/reviews/report/42/review-pr.abc1234.md",

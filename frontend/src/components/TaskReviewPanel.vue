@@ -9,13 +9,14 @@ import {
   READINESS_LIGHTS,
   READINESS_TITLES,
   riskTone,
+  runningStep,
   shortCommit,
   stripReportMarker,
   taskPullRequests,
   verdictLabel,
   verdictTone
 } from '../reviews'
-import { store, timeAgo } from '../store'
+import { store, timeAgo, formatDateTime } from '../store'
 import AgentPanel from './AgentPanel.vue'
 import FindingsSelector from './FindingsSelector.vue'
 import GithubItemPanel from './GithubItemPanel.vue'
@@ -102,6 +103,14 @@ function stepTitle(key, step) {
   return parts.join(' · ')
 }
 
+// A running step's tooltip: when its marker was written.
+function runningTitle(row, key) {
+  const marker = runningStep(row, key)
+  const label = QUEUE_STEPS.find((entry) => entry.key === key)?.label || key
+  if (!marker) return label
+  return marker.started_at ? `${label}: running since ${formatDateTime(marker.started_at)}` : `${label}: running`
+}
+
 async function openReport(row, step) {
   if (!step?.report || !row) return
   openPr.value = row
@@ -178,7 +187,15 @@ watch(signature, () => load())
         <div class="task-pr-steps">
           <div v-for="column in QUEUE_STEPS" :key="column.key" class="task-pr-step">
             <span class="task-pr-step-label">{{ column.label }}</span>
-            <template v-if="row.steps?.[column.key]">
+            <span
+              v-if="runningStep(row, column.key)"
+              class="review-step-running"
+              role="status"
+              :title="runningTitle(row, column.key)"
+              :aria-label="runningTitle(row, column.key)"
+              ><span class="spinner" aria-hidden="true"></span
+            ></span>
+            <template v-else-if="row.steps?.[column.key]">
               <button
                 class="review-step"
                 :title="stepTitle(column.key, row.steps[column.key])"

@@ -8,6 +8,7 @@ a short time so a page reload does not shell out again.
 from __future__ import annotations
 
 import time
+from pathlib import Path
 from typing import Any
 
 import structlog
@@ -18,6 +19,9 @@ from .review_store import (
 )
 from .review_store import (
     determine_stale_steps as determine_stale_steps,
+)
+from .review_store import (
+    in_progress_steps as in_progress_steps,
 )
 from .review_store import (
     readiness_signal as readiness_signal,
@@ -56,6 +60,12 @@ def _apply_github(pr: dict[str, Any], metadata: dict[str, Any]) -> None:
     if metadata.get("created_at"):
         pr["created_at"] = metadata["created_at"]
     pr["draft"] = bool(metadata.get("is_draft", pr.get("draft", False)))
+    # The store's newest reviewed commit stands in for the head when GitHub
+    # cannot be read; ghx knows the real one, so match the running markers
+    # against it rather than against a commit the head has moved past.
+    head = str(metadata.get("head_sha") or "")
+    if head and pr.get("store_dir"):
+        pr["in_progress"] = in_progress_steps(Path(str(pr["store_dir"])), head)
 
 
 def _fetch_pr_metadata(owner: str, name: str, number: int) -> dict[str, Any] | None:

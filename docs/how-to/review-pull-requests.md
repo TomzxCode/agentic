@@ -38,6 +38,7 @@ The reports live under `AGENTIC_SDLC_DIR` (`~/.sdlc` by default), at `{owner}/{r
    - 🔴 red: a signal blocks approval.
 5. Read the per-step columns, one per review skill: **Behavior**, **Risk**, **Coverage**, **Validate**, **Verify**, and **Review**.
    A cell shows the step's verdict (a mark when it has one, otherwise the verdict word), and a report that does not cover the newest reviewed commit shows the commit it covers in red underneath.
+   A step that is running right now shows a spinner instead, and its tooltip says when it started; the spinner appears even before the step has written a report.
    A step with no report shows a dash.
 6. Click a cell to open that step's report.
 7. Use the row's **📝** to open the linked task in its PR view, or **➕** to import the pull request into a new task, the same as the repository view's **New task**.
