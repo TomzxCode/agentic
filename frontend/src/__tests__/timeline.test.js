@@ -46,4 +46,26 @@ describe('TimelinePanel', () => {
     ])
     expect(spans.every((span) => span.text().includes('%'))).toBe(true)
   })
+
+  it('can label itself and link each event to its task, for a timeline across tasks', () => {
+    const events = [
+      {
+        id: 'e1',
+        task_id: 't1',
+        task_title: 'A task',
+        type: 'run_started',
+        message: 'Agent run: do the thing',
+        created_at: '2026-01-01T01:00:00Z',
+        client: 'cli',
+        actor: 'agent',
+        data_json: {}
+      }
+    ]
+    const wrapper = mount(TimelinePanel, {
+      props: { events, heading: 'Yesterday', showTask: true },
+      global: { stubs: { RouterLink: { props: ['to'], template: '<a :href="to"><slot /></a>' } } }
+    })
+    expect(wrapper.get('.panel-head').text()).toBe('Yesterday')
+    expect(wrapper.get('a[href="/task/t1"]').text()).toBe('A task')
+  })
 })

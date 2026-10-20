@@ -1,7 +1,8 @@
 <script setup>
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { api } from '../api'
-import { formatDateTime, store, timeAgo } from '../store'
+import { store } from '../store'
+import TimelinePanel from '../components/TimelinePanel.vue'
 
 // The events page: every task's timeline in one stream, newest first. A row
 // links back to its task, and the page pages backwards with the created_at/id
@@ -17,20 +18,6 @@ const hasMore = ref(false)
 const search = ref('')
 const actorFilter = ref('')
 const clientFilter = ref('')
-
-// The type prefix gives the row's dot a colour without one class per event
-// type: an agent's work, a recorded change, and a person's involvement read
-// differently at a glance.
-function typeClass(type) {
-  if (type.startsWith('change_')) return 'change'
-  if (type.startsWith('person_') || type.startsWith('requester_')) return 'person'
-  if (type.startsWith('run_') || type.startsWith('context_') || type.startsWith('summary_')) return 'agent'
-  return ''
-}
-
-function typeLabel(type) {
-  return (type || '').replace(/_/g, ' ')
-}
 
 function localDayKey(iso) {
   const date = new Date(iso)
@@ -160,25 +147,7 @@ onUnmounted(() => clearTimeout(searchTimer))
     <template v-else>
       <div v-for="group in groups" :key="group.key" class="event-day">
         <h2 class="event-day-label">{{ group.label }}</h2>
-        <ul class="events">
-          <li v-for="event in group.items" :key="event.id">
-            <span class="event-dot" :class="typeClass(event.type)"></span>
-            <span class="grow">
-              <span class="event-line">
-                <router-link :to="`/task/${event.task_id}`" class="event-task">{{ event.task_title }}</router-link>
-                <span class="badge event-type">{{ typeLabel(event.type) }}</span>
-                <span class="badge" :title="`Recorded via ${event.client} by a ${event.actor}`"
-                  >{{ event.client }} · {{ event.actor }}</span
-                >
-              </span>
-              <span class="event-message">{{ event.message || typeLabel(event.type) }}</span>
-            </span>
-            <span class="event-when">
-              <time class="event-at" :datetime="event.created_at">{{ formatDateTime(event.created_at) }}</time>
-              <time class="event-ago" :datetime="event.created_at">{{ timeAgo(event.created_at) }}</time>
-            </span>
-          </li>
-        </ul>
+        <TimelinePanel :events="group.items" heading="" show-task exact-times />
       </div>
       <div v-if="hasMore" class="row" style="justify-content: center; margin-top: 12px">
         <button class="btn" :disabled="loadingMore" @click="loadMore">

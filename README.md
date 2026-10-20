@@ -224,12 +224,14 @@ note's text, or a fetched link) with its linked tasks and people.
 
 The **Events** page (`/events`, the stream icon) is one stream of every task's
 timeline, newest first: task creation, edits, status moves, items, people,
-worktrees, runs, changes, and stack moves. Each row names the task it happened
-to (and links back to it), the event type, and whether a person or an agent did
-it through the web, the CLI, or the API. Search filters the server-side history
-by message or task title, and the actor and client selects narrow it to one
-kind of activity. The page loads the newest 50 events and pages backwards on
-demand.
+worktrees, runs, changes, and stack moves. Events are grouped by day, and each
+day renders the timeline component over that day's events: a chart with one
+marker per event, then the events themselves. Each row names the task it
+happened to (and links back to it), the event type, and whether a person or an
+agent did it through the web, the CLI, or the API. Search filters the
+server-side history by message or task title, and the actor and client selects
+narrow it to one kind of activity. The page loads the newest 50 events and pages
+backwards on demand.
 
 People are linked to both tasks and items. A task page has a **People** panel to
 link someone from the directory (or add a new person), and a **Requested by**

@@ -1,26 +1,39 @@
 <script setup>
 import { computed, nextTick, onUnmounted, ref } from 'vue'
-import { formatDuration, priorityLabel, statusDurations, statusLabel, store, timeAgo } from '../store'
+import { formatDateTime, formatDuration, priorityLabel, statusDurations, statusLabel, store, timeAgo } from '../store'
 import GanttChart from './GanttChart.vue'
 import StatusIcon from './StatusIcon.vue'
-import { resolveDomain } from '../gantt'
+import { markerLabel, resolveDomain } from '../gantt'
 
 const props = defineProps({
   events: { type: Array, default: () => [] },
   // The owning task supplies the span (created to last update) and status for
   // the chart; the events alone define the markers.
-  task: { type: Object, default: null }
+  task: { type: Object, default: null },
+  // The panel's heading; an empty value hides it, for a host that labels the
+  // panel itself (the events page groups by day).
+  heading: { type: String, default: 'Timeline' },
+  // Show the task each event belongs to, for a timeline that spans tasks.
+  showTask: { type: Boolean, default: false },
+  // Put the exact timestamp above the relative age, for a stream that spans
+  // tasks and days (the events page).
+  exactTimes: { type: Boolean, default: false }
 })
 
 // The timeline chart is a single row: the task's span with one marker per event.
+// Without a task (the events page), the row spans the earliest to latest event
+// rather than trusting the list order.
 const row = computed(() => {
   const events = props.events
+  const times = events.map((event) => new Date(event.created_at).getTime()).filter((time) => Number.isFinite(time))
+  const first = times.length ? Math.min(...times) : null
+  const last = times.length ? Math.max(...times) : null
   return {
     id: props.task?.id || 'task',
     title: props.task?.title || '',
     status: props.task?.status || 'open',
-    created_at: props.task?.created_at || events[0]?.created_at,
-    updated_at: props.task?.updated_at || events[events.length - 1]?.created_at,
+    created_at: props.task?.created_at || (first === null ? undefined : new Date(first).toISOString()),
+    updated_at: props.task?.updated_at || (last === null ? undefined : new Date(last).toISOString()),
     markers: events
   }
 })
@@ -108,7 +121,9 @@ function changes(event) {
 
 <template>
   <section class="panel">
-    <div class="panel-head"><h2>Timeline</h2></div>
+    <div v-if="heading" class="panel-head">
+      <h2>{{ heading }}</h2>
+    </div>
     <div v-if="!events.length" class="faint">Nothing yet.</div>
     <template v-else>
       <div v-if="statusSpans.length" class="status-spans">
@@ -131,11 +146,14 @@ function changes(event) {
           <span class="dot"></span>
           <span class="grow">
             <span
+              ><template v-if="showTask && event.task_id"
+                ><router-link :to="`/task/${event.task_id}`" class="event-task">{{ event.task_title }}</router-link
+                ><span class="faint"> · </span></template
               ><router-link v-if="itemId(event)" :to="`/items/${itemId(event)}`">{{
                 event.message || event.type
               }}</router-link
               ><span v-else>{{ event.message || event.type }}</span>
-              <span class="faint"> · {{ event.type }}</span>
+              <span class="faint"> · {{ markerLabel(event.type) }}</span>
               <span class="badge" :title="`Recorded via ${event.client} by a ${event.actor}`"
                 >{{ event.client }} · {{ event.actor }}</span
               ></span
@@ -149,7 +167,13 @@ function changes(event) {
               </span>
             </span>
           </span>
-          <span class="when">{{ timeAgo(event.created_at) }}</span>
+          <span v-if="exactTimes" class="event-when">
+            <time class="event-at" :datetime="event.created_at">{{ formatDateTime(event.created_at) }}</time>
+            <time class="event-ago" :datetime="event.created_at">{{ timeAgo(event.created_at) }}</time>
+          </span>
+          <time v-else class="when" :datetime="event.created_at" :title="formatDateTime(event.created_at)">{{
+            timeAgo(event.created_at)
+          }}</time>
         </li>
       </ul>
     </template>

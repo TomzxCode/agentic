@@ -57,9 +57,11 @@ describe('EventsView', () => {
     expect(wrapper.text()).toContain('Task created: Task one')
     expect(wrapper.text()).toContain('Agent run: do the thing')
     expect(wrapper.get('a[href="/task/t1"]').text()).toBe('Task one')
-    // The agent run gets its own dot, and the type reads without underscores.
-    expect(wrapper.findAll('.event-dot.agent')).toHaveLength(1)
-    expect(wrapper.text()).toContain('run started')
+    // Each day renders the timeline component over that day's events.
+    expect(wrapper.findAll('.timeline')).toHaveLength(2)
+    expect(wrapper.findAll('.gantt')).toHaveLength(2)
+    expect(wrapper.findAll('.panel-head')).toHaveLength(0)
+    expect(wrapper.text()).toContain('Run started')
     expect(wrapper.text()).toContain('cli · agent')
     // The date leads, the human-readable age sits below it.
     expect(wrapper.findAll('.event-when').length).toBeGreaterThan(0)
