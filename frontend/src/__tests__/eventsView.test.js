@@ -61,6 +61,9 @@ describe('EventsView', () => {
     expect(wrapper.findAll('.event-dot.agent')).toHaveLength(1)
     expect(wrapper.text()).toContain('run started')
     expect(wrapper.text()).toContain('cli · agent')
+    // The human-readable age keeps the exact date and time beside it.
+    expect(wrapper.findAll('.event-when').length).toBeGreaterThan(0)
+    expect(wrapper.get('.event-at').text()).toMatch(/\d{4}-\d{2}-\d{2} \d{2}:\d{2}/)
   })
 
   it('reloads from the server when the actor or client filter changes', async () => {

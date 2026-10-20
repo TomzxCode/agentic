@@ -173,9 +173,10 @@ onUnmounted(() => clearTimeout(searchTimer))
               </span>
               <span class="event-message">{{ event.message || typeLabel(event.type) }}</span>
             </span>
-            <time class="event-when" :datetime="event.created_at" :title="formatDateTime(event.created_at)">{{
-              timeAgo(event.created_at)
-            }}</time>
+            <span class="event-when">
+              <time :datetime="event.created_at">{{ timeAgo(event.created_at) }}</time>
+              <time class="event-at" :datetime="event.created_at">{{ formatDateTime(event.created_at) }}</time>
+            </span>
           </li>
         </ul>
       </div>
