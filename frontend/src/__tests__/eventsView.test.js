@@ -61,8 +61,11 @@ describe('EventsView', () => {
     expect(wrapper.findAll('.event-dot.agent')).toHaveLength(1)
     expect(wrapper.text()).toContain('run started')
     expect(wrapper.text()).toContain('cli · agent')
-    // The human-readable age keeps the exact date and time beside it.
+    // The date leads, the human-readable age sits below it.
     expect(wrapper.findAll('.event-when').length).toBeGreaterThan(0)
+    const when = wrapper.get('.event-when')
+    expect(when.findAll('time')[0].classes()).toContain('event-at')
+    expect(when.findAll('time')[1].classes()).toContain('event-ago')
     expect(wrapper.get('.event-at').text()).toMatch(/\d{4}-\d{2}-\d{2} \d{2}:\d{2}/)
   })
 

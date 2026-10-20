@@ -91,13 +91,17 @@
   flex-direction: column;
   align-items: flex-end;
   gap: 1px;
-  color: var(--faint);
-  font-size: 11px;
   white-space: nowrap;
 }
 .event-at {
+  color: var(--muted);
+  font-size: 12px;
   font-variant-numeric: tabular-nums;
-  opacity: 0.75;
+}
+.event-ago {
+  color: var(--faint);
+  font-size: 11px;
+  opacity: 0.8;
 }
 
 @media (max-width: 760px) {
