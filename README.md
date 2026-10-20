@@ -220,7 +220,10 @@ The **Items** page lists every resource the app tracks (Slack threads, GitHub
 issues/PRs, Drive docs, URLs, notes) with per-source filters, search, and links
 to the tasks each one is used by. Each item opens a page laid out for its type
 (a GitHub issue/PR with its state and author, a Slack thread as a transcript, a
-note's text, or a fetched link) with its linked tasks and people.
+note's text, or a fetched link) with its linked tasks and people. A Slack thread
+can be marked **Done** from either its row or its page. A message that arrives
+after that is flagged as **new messages** on the item, and the thread keeps its
+done state: **Reopen** is an explicit choice, not something a reply does.
 
 The **Events** page (`/events`, the stream icon) is one stream of every task's
 timeline, newest first: task creation, edits, status moves, items, people,

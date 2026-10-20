@@ -8,6 +8,121 @@ from agentic.routers import items_refresh
 from agentic.services import shell
 
 
+def test_marking_a_slack_thread_done_flags_a_later_reply_without_reopening_it(monkeypatch):
+    with TestClient(app) as client:
+        item = client.post(
+            "/api/items",
+            json={
+                "url": "https://acme.slack.com/archives/C6/p1700000000000000",
+                "fetch": False,
+                "metadata_json": {"latest_ts": "1700000000.000000"},
+            },
+        ).json()
+        assert item["done"] is False and item["new_since_done"] is False
+
+        marked = client.patch(f"/api/items/{item['id']}", json={"done": True}).json()
+        assert marked["done"] is True and marked["done_at"] is not None
+        assert marked["new_since_done"] is False
+
+        # A fetch that sees a newer message flags it. The done state survives,
+        # because the person has to choose to reopen the conversation.
+        monkeypatch.setattr(
+            items_router,
+            "fetch_source",
+            lambda *args, **kwargs: {
+                "title": "acme - #general - 2023-11-14 22:13",
+                "content": "ada: hello\nbob: a newer reply",
+                "metadata": {"latest_ts": "1700000100.000000"},
+            },
+        )
+        refreshed = client.post(f"/api/items/{item['id']}/refresh").json()
+        assert refreshed["done"] is True
+        assert refreshed["new_since_done"] is True
+        assert refreshed["latest_message_at"] is not None
+
+        reopened = client.patch(f"/api/items/{item['id']}", json={"done": False}).json()
+        assert reopened["done"] is False and reopened["done_at"] is None
+        assert reopened["new_since_done"] is False
+        client.delete(f"/api/items/{item['id']}")
+
+
+def test_a_thread_marked_done_before_its_first_fetch_takes_that_fetch_as_baseline(monkeypatch):
+    with TestClient(app) as client:
+        item = client.post(
+            "/api/items",
+            json={"url": "https://acme.slack.com/archives/C6/p1700000000000001", "fetch": False},
+        ).json()
+        assert client.patch(f"/api/items/{item['id']}", json={"done": True}).json()["done"] is True
+
+        # The first fetch after the decision only records the watermark, so the
+        # messages already in the thread are not reported as new.
+        monkeypatch.setattr(
+            items_router,
+            "fetch_source",
+            lambda *args, **kwargs: {
+                "title": "t",
+                "content": "ada: hello",
+                "metadata": {"latest_ts": "1700000000.000000"},
+            },
+        )
+        first = client.post(f"/api/items/{item['id']}/refresh").json()
+        assert first["done"] is True and first["new_since_done"] is False
+
+        monkeypatch.setattr(
+            items_router,
+            "fetch_source",
+            lambda *args, **kwargs: {
+                "title": "t",
+                "content": "ada: hello\nbob: again",
+                "metadata": {"latest_ts": "1700000200.000000"},
+            },
+        )
+        second = client.post(f"/api/items/{item['id']}/refresh").json()
+        assert second["done"] is True and second["new_since_done"] is True
+        client.delete(f"/api/items/{item['id']}")
+
+
+def test_marking_done_is_idempotent_and_keeps_the_original_watermark(monkeypatch):
+    with TestClient(app) as client:
+        item = client.post(
+            "/api/items",
+            json={
+                "url": "https://acme.slack.com/archives/C6/p1700000000000002",
+                "fetch": False,
+                "metadata_json": {"latest_ts": "1700000000.000000"},
+            },
+        ).json()
+        first = client.patch(f"/api/items/{item['id']}", json={"done": True}).json()
+        monkeypatch.setattr(
+            items_router,
+            "fetch_source",
+            lambda *args, **kwargs: {
+                "title": "t",
+                "content": "x",
+                "metadata": {"latest_ts": "1700000300.000000"},
+            },
+        )
+        client.post(f"/api/items/{item['id']}/refresh")
+
+        # Marking the already done thread again does not move its watermark, so
+        # the reply stays flagged.
+        again = client.patch(f"/api/items/{item['id']}", json={"done": True}).json()
+        assert again["done"] is True
+        assert again["new_since_done"] is True
+        assert again["done_at"] == first["done_at"]
+        client.delete(f"/api/items/{item['id']}")
+
+
+def test_marking_a_note_done_stores_the_decision(monkeypatch):
+    # The flag is generic on the item model; the UI only offers it for Slack
+    # threads, but the API records whatever the caller decides.
+    with TestClient(app) as client:
+        note = client.post("/api/items", json={"content": "remember this", "fetch": False}).json()
+        marked = client.patch(f"/api/items/{note['id']}", json={"done": True}).json()
+        assert marked["done"] is True and marked["new_since_done"] is False
+        client.delete(f"/api/items/{note['id']}")
+
+
 def test_create_item_dedupes_by_external_id_and_merges():
     with TestClient(app) as client:
         first = client.post("/api/items", json={"url": "https://github.com/o/r/issues/5", "fetch": False}).json()

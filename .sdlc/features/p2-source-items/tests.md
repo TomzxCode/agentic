@@ -28,6 +28,9 @@ Out of scope: real network calls to Slack or arbitrary websites.
 | TC-6 | GitHub issues endpoint | monkeypatched `list_github_issues` | list of issues |
 | TC-7 | Single issue endpoint | monkeypatched `fetch_github_issue` | one issue |
 | TC-8 | Create a task from a GitHub URL | monkeypatched fetch | title/description prefilled, item associated |
+| TC-11 | Mark a Slack thread done and refresh with a newer message | item with a stored `latest_ts` | `done` stays true, `new_since_done` becomes true |
+| TC-12 | Mark a thread done before its first fetch | no stored `latest_ts` | first fetch sets the baseline, no new-message flag |
+| TC-13 | Reopen a done thread | done item | `done` false, `done_at` cleared, no new-message flag |
 
 ## Edge Cases and Failure Scenarios
 
@@ -53,4 +56,5 @@ Out of scope: real network calls to Slack or arbitrary websites.
 | FR-6 | TC-5 |
 | FR-7 | TC-8 |
 | FR-8 | TC-4, TC-6, TC-10 |
+| FR-10 | TC-11, TC-12, TC-13 |
 | NFR-1 | TC-9 |

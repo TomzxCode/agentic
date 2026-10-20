@@ -92,6 +92,19 @@ async function refreshItem(itemId) {
     store.notify(e.message, true)
   }
 }
+
+// A Slack conversation can be marked done from the task page too. A reply
+// that arrives later is flagged but leaves the conversation done.
+async function toggleDone(item) {
+  try {
+    const updated = await api.items.update(item.id, { done: !item.done })
+    Object.assign(item, updated)
+    store.notify(updated.done ? 'Marked done' : 'Reopened')
+    emit('changed')
+  } catch (e) {
+    store.notify(e.message, true)
+  }
+}
 </script>
 
 <template>
@@ -145,6 +158,15 @@ async function refreshItem(itemId) {
           <div v-if="assoc.note" class="faint" style="margin-top: 4px">{{ assoc.note }}</div>
         </template>
         <template #actions>
+          <button
+            v-if="assoc.item.source === 'slack'"
+            class="btn sm"
+            :class="{ ghost: !assoc.item.done }"
+            :title="assoc.item.done ? 'Reopen this conversation' : 'Mark this conversation done'"
+            @click="toggleDone(assoc.item)"
+          >
+            {{ assoc.item.done ? 'Reopen' : 'Done' }}
+          </button>
           <button
             v-if="needsChange(assoc.item)"
             class="btn sm"

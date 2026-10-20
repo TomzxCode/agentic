@@ -17,6 +17,7 @@ const loading = ref(true)
 const notFound = ref(false)
 const refreshing = ref(false)
 const resettingTitle = ref(false)
+const togglingDone = ref(false)
 
 // The Markdown review reports the review skills wrote for this PR, read from
 // the user-global ~/.sdlc store. The list is loaded once; picking a report
@@ -149,6 +150,21 @@ async function refresh() {
   }
 }
 
+// Marking a Slack conversation done keeps it done when a reply arrives; the
+// page flags the reply instead. Reopening clears the done state.
+async function toggleDone() {
+  if (togglingDone.value) return
+  togglingDone.value = true
+  try {
+    item.value = await api.items.update(props.id, { done: !item.value.done })
+    store.notify(item.value.done ? 'Marked done' : 'Reopened')
+  } catch (e) {
+    store.notify(e.message, true)
+  } finally {
+    togglingDone.value = false
+  }
+}
+
 async function loadReviews() {
   reviewFiles.value = []
   reviewPath.value = null
@@ -258,11 +274,26 @@ onMounted(async () => {
             </template>
             <span v-else-if="item.kind" class="badge">{{ String(item.kind).replace('_', ' ') }}</span>
             <span v-if="status" class="badge" :class="status.className">{{ status.label }}</span>
+            <span v-if="item.done" class="badge ok">done</span>
+            <span v-if="item.new_since_done" class="badge warn" title="A message arrived after this was marked done"
+              >new messages</span
+            >
           </div>
           <EditableText as="h1" class="task-title" :value="item.title" placeholder="Untitled item" @save="saveTitle" />
         </div>
         <div class="row task-actions">
           <a v-if="item.url" class="btn sm ghost" :href="item.url" target="_blank" rel="noopener">{{ openLabel }}</a>
+          <button
+            v-if="variant === 'slack'"
+            class="btn sm"
+            :class="{ ghost: !item.done }"
+            :disabled="togglingDone"
+            :title="item.done ? 'Reopen this conversation' : 'Mark this conversation done'"
+            @click="toggleDone"
+          >
+            <span v-if="togglingDone" class="spinner" aria-hidden="true"></span>
+            {{ item.done ? 'Reopen' : 'Done' }}
+          </button>
           <button
             v-if="item.title_custom"
             class="btn sm ghost"
@@ -362,6 +393,10 @@ onMounted(async () => {
       <!-- Slack thread: the conversation as a transcript. -->
       <section v-else-if="variant === 'slack'" class="panel">
         <div class="panel-head"><h2>Thread</h2></div>
+        <p v-if="item.new_since_done" class="faint" style="margin-top: 0">
+          A message arrived after this conversation was marked done
+          <span v-if="item.latest_message_at">(last message {{ timeAgo(item.latest_message_at) }})</span>.
+        </p>
         <div v-if="item.content" class="item-body slack-thread">{{ item.content }}</div>
         <div v-else class="faint">Nothing fetched yet. Use Refresh to pull the thread from Slack.</div>
       </section>

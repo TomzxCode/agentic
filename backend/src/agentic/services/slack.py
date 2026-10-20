@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import re
 from collections.abc import Iterable
-from datetime import datetime, tzinfo
+from datetime import UTC, datetime, tzinfo
 from typing import Any
 
 import httpx
@@ -31,6 +31,45 @@ def slack_item_datetime(ts: str, tz: tzinfo | None = None) -> str:
     except (TypeError, ValueError, OSError, OverflowError):
         return ts
     return moment.strftime("%Y-%m-%d %H:%M")
+
+
+def slack_ts_datetime(ts: str | None) -> datetime | None:
+    """A Slack timestamp as an aware UTC datetime; None when it is not one."""
+    try:
+        return datetime.fromtimestamp(float(ts or ""), tz=UTC)
+    except (TypeError, ValueError, OSError, OverflowError):
+        return None
+
+
+def slack_ts_after(latest: str | None, baseline: str | None) -> bool:
+    """Whether Slack timestamp ``latest`` is later than ``baseline``.
+
+    Slack timestamps compare as decimal strings in practice, but parsing them as
+    numbers also survives a differing number of fractional digits.
+    """
+    try:
+        return float(latest or 0) > float(baseline or 0)
+    except (TypeError, ValueError):
+        return False
+
+
+def slack_latest_message_ts(payload: str) -> str | None:
+    """The newest message timestamp in a slackx thread payload, if it has one."""
+    try:
+        data = json.loads(payload)
+    except json.JSONDecodeError:
+        return None
+    messages = data.get("messages") if isinstance(data, dict) else data
+    stamps: list[tuple[float, str]] = []
+    for message in messages or []:
+        if not isinstance(message, dict):
+            continue
+        ts = message.get("ts")
+        try:
+            stamps.append((float(ts), str(ts)))
+        except (TypeError, ValueError):
+            continue
+    return max(stamps)[1] if stamps else None
 
 
 def slack_channel_label(channel_id: str, channel_name: str) -> str:
@@ -295,6 +334,11 @@ def _fetch_slack(url: str, result: dict[str, Any]) -> None:
     channel_name = slack_channel_name(raw) if raw else None
     if raw:
         result["people"] = slack_people(raw, slack_user_names())
+        # The newest message is the watermark a "done" thread compares against,
+        # so a reply that arrives after the decision can be flagged.
+        latest_ts = slack_latest_message_ts(raw)
+        if latest_ts:
+            result.setdefault("metadata", {})["latest_ts"] = latest_ts
     if parsed and not channel_name:
         channel_name = resolve_slack_channel_name(parsed["channel"])
     if parsed and channel_name:

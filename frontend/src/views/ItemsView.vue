@@ -130,6 +130,18 @@ async function refresh(item) {
   }
 }
 
+// A Slack conversation can be marked done and reopened. A reply that arrives
+// while it is done is flagged by the API but does not change the done state.
+async function toggleDone(item) {
+  try {
+    const updated = await api.items.update(item.id, { done: !item.done })
+    Object.assign(item, updated)
+    store.notify(updated.done ? 'Marked done' : 'Reopened')
+  } catch (e) {
+    store.notify(e.message, true)
+  }
+}
+
 async function remove(item) {
   const linked = linkedTasks(item).length
   const message = linked
@@ -189,6 +201,15 @@ onMounted(async () => {
         :expanded="!!expanded[item.id]"
       >
         <template #actions>
+          <button
+            v-if="item.source === 'slack'"
+            class="btn sm"
+            :class="{ ghost: !item.done }"
+            :title="item.done ? 'Reopen this conversation' : 'Mark this conversation done'"
+            @click="toggleDone(item)"
+          >
+            {{ item.done ? 'Reopen' : 'Done' }}
+          </button>
           <button v-if="!isNote(item)" class="btn sm ghost" title="Refresh" @click="refresh(item)">↻</button>
           <button class="btn sm ghost" title="Expand" @click="expanded[item.id] = !expanded[item.id]">
             {{ expanded[item.id] ? '▾' : '▸' }}

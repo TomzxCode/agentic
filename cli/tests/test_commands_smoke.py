@@ -20,6 +20,8 @@ def test_commands_emit_text(text_format, fake_client):
     assert "N" in items.item_get("i1")
     assert "created i2" in items.item_create(content="x")
     assert "refreshed i1" in items.item_refresh("i1")
+    assert "done i1" in items.item_done("i1")
+    assert "reopened i1" in items.item_reopen("i1")
     assert "deleted i1" in items.item_delete("i1")
     assert "r1" in repositories.repository_list()
     assert "added r2" in repositories.repository_add("/p")

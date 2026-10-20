@@ -8,6 +8,40 @@ import pytest
 from agentic.services import shell, slack
 
 
+def test_slack_timestamps_and_latest_message():
+    # The newest message in a payload is the watermark a done thread compares to.
+    payload = '{"messages": [{"ts": "1700000000.000100"}, {"ts": "1700000200.000000"}, {"ts": "bad"}, {}]}'
+    assert slack.slack_latest_message_ts(payload) == "1700000200.000000"
+    assert slack.slack_latest_message_ts('{"messages": []}') is None
+    assert slack.slack_latest_message_ts("not json") is None
+    assert slack.slack_latest_message_ts('{"messages": [{"ts": 1700000300}]}') == "1700000300"
+
+    assert slack.slack_ts_after("1700000200.000000", "1700000100.000000") is True
+    assert slack.slack_ts_after("1700000100.000000", "1700000100.000000") is False
+    assert slack.slack_ts_after(None, "1700000100.000000") is False
+    assert slack.slack_ts_after("nope", "1700000100.000000") is False
+
+    moment = slack.slack_ts_datetime("1700000000.000000")
+    assert moment is not None and moment.tzinfo is not None
+    assert slack.slack_ts_datetime(None) is None
+    assert slack.slack_ts_datetime("nope") is None
+
+
+def test_fetch_slack_records_the_latest_message_timestamp(monkeypatch):
+    def fake(cmd, timeout=60):
+        if cmd[1:3] == ["conversations", "show"]:
+            if "--json" in cmd:
+                return '{"messages": [{"ts": "1700000000.000000"}, {"ts": "1700000500.000000"}]}'
+            return "transcript"
+        return None
+
+    monkeypatch.setattr(shell, "_cli_available", lambda name: True)
+    monkeypatch.setattr(shell, "_run_cli", fake)
+    result: dict = {"title": "t", "content": "", "metadata": {}}
+    slack._fetch_slack("https://acme.slack.com/archives/C1/p1700000000000000", result)
+    assert result["metadata"]["latest_ts"] == "1700000500.000000"
+
+
 def test_fetch_slack_refreshes_with_fetch_then_reads_participants(monkeypatch):
     calls: list = []
 

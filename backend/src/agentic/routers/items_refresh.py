@@ -38,6 +38,12 @@ def _apply_fetch(item: SourceItem, fetched: dict, now) -> str | None:
         item.title = fetched.get("title") or item.title
     item.content = fetched.get("content") or item.content
     item.metadata_json = {**(item.metadata_json or {}), **fetched.get("metadata", {})}
+    if item.source == "slack" and item.done_at is not None and not item.done_message_ts:
+        # A thread marked done before its newest message was ever recorded gets
+        # its baseline here, so the first fetch does not flag everything as new.
+        latest = (item.metadata_json or {}).get("latest_ts")
+        if latest:
+            item.done_message_ts = str(latest)
     error = fetched.get("error")
     if not error:
         item.fetched_at = now

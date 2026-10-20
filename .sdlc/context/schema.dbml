@@ -38,6 +38,8 @@ Table sourceitem {
   external_id varchar
   metadata_json json [not null]
   content text [not null, default: '']
+  done_at datetime // a Slack thread a person marked done
+  done_message_ts varchar // newest Slack message when it was marked done
   fetched_at datetime
   created_at datetime [not null]
   updated_at datetime [not null]

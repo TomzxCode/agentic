@@ -73,6 +73,26 @@ describe('ItemCard', () => {
     expect(wrapper.text()).toContain('added just now')
   })
 
+  it('shows the done state and a later reply on a Slack thread', () => {
+    const wrapper = mount(ItemCard, {
+      props: {
+        item: item({
+          source: 'slack',
+          kind: 'thread',
+          url: 'https://acme.slack.com/archives/C1/p1',
+          done: true,
+          new_since_done: true,
+          latest_message_at: '2026-01-03T00:00:00Z'
+        })
+      },
+      ...stub
+    })
+    expect(wrapper.get('.badge.ok').text()).toBe('done')
+    const fresh = wrapper.get('.badge.warn')
+    expect(fresh.text()).toBe('new messages')
+    expect(fresh.attributes('title')).toContain('last message')
+  })
+
   it('opens the item view when a `to` target is given', () => {
     const wrapper = mount(ItemCard, { props: { item: item(), to: '/items/i1' }, ...stub })
     expect(wrapper.get('a.title').attributes('href')).toBe('/items/i1')

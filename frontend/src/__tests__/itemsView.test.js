@@ -5,6 +5,7 @@ enableAutoUnmount(afterEach)
 
 const mocks = vi.hoisted(() => ({
   itemsList: vi.fn(),
+  itemsUpdate: vi.fn(),
   itemsRefresh: vi.fn(),
   itemsRemove: vi.fn(),
   tasksAssociate: vi.fn(),
@@ -17,7 +18,12 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('../api', () => ({
   api: {
-    items: { list: mocks.itemsList, refresh: mocks.itemsRefresh, remove: mocks.itemsRemove },
+    items: {
+      list: mocks.itemsList,
+      update: mocks.itemsUpdate,
+      refresh: mocks.itemsRefresh,
+      remove: mocks.itemsRemove
+    },
     tasks: { associate: mocks.tasksAssociate, update: mocks.tasksUpdate, bulkUpdate: mocks.tasksBulkUpdate },
     gantt: { get: mocks.ganttGet },
     people: { list: mocks.peopleList }
@@ -159,6 +165,43 @@ describe('ItemsView', () => {
     // neither a refresh nor a person linker for it.
     expect(wrapper.find('button[title="Refresh"]').exists()).toBe(false)
     expect(wrapper.text()).not.toContain('Link a person')
+  })
+
+  it('marks a Slack conversation done, indicates later messages, and reopens it', async () => {
+    const slack = {
+      id: 'i1',
+      source: 'slack',
+      kind: 'thread',
+      title: 'Design chat',
+      url: 'https://acme.slack.com/archives/C1/p1',
+      content: 'ada: hello',
+      done: false,
+      new_since_done: false,
+      task_ids: [],
+      created_at: new Date().toISOString(),
+      fetched_at: null
+    }
+    mocks.itemsList.mockResolvedValue([slack])
+    // A reply that arrives after marking done flags the item but keeps it done.
+    mocks.itemsUpdate.mockResolvedValueOnce({ ...slack, done: true, new_since_done: true })
+
+    const wrapper = mount(ItemsView, stub)
+    await flushPromises()
+    expect(wrapper.find('button[title="Reopen this conversation"]').exists()).toBe(false)
+
+    await wrapper.get('button[title="Mark this conversation done"]').trigger('click')
+    await flushPromises()
+    expect(mocks.itemsUpdate).toHaveBeenCalledWith('i1', { done: true })
+    expect(wrapper.text()).toContain('done')
+    expect(wrapper.text()).toContain('new messages')
+    expect(store.toast).toEqual({ message: 'Marked done', isError: false })
+
+    mocks.itemsUpdate.mockResolvedValueOnce({ ...slack, done: false, new_since_done: false })
+    await wrapper.get('button[title="Reopen this conversation"]').trigger('click')
+    await flushPromises()
+    expect(mocks.itemsUpdate).toHaveBeenLastCalledWith('i1', { done: false })
+    expect(wrapper.text()).not.toContain('new messages')
+    expect(store.toast).toEqual({ message: 'Reopened', isError: false })
   })
 
   it('notifies when loading fails', async () => {

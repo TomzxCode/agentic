@@ -80,6 +80,8 @@ agentic stack history                # popped and removed entries
 agentic link add <task> --url https://github.com/o/r/issues/482
 agentic link add <task> --item-id <item>
 agentic item refresh-due             # run one refresh pass immediately
+agentic item done <item>             # mark a Slack conversation done
+agentic item reopen <item>           # reopen it
 ```
 
 ### Worktrees, runs, and context

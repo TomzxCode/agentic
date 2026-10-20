@@ -40,13 +40,17 @@ flowchart LR
 | title | string | default "" | Display title |
 | url | string | nullable | Link when the value is a URL |
 | external_id | string | nullable | Dedup key (for example `o/r#42`) |
-| metadata_json | JSON | default {} | Fetched metadata |
+| metadata_json | JSON | default {} | Fetched metadata (Slack's `latest_ts` is the newest message the last fetch saw) |
 | content | string | default "" | Pulled text |
+| done_at | datetime | nullable | When a person marked a Slack thread done |
+| done_message_ts | string | nullable | Newest Slack message at the moment it was marked done |
 | fetched_at | datetime | nullable | Last fetch |
 
 Unique constraint on `(source, external_id)`.
 
-`ItemRead` also carries a computed `task_ids` list (the tasks each item is associated with), populated by the items router; it is not a stored column.
+`ItemRead` also carries computed fields, populated by the items router rather than stored:
+`task_ids` (the tasks each item is associated with), `done` (whether `done_at` is set), `new_since_done` (the fetched `latest_ts` is later than `done_message_ts`), and `latest_message_at` (the newest Slack message as a datetime).
+A thread marked done before its first fetch takes that fetch's newest message as its baseline instead of flagging everything as new.
 
 ### Association
 
@@ -66,7 +70,7 @@ The normative contract is in [`api.yaml`](api.yaml) once written; the table belo
 | GET | /api/items | List items (filters: source, q) with linked `task_ids` |
 | POST | /api/items | Create or upsert an item |
 | GET | /api/items/{item_id} | Read an item |
-| PATCH | /api/items/{item_id} | Update an item |
+| PATCH | /api/items/{item_id} | Update an item, including `done` to mark a Slack thread done (`true`) or reopen it (`false`) |
 | POST | /api/items/{item_id}/refresh | Re-fetch content |
 | DELETE | /api/items/{item_id} | Delete an item and its associations |
 | POST | /api/tasks/{task_id}/items | Associate an item (existing or inline) |
@@ -100,6 +104,7 @@ sequenceDiagram
 | Source inference | Regex parsers per source, with a bare-domain check | Lets callers omit the source entirely |
 | Non-URL text | Stored as a note in `content` | Avoids storing and rendering a bogus link |
 | Fetch safety | `fetch_source` catches all exceptions | A network or CLI failure must not block capture |
+| Done state | `done_at` plus a `done_message_ts` watermark on the item | A reply can be flagged without a reply table, and the decision survives refreshes |
 | GitHub access | Always through `ghx`, never `gh` | Consistent JSON shape and repo selection |
 
 ## Risks and Unknowns

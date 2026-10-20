@@ -171,6 +171,12 @@ def _ensure_columns() -> None:
             with engine.begin() as connection:
                 # Pre-existing items read as auto-titled; DEFAULT backfills them.
                 connection.execute(text("ALTER TABLE sourceitem ADD COLUMN title_custom BOOLEAN NOT NULL DEFAULT 0"))
+        if "done_at" not in item_columns:
+            with engine.begin() as connection:
+                connection.execute(text("ALTER TABLE sourceitem ADD COLUMN done_at DATETIME"))
+        if "done_message_ts" not in item_columns:
+            with engine.begin() as connection:
+                connection.execute(text("ALTER TABLE sourceitem ADD COLUMN done_message_ts VARCHAR"))
     if "repository" in inspector.get_table_names():
         repository_columns = {column["name"] for column in inspector.get_columns("repository")}
         if "review_scan" not in repository_columns:

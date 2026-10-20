@@ -68,7 +68,7 @@ There is no authentication, so expose it only on a trusted network.
 | `GET` / `POST` | `/api/items` | List and create source items. |
 | `POST` | `/api/items/refresh-due` | Run one refresh pass immediately. |
 | `POST` | `/api/items/refresh-source/{source}` | Re-fetch every item of one source now, ignoring the refresh policy. |
-| `GET` / `PATCH` / `DELETE` | `/api/items/{id}` | Read, update, and delete an item. |
+| `GET` / `PATCH` / `DELETE` | `/api/items/{id}` | Read, update, and delete an item. A Slack thread is marked done with `{"done": true}` and reopened with `{"done": false}`; `new_since_done` on the read says a message arrived after the decision. |
 | `POST` | `/api/items/{id}/refresh` | Refresh one item now. |
 | `GET` | `/api/items/{id}/reviews` | List the review reports a pull request item has on disk. |
 | `GET` | `/api/items/{id}/reviews/{name}` | Read one review report. |

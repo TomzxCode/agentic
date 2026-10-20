@@ -95,6 +95,24 @@ def item_refresh_source(source: str) -> str:
     return emit(report, text)
 
 
+@item_app.command(name="done")
+@safe
+def item_done(item_id: str) -> str:
+    """Mark a Slack conversation done (a later reply is flagged, not reopened)."""
+    with runtime._client() as client:
+        item = client.update_item(item_id, done=True)
+    return emit(item, f"done {item['id']}  {_item_line(item)}")
+
+
+@item_app.command(name="reopen")
+@safe
+def item_reopen(item_id: str) -> str:
+    """Reopen a Slack conversation that was marked done."""
+    with runtime._client() as client:
+        item = client.update_item(item_id, done=False)
+    return emit(item, f"reopened {item['id']}  {_item_line(item)}")
+
+
 @item_app.command(name="delete")
 @safe
 def item_delete(item_id: str) -> str:

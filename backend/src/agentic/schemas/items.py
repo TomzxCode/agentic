@@ -26,6 +26,9 @@ class ItemUpdate(BaseModel):
     content: str | None = None
     kind: str | None = None
     metadata_json: dict[str, Any] | None = None
+    # Mark a Slack conversation done (True) or reopen it (False). Kept apart
+    # from the stored ``done_at`` so the caller states the decision, not a time.
+    done: bool | None = None
 
 
 class ItemRead(ORMModel):
@@ -42,6 +45,12 @@ class ItemRead(ORMModel):
     fetched_at: datetime | None = None
     created_at: datetime
     updated_at: datetime
+    # A Slack conversation's done state. ``new_since_done`` says a message
+    # arrived after it was marked done; the done state itself stays set.
+    done: bool = False
+    done_at: datetime | None = None
+    new_since_done: bool = False
+    latest_message_at: datetime | None = None
     task_ids: list[str] = []
     person_ids: list[str] = []
     # Set on a single-item response (create or refresh) when the fetch could not

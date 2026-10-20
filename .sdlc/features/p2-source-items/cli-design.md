@@ -23,6 +23,8 @@ agentic
 │   ├── get                 Show an item
 │   ├── create              Create an item (source inferred; fetches unless --no-fetch)
 │   ├── refresh             Re-fetch an item's metadata/content
+│   ├── done                Mark a Slack conversation done
+│   ├── reopen              Reopen a done Slack conversation
 │   └── delete              Delete an item and its associations
 ├── link                    Associate items with tasks
 │   ├── add                 Attach an existing item or a new one to a task
@@ -159,6 +161,61 @@ agentic item refresh 5f2a1c
 ```
 
 **Errors:** an unknown item prints `error: Item not found (HTTP 404)` and exits 1; a fetch failure still returns the item.
+
+### `agentic item done`
+
+**Description:** Marks a Slack conversation done.
+A message that arrives afterwards is flagged on the item as new activity, but the conversation stays done until it is reopened.
+Serves FR-10.
+
+**Synopsis:**
+
+```
+agentic item done ITEM_ID
+```
+
+**Positional arguments:**
+
+| Argument | Required | Description |
+|---|---|---|
+| `ITEM_ID` | Yes | The item to mark done |
+
+**Options:** the global options only.
+
+**Examples:**
+
+```bash
+agentic item done 5f2a1c
+```
+
+**Errors:** an unknown item prints `error: Item not found (HTTP 404)` and exits 1.
+
+### `agentic item reopen`
+
+**Description:** Reopens a Slack conversation that was marked done, clearing its done state and any new-message flag.
+Serves FR-10.
+
+**Synopsis:**
+
+```
+agentic item reopen ITEM_ID
+```
+
+**Positional arguments:**
+
+| Argument | Required | Description |
+|---|---|---|
+| `ITEM_ID` | Yes | The item to reopen |
+
+**Options:** the global options only.
+
+**Examples:**
+
+```bash
+agentic item reopen 5f2a1c
+```
+
+**Errors:** an unknown item prints `error: Item not found (HTTP 404)` and exits 1.
 
 ### `agentic item delete`
 

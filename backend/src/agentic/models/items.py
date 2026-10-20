@@ -30,6 +30,11 @@ class SourceItem(SQLModel, table=True):
     external_id: str | None = None
     metadata_json: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
     content: str = ""  # pulled text (thread transcript, issue body, doc text)
+    # A Slack thread a person finished with. ``done_at`` is the decision, and
+    # ``done_message_ts`` is the newest message in the thread at that moment, so
+    # a message that arrives later can be flagged without clearing the decision.
+    done_at: datetime | None = None
+    done_message_ts: str | None = None
     fetched_at: datetime | None = None
     created_at: datetime = Field(default_factory=utcnow)
     updated_at: datetime = Field(default_factory=utcnow)

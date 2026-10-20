@@ -27,6 +27,14 @@ const props = defineProps({
 })
 
 const kind = computed(() => String(props.item.kind || '').replace('_', ' '))
+
+// A Slack thread marked done keeps its done state when a reply arrives; the
+// badge says there is something new to read without reopening it.
+const newSinceDone = computed(() => {
+  if (!props.item.new_since_done) return null
+  const since = props.item.latest_message_at ? ` (last message ${timeAgo(props.item.latest_message_at)})` : ''
+  return `New messages since this was marked done${since}`
+})
 </script>
 
 <template>
@@ -47,9 +55,11 @@ const kind = computed(() => String(props.item.kind || '').replace('_', ' '))
 
     <template #actions><slot name="actions" /></template>
 
-    <div v-if="showStatus && (item.kind || prStatus(item))" class="row" style="gap: 6px; margin-top: 2px">
+    <div v-if="showStatus && (item.kind || prStatus(item) || item.done)" class="row" style="gap: 6px; margin-top: 2px">
       <span v-if="item.kind" class="faint">{{ kind }}</span>
       <span v-if="prStatus(item)" class="badge" :class="prStatus(item).className">{{ prStatus(item).label }}</span>
+      <span v-if="item.done" class="badge ok">done</span>
+      <span v-if="newSinceDone" class="badge warn" :title="newSinceDone">new messages</span>
     </div>
 
     <slot name="note" />

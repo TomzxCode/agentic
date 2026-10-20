@@ -29,7 +29,7 @@ from ..schemas.items import (
 from ..schemas.settings import RefreshDueReport
 from ..services.github import fetch_github_pull_reviewers
 from ..services.parsing import looks_like_url, parse_github
-from ..services.slack import SlackError, resolve_slack_user_id, slack_send_dm
+from ..services.slack import SlackError, resolve_slack_user_id, slack_send_dm, slack_ts_after, slack_ts_datetime
 from ..services.sources import fetch_source, infer_item_source
 from ..settings_store import get_settings
 from .items_refresh import _apply_fetch, force_refresh_source, refresh_due_items
@@ -102,9 +102,24 @@ def _upsert_item(session: Session, payload: ItemCreate, errors: list[str] | None
     return item
 
 
+def _slack_latest_ts(item: SourceItem) -> str | None:
+    """The newest Slack message timestamp a fetch stored on the item, if any."""
+    latest = (item.metadata_json or {}).get("latest_ts")
+    return str(latest) if latest else None
+
+
 def _item_read(session: Session, item: SourceItem, fetch_error: str | None = None) -> ItemRead:
     data = ItemRead.model_validate(item)
     data.fetch_error = fetch_error
+    latest_ts = _slack_latest_ts(item)
+    data.done = item.done_at is not None
+    data.done_at = item.done_at
+    data.latest_message_at = slack_ts_datetime(latest_ts)
+    # A message after the thread was marked done is flagged, but the thread
+    # stays done: reopening is its own decision.
+    data.new_since_done = bool(
+        item.done_at is not None and latest_ts and slack_ts_after(latest_ts, item.done_message_ts)
+    )
     data.task_ids = [
         assoc.task_id for assoc in session.exec(select(Association).where(Association.item_id == item.id)).all()
     ]
@@ -168,6 +183,17 @@ def get_item(item_id: str, session: Session = Depends(get_session)) -> ItemRead:
 def update_item(item_id: str, payload: ItemUpdate, session: Session = Depends(get_session)) -> ItemRead:
     item = get_or_404(session, SourceItem, item_id, "Item not found")
     fields = payload.model_dump(exclude_unset=True)
+    done = fields.pop("done", None)
+    if done is not None:
+        if done:
+            # Marking done records the newest message seen; marking an already
+            # done thread keeps the original moment and watermark.
+            if item.done_at is None:
+                item.done_at = utcnow()
+                item.done_message_ts = _slack_latest_ts(item)
+        else:
+            item.done_at = None
+            item.done_message_ts = None
     reset_title = "title" in fields and not str(fields.get("title") or "").strip()
     for key, value in fields.items():
         if value is None and key == "metadata_json":

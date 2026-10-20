@@ -133,6 +133,37 @@ describe('ItemDetailView', () => {
     expect(wrapper.get('.task-actions a.btn').text()).toBe('Open in Slack')
   })
 
+  it('marks a Slack conversation done, flags a later reply, and reopens it', async () => {
+    const slack = item({ source: 'slack', kind: 'thread', title: 'Design chat', content: 'ada: hello' })
+    mocks.itemsGet.mockResolvedValue(slack)
+    mocks.itemsUpdate.mockResolvedValueOnce({
+      ...slack,
+      done: true,
+      done_at: '2026-01-02T00:00:00Z',
+      new_since_done: true,
+      latest_message_at: '2026-01-03T00:00:00Z'
+    })
+
+    const wrapper = mountView()
+    await flushPromises()
+    expect(wrapper.find('button[title="Reopen this conversation"]').exists()).toBe(false)
+
+    await wrapper.get('button[title="Mark this conversation done"]').trigger('click')
+    await flushPromises()
+    expect(mocks.itemsUpdate).toHaveBeenCalledWith('i1', { done: true })
+    expect(wrapper.text()).toContain('done')
+    expect(wrapper.text()).toContain('new messages')
+    expect(wrapper.text()).toContain('A message arrived after this conversation was marked done')
+    expect(store.toast).toEqual({ message: 'Marked done', isError: false })
+
+    mocks.itemsUpdate.mockResolvedValueOnce({ ...slack, done: false, new_since_done: false })
+    await wrapper.get('button[title="Reopen this conversation"]').trigger('click')
+    await flushPromises()
+    expect(mocks.itemsUpdate).toHaveBeenLastCalledWith('i1', { done: false })
+    expect(wrapper.text()).not.toContain('new messages')
+    expect(store.toast).toEqual({ message: 'Reopened', isError: false })
+  })
+
   it('renders a note body', async () => {
     mocks.itemsGet.mockResolvedValue(
       item({ source: 'note', kind: '', title: 'Remember', url: null, content: 'Rotate the token.' })

@@ -31,6 +31,7 @@ This feature stores each piece of context as a source item, infers its source fr
 | FR-7 | Must | The system shall create a task from a GitHub issue or PR URL, prefilling the title and description and associating the issue. |
 | FR-8 | Should | The system shall list a repository's open issues via `ghx` for the import picker. |
 | FR-9 | Should | The system shall return each item's linked task ids and support searching items by a text query over title, url, and content. |
+| FR-10 | Should | The system shall let a user mark a Slack thread done, flag a message that arrives after it was marked done while keeping the done state, and let the user reopen it. |
 
 ## Non-Functional Requirements
 
@@ -103,6 +104,24 @@ This feature stores each piece of context as a source item, infers its source fr
       Given an item associated with a task
       When the items list is requested with a query matching the item
       Then the item is returned with the task's id in its task_ids
+    ```
+
+- [ ] **FR-10**
+
+    ```gherkin
+    @FR-10
+    Scenario: A reply arrives after a thread is marked done
+      Given a Slack thread whose newest message is at 10:00
+      When the user marks it done
+      And a refresh sees a new message at 11:00
+      Then the thread is still done
+      And it is flagged as having new messages since it was done
+
+    @FR-10
+    Scenario: Reopen a done thread
+      Given a Slack thread marked done
+      When the user reopens it
+      Then it is no longer done and carries no new-message flag
     ```
 
 ## Conflicts
