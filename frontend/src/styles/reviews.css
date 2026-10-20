@@ -10,7 +10,8 @@
 .review-count {
   margin-left: 6px;
 }
-/* The queue's filters: a PR-status chip row and a search box. */
+/* The queue's filters: a PR-status chip row, a drafts toggle, repository and
+   author dropdowns, and a search box. */
 .review-filters {
   display: flex;
   flex-wrap: wrap;
@@ -18,12 +19,14 @@
   gap: 8px;
   margin-bottom: 12px;
 }
-.review-state-filters {
+.review-state-filters,
+.review-draft-filters {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
 }
-.review-state-filter {
+.review-state-filter,
+.review-draft-filter {
   flex: 0 0 auto;
   background: var(--bg-2);
   border: 1px solid var(--border);
@@ -34,15 +37,18 @@
   cursor: pointer;
   font-family: inherit;
 }
-.review-state-filter:hover {
+.review-state-filter:hover,
+.review-draft-filter:hover {
   border-color: var(--muted);
   color: var(--text);
 }
-.review-state-filter.active {
+.review-state-filter.active,
+.review-draft-filter.active {
   color: var(--accent);
   border-color: var(--accent);
 }
-.review-state-filter .count {
+.review-state-filter .count,
+.review-draft-filter .count {
   color: var(--faint);
   margin-left: 2px;
 }

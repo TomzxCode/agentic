@@ -4,8 +4,10 @@ import { api } from '../api'
 import { renderMarkdown } from '../markdown'
 import {
   commitUrl,
+  draftFilterCount,
   groupQueueByRepository,
   matchesAuthorFilter,
+  matchesDraftFilter,
   matchesQueueSearch,
   matchesRepositoryFilter,
   matchesStateFilter,
@@ -43,7 +45,9 @@ const sharing = ref(null)
 
 // The filters: a PR's status (open by default, so the queue shows the pull
 // requests still awaiting a review), one or more repositories, one or more
-// authors, and a text search over the row's fields.
+// authors, whether drafts are included (they are left out by default, so the
+// queue shows what is ready for review), and a text search over the row's
+// fields.
 //
 // They are per-device view preferences, remembered in localStorage like the
 // feedback page's grouping, so leaving the page and coming back keeps them.
@@ -52,7 +56,7 @@ const FILTERS_KEY = 'agentic.reviewQueueFilters'
 // The stored filters, with anything malformed or no longer offered falling back
 // to its default rather than breaking the page.
 function readStoredFilters() {
-  const defaults = { state: 'open', repositories: [], authors: [], search: '' }
+  const defaults = { state: 'open', repositories: [], authors: [], includeDrafts: false, search: '' }
   try {
     const stored = JSON.parse(localStorage.getItem(FILTERS_KEY) || 'null')
     if (!stored || typeof stored !== 'object') return defaults
@@ -60,6 +64,7 @@ function readStoredFilters() {
       state: PR_STATE_FILTERS.some((option) => option.value === stored.state) ? stored.state : defaults.state,
       repositories: Array.isArray(stored.repositories) ? stored.repositories.map(String) : [],
       authors: Array.isArray(stored.authors) ? stored.authors.map(String) : [],
+      includeDrafts: stored.includeDrafts === true,
       search: typeof stored.search === 'string' ? stored.search : ''
     }
   } catch {
@@ -74,12 +79,13 @@ const storedFilters = readStoredFilters()
 const stateFilter = ref(storedFilters.state)
 const repositoryFilter = ref(storedFilters.repositories)
 const authorFilter = ref(storedFilters.authors)
+const includeDrafts = ref(storedFilters.includeDrafts)
 const search = ref(storedFilters.search)
 
 // Write the filters back as they change: a choice, a clear from the empty
 // state, or a value the refreshed queue dropped all land here.
 watch(
-  [stateFilter, repositoryFilter, authorFilter, search],
+  [stateFilter, repositoryFilter, authorFilter, includeDrafts, search],
   () => {
     try {
       localStorage.setItem(
@@ -88,6 +94,7 @@ watch(
           state: stateFilter.value,
           repositories: repositoryFilter.value,
           authors: authorFilter.value,
+          includeDrafts: includeDrafts.value,
           search: search.value
         })
       )
@@ -106,20 +113,37 @@ const reportLoading = ref(false)
 const reportTruncated = ref(false)
 
 const reportHtml = computed(() => renderMarkdown(stripReportMarker(reportContent.value)))
-// The rows the filters keep: status, then repository, then author, then the
-// search text.
+// The rows the filters keep: status, then repository, then author, then drafts,
+// then the search text.
 const filteredPrs = computed(() =>
   queue.value.prs.filter(
     (pr) =>
       matchesStateFilter(pr, stateFilter.value) &&
       matchesRepositoryFilter(pr, repositoryFilter.value) &&
       matchesAuthorFilter(pr, authorFilter.value) &&
+      matchesDraftFilter(pr, includeDrafts.value) &&
       matchesQueueSearch(pr, search.value)
   )
 )
 const groups = computed(() => groupQueueByRepository(filteredPrs.value))
 // Per-status counts for the filter chips, over the whole queue.
 const stateCounts = computed(() => stateFilterCounts(queue.value.prs))
+// How many drafts the queue holds, for the drafts toggle.
+const draftCount = computed(() => draftFilterCount(queue.value.prs))
+// The drafts the other filters would keep, so the empty state can name them and
+// offer to include them instead of blaming the status or the search.
+const hiddenDrafts = computed(() =>
+  includeDrafts.value
+    ? []
+    : queue.value.prs.filter(
+        (pr) =>
+          pr.draft &&
+          matchesStateFilter(pr, stateFilter.value) &&
+          matchesRepositoryFilter(pr, repositoryFilter.value) &&
+          matchesAuthorFilter(pr, authorFilter.value) &&
+          matchesQueueSearch(pr, search.value)
+      )
+)
 // The repositories to offer, with their row counts, over the whole queue.
 const repositories = computed(() => queueRepositories(queue.value.prs))
 // The repository dropdown's options, each carrying its row count.
@@ -332,6 +356,17 @@ onMounted(load)
           {{ option.label }} <span class="count">{{ stateCounts[option.value] }}</span>
         </button>
       </div>
+      <div class="review-draft-filters" role="group" aria-label="Draft pull requests">
+        <button
+          class="review-draft-filter"
+          :class="{ active: includeDrafts }"
+          :aria-pressed="includeDrafts"
+          title="Include draft pull requests"
+          @click="includeDrafts = !includeDrafts"
+        >
+          Drafts <span class="count">{{ draftCount }}</span>
+        </button>
+      </div>
       <SearchSelect
         v-model="repositoryFilter"
         class="review-repository-select"
@@ -373,10 +408,14 @@ onMounted(load)
     </div>
 
     <div v-else-if="!filteredPrs.length" class="empty">
-      <p v-if="search">No pull requests match “{{ search }}”.</p>
+      <p v-if="hiddenDrafts.length">
+        {{ hiddenDrafts.length }} draft pull request{{ hiddenDrafts.length === 1 ? ' is' : 's are' }} hidden.
+      </p>
+      <p v-else-if="search">No pull requests match “{{ search }}”.</p>
       <p v-else-if="repositoryFilter.length">No pull requests in {{ repositoryFilter.join(', ') }}.</p>
       <p v-else-if="authorFilter.length">No pull requests by {{ authorFilter.join(', ') }}.</p>
       <p v-else>No {{ stateFilter === 'all' ? '' : `${stateFilter} ` }}pull requests.</p>
+      <button v-if="hiddenDrafts.length" class="btn sm ghost" @click="includeDrafts = true">Include drafts</button>
       <button v-if="search" class="btn sm ghost" @click="search = ''">Clear search</button>
       <button v-if="repositoryFilter.length" class="btn sm ghost" @click="repositoryFilter = []">
         Clear repositories

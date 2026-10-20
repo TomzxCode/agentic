@@ -185,6 +185,18 @@ export function stateFilterCounts(prs) {
   return counts
 }
 
+// Whether a row passes the draft filter: drafts are left out by default, and
+// including them keeps every other filter in force.
+export function matchesDraftFilter(pr, includeDrafts) {
+  return !!includeDrafts || !pr?.draft
+}
+
+// How many rows in the queue are drafts, for the toggle's count. Like the state
+// counts, it covers the whole queue.
+export function draftFilterCount(prs) {
+  return (prs || []).filter((pr) => pr?.draft).length
+}
+
 // Whether a row matches the search text: its repository, number, title, or
 // author. An empty query matches every row.
 export function matchesQueueSearch(pr, query) {

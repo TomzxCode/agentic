@@ -364,6 +364,56 @@ describe('ReviewsView', () => {
     expect(wrapper.find('a[href="https://github.com/TomzxCode/agentic/pull/42"]').exists()).toBe(true)
   })
 
+  it('leaves drafts out of the queue by default and counts them on the toggle', async () => {
+    mocks.queue.mockResolvedValue({
+      root: null,
+      counts: { total: 2 },
+      prs: [pr({ number: 42 }), pr({ number: 9, draft: true })]
+    })
+    const wrapper = mount(ReviewsView, stub)
+    await flushPromises()
+
+    expect(wrapper.find('a[href="https://github.com/TomzxCode/agentic/pull/42"]').exists()).toBe(true)
+    expect(wrapper.find('a[href="https://github.com/TomzxCode/agentic/pull/9"]').exists()).toBe(false)
+
+    const toggle = wrapper.get('.review-draft-filter')
+    expect(toggle.text()).toBe('Drafts 1')
+    expect(toggle.attributes('aria-pressed')).toBe('false')
+    // Drafts are left out of the header totals too.
+    expect(wrapper.text()).toContain('1 PR ·')
+  })
+
+  it('includes drafts when the drafts toggle is pressed', async () => {
+    mocks.queue.mockResolvedValue({
+      root: null,
+      counts: { total: 2 },
+      prs: [pr({ number: 42 }), pr({ number: 9, draft: true })]
+    })
+    const wrapper = mount(ReviewsView, stub)
+    await flushPromises()
+
+    await wrapper.get('.review-draft-filter').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('a[href="https://github.com/TomzxCode/agentic/pull/9"]').exists()).toBe(true)
+    expect(wrapper.get('.review-draft-filter').attributes('aria-pressed')).toBe('true')
+    expect(wrapper.text()).toContain('2 PRs ·')
+  })
+
+  it('names the hidden drafts in the empty state and includes them on request', async () => {
+    mocks.queue.mockResolvedValue({ root: null, counts: { total: 1 }, prs: [pr({ number: 9, draft: true })] })
+    const wrapper = mount(ReviewsView, stub)
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('1 draft pull request is hidden.')
+    const include = wrapper.findAll('button').find((button) => button.text() === 'Include drafts')
+    await include.trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('a[href="https://github.com/TomzxCode/agentic/pull/9"]').exists()).toBe(true)
+    expect(wrapper.get('.review-draft-filter').attributes('aria-pressed')).toBe('true')
+  })
+
   it('filters the rows by the search text', async () => {
     mocks.queue.mockResolvedValue({
       root: null,
@@ -602,11 +652,31 @@ describe('ReviewsView', () => {
     expect(reopened.find('a[href="https://github.com/acme/api/pull/7"]').exists()).toBe(false)
   })
 
+  it('remembers the drafts choice when the queue is reopened', async () => {
+    mocks.queue.mockResolvedValue({ root: null, counts: { total: 1 }, prs: [pr({ number: 9, draft: true })] })
+    const wrapper = mount(ReviewsView, stub)
+    await flushPromises()
+
+    await wrapper.get('.review-draft-filter').trigger('click')
+    await flushPromises()
+    wrapper.unmount()
+
+    const reopened = mount(ReviewsView, stub)
+    await flushPromises()
+
+    expect(reopened.get('.review-draft-filter').attributes('aria-pressed')).toBe('true')
+    expect(reopened.find('a[href="https://github.com/TomzxCode/agentic/pull/9"]').exists()).toBe(true)
+  })
+
   it('falls back to the default filters when the stored filters are unusable', async () => {
-    mocks.queue.mockResolvedValue({ root: null, counts: { total: 1 }, prs: [pr({ number: 42 })] })
+    mocks.queue.mockResolvedValue({
+      root: null,
+      counts: { total: 2 },
+      prs: [pr({ number: 42 }), pr({ number: 9, draft: true })]
+    })
     localStorage.setItem(
       'agentic.reviewQueueFilters',
-      JSON.stringify({ state: 'bogus', repositories: 'acme/api', authors: 3, search: { q: 'x' } })
+      JSON.stringify({ state: 'bogus', repositories: 'acme/api', authors: 3, includeDrafts: 'yes', search: { q: 'x' } })
     )
 
     const wrapper = mount(ReviewsView, stub)
@@ -615,8 +685,10 @@ describe('ReviewsView', () => {
     expect(wrapper.findAll('.review-state-filter')[0].attributes('aria-pressed')).toBe('true')
     expect(wrapper.get('.review-repository-select .ss-label').text()).toBe('All repositories')
     expect(wrapper.get('.review-author-select .ss-label').text()).toBe('All authors')
+    expect(wrapper.get('.review-draft-filter').attributes('aria-pressed')).toBe('false')
     expect(wrapper.get('.review-search').element.value).toBe('')
     expect(wrapper.find('a[href="https://github.com/TomzxCode/agentic/pull/42"]').exists()).toBe(true)
+    expect(wrapper.find('a[href="https://github.com/TomzxCode/agentic/pull/9"]').exists()).toBe(false)
   })
 
   it('falls back to the default filters when the stored filters cannot be parsed', async () => {

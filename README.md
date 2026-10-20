@@ -281,7 +281,8 @@ associated to, opening it in its **PR** view (`/task/{id}?view=pr`); when no
 task is linked, a **➕** imports the PR into a new task, the same way the
 repository view's "New task" does.
 The queue filters by pull request status, one or more repositories, one or more
-authors, and a text search over the row's fields.
+authors, and a text search over the row's fields. Draft pull requests are left
+out unless the **Drafts** chip is turned on.
 **Refresh** re-reads the store and bypasses the short cache of those `ghx`
 lookups.
 

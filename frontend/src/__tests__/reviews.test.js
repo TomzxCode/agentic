@@ -2,10 +2,12 @@ import { describe, expect, it } from 'vitest'
 
 import {
   commitUrl,
+  draftFilterCount,
   groupQueueByRepository,
   groupReviewFiles,
   githubReviewState,
   matchesAuthorFilter,
+  matchesDraftFilter,
   matchesQueueSearch,
   matchesRepositoryFilter,
   matchesStateFilter,
@@ -167,6 +169,22 @@ describe('PR status filters', () => {
     const counts = stateFilterCounts([pr('OPEN'), pr('MERGED'), pr(''), pr('CLOSED')])
     expect(counts).toEqual({ open: 2, merged: 1, closed: 1, all: 4 })
     expect(stateFilterCounts(undefined)).toEqual({ open: 0, merged: 0, closed: 0, all: 0 })
+  })
+})
+
+describe('draft filter', () => {
+  it('leaves drafts out unless they are included', () => {
+    expect(matchesDraftFilter({ draft: true }, false)).toBe(false)
+    expect(matchesDraftFilter({ draft: true }, true)).toBe(true)
+    expect(matchesDraftFilter({ draft: false }, false)).toBe(true)
+    // A row whose draft flag was never read is not a draft.
+    expect(matchesDraftFilter({}, false)).toBe(true)
+    expect(matchesDraftFilter(undefined, false)).toBe(true)
+  })
+
+  it('counts the drafts in the queue', () => {
+    expect(draftFilterCount([{ draft: true }, { draft: false }, {}])).toBe(1)
+    expect(draftFilterCount(undefined)).toBe(0)
   })
 })
 
