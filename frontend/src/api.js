@@ -39,6 +39,22 @@ export const api = {
     removeDependency: (id, relatedId) => request(`/tasks/${id}/dependencies/${relatedId}`, { method: 'DELETE' })
   },
 
+  events: {
+    list: ({ taskId, type, actor, client, q, before, beforeId, limit } = {}) => {
+      const qs = new URLSearchParams()
+      if (taskId) qs.set('task_id', taskId)
+      if (type) qs.set('type', type)
+      if (actor) qs.set('actor', actor)
+      if (client) qs.set('client', client)
+      if (q) qs.set('q', q)
+      if (before) qs.set('before', before)
+      if (beforeId) qs.set('before_id', beforeId)
+      if (limit) qs.set('limit', String(limit))
+      const query = qs.toString()
+      return request(`/events${query ? `?${query}` : ''}`)
+    }
+  },
+
   gantt: {
     get: ({ includeDone = false } = {}) => request(`/gantt${includeDone ? '?include_done=true' : ''}`)
   },

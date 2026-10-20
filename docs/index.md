@@ -34,6 +34,7 @@ The web app is organized into these pages:
 | Task (`/task/:id`) | One task: context, items, people, dependencies, worktrees, runs, and changes. |
 | Gantt (`/gantt`) | Tasks in flight as a timeline, one marker per event. |
 | Graph (`/graph`) | The before/after dependency DAG. |
+| Events (`/events`) | Every task's activity as one stream, newest first, filtered by search, actor, or client. |
 | Metrics (`/metrics`) | Autonomy rate and yield, each against a stored baseline. |
 | Items (`/items`) | Every tracked resource, with per-source filters. |
 | Item (`/items/:id`) | One resource, laid out for its type, with its linked tasks and people. |

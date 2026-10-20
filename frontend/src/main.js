@@ -12,6 +12,7 @@ import RepositoriesView from './views/RepositoriesView.vue'
 import RepositoryDetailView from './views/RepositoryDetailView.vue'
 import GanttView from './views/GanttView.vue'
 import DependencyGraphView from './views/DependencyGraphView.vue'
+import EventsView from './views/EventsView.vue'
 import MetricsView from './views/MetricsView.vue'
 import InboxView from './views/InboxView.vue'
 import ReviewsView from './views/ReviewsView.vue'
@@ -29,6 +30,7 @@ import './styles/feedback.css'
 import './styles/tasks.css'
 import './styles/overlays.css'
 import './styles/charts.css'
+import './styles/events.css'
 import './styles/responsive.css'
 
 const router = createRouter({
@@ -42,6 +44,7 @@ const router = createRouter({
     { path: '/task/:id', name: 'task', component: TaskView, props: true },
     { path: '/gantt', name: 'gantt', component: GanttView },
     { path: '/graph', name: 'graph', component: DependencyGraphView },
+    { path: '/events', name: 'events', component: EventsView },
     { path: '/metrics', name: 'metrics', component: MetricsView },
     { path: '/schedules', name: 'schedules', component: SchedulesView },
     { path: '/items', name: 'items', component: ItemsView },

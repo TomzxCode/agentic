@@ -1,0 +1,106 @@
+/* The events page: a cross-task activity stream. */
+
+.events-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.events-head h1 {
+  display: inline-block;
+  margin-right: 8px;
+}
+.events-filters {
+  margin-bottom: 16px;
+}
+.events-filters .events-select {
+  width: 140px;
+  flex: none;
+}
+
+.event-day {
+  margin-bottom: 16px;
+}
+.event-day-label {
+  margin: 0 0 6px;
+  color: var(--faint);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.events {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  background: var(--bg-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.events li {
+  display: flex;
+  gap: 10px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+.events li:last-child {
+  border-bottom: none;
+}
+
+.event-dot {
+  width: 8px;
+  height: 8px;
+  margin-top: 6px;
+  border-radius: 50%;
+  background: var(--accent-2);
+  flex: none;
+}
+.event-dot.agent {
+  background: var(--accent);
+}
+.event-dot.change {
+  background: var(--warn);
+}
+.event-dot.person {
+  background: var(--danger);
+}
+
+.event-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.event-task {
+  font-weight: 600;
+}
+.event-type {
+  text-transform: capitalize;
+}
+.event-message {
+  display: block;
+  margin-top: 2px;
+  color: var(--muted);
+}
+.event-when {
+  color: var(--faint);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+@media (max-width: 760px) {
+  .events-head {
+    flex-wrap: wrap;
+  }
+  .events-filters .grow {
+    flex-basis: 100%;
+  }
+  .events-filters .events-select {
+    flex: 1;
+    width: auto;
+  }
+}

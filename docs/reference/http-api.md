@@ -25,6 +25,12 @@ There is no authentication, so expose it only on a trusted network.
 | `GET` / `POST` | `/api/tasks/{id}/dependencies` | List and add before/after dependency links. |
 | `DELETE` | `/api/tasks/{id}/dependencies/{related_id}` | Remove a dependency link. |
 
+## Events
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| `GET` | `/api/events` | Every task's timeline as one stream, newest first, with each event's task title and status. Accepts `task_id`, `type`, `actor`, `client`, `q`, `limit` (1-500, default 50), and the `before` / `before_id` cursor for older pages. |
+
 ## Worktrees, sessions, and runs
 
 | Method | Path | Purpose |

@@ -215,6 +215,7 @@ export function buildPaletteItems({ route, router, showNew, sidebarHidden, toggl
     { id: 'go-stack', label: 'Go to stack', group: 'Navigation', icon: 'stack', run: () => router.push('/stack') },
     { id: 'go-gantt', label: 'Go to gantt', group: 'Navigation', icon: 'gantt', run: () => router.push('/gantt') },
     { id: 'go-graph', label: 'Go to graph', group: 'Navigation', icon: 'graph', run: () => router.push('/graph') },
+    { id: 'go-events', label: 'Go to events', group: 'Navigation', icon: 'events', run: () => router.push('/events') },
     {
       id: 'go-metrics',
       label: 'Go to metrics',

@@ -222,6 +222,15 @@ to the tasks each one is used by. Each item opens a page laid out for its type
 (a GitHub issue/PR with its state and author, a Slack thread as a transcript, a
 note's text, or a fetched link) with its linked tasks and people.
 
+The **Events** page (`/events`, the stream icon) is one stream of every task's
+timeline, newest first: task creation, edits, status moves, items, people,
+worktrees, runs, changes, and stack moves. Each row names the task it happened
+to (and links back to it), the event type, and whether a person or an agent did
+it through the web, the CLI, or the API. Search filters the server-side history
+by message or task title, and the actor and client selects narrow it to one
+kind of activity. The page loads the newest 50 events and pages backwards on
+demand.
+
 People are linked to both tasks and items. A task page has a **People** panel to
 link someone from the directory (or add a new person), and a **Requested by**
 panel next to it that names the people who asked for the task, a separate link
@@ -581,6 +590,7 @@ POST                /api/tasks/{id}/items            (associate)
 GET/POST            /api/tasks/{id}/dependencies     (before/after links)
 DELETE              /api/tasks/{id}/dependencies/{related}
 GET                 /api/graph                        (the before/after DAG)
+GET                 /api/events                       (every task's timeline, newest first)
 POST                /api/tasks/{id}/worktrees
 POST                /api/tasks/{id}/runs
 GET/POST            /api/tasks/{id}/sessions           (recorded agent sessions)
