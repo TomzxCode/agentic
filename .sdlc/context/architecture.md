@@ -56,6 +56,7 @@ erDiagram
     PERSON ||--o{ ITEMPERSON : "linked via"
     REPOSITORYGROUP ||--o{ TASK : "scopes"
     HARNESS ||--o{ TASK : "default for"
+    PERSON ||--o{ TASK : "waited on by"
     WORKTREE ||--o{ AGENTRUN : "runs in"
     TASK ||--o{ CHANGE : "produces"
     CHANGE ||--o{ CHANGEINTERVENTION : "records"
@@ -74,6 +75,9 @@ erDiagram
         string group_id FK
         string harness_id FK
         datetime deadline
+        string waiting_on_person_id FK
+        datetime follow_up_at
+        datetime snoozed_until
         string summary
         json next_steps
         datetime context_updated_at
@@ -223,6 +227,7 @@ erDiagram
         int position
         bool is_current
         datetime deleted_at
+        string deleted_reason
     }
     TASKSESSION {
         string id PK

@@ -22,6 +22,9 @@ class TaskCreate(BaseModel):
     priority: int = 2
     tags: list[str] = []
     deadline: UtcDateTime | None = None
+    waiting_on_person_id: str | None = None
+    follow_up_at: UtcDateTime | None = None
+    snoozed_until: UtcDateTime | None = None
     repository_ids: list[str] = []
     group_id: str | None = None
     harness_id: str | None = None
@@ -40,6 +43,9 @@ class TaskUpdate(BaseModel):
     priority: int | None = None
     tags: list[str] | None = None
     deadline: UtcDateTime | None = None
+    waiting_on_person_id: str | None = None
+    follow_up_at: UtcDateTime | None = None
+    snoozed_until: UtcDateTime | None = None
     repository_ids: list[str] | None = None
     group_id: str | None = None
     harness_id: str | None = None
@@ -64,6 +70,12 @@ class TaskRead(ORMModel):
     priority: int
     tags: list[str]
     deadline: datetime | None = None
+    waiting_on_person_id: str | None = None
+    # The waiting person's name, resolved for display (the id alone would make
+    # every reader do its own people lookup).
+    waiting_on_name: str | None = None
+    follow_up_at: datetime | None = None
+    snoozed_until: datetime | None = None
     repository_ids: list[str] = []
     person_ids: list[str] = []
     requester_ids: list[str] = []

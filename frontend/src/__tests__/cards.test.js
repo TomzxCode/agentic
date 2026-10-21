@@ -136,6 +136,33 @@ describe('TaskCard', () => {
     expect(wrapper.get('.tag-chip').text()).toBe('bug')
   })
 
+  it('shows a waiting person and an active snooze', () => {
+    const future = new Date(Date.now() + 86400000).toISOString()
+    const wrapper = mount(TaskCard, {
+      props: {
+        task: task({
+          snoozed_until: future,
+          waiting_on_person_id: 'p1',
+          waiting_on_name: 'Ada',
+          follow_up_at: future
+        })
+      },
+      ...stub
+    })
+    const text = wrapper.text()
+    expect(text).toContain('Snoozed until')
+    expect(text).toContain('Waiting on Ada')
+    expect(text).toContain('check back')
+  })
+
+  it('hides a snooze that has already passed', () => {
+    const wrapper = mount(TaskCard, {
+      props: { task: task({ snoozed_until: '2000-01-01T00:00:00Z' }) },
+      ...stub
+    })
+    expect(wrapper.text()).not.toContain('Snoozed until')
+  })
+
   it('emits the chosen status', async () => {
     const wrapper = mount(TaskCard, { props: { task: task() }, ...stub })
     await wrapper.get('.ss-trigger').trigger('click')

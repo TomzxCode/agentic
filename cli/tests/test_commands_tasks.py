@@ -42,6 +42,48 @@ def test_task_update_can_clear_deadline(text_format, monkeypatch):
     assert calls["clear"] == ("t1", None)
 
 
+def test_task_create_forwards_waiting_and_snooze(text_format, monkeypatch):
+    seen: dict = {}
+
+    class Recorder(FakeClient):
+        def create_task(self, **fields):
+            seen.update(fields)
+            return {"id": "t9", "title": "T"}
+
+    monkeypatch.setattr(cli.runtime, "_client", Recorder)
+    tasks.task_create(
+        title="T",
+        waiting_on="p1",
+        follow_up="2026-02-01T09:00:00",
+        snooze="2026-02-02T09:00:00",
+    )
+    assert seen["waiting_on_person_id"] == "p1"
+    assert seen["follow_up_at"] == "2026-02-01T09:00:00"
+    assert seen["snoozed_until"] == "2026-02-02T09:00:00"
+
+
+def test_task_update_can_clear_waiting_and_snooze(text_format, monkeypatch):
+    calls: dict = {}
+
+    class Recorder(FakeClient):
+        def update_task(self, task_id, **fields):
+            calls["update"] = fields
+            return {"id": task_id, "status": "open", "priority": 1, "title": "T"}
+
+        def set_task_waiting(self, task_id, person_id, follow_up_at=None):
+            calls["waiting"] = (task_id, person_id, follow_up_at)
+            return {"id": task_id, "status": "open", "priority": 1, "title": "T"}
+
+        def set_task_snooze(self, task_id, snoozed_until):
+            calls["snooze"] = (task_id, snoozed_until)
+            return {"id": task_id, "status": "open", "priority": 1, "title": "T"}
+
+    monkeypatch.setattr(cli.runtime, "_client", Recorder)
+    tasks.task_update("t1", clear_waiting=True, clear_snooze=True)
+    assert calls["waiting"] == ("t1", None, None)
+    assert calls["snooze"] == ("t1", None)
+
+
 def test_task_create_forwards_slack_url(text_format, monkeypatch):
     seen: dict = {}
 

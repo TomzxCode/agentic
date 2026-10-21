@@ -276,6 +276,38 @@ export function formatDeadline(iso) {
   return formatDateTime(iso)
 }
 
+// An active snooze: the task is off the focus stack until this moment. A
+// snooze in the past has already ended and returns null.
+export function snoozeInfo(task, now = Date.now()) {
+  const iso = task?.snoozed_until
+  if (!iso) return null
+  const at = new Date(iso).getTime()
+  if (Number.isNaN(at) || at <= now) return null
+  return { until: iso, label: `Snoozed until ${formatDeadline(iso)}` }
+}
+
+// A task waiting on a person. The wait is parked while there is no follow-up
+// date, or while the date is still ahead; `due` marks a follow-up that has
+// come around (or passed), which is when the task rejoins the stack.
+export function waitingInfo(task, now = Date.now()) {
+  const personId = task?.waiting_on_person_id
+  if (!personId) return null
+  const followUpAt = task.follow_up_at || null
+  const at = followUpAt ? new Date(followUpAt).getTime() : null
+  const due = at !== null && !Number.isNaN(at) && at <= now
+  return { personId, name: task.waiting_on_name || null, followUpAt, due }
+}
+
+// Why a task is off the stack right now, or null when it belongs there. The
+// server applies the same rule in `stack.parked_reason`.
+export function parkedInfo(task, now = Date.now()) {
+  const snooze = snoozeInfo(task, now)
+  if (snooze) return { kind: 'snoozed', ...snooze }
+  const waiting = waitingInfo(task, now)
+  if (waiting && (!waiting.followUpAt || !waiting.due)) return { kind: 'waiting', ...waiting }
+  return null
+}
+
 export function formatDuration(ms) {
   const secs = Math.max(0, Math.floor((ms || 0) / 1000))
   if (secs < 60) return '<1m'

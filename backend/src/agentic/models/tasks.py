@@ -28,6 +28,14 @@ class Task(SQLModel, table=True):
     harness_id: str | None = Field(default=None, foreign_key="harness.id")
     # When the task should be done by; None means no deadline is set.
     deadline: datetime | None = None
+    # Who the task is waiting on, and when to check back. A task with a waiting
+    # person parks off the focus stack until the follow-up date (or until the
+    # person is cleared); with no follow-up it stays parked.
+    waiting_on_person_id: str | None = Field(default=None, foreign_key="person.id")
+    follow_up_at: datetime | None = None
+    # When the task comes back off its snooze and rejoins the stack. A snooze in
+    # the past has no effect; the task is simply visible again.
+    snoozed_until: datetime | None = None
 
     # Agent-maintained context. This is what makes coming back to a task fast.
     summary: str = ""
@@ -68,6 +76,10 @@ class StackEntry(SQLModel, table=True):
     is_current: bool = False
     created_at: datetime = Field(default_factory=utcnow)
     deleted_at: datetime | None = None
+    # Why the entry left the stack: popped, removed, or parked. A parked entry
+    # rejoins when its task's snooze or waiting follow-up date passes, which is
+    # how a deferral returns to the stack without being pushed by hand.
+    deleted_reason: str | None = None
 
 
 class TaskSession(SQLModel, table=True):

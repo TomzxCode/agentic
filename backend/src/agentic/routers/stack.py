@@ -10,7 +10,7 @@ from ..crud import get_task_or_404
 from ..db import get_session
 from ..models.tasks import StackEntry, Task
 from ..schemas.stack import StackEntryRead, StackEntryUpdate, StackPush, StackReorder
-from ..schemas.tasks import TaskRead
+from .task_service import _task_read
 
 router = APIRouter(prefix="/api/stack", tags=["stack"])
 
@@ -20,7 +20,7 @@ def _read(session: Session, entry: StackEntry) -> StackEntryRead:
     return StackEntryRead(
         id=entry.id,
         task_id=entry.task_id,
-        task=TaskRead.model_validate(task) if task is not None else None,
+        task=_task_read(session, task) if task is not None else None,
         position=entry.position,
         is_current=entry.is_current,
         created_at=entry.created_at,
@@ -48,6 +48,7 @@ def stack_history(session: Session = Depends(get_session)) -> list[StackEntryRea
 @router.get("/current", response_model=StackEntryRead | None)
 def stack_current(session: Session = Depends(get_session)) -> StackEntryRead | None:
     """The current task, or null when the stack is empty."""
+    service.sync_stack(session)
     entry = service.current_entry(session)
     return _read(session, entry) if entry is not None else None
 

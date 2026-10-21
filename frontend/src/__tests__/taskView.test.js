@@ -229,7 +229,17 @@ describe('TaskView', () => {
     const wrapper = mountView()
     await flushPromises()
     const labels = wrapper.findAll('.properties .prop-label').map((label) => label.text())
-    expect(labels).toEqual(['Status', 'Priority', 'Deadline', 'Tags', 'People', 'Requested by', 'Repositories'])
+    expect(labels).toEqual([
+      'Status',
+      'Priority',
+      'Deadline',
+      'Waiting on',
+      'Snooze',
+      'Tags',
+      'People',
+      'Requested by',
+      'Repositories'
+    ])
   })
 
   it('puts the description and its context side by side above the panels', async () => {

@@ -19,9 +19,9 @@ from ..crud import add_timeline, field_label, get_task_or_404, jsonable, normali
 from ..db import get_session
 from ..events import bus
 from ..models.agents import AgentEvent, AgentRun, AgentSession, Harness
-from ..models.base import utcnow
+from ..models.base import TaskStatus, utcnow
 from ..models.changes import Change, ChangeIntervention
-from ..models.items import Association, SourceItem, TaskPerson, TaskRequester
+from ..models.items import Association, Person, SourceItem, TaskPerson, TaskRequester
 from ..models.repositories import Repository, RepositoryGroup, TaskRepository, Worktree
 from ..models.tasks import StackEntry, Task, TaskDependency, TaskSession, TimelineEvent
 from ..schemas.items import ItemCreate
@@ -46,11 +46,55 @@ from .task_service import (
 
 router = APIRouter(prefix="/api/tasks", tags=["tasks"])
 
+# Setting a waiting-on person marks an open task blocked, so "blocked" carries
+# who it waits on; clearing the person reopens it. An explicit status in the same
+# update wins, and a status the user chose deliberately is left alone.
+_WAITING_SOURCE_STATUSES = (TaskStatus.open, TaskStatus.in_progress)
+
+
+def _waiting_person_id(value: str | None) -> str | None:
+    """Normalize an empty selection ("") to no person."""
+    if value is None:
+        return None
+    normalized = value.strip()
+    return normalized or None
+
+
+def _check_waiting_person(session: Session, person_id: str | None) -> None:
+    if person_id is not None and session.get(Person, person_id) is None:
+        raise HTTPException(status_code=404, detail="Person not found")
+
+
+def _prepare_waiting(data: dict[str, Any], task: Task | None = None, explicit_status: bool = False) -> None:
+    """Validate a waiting-on edit and keep the status and follow-up coherent.
+
+    ``task`` is the row before the edit (None on create). Adding a person to an
+    open or in-progress task marks it blocked; removing the person clears the
+    follow-up date and reopens a blocked task. A status the request names
+    explicitly wins over both rules.
+    """
+    if "waiting_on_person_id" not in data:
+        return
+    person_id = _waiting_person_id(data["waiting_on_person_id"])
+    data["waiting_on_person_id"] = person_id
+    was_waiting = task.waiting_on_person_id if task is not None else None
+
+    if person_id is not None and person_id != was_waiting:
+        if not explicit_status and (task is None or task.status in _WAITING_SOURCE_STATUSES):
+            data["status"] = TaskStatus.blocked
+    elif person_id is None and was_waiting is not None:
+        if "follow_up_at" not in data:
+            data["follow_up_at"] = None
+        if not explicit_status and task is not None and task.status == TaskStatus.blocked:
+            data["status"] = TaskStatus.open
+
 
 @router.post("", response_model=TaskRead, status_code=201)
 async def create_task(payload: TaskCreate, session: Session = Depends(get_session)) -> TaskRead:
     data = payload.model_dump(exclude={"github_url", "slack_url", "repository_ids"})
     data["tags"] = normalize_tags(data.get("tags") or [])
+    _prepare_waiting(data, explicit_status="status" in payload.model_fields_set)
+    _check_waiting_person(session, data.get("waiting_on_person_id"))
 
     # Import: fetch the source, use it to fill the task, and link it. A Slack
     # import also asks an agent to name the task and summarize the thread.
@@ -133,7 +177,7 @@ async def _apply_task_update(
     # Record the actual before/after for each field that changed (skip no-ops).
     # Relationship fields also carry a resolved label so the timeline reads in
     # names, not ids, for the UI, the CLI, and agents alike.
-    relation_models = {"group_id": RepositoryGroup, "harness_id": Harness}
+    relation_models = {"group_id": RepositoryGroup, "harness_id": Harness, "waiting_on_person_id": Person}
 
     def relation_label(field: str, value: object) -> str | None:
         model = relation_models.get(field)
@@ -183,6 +227,8 @@ async def update_task(task_id: str, payload: TaskUpdate, session: Session = Depe
     data = payload.model_dump(exclude_unset=True)
     if "tags" in data:
         data["tags"] = normalize_tags(data["tags"] or [])
+    _prepare_waiting(data, task, explicit_status="status" in data)
+    _check_waiting_person(session, data.get("waiting_on_person_id"))
     repository_ids = data.pop("repository_ids", None)
     return await _apply_task_update(session, task, data, repository_ids)
 

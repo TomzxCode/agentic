@@ -12,6 +12,9 @@ Table task {
   group_id varchar [ref: > repositorygroup.id]
   harness_id varchar [ref: > harness.id]
   deadline datetime // when the task should be done by; null = no deadline
+  waiting_on_person_id varchar [ref: > person.id] // who the task waits on; parks it off the stack
+  follow_up_at datetime // when to check back with that person; null = until cleared
+  snoozed_until datetime // when the task rejoins the stack; a past date has no effect
   summary text [not null, default: '']
   next_steps json [not null]
   context_updated_at datetime
@@ -305,6 +308,7 @@ Table stackentry {
   is_current boolean [not null, default: false]
   created_at datetime [not null]
   deleted_at datetime // soft delete: popped or removed entries stay in history
+  deleted_reason varchar // popped | removed | parked; a parked entry is restored when the deferral ends
 
   Indexes {
     task_id

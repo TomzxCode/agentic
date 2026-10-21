@@ -10,11 +10,13 @@ from typing import Any
 
 from sqlalchemy import delete as sa_delete
 from sqlalchemy import func
+from sqlalchemy import update as sa_update
 from sqlmodel import Session, col, select
 
 from ..crud import add_timeline
 from ..models.base import utcnow
 from ..models.items import ItemPerson, Person, PersonAlias, TaskPerson, TaskRequester
+from ..models.tasks import Task
 from .people_service import (
     _add_aliases,
     _find_by_alias,
@@ -153,6 +155,11 @@ def merge_people(session: Session, target: Person, source: Person) -> Person:
             link.person_id = target.id
             session.add(link)
         session.commit()
+
+    # A task waiting on the source now waits on the target.
+    session.exec(
+        sa_update(Task).where(col(Task.waiting_on_person_id) == source.id).values(waiting_on_person_id=target.id)
+    )
 
     target.updated_at = utcnow()
     session.add(target)

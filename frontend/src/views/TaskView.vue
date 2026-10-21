@@ -17,6 +17,7 @@ import TaskReviewPanel from '../components/TaskReviewPanel.vue'
 import TaskIssuePanel from '../components/TaskIssuePanel.vue'
 import EditableText from '../components/EditableText.vue'
 import DeadlinePicker from '../components/DeadlinePicker.vue'
+import WaitingOnSelect from '../components/WaitingOnSelect.vue'
 import SearchSelect from '../components/SearchSelect.vue'
 import RepositorySelect from '../components/RepositorySelect.vue'
 import PeopleSelect from '../components/PeopleSelect.vue'
@@ -113,6 +114,8 @@ const descriptionRef = ref(null)
 const statusRef = ref(null)
 const priorityRef = ref(null)
 const deadlineRef = ref(null)
+const waitingRef = ref(null)
+const snoozeRef = ref(null)
 const repositoryRef = ref(null)
 const peopleRef = ref(null)
 const requesterRef = ref(null)
@@ -269,6 +272,8 @@ onMounted(async () => {
       status: statusRef,
       priority: priorityRef,
       deadline: deadlineRef,
+      waiting: waitingRef,
+      snooze: snoozeRef,
       repository: repositoryRef,
       people: peopleRef,
       requesters: requesterRef,
@@ -376,12 +381,7 @@ watch(
     </div>
 
     <TaskIssuePanel v-if="mode === 'issue'" :task="task" :harnesses="store.harnesses" @changed="onChanged" />
-    <TaskReviewPanel
-      v-else-if="mode === 'pr'"
-      :task="task"
-      :harnesses="store.harnesses"
-      @changed="onChanged"
-    />
+    <TaskReviewPanel v-else-if="mode === 'pr'" :task="task" :harnesses="store.harnesses" @changed="onChanged" />
 
     <template v-else>
       <div v-if="showCreateIssue" class="row create-issue-pick">
@@ -427,6 +427,28 @@ watch(
             ref="deadlineRef"
             :model-value="task.deadline"
             @update:model-value="(value) => update('deadline', value)"
+          />
+        </div>
+        <div class="prop">
+          <span class="prop-label">Waiting on</span>
+          <WaitingOnSelect
+            ref="waitingRef"
+            :model-value="task.waiting_on_person_id"
+            :name="task.waiting_on_name"
+            :follow-up-at="task.follow_up_at"
+            @person="(value) => update('waiting_on_person_id', value)"
+            @follow-up="(value) => update('follow_up_at', value)"
+          />
+        </div>
+        <div class="prop">
+          <span class="prop-label">Snooze</span>
+          <DeadlinePicker
+            ref="snoozeRef"
+            :model-value="task.snoozed_until"
+            title="Snoozed until"
+            placeholder="Snooze"
+            :show-state="false"
+            @update:model-value="(value) => update('snoozed_until', value)"
           />
         </div>
         <div class="prop">

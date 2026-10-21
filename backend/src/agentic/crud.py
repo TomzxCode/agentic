@@ -38,7 +38,13 @@ def normalize_tags(tags: Iterable[str]) -> list[str]:
 
 
 # Human-readable names for fields that hold a foreign key.
-FIELD_LABELS = {"group_id": "group", "harness_id": "harness"}
+FIELD_LABELS = {
+    "group_id": "group",
+    "harness_id": "harness",
+    "waiting_on_person_id": "waiting on",
+    "follow_up_at": "follow up",
+    "snoozed_until": "snoozed until",
+}
 
 
 def field_label(key: str) -> str:

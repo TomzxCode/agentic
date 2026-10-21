@@ -95,6 +95,17 @@ class AgenticClient:
         """Set or clear a task's deadline; pass ``None`` to clear it."""
         return self._request("PATCH", f"/api/tasks/{task_id}", json={"deadline": deadline})
 
+    def set_task_waiting(self, task_id: str, person_id: str | None, follow_up_at: str | None = None) -> dict:
+        """Set or clear who a task waits on; clearing also clears the follow-up date."""
+        body: dict[str, Any] = {"waiting_on_person_id": person_id}
+        if person_id is not None:
+            body["follow_up_at"] = follow_up_at
+        return self._request("PATCH", f"/api/tasks/{task_id}", json=body)
+
+    def set_task_snooze(self, task_id: str, snoozed_until: str | None) -> dict:
+        """Set or clear a task's snooze date; pass ``None`` to clear it."""
+        return self._request("PATCH", f"/api/tasks/{task_id}", json={"snoozed_until": snoozed_until})
+
     def list_deadlines(self, within_days: int = 7) -> list[dict]:
         """In-flight tasks with a deadline in the next ``within_days`` (overdue included)."""
         return self._request("GET", "/api/tasks/deadlines", params={"within_days": within_days})

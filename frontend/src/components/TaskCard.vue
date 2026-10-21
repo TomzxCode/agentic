@@ -1,6 +1,14 @@
 <script setup>
 import { computed } from 'vue'
-import { deadlineInfo, formatDeadline, priorityLabel as priorityName, store, timeAgo } from '../store'
+import {
+  deadlineInfo,
+  formatDeadline,
+  priorityLabel as priorityName,
+  snoozeInfo,
+  store,
+  timeAgo,
+  waitingInfo
+} from '../store'
 import EntityCard from './EntityCard.vue'
 import PriorityIcon from './PriorityIcon.vue'
 import SearchSelect from './SearchSelect.vue'
@@ -49,6 +57,9 @@ const peopleById = computed(() => Object.fromEntries(props.people.map((person) =
 const linkedPeople = computed(() => (props.task.person_ids || []).map((id) => peopleById.value[id]).filter(Boolean))
 
 const deadline = computed(() => deadlineInfo(props.task.deadline))
+const snooze = computed(() => snoozeInfo(props.task))
+const waiting = computed(() => waitingInfo(props.task))
+const waitingName = computed(() => waiting.value?.name || peopleById.value[waiting.value?.personId]?.name || 'someone')
 const nextStep = computed(() => (props.task.next_steps || []).find((step) => !step.done))
 
 // How long the task has existed and since it last changed; the two collapse to
@@ -122,6 +133,22 @@ const age = computed(() => {
         {{ deadline.label }}
       </span>
       <span v-if="showDeadlineTime" class="faint">{{ formatDeadline(task.deadline) }}</span>
+      <span v-if="snooze" class="badge" :title="`Snoozed until ${formatDeadline(snooze.until)}`">
+        {{ snooze.label }}
+      </span>
+      <span
+        v-if="waiting"
+        class="badge"
+        :class="waiting.due ? 'danger' : 'warn'"
+        :title="
+          waiting.followUpAt
+            ? `Waiting on ${waitingName}, check back ${formatDeadline(waiting.followUpAt)}`
+            : `Waiting on ${waitingName}`
+        "
+      >
+        Waiting on {{ waitingName }}
+      </span>
+      <span v-if="waiting?.followUpAt" class="faint"> check back {{ formatDeadline(waiting.followUpAt) }} </span>
       <slot name="actions" />
       <span v-if="showAge && age" class="faint">{{ age }}</span>
     </template>

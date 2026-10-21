@@ -92,6 +92,9 @@ def _task_read(session: Session, task: Task) -> TaskRead:
     data.repository_ids = _task_repository_ids(session, task.id)
     data.person_ids = task_person_ids(session, task.id)
     data.requester_ids = task_requester_ids(session, task.id)
+    if task.waiting_on_person_id:
+        person = session.get(Person, task.waiting_on_person_id)
+        data.waiting_on_name = person.name if person is not None else None
     return data
 
 

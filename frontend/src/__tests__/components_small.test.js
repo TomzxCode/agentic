@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import DeadlinePicker from '../components/DeadlinePicker.vue'
+import WaitingOnSelect from '../components/WaitingOnSelect.vue'
 import StatusIcon from '../components/StatusIcon.vue'
 import StatusSelect from '../components/StatusSelect.vue'
 import PriorityIcon from '../components/PriorityIcon.vue'
@@ -12,6 +13,7 @@ afterEach(() => {
   vi.unstubAllGlobals()
   store.toast = null
   store.items = []
+  store.people = []
 })
 
 const RouterLinkStub = { props: ['to'], template: '<a :href="to"><slot /></a>' }
@@ -51,6 +53,33 @@ describe('StatusSelect', () => {
       .find((option) => option.text().includes('Blocked'))
       .trigger('click')
     expect(wrapper.emitted('update:modelValue')[0]).toEqual(['blocked'])
+  })
+})
+
+describe('WaitingOnSelect', () => {
+  it('picks a person and emits the id', async () => {
+    store.people = [
+      { id: 'p1', name: 'Ada' },
+      { id: 'p2', name: 'Bob' }
+    ]
+    const wrapper = mount(WaitingOnSelect, { props: { modelValue: null } })
+    await wrapper.get('.ss-trigger').trigger('click')
+    await wrapper
+      .findAll('.ss-option')
+      .find((option) => option.text().includes('Ada'))
+      .trigger('click')
+    expect(wrapper.emitted('person')[0]).toEqual(['p1'])
+  })
+
+  it('shows the waiting person, a check-back picker, and a clear action', () => {
+    store.people = [{ id: 'p1', name: 'Ada' }]
+    const wrapper = mount(WaitingOnSelect, {
+      props: { modelValue: 'p1', name: 'Ada', followUpAt: '2026-10-21T12:00:00Z' }
+    })
+    expect(wrapper.text()).toContain('Ada')
+    expect(wrapper.find('.deadline').exists()).toBe(true)
+    wrapper.get('.chip-x').trigger('click')
+    expect(wrapper.emitted('person')[0]).toEqual([null])
   })
 })
 

@@ -288,6 +288,17 @@ onUnmounted(() => {
             >
               {{ deadlineFor(entry).label }}
             </span>
+            <span
+              v-if="entry.task?.waiting_on_name"
+              class="badge warn"
+              :title="
+                entry.task.follow_up_at
+                  ? `Waiting on ${entry.task.waiting_on_name}, check back ${formatDeadline(entry.task.follow_up_at)}`
+                  : `Waiting on ${entry.task.waiting_on_name}`
+              "
+            >
+              Waiting on {{ entry.task.waiting_on_name }}
+            </span>
           </td>
           <td class="stack-col mono faint" title="Times it became current">×{{ entry.execution_count }}</td>
           <td class="stack-col mono faint" title="Started">

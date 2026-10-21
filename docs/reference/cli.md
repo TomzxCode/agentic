@@ -47,10 +47,16 @@ Run `agentic --help` for the full tree, grouped by resource.
 ```bash
 agentic task create --title "Fix the flaky ingest test" --tags bug --tags ci
 agentic task create --title "Ship the beta" --deadline 2026-11-01T17:00
+agentic task create --title "Await review" --waiting-on <person> --follow-up 2026-11-02T09:00
 agentic task create --slack-url https://acme.slack.com/archives/C123/p1700000000000000
 agentic task list --status open
 agentic task list --tag bug          # every given tag must match
 agentic task update <task> --clear-deadline
+agentic task update <task> --waiting-on <person>   # parks it until the person is cleared
+agentic task update <task> --follow-up 2026-11-02T09:00   # park until this date
+agentic task update <task> --clear-waiting        # stop waiting and clear the date
+agentic task update <task> --snooze 2026-11-03T09:00
+agentic task update <task> --clear-snooze         # bring it back now
 agentic task deadlines               # due in the next 7 days, overdue first
 agentic task deadlines --within-days 30
 agentic task link <task> <other> --relation before   # other must be done first

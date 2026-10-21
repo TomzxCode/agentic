@@ -47,7 +47,9 @@ one virtualenv.
 | **Context refresh** | A special agent run that reads the task + its items and writes the `summary` and `next_steps`. |
 | **Scheduled task** | A user-defined shell script the API runs on a cron schedule, with a recorded history of runs. |
 | **Change** | A unit of factory output recorded against a task: a class, a lifecycle, a start/end time, and a human-intervened flag. Autonomy rate and yield are computed from changes. |
-| **Stack entry** | A task's place on the focus stack: its position (0 is current), whether it is current, and a soft-delete timestamp. |
+| **Stack entry** | A task's place on the focus stack: its position (0 is current), whether it is current, a soft-delete timestamp, and why it was deleted (popped, removed, or parked). |
+| **Waiting on** | The person a task waits on, plus an optional check-back date. The task is blocked and off the stack until the date passes or the person is cleared. |
+| **Snooze** | A date a task is parked until, without changing its status; it returns to the stack when the date passes. |
 | **Task session** | A stretch of time a stack entry spent as the current task; execution count and duration are derived from these. |
 | **Operation** | An audit record of a mutating request: its method, path, and status, plus which client sent it (web UI, CLI, or raw API) and whether a human or a coding agent was behind it. |
 
@@ -168,6 +170,11 @@ only expose this on a trusted network.
    on its row, and the Tasks page lists the ones coming up under
    **Upcoming deadlines** (overdue first, with a window selector). Each row on
    the Tasks page also shows its priority as a colored dot (low/medium/high/urgent).
+   To defer a task, set **Waiting on** to a person (with an optional **check
+   back** date) or pick a **Snooze** date on its page: the task stays on the
+   Tasks page but leaves the focus stack until the date passes, then rejoins it.
+   Waiting marks an open task blocked and names the person on its row; a snooze
+   leaves the status alone.
 2. **Associate items**: paste a Slack thread permalink, a GitHub issue/PR URL, a
    Drive doc, or write a note. The source (Slack/GitHub/Drive/URL/note) is
    inferred from what you paste. GitHub and Slack/URL items are fetched on demand
@@ -393,7 +400,11 @@ and their buttons.
 The **Stack** page (`/stack`) is a focus queue: the task at the top is current
 and the rest are queued. Every task that is open, in progress, or blocked is on
 the stack automatically (a task that leaves those statuses leaves the stack), so
-you never add work by hand. Each row shows its status, how many times it has
+you never add work by hand. A task waiting on a person, or snoozed until a date,
+is **parked**: it is still in flight but stays off the stack until its date
+passes, then returns where it would join as a new task with its sessions and
+execution count intact. Pushing a parked task brings it back immediately and
+clears its snooze and wait. Each row shows its status, how many times it has
 become current, when it started, when it was last current, and the total time it
 has been current.
 
@@ -563,10 +574,15 @@ the workspace (`uv run agentic-server`).
 agentic --help                       # everything, grouped by resource
 agentic task create --title "Fix the flaky ingest test" --tags bug --tags ci
 agentic task create --title "Ship the beta" --deadline 2026-11-01T17:00
+agentic task create --title "Await review" --waiting-on <person> --follow-up 2026-11-02T09:00
 agentic task create --slack-url https://acme.slack.com/archives/C123/p1700000000000000
 agentic task list --status open
 agentic task list --tag bug          # every given tag must match
 agentic task update <task> --clear-deadline
+agentic task update <task> --waiting-on <person> --follow-up 2026-11-02T09:00
+agentic task update <task> --clear-waiting   # stop waiting (clears the check-back date)
+agentic task update <task> --snooze 2026-11-03T09:00
+agentic task update <task> --clear-snooze    # bring it back now
 agentic task deadlines               # deadlines in the next 7 days (overdue first)
 agentic task deadlines --within-days 30
 agentic task link <task> <other> --relation before   # other must be done first

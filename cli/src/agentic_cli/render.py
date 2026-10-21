@@ -14,6 +14,16 @@ def _format_deadline(iso: str) -> str:
     return iso[:16].replace("T", " ")
 
 
+def _is_future(iso: str) -> bool:
+    try:
+        value = datetime.fromisoformat(iso.replace("Z", "+00:00"))
+    except ValueError:
+        return False
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=UTC)
+    return value > datetime.now(UTC)
+
+
 def _task_line(task: dict) -> str:
     line = f"{task['id']}  [{task['status']}] p{task['priority']}  {task['title']}"
     tags = task.get("tags") or []
@@ -21,6 +31,13 @@ def _task_line(task: dict) -> str:
         line += "  " + " ".join(f"#{tag}" for tag in tags)
     if task.get("deadline"):
         line += f"  due {_format_deadline(task['deadline'])}"
+    if task.get("waiting_on_person_id"):
+        who = task.get("waiting_on_name") or task["waiting_on_person_id"]
+        line += f"  waiting on {who}"
+        if task.get("follow_up_at"):
+            line += f" (check back {_format_deadline(task['follow_up_at'])})"
+    if task.get("snoozed_until") and _is_future(task["snoozed_until"]):
+        line += f"  snoozed until {_format_deadline(task['snoozed_until'])}"
     return line
 
 

@@ -64,6 +64,9 @@ def task_create(
     status: TaskStatus = "open",
     tags: list[str] | None = None,
     deadline: str | None = None,
+    waiting_on: str | None = None,
+    follow_up: str | None = None,
+    snooze: str | None = None,
     repository_ids: list[str] | None = None,
     group_id: str | None = None,
     harness_id: str | None = None,
@@ -74,7 +77,9 @@ def task_create(
 
     Import one from a GitHub issue with --github-url, or from a Slack thread
     with --slack-url (an agent then names it and summarizes the discussion).
-    Set a deadline with --deadline (an ISO 8601 date or date-time).
+    Set a deadline with --deadline (an ISO 8601 date or date-time). Park the
+    task off the stack with --snooze <when>, or with --waiting-on <person id>
+    plus an optional --follow-up <when>.
     """
     with runtime._client() as client:
         task = client.create_task(
@@ -84,6 +89,9 @@ def task_create(
             status=status,
             tags=tags,
             deadline=deadline,
+            waiting_on_person_id=waiting_on,
+            follow_up_at=follow_up,
+            snoozed_until=snooze,
             repository_ids=repository_ids,
             group_id=group_id,
             harness_id=harness_id,
@@ -104,6 +112,11 @@ def task_update(
     tags: list[str] | None = None,
     deadline: str | None = None,
     clear_deadline: bool = False,
+    waiting_on: str | None = None,
+    follow_up: str | None = None,
+    clear_waiting: bool = False,
+    snooze: str | None = None,
+    clear_snooze: bool = False,
     repository_ids: list[str] | None = None,
     harness_id: str | None = None,
     summary: str | None = None,
@@ -111,7 +124,9 @@ def task_update(
     """Update a task's fields.
 
     Set a deadline with --deadline (an ISO 8601 date or date-time), or remove it
-    with --clear-deadline.
+    with --clear-deadline. Park the task with --snooze <when> (--clear-snooze to
+    bring it back now), or with --waiting-on <person id> and an optional
+    --follow-up <when> (--clear-waiting to stop waiting).
     """
     with runtime._client() as client:
         task = client.update_task(
@@ -122,12 +137,19 @@ def task_update(
             priority=priority,
             tags=tags,
             deadline=deadline,
+            waiting_on_person_id=waiting_on,
+            follow_up_at=follow_up,
+            snoozed_until=snooze,
             repository_ids=repository_ids,
             harness_id=harness_id,
             summary=summary,
         )
         if clear_deadline:
             task = client.set_task_deadline(task_id, None)
+        if clear_waiting:
+            task = client.set_task_waiting(task_id, None)
+        if clear_snooze:
+            task = client.set_task_snooze(task_id, None)
     return emit(task, f"updated {task['id']}  {_task_line(task)}")
 
 

@@ -17,6 +17,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import TypedDict, overload
 
+from sqlalchemy import or_
 from sqlmodel import Session, col, select
 
 from .crud import add_timeline
@@ -52,6 +53,27 @@ def _as_utc(value: datetime | None) -> datetime | None:
     return value
 
 
+def parked_reason(task: Task, now: datetime) -> str | None:
+    """Why a task is off the stack right now, or None when it belongs on it.
+
+    A snooze parks the task until its date. A waiting task parks until its
+    follow-up date, or indefinitely when no follow-up is set, so it only comes
+    back when the person is cleared or the task is pushed by hand.
+    """
+    snoozed_until = _as_utc(task.snoozed_until)
+    if snoozed_until is not None and snoozed_until > now:
+        return "snoozed"
+    if task.waiting_on_person_id:
+        follow_up_at = _as_utc(task.follow_up_at)
+        if follow_up_at is None or follow_up_at > now:
+            return "waiting"
+    return None
+
+
+def is_parked(task: Task, now: datetime) -> bool:
+    return parked_reason(task, now) is not None
+
+
 def active_entries(session: Session) -> list[StackEntry]:
     """The stack, current task first, soft-deleted entries excluded."""
     return list(
@@ -62,11 +84,16 @@ def active_entries(session: Session) -> list[StackEntry]:
 
 
 def history_entries(session: Session) -> list[StackEntry]:
-    """The soft-deleted history, most recently removed first."""
+    """The soft-deleted history, most recently removed first.
+
+    Parked entries are left out: a waiting or snoozed task is still in flight,
+    it is only off the stack until its date, so it is not "removed".
+    """
     return list(
         session.exec(
             select(StackEntry)
             .where(col(StackEntry.deleted_at).is_not(None))
+            .where(or_(col(StackEntry.deleted_reason).is_(None), col(StackEntry.deleted_reason) != "parked"))
             .order_by(col(StackEntry.deleted_at).desc())
         ).all()
     )
@@ -146,9 +173,10 @@ def _set_current(session: Session, entries: list[StackEntry], now: datetime) -> 
             _close_open_session(session, entry, now)
 
 
-def _soft_delete(session: Session, entry: StackEntry, now: datetime) -> None:
+def _soft_delete(session: Session, entry: StackEntry, now: datetime, reason: str | None = None) -> None:
     entry.is_current = False
     entry.deleted_at = now
+    entry.deleted_reason = reason
     session.add(entry)
     _close_open_session(session, entry, now)
 
@@ -156,28 +184,58 @@ def _soft_delete(session: Session, entry: StackEntry, now: datetime) -> None:
 def sync_stack(session: Session, now: datetime | None = None) -> list[StackEntry]:
     """Materialize the stack from the in-flight tasks.
 
-    Every task that is open, in progress, or blocked and has never had a stack
-    entry joins at the bottom, and an entry whose task is no longer in flight
-    leaves. A task that was popped or removed keeps its (soft-deleted) entry, so
-    it is not re-added; push it again to bring it back.
+    Every task that is open, in progress, or blocked, is not parked, and has
+    never had a stack entry joins at the bottom. An entry leaves when its task
+    is no longer in flight or becomes parked (waiting or snoozed). A task that
+    was popped or removed keeps its (soft-deleted) entry and is not re-added;
+    a task whose last entry was deleted because it parked rejoins automatically
+    once its snooze or follow-up date passes.
     """
     now = now or utcnow()
-    inflight = session.exec(
-        select(Task).where(col(Task.status).in_(IN_FLIGHT_STATUSES)).order_by(col(Task.created_at).desc())
-    ).all()
-    inflight_ids = {task.id for task in inflight}
+    tasks = session.exec(select(Task).order_by(col(Task.created_at).desc())).all()
+    by_id = {task.id: task for task in tasks}
+    inflight = [task for task in tasks if task.status in IN_FLIGHT_STATUSES]
 
     entries = active_entries(session)
-    kept = [entry for entry in entries if entry.task_id in inflight_ids]
-    dropped = [entry for entry in entries if entry.task_id not in inflight_ids]
-    seen = set(session.exec(select(col(StackEntry.task_id))).all())
-    added = [StackEntry(task_id=task.id) for task in inflight if task.id not in seen]
+    kept: list[StackEntry] = []
+    dropped: list[tuple[StackEntry, str | None]] = []
+    for entry in entries:
+        task = by_id.get(entry.task_id)
+        if task is None or task.status not in IN_FLIGHT_STATUSES:
+            dropped.append((entry, None))
+        elif is_parked(task, now):
+            dropped.append((entry, "parked"))
+        else:
+            kept.append(entry)
+
+    # The most recent entry per task (active or not) decides whether the task
+    # may join: no entry yet, or its last entry left because it parked.
+    latest: dict[str, StackEntry] = {}
+    for entry in session.exec(select(StackEntry).order_by(col(StackEntry.created_at))).all():
+        latest[entry.task_id] = entry
+
+    on_stack = {entry.task_id for entry in kept}
+    added: list[StackEntry] = []
+    for task in inflight:
+        if task.id in on_stack or is_parked(task, now):
+            continue
+        previous = latest.get(task.id)
+        if previous is None:
+            added.append(StackEntry(task_id=task.id))
+        elif previous.deleted_reason == "parked":
+            # Restore the parked entry so its sessions and execution count
+            # survive the deferral instead of starting a fresh one.
+            previous.deleted_at = None
+            previous.deleted_reason = None
+            previous.is_current = False
+            session.add(previous)
+            added.append(previous)
 
     if not dropped and not added:
         return entries
 
-    for entry in dropped:
-        _soft_delete(session, entry, now)
+    for entry, reason in dropped:
+        _soft_delete(session, entry, now, reason)
     for entry in added:
         session.add(entry)
     ordered = kept + added
@@ -205,8 +263,35 @@ def push(
         session.commit()
         session.refresh(task)
 
-    entry = StackEntry(task_id=task.id)
-    session.add(entry)
+    # Pushing a parked task is an explicit "work on it now", so drop its snooze
+    # and waiting state; otherwise the next sync would park it again. A blocked
+    # task being worked on again reopens.
+    if task.snoozed_until is not None or task.waiting_on_person_id is not None:
+        was_waiting = task.waiting_on_person_id is not None
+        task.snoozed_until = None
+        task.waiting_on_person_id = None
+        task.follow_up_at = None
+        if was_waiting and task.status == TaskStatus.blocked:
+            task.status = TaskStatus.open
+        task.updated_at = now
+        session.add(task)
+
+    # Reuse the entry a parking left behind, so pushing it back keeps its
+    # sessions and execution count.
+    entry = session.exec(
+        select(StackEntry)
+        .where(StackEntry.task_id == task.id)
+        .where(StackEntry.deleted_reason == "parked")
+        .order_by(col(StackEntry.created_at).desc())
+    ).first()
+    if entry is not None:
+        entry.deleted_at = None
+        entry.deleted_reason = None
+        entry.is_current = False
+        session.add(entry)
+    else:
+        entry = StackEntry(task_id=task.id)
+        session.add(entry)
     session.flush()
     if position == "next" and entries:
         entries.insert(1, entry)
@@ -229,7 +314,7 @@ def pop(session: Session, now: datetime | None = None) -> list[StackEntry]:
     if not entries:
         return []
     removed = entries.pop(0)
-    _soft_delete(session, removed, now)
+    _soft_delete(session, removed, now, "popped")
     task = session.get(Task, removed.task_id)
     if task is not None:
         task.status = TaskStatus.done
@@ -251,7 +336,7 @@ def remove(session: Session, entry_id: str, now: datetime | None = None) -> list
     if target is None:
         return entries
     entries.remove(target)
-    _soft_delete(session, target, now)
+    _soft_delete(session, target, now, "removed")
     _reindex(session, entries)
     _set_current(session, entries, now)
     session.commit()
@@ -318,6 +403,8 @@ __all__ = [
     "current_entry",
     "entry_stats",
     "history_entries",
+    "is_parked",
+    "parked_reason",
     "pop",
     "promote",
     "push",

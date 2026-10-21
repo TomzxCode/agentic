@@ -8,7 +8,10 @@ import { deadlineInfo, formatDeadline } from '../store'
 const props = defineProps({
   modelValue: { type: String, default: null },
   placeholder: { type: String, default: 'Set deadline' },
-  title: { type: String, default: 'Deadline' }
+  title: { type: String, default: 'Deadline' },
+  // A deadline-like field that is not a due date (a snooze, a follow-up check)
+  // hides the due-state badge, whose wording would be misleading.
+  showState: { type: Boolean, default: true }
 })
 const emit = defineEmits(['update:modelValue'])
 
@@ -98,7 +101,7 @@ defineExpose({ activate: start })
       >
         {{ display }}
       </button>
-      <span v-if="info" class="badge" :class="info.tone">{{ info.label }}</span>
+      <span v-if="showState && info" class="badge" :class="info.tone">{{ info.label }}</span>
       <button
         v-if="modelValue"
         type="button"

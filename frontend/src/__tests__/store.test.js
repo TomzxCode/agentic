@@ -4,12 +4,15 @@ import {
   formatDateTime,
   formatDeadline,
   formatDuration,
+  parkedInfo,
   prStatus,
+  snoozeInfo,
   statusClass,
   statusDurations,
   statusLabel,
   store,
-  timeAgo
+  timeAgo,
+  waitingInfo
 } from '../store'
 
 describe('statusLabel', () => {
@@ -277,5 +280,49 @@ describe('store.setGroupBy', () => {
     expect(() => store.setGroupBy('tag')).not.toThrow()
     expect(store.groupBy).toBe('tag')
     vi.restoreAllMocks()
+  })
+})
+
+describe('waiting, snooze, and parking', () => {
+  const now = Date.parse('2026-10-20T12:00:00Z')
+  const at = (iso) => ({ snoozed_until: iso })
+
+  it('snoozeInfo is active only until the date passes', () => {
+    expect(snoozeInfo(at('2026-10-21T12:00:00Z'), now)).toEqual({
+      until: '2026-10-21T12:00:00Z',
+      label: `Snoozed until ${formatDeadline('2026-10-21T12:00:00Z')}`
+    })
+    expect(snoozeInfo(at('2026-10-19T12:00:00Z'), now)).toBeNull()
+    expect(snoozeInfo({}, now)).toBeNull()
+    expect(snoozeInfo({ snoozed_until: 'not a date' }, now)).toBeNull()
+  })
+
+  it('waitingInfo names the person and marks a due follow-up', () => {
+    const waiting = {
+      waiting_on_person_id: 'p1',
+      waiting_on_name: 'Ada',
+      follow_up_at: '2026-10-21T12:00:00Z'
+    }
+    expect(waitingInfo(waiting, now)).toEqual({
+      personId: 'p1',
+      name: 'Ada',
+      followUpAt: '2026-10-21T12:00:00Z',
+      due: false
+    })
+    expect(waitingInfo({ ...waiting, follow_up_at: '2026-10-19T12:00:00Z' }, now).due).toBe(true)
+    expect(waitingInfo({ ...waiting, follow_up_at: null }, now).due).toBe(false)
+    expect(waitingInfo({}, now)).toBeNull()
+  })
+
+  it('parkedInfo prefers an active snooze, then an unfinished wait', () => {
+    expect(parkedInfo({ snoozed_until: '2026-10-21T12:00:00Z' }, now)).toMatchObject({ kind: 'snoozed' })
+    expect(parkedInfo({ waiting_on_person_id: 'p1', follow_up_at: '2026-10-21T12:00:00Z' }, now)).toMatchObject({
+      kind: 'waiting'
+    })
+    // No follow-up means the wait has no end until it is cleared.
+    expect(parkedInfo({ waiting_on_person_id: 'p1' }, now)).toMatchObject({ kind: 'waiting' })
+    // A passed follow-up puts the task back on the stack.
+    expect(parkedInfo({ waiting_on_person_id: 'p1', follow_up_at: '2026-10-19T12:00:00Z' }, now)).toBeNull()
+    expect(parkedInfo({}, now)).toBeNull()
   })
 })

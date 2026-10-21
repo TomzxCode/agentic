@@ -28,6 +28,7 @@ It solves the problem of scattered context: the threads, issues, and checkouts r
 - A focus stack: an ordered queue of tasks with the current one on top, per-entry session timing (execution count, duration), and soft-deleted history.
 - An optional native launcher (tray icon plus global hotkey) for the stack.
 - An upcoming-deadlines view on the tasks page, in-flight tasks soonest first with overdue tasks leading.
+- Waiting-on and snooze deferrals: link a task to a person with an optional check-back date, or snooze it until a date, and it leaves the focus stack and returns automatically when the date passes.
 - A Gantt timeline view of tasks in flight, one marker per timeline event.
 - Factory metrics: an instrumented change lifecycle with autonomy rate and yield read against stored baselines.
 - Source items and many-to-many associations, with source inference and on-demand fetch.

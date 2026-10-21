@@ -16,6 +16,21 @@ def test_renderers():
     text = render._task_text(task)
     assert "summary: s" in text and "[ ] a" in text and "[x] b" in text
 
+    # A waiting task names the person and its check-back date; an active snooze
+    # is shown, while one in the past is not.
+    waiting = {
+        **task,
+        "waiting_on_person_id": "p1",
+        "waiting_on_name": "Ada",
+        "follow_up_at": "2026-02-01T09:00:00+00:00",
+        "snoozed_until": "2999-01-01T09:00:00+00:00",
+    }
+    line = render._task_line(waiting)
+    assert "waiting on Ada" in line
+    assert "check back 2026-02-01 09:00" in line
+    assert "snoozed until 2999-01-01 09:00" in line
+    assert "snoozed until" not in render._task_line({**waiting, "snoozed_until": "2000-01-01T09:00:00+00:00"})
+
     assert render._item_line({"id": "i1", "source": "note", "title": ""}).startswith("i1")
     assert render._join([], lambda row: "x") == "(none)"
 

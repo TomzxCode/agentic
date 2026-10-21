@@ -25,6 +25,9 @@ There is no authentication, so expose it only on a trusted network.
 | `GET` / `POST` | `/api/tasks/{id}/dependencies` | List and add before/after dependency links. |
 | `DELETE` | `/api/tasks/{id}/dependencies/{related_id}` | Remove a dependency link. |
 
+`POST` and `PATCH` accept `waiting_on_person_id`, `follow_up_at`, and `snoozed_until`; a waiting task is marked blocked, and a task with an active snooze or wait is parked off the stack until the date passes.
+The task representation returns those fields plus `waiting_on_name`.
+
 ## Events
 
 | Method | Path | Purpose |
@@ -53,8 +56,8 @@ There is no authentication, so expose it only on a trusted network.
 
 | Method | Path | Purpose |
 | --- | --- | --- |
-| `GET` / `POST` | `/api/stack` | List the focus queue and push a task onto it. |
-| `GET` | `/api/stack/history` | Soft-deleted entries. |
+| `GET` / `POST` | `/api/stack` | List the focus queue and push a task onto it. A parked task is absent until its date passes; pushing it clears its snooze and wait. |
+| `GET` | `/api/stack/history` | Soft-deleted entries, excluding those parked by a deferral. |
 | `GET` | `/api/stack/current` | The current task. |
 | `POST` | `/api/stack/pop` | Complete the current task and promote the next. |
 | `POST` | `/api/stack/reorder` | Move an entry. |

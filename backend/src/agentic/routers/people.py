@@ -13,6 +13,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import delete as sa_delete
 from sqlalchemy import func
+from sqlalchemy import update as sa_update
 from sqlmodel import Session, col, select
 
 from ..crud import add_timeline, get_task_or_404
@@ -20,6 +21,7 @@ from ..db import get_session
 from ..events import bus
 from ..models.base import utcnow
 from ..models.items import ItemPerson, Person, PersonAlias, SourceItem, TaskPerson, TaskRequester
+from ..models.tasks import Task
 from ..schemas.people import PersonCreate, PersonDetail, PersonLink, PersonMerge, PersonRead, PersonUpdate
 from .people_links import _link_item, _link_requester, _link_task, merge_people
 from .people_service import (
@@ -96,6 +98,13 @@ def update_person(person_id: str, payload: PersonUpdate, session: Session = Depe
 @router.delete("/{person_id}", status_code=204)
 def delete_person(person_id: str, session: Session = Depends(get_session)) -> None:
     person = get_person_or_404(session, person_id)
+    # A task may be waiting on this person; the FK would block the delete, and
+    # the wait has no meaning without them.
+    session.exec(
+        sa_update(Task)
+        .where(col(Task.waiting_on_person_id) == person.id)
+        .values(waiting_on_person_id=None, follow_up_at=None)
+    )
     session.exec(sa_delete(TaskPerson).where(col(TaskPerson.person_id) == person.id))
     session.exec(sa_delete(TaskRequester).where(col(TaskRequester.person_id) == person.id))
     session.exec(sa_delete(ItemPerson).where(col(ItemPerson.person_id) == person.id))

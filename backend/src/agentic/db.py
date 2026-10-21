@@ -157,6 +157,20 @@ def _ensure_columns() -> None:
         if "deadline" not in task_columns:
             with engine.begin() as connection:
                 connection.execute(text("ALTER TABLE task ADD COLUMN deadline DATETIME"))
+        if "waiting_on_person_id" not in task_columns:
+            with engine.begin() as connection:
+                connection.execute(text("ALTER TABLE task ADD COLUMN waiting_on_person_id VARCHAR"))
+        if "follow_up_at" not in task_columns:
+            with engine.begin() as connection:
+                connection.execute(text("ALTER TABLE task ADD COLUMN follow_up_at DATETIME"))
+        if "snoozed_until" not in task_columns:
+            with engine.begin() as connection:
+                connection.execute(text("ALTER TABLE task ADD COLUMN snoozed_until DATETIME"))
+    if "stackentry" in inspector.get_table_names():
+        entry_columns = {column["name"] for column in inspector.get_columns("stackentry")}
+        if "deleted_reason" not in entry_columns:
+            with engine.begin() as connection:
+                connection.execute(text("ALTER TABLE stackentry ADD COLUMN deleted_reason VARCHAR"))
     if "timelineevent" in inspector.get_table_names():
         timeline_columns = {column["name"] for column in inspector.get_columns("timelineevent")}
         with engine.begin() as connection:
