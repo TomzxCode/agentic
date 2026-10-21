@@ -35,17 +35,32 @@ async function executeRequest(path, method, body, bodyString) {
   return data
 }
 
+const responseCache = new Map()
+const CACHE_TTL_MS = 500
+
 async function request(path, { method = 'GET', body } = {}) {
   const bodyString = body !== undefined ? JSON.stringify(body) : undefined
   if (method !== 'GET') {
-    return executeRequest(path, method, body, bodyString)
+    const result = await executeRequest(path, method, body, bodyString)
+    responseCache.clear()
+    return result
   }
   const key = `${method} ${API + path} ${bodyString || ''}`
   if (pendingRequests.has(key)) {
     return pendingRequests.get(key)
   }
+  const cached = responseCache.get(key)
+  if (cached && cached.expires > Date.now()) {
+    return cached.value
+  }
+
   const run = executeRequest(path, method, body, bodyString)
   pendingRequests.set(key, run)
+  run
+    .then((data) => {
+      responseCache.set(key, { value: data, expires: Date.now() + CACHE_TTL_MS })
+    })
+    .catch(() => {})
   run.finally(() => pendingRequests.delete(key)).catch(() => {})
   return run
 }
