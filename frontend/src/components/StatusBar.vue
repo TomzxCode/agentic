@@ -24,6 +24,10 @@
       DB: {{ debugStats.requests.reduce((s, r) => s + (r.db_queries || 0), 0) }} queries,
       {{ debugStats.requests.reduce((s, r) => s + (r.db_time_ms || 0), 0).toFixed(2) }} ms
     </span>
+    <span v-if="lastRequest" class="status-bar-item" data-testid="last-api-call">
+      Last: {{ Number(lastRequest.duration_ms || 0).toFixed(2) }} ms ({{ lastRequest.db_queries || 0 }} queries,
+      {{ Number(lastRequest.db_time_ms || 0).toFixed(2) }} ms)
+    </span>
     <div
       v-if="expanded"
       class="status-bar-details"
@@ -115,6 +119,8 @@ const filter = ref(localStorage.getItem('agentic.debugFilter') || '')
 watch(filter, (value) => {
   localStorage.setItem('agentic.debugFilter', value)
 })
+
+const lastRequest = computed(() => (debugStats.requests && debugStats.requests.length ? debugStats.requests[0] : null))
 
 const sortedRequests = computed(() => {
   const list = [...debugStats.requests]
