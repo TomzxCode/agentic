@@ -22,6 +22,7 @@ from .db import create_db_and_tables, engine
 from .debug import DebugMiddleware, recent_requests
 from .jobs import close_queue, get_queue, reconcile_runs
 from .provenance import ProvenanceMiddleware
+from .request_logging import configure_request_logging
 from .routers import (
     agent_runs,
     agent_streams,
@@ -58,6 +59,7 @@ from .routers import tags as tags_router
 from .schedules import reconcile_scheduled_runs, scheduler_loop
 
 log = structlog.get_logger(__name__)
+configure_request_logging()
 
 
 def _refresh_due_once() -> dict:
@@ -206,6 +208,7 @@ app.add_middleware(DebugMiddleware)
 @app.get("/api/debug/requests")
 def debug_requests() -> list[dict]:
     return recent_requests()
+
 
 for module in (
     repositories,
