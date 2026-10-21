@@ -204,8 +204,7 @@ async function removeTask() {
   if (!confirm('Delete this task? This cannot be undone.')) return
   await api.tasks.remove(props.id)
   emit('changed')
-  window.history.pushState({}, '', '/')
-  location.reload()
+  router.push('/')
 }
 
 // Create the issue in a named repository, using the task's title and
