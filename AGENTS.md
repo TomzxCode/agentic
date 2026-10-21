@@ -10,3 +10,7 @@ Before starting work on a feature:
 
 Never commit local-only state: `.sdlc/state.yml`, `.sdlc/features/*/progress.md`, and `status-report.html`.
 <!-- sdlc-anchor end -->
+
+## UI conventions
+
+- Product and UI rules live in `.sdlc/context/conventions.md` (the "Frontend and UI" section), not in this file. Read that section before changing the frontend, and record a new UI decision there instead of growing this file.

@@ -37,6 +37,7 @@
   Below 760px the sidebar becomes an off-canvas drawer toggled from the top bar, and secondary chrome (command palette trigger, keyboard hints, some nav) hides.
 - Controls stay touch-friendly on small screens (icons carry `aria-label`s, buttons keep a comfortable tap size, and form fields use 16px text so mobile browsers do not zoom on focus).
 - Respect mobile browser chrome and notches by accounting for `env(safe-area-inset-*)` in full-height or edge-anchored regions.
+- The Settings icon is always last in the sidebar's default nav order (`SIDEBAR_NAV_ITEMS` in `frontend/src/sidebarNav.js`). Add a new page before `settings`, never after it. The user can still reorder the icons in Settings → Sidebar.
 
 ## Commit Messages
 
