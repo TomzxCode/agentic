@@ -26,6 +26,30 @@ export const PULL_GROUPINGS = [
   { value: 'review', label: 'Review status' }
 ]
 
+// The filters over the list. Each facet has one active value, and its "Any"
+// option (an empty value) keeps every pull request.
+export const CI_FILTERS = [
+  { value: '', label: 'Any' },
+  { value: 'failure', label: 'Failing' },
+  { value: 'pending', label: 'Running' },
+  { value: 'success', label: 'Passing' },
+  { value: 'none', label: 'No checks' }
+]
+
+export const REVIEW_FILTERS = [
+  { value: '', label: 'Any' },
+  { value: 'CHANGES_REQUESTED', label: 'Changes requested' },
+  { value: 'REVIEW_REQUIRED', label: 'Review required' },
+  { value: 'APPROVED', label: 'Approved' },
+  { value: 'none', label: 'No review' }
+]
+
+export const THREAD_FILTERS = [
+  { value: '', label: 'Any' },
+  { value: 'open', label: 'Open' },
+  { value: 'none', label: 'None open' }
+]
+
 // The order the state groupings present, the states that need the author first:
 // failing checks before running ones, requested changes before an approval, and
 // the pull requests GitHub decided nothing about last.
@@ -124,6 +148,41 @@ export function groupPulls(pulls, groupBy) {
   }
 
   return [{ key: '', label: null, tone: '', badge: false, pulls: list }]
+}
+
+// Whether a pull request matches one filter facet. An empty value is "Any"; a
+// pull request GitHub left no CI state or review decision for counts as "none",
+// the same key the filters and the groupings use for it.
+export function matchesCiFilter(pull, value) {
+  return !value || (pull.ci || 'none') === value
+}
+
+export function matchesReviewFilter(pull, value) {
+  return !value || (pull.review_decision || 'none') === value
+}
+
+export function matchesThreadFilter(pull, value) {
+  if (!value) return true
+  const open = Number(pull.open_threads) || 0
+  return value === 'open' ? open > 0 : open === 0
+}
+
+// How many pull requests each filter option would show, over the whole list
+// rather than the current filter, so a chip states what it is worth. The "Any"
+// option is the list's total, which the view reads itself.
+export function pullFilterCounts(pulls) {
+  const ci = {}
+  const review = {}
+  const threads = { open: 0, none: 0 }
+  for (const pull of pulls || []) {
+    const ciKey = pull.ci || 'none'
+    ci[ciKey] = (ci[ciKey] || 0) + 1
+    const reviewKey = pull.review_decision || 'none'
+    review[reviewKey] = (review[reviewKey] || 0) + 1
+    if (Number(pull.open_threads) > 0) threads.open += 1
+    else threads.none += 1
+  }
+  return { ci, review, threads }
 }
 
 // Whether a pull request matches a free-text search over the fields the row

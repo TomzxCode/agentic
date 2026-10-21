@@ -316,9 +316,11 @@ changes requested, review required, or no review), who approved it, and how many
 of its review threads are still open. Rows that need you (failing checks,
 requested changes, or an open thread) are marked and sorted first, then by
 newest update; a text search filters by repository, number, title, or approver,
-**Group by** splits the list into sections (repository, CI status, or review
-status) and remembers the choice on the device, and **Refresh** re-queries GitHub
-instead of reusing the short cache. The list
+and chips narrow the list by CI status, review status, or whether it has open
+threads, each chip counting the pull requests it would show. **Group by** splits
+the list into sections (repository, CI status, or review status) and remembers
+the choice on the device, and **Refresh** re-queries GitHub instead of reusing
+the short cache. The list
 comes from one GraphQL search through `gh`, because neither `ghx` nor `gh`'s
 `--json` field set carries a review thread's resolved state, and nothing is
 stored, so a PR that merges leaves the page on the next refresh.

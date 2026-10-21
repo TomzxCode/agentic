@@ -16,14 +16,21 @@ import {
   attentionRank,
   ciLabel,
   ciTone,
+  CI_FILTERS,
   groupPulls,
+  matchesCiFilter,
   matchesPullSearch,
+  matchesReviewFilter,
+  matchesThreadFilter,
   needsAttention,
   PULL_GROUPINGS,
   pullCounts,
+  pullFilterCounts,
   reviewLabel,
+  REVIEW_FILTERS,
   reviewTone,
-  sortPulls
+  sortPulls,
+  THREAD_FILTERS
 } from '../myPulls'
 import { store } from '../store'
 
@@ -190,6 +197,42 @@ describe('grouping', () => {
   })
 })
 
+describe('filtering', () => {
+  it('offers every facet an Any option first', () => {
+    expect(CI_FILTERS[0].value).toBe('')
+    expect(REVIEW_FILTERS[0].value).toBe('')
+    expect(THREAD_FILTERS[0].value).toBe('')
+  })
+
+  it('matches a pull request against one value per facet', () => {
+    const row = pull({ ci: 'failure', review_decision: 'APPROVED', approved: true, open_threads: 2 })
+    expect(matchesCiFilter(row, '')).toBe(true)
+    expect(matchesCiFilter(row, 'failure')).toBe(true)
+    expect(matchesCiFilter(row, 'success')).toBe(false)
+    expect(matchesCiFilter(pull({ ci: 'none' }), 'none')).toBe(true)
+    expect(matchesCiFilter(pull({ ci: undefined }), 'none')).toBe(true)
+
+    expect(matchesReviewFilter(row, 'APPROVED')).toBe(true)
+    expect(matchesReviewFilter(row, 'CHANGES_REQUESTED')).toBe(false)
+    expect(matchesReviewFilter(pull({ review_decision: '' }), 'none')).toBe(true)
+
+    expect(matchesThreadFilter(row, 'open')).toBe(true)
+    expect(matchesThreadFilter(row, 'none')).toBe(false)
+    expect(matchesThreadFilter(pull({ open_threads: 0 }), 'none')).toBe(true)
+  })
+
+  it('counts each option over the whole list', () => {
+    const counts = pullFilterCounts([
+      pull({ ci: 'failure', review_decision: 'APPROVED', open_threads: 1 }),
+      pull({ ci: 'success', review_decision: 'APPROVED' }),
+      pull({ ci: 'none', review_decision: '' })
+    ])
+    expect(counts.ci).toEqual({ failure: 1, success: 1, none: 1 })
+    expect(counts.review).toEqual({ APPROVED: 2, none: 1 })
+    expect(counts.threads).toEqual({ open: 1, none: 2 })
+  })
+})
+
 describe('MyPullsView', () => {
   it('renders each pull request with its state', async () => {
     mocks.list.mockResolvedValue(
@@ -277,6 +320,46 @@ describe('MyPullsView', () => {
     ])
     // The heading names the repository, so the rows no longer repeat it.
     expect(wrapper.findAll('.my-pulls-repository')).toHaveLength(0)
+  })
+
+  it('filters by CI, review, and threads, and clears them together', async () => {
+    mocks.list.mockResolvedValue(
+      report([
+        pull({ number: 42, ci: 'success', review_decision: 'APPROVED', approved: true }),
+        pull({ number: 7, ci: 'failure', review_decision: 'CHANGES_REQUESTED', open_threads: 2 })
+      ])
+    )
+    const wrapper = mount(MyPullsView, { global: { stubs: { RouterLink: RouterLinkStub } } })
+    await flushPromises()
+
+    const numbers = () => wrapper.findAll('.my-pulls-link').map((link) => link.text())
+    const rows = wrapper.findAll('.my-pulls-filter-row')
+    expect(rows).toHaveLength(3)
+    // Each chip states how many pull requests it would show, over the whole list.
+    expect(rows[0].findAll('.my-pulls-chip').map((chip) => chip.text())).toEqual([
+      'Any 2',
+      'Failing 1',
+      'Running 0',
+      'Passing 1',
+      'No checks 0'
+    ])
+
+    await rows[0].findAll('.my-pulls-chip')[1].trigger('click')
+    expect(numbers()).toEqual(['#7'])
+
+    // The search and the filters narrow together, and one button clears both.
+    await wrapper.find('.my-pulls-search').setValue('nothing matches')
+    expect(wrapper.text()).toContain('with the selected filters')
+    await wrapper.find('.empty button').trigger('click')
+    expect(numbers()).toEqual(['#7', '#42'])
+
+    await rows[1].findAll('.my-pulls-chip')[3].trigger('click')
+    expect(numbers()).toEqual(['#42'])
+    await rows[1].findAll('.my-pulls-chip')[0].trigger('click')
+    expect(numbers()).toEqual(['#7', '#42'])
+
+    await rows[2].findAll('.my-pulls-chip')[1].trigger('click')
+    expect(numbers()).toEqual(['#7'])
   })
 
   it('refreshes with the refresh flag and filters by search', async () => {

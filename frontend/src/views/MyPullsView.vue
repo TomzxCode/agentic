@@ -4,14 +4,21 @@ import { api } from '../api'
 import {
   ciLabel,
   ciTone,
+  CI_FILTERS,
   groupPulls,
+  matchesCiFilter,
   matchesPullSearch,
+  matchesReviewFilter,
+  matchesThreadFilter,
   needsAttention,
   PULL_GROUPINGS,
   pullCounts,
+  pullFilterCounts,
   reviewLabel,
+  REVIEW_FILTERS,
   reviewTone,
-  sortPulls
+  sortPulls,
+  THREAD_FILTERS
 } from '../myPulls'
 import { parseRemote, personLink } from '../repositories/parse'
 import { formatDateTime, store, timeAgo } from '../store'
@@ -25,6 +32,13 @@ const report = ref({ login: '', pulls: [], counts: {}, error: null })
 const loading = ref(true)
 const error = ref(false)
 const search = ref('')
+
+// The filters: one active value per facet, each an empty string for "Any". They
+// are per-visit like the search box, since they narrow what the loaded list
+// shows rather than change how the page is laid out.
+const ciFilter = ref('')
+const reviewFilter = ref('')
+const threadFilter = ref('')
 
 // How the rows are split into sections. It is a per-device view preference,
 // remembered in localStorage like the feedback page's grouping, so leaving the
@@ -53,13 +67,69 @@ watch(groupBy, (value) => {
   }
 })
 
-// The list in display order, what the search keeps of it, and those rows split
-// into the sections the grouping asks for.
+// The list in display order, what the search and filters keep of it, and those
+// rows split into the sections the grouping asks for.
 const pulls = computed(() => sortPulls(report.value.pulls || []))
-const filtered = computed(() => pulls.value.filter((pull) => matchesPullSearch(pull, search.value)))
+const filtered = computed(() =>
+  pulls.value.filter(
+    (pull) =>
+      matchesPullSearch(pull, search.value) &&
+      matchesCiFilter(pull, ciFilter.value) &&
+      matchesReviewFilter(pull, reviewFilter.value) &&
+      matchesThreadFilter(pull, threadFilter.value)
+  )
+)
 const groups = computed(() => groupPulls(filtered.value, groupBy.value))
 // The header's totals, over the whole list rather than the search result.
 const counts = computed(() => pullCounts(pulls.value))
+// How many pull requests each filter option would show, over the whole list, so
+// a chip states what it is worth rather than what the other filters left.
+const filterCounts = computed(() => pullFilterCounts(pulls.value))
+
+function filterCount(facet, value) {
+  if (!value) return pulls.value.length
+  return filterCounts.value[facet]?.[value] || 0
+}
+
+// Whether anything narrows the list, so the empty state can offer one button
+// that clears it all instead of naming each control.
+const filtering = computed(() => Boolean(search.value || ciFilter.value || reviewFilter.value || threadFilter.value))
+
+function clearFilters() {
+  search.value = ''
+  ciFilter.value = ''
+  reviewFilter.value = ''
+  threadFilter.value = ''
+}
+
+// What the empty state says: the search text, the filters, or both.
+const emptyMessage = computed(() => {
+  if (search.value && (ciFilter.value || reviewFilter.value || threadFilter.value)) {
+    return `No pull requests match “${search.value}” with the selected filters.`
+  }
+  if (search.value) return `No pull requests match “${search.value}”.`
+  return 'No pull requests match the selected filters.'
+})
+
+// The three filter rows, built here because the template cannot carry a ref: the
+// array holds the row's active value and the setter that picks another.
+const filterRows = computed(() => [
+  { key: 'ci', label: 'CI', options: CI_FILTERS, active: ciFilter.value, pick: (value) => (ciFilter.value = value) },
+  {
+    key: 'review',
+    label: 'Review',
+    options: REVIEW_FILTERS,
+    active: reviewFilter.value,
+    pick: (value) => (reviewFilter.value = value)
+  },
+  {
+    key: 'threads',
+    label: 'Threads',
+    options: THREAD_FILTERS,
+    active: threadFilter.value,
+    pick: (value) => (threadFilter.value = value)
+  }
+])
 
 // Registered repositories keyed by their lowercased "owner/name", so a pull
 // request can link to its repository page when the app tracks it.
@@ -171,9 +241,31 @@ onMounted(load)
         </label>
       </div>
 
+      <div class="my-pulls-filter-groups">
+        <div
+          v-for="facet in filterRows"
+          :key="facet.key"
+          class="my-pulls-filter-row"
+          role="group"
+          :aria-label="`Filter by ${facet.label.toLowerCase()}`"
+        >
+          <span class="faint my-pulls-filter-label">{{ facet.label }}</span>
+          <button
+            v-for="option in facet.options"
+            :key="option.value"
+            class="my-pulls-chip"
+            :class="{ active: facet.active === option.value }"
+            :aria-pressed="facet.active === option.value"
+            @click="facet.pick(option.value)"
+          >
+            {{ option.label }} <span class="count">{{ filterCount(facet.key, option.value) }}</span>
+          </button>
+        </div>
+      </div>
+
       <div v-if="!filtered.length" class="empty">
-        No pull requests match “{{ search }}”.
-        <button class="btn sm ghost" @click="search = ''">Clear search</button>
+        {{ emptyMessage }}
+        <button v-if="filtering" class="btn sm ghost" @click="clearFilters">Clear filters</button>
       </div>
 
       <div v-else class="my-pulls-groups">
