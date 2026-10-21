@@ -12,6 +12,7 @@ import json
 from collections.abc import AsyncIterator
 
 from fastapi import APIRouter, Depends
+from sqlalchemy import func
 from sqlmodel import Session, col, select
 from sse_starlette.sse import EventSourceResponse
 
@@ -36,21 +37,29 @@ def _task_signature(session: Session, task_id: str) -> tuple:
 
     The worker runs in another process, so its in-process event bus cannot reach
     these streams; the signature lets a stream notice its writes by polling the DB.
+    A single query (with scalar subqueries) keeps the polling cheap.
     """
-    task = session.get(Task, task_id)
-    if task is None:
-        return ("deleted",)
-    runs = session.exec(select(AgentRun).where(AgentRun.task_id == task_id)).all()
-    last_event = session.exec(
-        select(TimelineEvent.created_at)
-        .where(TimelineEvent.task_id == task_id)
-        .order_by(col(TimelineEvent.created_at).desc())
+    row = session.exec(
+        select(
+            Task.title,
+            Task.summary,
+            Task.updated_at,
+            select(func.count()).select_from(AgentRun).where(AgentRun.task_id == task_id).scalar_subquery(),
+            select(func.group_concat(AgentRun.id + ":" + AgentRun.status))
+            .where(AgentRun.task_id == task_id)
+            .scalar_subquery(),
+            select(func.max(TimelineEvent.created_at)).where(TimelineEvent.task_id == task_id).scalar_subquery(),
+        ).where(Task.id == task_id)
     ).first()
+    if row is None:
+        return ("deleted",)
+    title, summary, updated_at, run_count, runs_blob, last_event = row
     return (
-        task.title,
-        task.summary,
-        task.updated_at.isoformat() if task.updated_at else "",
-        tuple(sorted((r.id, str(r.status)) for r in runs)),
+        title,
+        summary or "",
+        updated_at.isoformat() if updated_at else "",
+        run_count or 0,
+        runs_blob or "",
         last_event.isoformat() if last_event else "",
     )
 
