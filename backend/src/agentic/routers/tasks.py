@@ -16,7 +16,7 @@ from ..schemas.tasks import (
     TaskRead,
     TimelineRead,
 )
-from .task_service import _detail, _task_read
+from .task_service import _detail, _task_reads
 
 router = APIRouter(prefix="/api/tasks", tags=["tasks"])
 
@@ -45,7 +45,7 @@ def list_tasks(
             or needle in (p.description or "").lower()
             or needle in (p.summary or "").lower()
         ]
-    return [_task_read(session, task) for task in tasks]
+    return _task_reads(session, tasks)
 
 
 # Declared before /{task_id} so "deadlines" is not read as a task id.
@@ -64,7 +64,8 @@ def list_deadlines(within_days: int = 7, session: Session = Depends(get_session)
         .order_by(col(Task.deadline))
     ).all()
     closed = (TaskStatus.done, TaskStatus.archived)
-    return [_task_read(session, task) for task in tasks if task.status not in closed]
+    filtered = [task for task in tasks if task.status not in closed]
+    return _task_reads(session, filtered)
 
 
 @router.get("/{task_id}", response_model=TaskDetail)

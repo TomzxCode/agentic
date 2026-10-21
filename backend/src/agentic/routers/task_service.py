@@ -10,7 +10,7 @@ from ..links import run_read, session_read
 from ..models.agents import AgentRun, AgentSession
 from ..models.base import WorktreeStatus
 from ..models.changes import Change
-from ..models.items import Association, Person, SourceItem
+from ..models.items import Association, Person, SourceItem, TaskPerson, TaskRequester
 from ..models.repositories import Repository, TaskRepository, Worktree
 from ..models.tasks import Task, TimelineEvent
 from ..schemas.changes import ChangeRead
@@ -96,6 +96,51 @@ def _task_read(session: Session, task: Task) -> TaskRead:
         person = session.get(Person, task.waiting_on_person_id)
         data.waiting_on_name = person.name if person is not None else None
     return data
+
+
+def _task_reads(session: Session, tasks: list[Task]) -> list[TaskRead]:
+    """Batched version of ``_task_read`` for lists, to avoid N+1 queries."""
+    if not tasks:
+        return []
+    task_ids = [task.id for task in tasks]
+
+    repository_ids_by_task: dict[str, list[str]] = {task_id: [] for task_id in task_ids}
+    for member in session.exec(
+        select(TaskRepository)
+        .where(col(TaskRepository.task_id).in_(task_ids))
+        .order_by(col(TaskRepository.created_at))
+    ).all():
+        repository_ids_by_task.setdefault(member.task_id, []).append(member.repository_id)
+
+    person_ids_by_task: dict[str, list[str]] = {task_id: [] for task_id in task_ids}
+    for link in session.exec(
+        select(TaskPerson).where(col(TaskPerson.task_id).in_(task_ids)).order_by(col(TaskPerson.created_at))
+    ).all():
+        person_ids_by_task.setdefault(link.task_id, []).append(link.person_id)
+
+    requester_ids_by_task: dict[str, list[str]] = {task_id: [] for task_id in task_ids}
+    for link in session.exec(
+        select(TaskRequester).where(col(TaskRequester.task_id).in_(task_ids)).order_by(col(TaskRequester.created_at))
+    ).all():
+        requester_ids_by_task.setdefault(link.task_id, []).append(link.person_id)
+
+    waiting_ids = {task.waiting_on_person_id for task in tasks if task.waiting_on_person_id}
+    waiting_people = {}
+    if waiting_ids:
+        for person in session.exec(select(Person).where(col(Person.id).in_(waiting_ids))).all():
+            waiting_people[person.id] = person
+
+    reads: list[TaskRead] = []
+    for task in tasks:
+        data = TaskRead.model_validate(task)
+        data.repository_ids = repository_ids_by_task.get(task.id, [])
+        data.person_ids = person_ids_by_task.get(task.id, [])
+        data.requester_ids = requester_ids_by_task.get(task.id, [])
+        if task.waiting_on_person_id:
+            person = waiting_people.get(task.waiting_on_person_id)
+            data.waiting_on_name = person.name if person is not None else None
+        reads.append(data)
+    return reads
 
 
 def _repository_names(session: Session, repository_ids: list[str]) -> list[str]:
