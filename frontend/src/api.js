@@ -5,19 +5,18 @@ const API = '/api'
 // Every request declares its provenance: the web UI is always a human.
 const PROVENANCE_HEADERS = { 'X-Agentic-Client': 'web', 'X-Agentic-Actor': 'human' }
 
-async function request(path, { method = 'GET', body } = {}) {
+const pendingRequests = new Map()
+
+async function executeRequest(path, method, body, bodyString) {
   const headers = { ...PROVENANCE_HEADERS }
   if (body !== undefined) headers['Content-Type'] = 'application/json'
-  const start =
-    typeof performance !== 'undefined' && typeof performance.now === 'function' ? performance.now() : Date.now()
+  const start = typeof performance !== 'undefined' && typeof performance.now === 'function' ? performance.now() : Date.now()
   const res = await fetch(API + path, {
     method,
     headers,
-    body: body !== undefined ? JSON.stringify(body) : undefined
+    body: bodyString
   })
-  const duration =
-    (typeof performance !== 'undefined' && typeof performance.now === 'function' ? performance.now() : Date.now()) -
-    start
+  const duration = (typeof performance !== 'undefined' && typeof performance.now === 'function' ? performance.now() : Date.now()) - start
   const getHeader = (name) => (res.headers && typeof res.headers.get === 'function' ? res.headers.get(name) : null)
   const dbQueries = Number(getHeader('x-debug-db-queries') || 0)
   const dbTime = Number(getHeader('x-debug-db-time-ms') || 0)
@@ -34,6 +33,21 @@ async function request(path, { method = 'GET', body } = {}) {
   const data = text ? JSON.parse(text) : null
   if (!res.ok) throw new Error((data && data.detail) || res.statusText)
   return data
+}
+
+async function request(path, { method = 'GET', body } = {}) {
+  const bodyString = body !== undefined ? JSON.stringify(body) : undefined
+  if (method !== 'GET') {
+    return executeRequest(path, method, body, bodyString)
+  }
+  const key = `${method} ${API + path} ${bodyString || ''}`
+  if (pendingRequests.has(key)) {
+    return pendingRequests.get(key)
+  }
+  const run = executeRequest(path, method, body, bodyString)
+  pendingRequests.set(key, run)
+  run.finally(() => pendingRequests.delete(key)).catch(() => {})
+  return run
 }
 
 export const api = {
