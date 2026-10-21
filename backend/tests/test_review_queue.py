@@ -96,6 +96,18 @@ def test_collect_review_prs_reads_markers_and_the_view_cache(tmp_path, monkeypat
     assert pr["steps"]["review-pr"]["stale"] is False
 
 
+def test_the_view_cache_review_line_reads_as_the_review_decision(tmp_path, monkeypatch):
+    monkeypatch.setattr(settings, "sdlc_dir", tmp_path)
+    directory = _write_pr(tmp_path, "TomzxCode", "agentic", 42, sha="abc1234", steps={"review-pr": "pass"})
+    view = directory / "gh-pr-view.md"
+    view.write_text(view.read_text().replace("Branch:", "Review:    approved\nBranch:"))
+
+    assert collect_review_prs()[0]["review_decision"] == "APPROVED"
+    # The queue endpoint carries the decision, so the view can mark the row.
+    with TestClient(app) as client:
+        assert client.get("/api/reviews").json()["prs"][0]["review_decision"] == "APPROVED"
+
+
 def test_an_in_progress_marker_marks_its_step_running(tmp_path, monkeypatch):
     monkeypatch.setattr(settings, "sdlc_dir", tmp_path)
     directory = _write_pr(tmp_path, "TomzxCode", "agentic", 42, sha="abc1234", steps={"review-pr": "pass"})
@@ -357,6 +369,7 @@ def test_github_fields_come_from_ghx(tmp_path, monkeypatch):
             "state": "OPEN",
             "is_draft": False,
             "created_at": "2026-02-01T00:00:00Z",
+            "review_decision": "APPROVED",
         },
     )
 
@@ -366,6 +379,7 @@ def test_github_fields_come_from_ghx(tmp_path, monkeypatch):
     assert pr["title"] == "Fetched from ghx"
     assert pr["author"] == "dave"
     assert pr["created_at"] == "2026-02-01T00:00:00Z"
+    assert pr["review_decision"] == "APPROVED"
     # A second pass reuses the cached lookup rather than shelling out again.
     calls: list = []
     monkeypatch.setattr(review_queue, "fetch_github_issue", lambda *args, **kwargs: calls.append(args))

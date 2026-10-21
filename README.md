@@ -310,8 +310,9 @@ lookups.
 The queue also shows what GitHub says is still waiting on you, which the report
 store alone cannot: a background scan searches for pull requests with a review
 requested from you and for open ones you have already reviewed, and lists them
-even before any review report exists. A **requested** or **reviewed** badge beside
-the number says which search found it. **Settings → Review requests** sets how
+even before any review report exists. A **📨** or **👀** mark beside the number says
+which search found it (a review is requested from you, or you already reviewed it
+and it is still open). **Settings → Review requests** sets how
 often the scan runs (a duration such as `1h`; blank stops it), whether a
 repository with no policy of its own is included or excluded, and each
 registered repository's own Include / Exclude / Default choice; **Scan now** runs

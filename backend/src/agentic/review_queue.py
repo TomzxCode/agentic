@@ -59,6 +59,8 @@ def _apply_github(pr: dict[str, Any], metadata: dict[str, Any]) -> None:
         pr["state"] = metadata["state"]
     if metadata.get("created_at"):
         pr["created_at"] = metadata["created_at"]
+    if metadata.get("review_decision"):
+        pr["review_decision"] = metadata["review_decision"]
     pr["draft"] = bool(metadata.get("is_draft", pr.get("draft", False)))
     # The store's newest reviewed commit stands in for the head when GitHub
     # cannot be read; ghx knows the real one, so match the running markers

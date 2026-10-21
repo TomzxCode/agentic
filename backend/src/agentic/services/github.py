@@ -156,6 +156,11 @@ def fetch_github_issue(owner: str, repo: str, number: object, kind: str = "issue
         "is_draft": bool(data.get("isDraft")),
         # Set only once a pull request is merged; null for issues and open PRs.
         "merged_at": data.get("mergedAt"),
+        # GitHub's review decision for a pull request (APPROVED,
+        # CHANGES_REQUESTED, REVIEW_REQUIRED, or null), so a reader can tell an
+        # already-approved pull request from one still awaiting reviews. Null
+        # for issues and for a repository whose branch requires no reviews.
+        "review_decision": str(data.get("reviewDecision") or ""),
         # The head commit, so a consumer can tell which commit a run targets.
         # Only pull requests have one.
         "head_sha": data.get("headRefOid") or "",

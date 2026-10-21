@@ -1,16 +1,22 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  approvedFilterCount,
   commitUrl,
   draftFilterCount,
   groupQueueByRepository,
   groupReviewFiles,
   githubReviewState,
+  isApproved,
+  isReviewedByMe,
+  matchesApprovedFilter,
   matchesAuthorFilter,
   matchesDraftFilter,
   matchesQueueSearch,
   matchesRepositoryFilter,
+  matchesReviewedFilter,
   matchesStateFilter,
+  nextKindFilter,
   orderGithubReviewers,
   PR_STATE_FILTERS,
   prStateGroup,
@@ -18,6 +24,7 @@ import {
   queueRepositories,
   queueRowFor,
   reviewLabel,
+  reviewedFilterCount,
   riskTone,
   shortCommit,
   stateFilterCounts,
@@ -172,19 +179,91 @@ describe('PR status filters', () => {
   })
 })
 
+describe('kind filter cycle', () => {
+  it('steps hidden, then only, then all, then hidden again', () => {
+    expect(nextKindFilter('hide')).toBe('only')
+    expect(nextKindFilter('only')).toBe('all')
+    expect(nextKindFilter('all')).toBe('hide')
+    // An unknown state starts the cycle over rather than getting stuck.
+    expect(nextKindFilter('bogus')).toBe('hide')
+    expect(nextKindFilter(undefined)).toBe('hide')
+  })
+})
+
 describe('draft filter', () => {
-  it('leaves drafts out unless they are included', () => {
-    expect(matchesDraftFilter({ draft: true }, false)).toBe(false)
-    expect(matchesDraftFilter({ draft: true }, true)).toBe(true)
-    expect(matchesDraftFilter({ draft: false }, false)).toBe(true)
-    // A row whose draft flag was never read is not a draft.
-    expect(matchesDraftFilter({}, false)).toBe(true)
-    expect(matchesDraftFilter(undefined, false)).toBe(true)
+  it('hides drafts, keeps only drafts, or keeps everything', () => {
+    expect(matchesDraftFilter({ draft: true }, 'hide')).toBe(false)
+    expect(matchesDraftFilter({ draft: false }, 'hide')).toBe(true)
+    expect(matchesDraftFilter({}, 'hide')).toBe(true)
+    expect(matchesDraftFilter(undefined, 'hide')).toBe(true)
+
+    expect(matchesDraftFilter({ draft: true }, 'only')).toBe(true)
+    expect(matchesDraftFilter({ draft: false }, 'only')).toBe(false)
+    expect(matchesDraftFilter({}, 'only')).toBe(false)
+
+    expect(matchesDraftFilter({ draft: true }, 'all')).toBe(true)
+    expect(matchesDraftFilter({ draft: false }, 'all')).toBe(true)
   })
 
   it('counts the drafts in the queue', () => {
     expect(draftFilterCount([{ draft: true }, { draft: false }, {}])).toBe(1)
     expect(draftFilterCount(undefined)).toBe(0)
+  })
+})
+
+describe('approved filter', () => {
+  it('hides approved pull requests, keeps only them, or keeps everything', () => {
+    expect(matchesApprovedFilter({ review_decision: 'APPROVED' }, 'hide')).toBe(false)
+    expect(matchesApprovedFilter({ review_decision: 'REVIEW_REQUIRED' }, 'hide')).toBe(true)
+    expect(matchesApprovedFilter({}, 'hide')).toBe(true)
+    expect(matchesApprovedFilter(undefined, 'hide')).toBe(true)
+
+    expect(matchesApprovedFilter({ review_decision: 'APPROVED' }, 'only')).toBe(true)
+    expect(matchesApprovedFilter({ review_decision: 'REVIEW_REQUIRED' }, 'only')).toBe(false)
+    expect(matchesApprovedFilter({}, 'only')).toBe(false)
+
+    expect(matchesApprovedFilter({ review_decision: 'APPROVED' }, 'all')).toBe(true)
+    expect(matchesApprovedFilter({ review_decision: 'REVIEW_REQUIRED' }, 'all')).toBe(true)
+  })
+
+  it('counts the approved pull requests in the queue', () => {
+    const prs = [
+      { review_decision: 'APPROVED' },
+      { review_decision: 'CHANGES_REQUESTED' },
+      { review_decision: 'approved' },
+      {}
+    ]
+    expect(approvedFilterCount(prs)).toBe(2)
+    expect(approvedFilterCount(undefined)).toBe(0)
+  })
+})
+
+describe('reviewed filter', () => {
+  it('hides reviewed pull requests, keeps only them, or keeps everything', () => {
+    const reviewed = { request_source: 'reviewed' }
+    const requested = { request_source: 'requested' }
+
+    expect(isReviewedByMe(reviewed)).toBe(true)
+    expect(isReviewedByMe(requested)).toBe(false)
+    expect(isReviewedByMe({})).toBe(false)
+    expect(isReviewedByMe(undefined)).toBe(false)
+
+    expect(matchesReviewedFilter(reviewed, 'hide')).toBe(false)
+    expect(matchesReviewedFilter(requested, 'hide')).toBe(true)
+    expect(matchesReviewedFilter({}, 'hide')).toBe(true)
+
+    expect(matchesReviewedFilter(reviewed, 'only')).toBe(true)
+    expect(matchesReviewedFilter(requested, 'only')).toBe(false)
+    expect(matchesReviewedFilter({}, 'only')).toBe(false)
+
+    expect(matchesReviewedFilter(reviewed, 'all')).toBe(true)
+    expect(matchesReviewedFilter(requested, 'all')).toBe(true)
+  })
+
+  it('counts the pull requests the user already reviewed', () => {
+    const prs = [{ request_source: 'reviewed' }, { request_source: 'requested' }, {}]
+    expect(reviewedFilterCount(prs)).toBe(1)
+    expect(reviewedFilterCount(undefined)).toBe(0)
   })
 })
 
@@ -320,6 +399,18 @@ describe('queueRowFor', () => {
     expect(queueRowFor([row], { owner: 'tomzxcode', repo: 'agentic', number: 42 })).toBe(row)
     expect(queueRowFor([row], { owner: 'tomzxcode', repo: 'agentic', number: 7 })).toBeNull()
     expect(queueRowFor([], { owner: 'a', repo: 'b', number: 1 })).toBeNull()
+  })
+})
+
+describe('isApproved', () => {
+  it('reads GitHub’s approval decision, case-insensitively', () => {
+    expect(isApproved({ review_decision: 'APPROVED' })).toBe(true)
+    expect(isApproved({ review_decision: 'approved' })).toBe(true)
+    expect(isApproved({ review_decision: 'CHANGES_REQUESTED' })).toBe(false)
+    expect(isApproved({ review_decision: 'REVIEW_REQUIRED' })).toBe(false)
+    expect(isApproved({ review_decision: '' })).toBe(false)
+    expect(isApproved({})).toBe(false)
+    expect(isApproved(null)).toBe(false)
   })
 })
 

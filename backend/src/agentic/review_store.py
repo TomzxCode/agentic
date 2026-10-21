@@ -82,7 +82,15 @@ VIEW_BRANCH_RE = re.compile(r"^Branch:\s+(?P<head>\S+)\s+→\s+(?P<base>\S+)", r
 VIEW_LABELS_RE = re.compile(r"^Labels:\s+(?P<labels>.+)$", re.MULTILINE)
 VIEW_CREATED_RE = re.compile(r"^Created:\s+(?P<created>.+)$", re.MULTILINE)
 VIEW_URL_RE = re.compile(r"^URL:\s+(?P<url>\S+)", re.MULTILINE)
+VIEW_REVIEW_RE = re.compile(r"^Review:\s+(?P<review>.+)$", re.MULTILINE)
 VIEW_COMMENT_RE = re.compile(r"──\s*Comment \d+ by (?P<by>\S+) \((?P<when>[^)]+)\)")
+
+#: The ``Review:`` line's wording, as GitHub's review decision spells it.
+VIEW_REVIEW_DECISIONS = {
+    "approved": "APPROVED",
+    "changes requested": "CHANGES_REQUESTED",
+    "review required": "REVIEW_REQUIRED",
+}
 
 VIEW_TIME_FORMAT = "%Y-%m-%d %H:%M"
 
@@ -316,6 +324,9 @@ def parse_view_cache(text: str) -> dict[str, Any]:
     url = VIEW_URL_RE.search(text)
     if url:
         parsed["url"] = url.group("url")
+    review = VIEW_REVIEW_RE.search(text)
+    if review:
+        parsed["review_decision"] = VIEW_REVIEW_DECISIONS.get(review.group("review").strip().lower(), "")
     comments = VIEW_COMMENT_RE.findall(text)
     if comments:
         # gh prints comment times in local time; the newest one is the last.
@@ -392,6 +403,7 @@ def collect_review_prs() -> list[dict[str, Any]]:
                 "base_branch": view.get("base_branch", ""),
                 "labels": view.get("labels", []),
                 "created_at": view.get("created_at"),
+                "review_decision": view.get("review_decision", ""),
                 "last_comment_at": view.get("last_comment_at"),
                 "last_comment_by": view.get("last_comment_by", ""),
                 "head_commit": reference,

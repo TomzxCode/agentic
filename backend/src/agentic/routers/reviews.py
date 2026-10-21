@@ -109,6 +109,7 @@ def _scan_row(recorded: ReviewRequest) -> dict:
         "draft": recorded.draft,
         "created_at": recorded.created_at,
         "labels": [],
+        "review_decision": "",
         "head_commit": "",
         "steps": {},
         "in_progress": {},

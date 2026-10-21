@@ -10,8 +10,9 @@
 .review-count {
   margin-left: 6px;
 }
-/* The queue's filters: a PR-status chip row, a drafts toggle, repository and
-   author dropdowns, and a search box. */
+/* The queue's filters: a PR-status chip row, the tri-state kind filters
+   (drafts, approved, reviewed), repository and author dropdowns, and a search
+   box. */
 .review-filters {
   display: flex;
   flex-wrap: wrap;
@@ -20,13 +21,13 @@
   margin-bottom: 12px;
 }
 .review-state-filters,
-.review-draft-filters {
+.review-toggle-filters {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
 }
 .review-state-filter,
-.review-draft-filter {
+.review-toggle-filter {
   flex: 0 0 auto;
   background: var(--bg-2);
   border: 1px solid var(--border);
@@ -38,19 +39,26 @@
   font-family: inherit;
 }
 .review-state-filter:hover,
-.review-draft-filter:hover {
+.review-toggle-filter:hover {
   border-color: var(--muted);
   color: var(--text);
 }
 .review-state-filter.active,
-.review-draft-filter.active {
+.review-toggle-filter.active {
   color: var(--accent);
   border-color: var(--accent);
 }
 .review-state-filter .count,
-.review-draft-filter .count {
+.review-toggle-filter .count {
   color: var(--faint);
   margin-left: 2px;
+}
+/* The kind filter's current state, after its count: hidden, only, or all. */
+.review-toggle-filter .state {
+  margin-left: 4px;
+  color: var(--faint);
+  font-variant: small-caps;
+  letter-spacing: 0.02em;
 }
 .review-search {
   flex: 1 1 220px;
@@ -173,12 +181,19 @@
 .review-pr-cell .badge {
   flex: none;
 }
-/* Why the review scan has this PR in the queue (requested or reviewed). */
+/* GitHub's approval mark, right after the number: the PR has already been
+   approved, so it needs no further review from the user. */
+.review-approved {
+  flex: none;
+  font-size: 12px;
+  line-height: 1;
+}
+/* Why the review scan has this PR in the queue: an emoji saying a review is
+   requested of the user (📨) or that they already reviewed it (👀). */
 .review-source {
   flex: none;
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
+  font-size: 13px;
+  line-height: 1;
 }
 /* The PR's task marker, before the readiness light: an emoji link to the task
    its item is associated to, or a "➕" that imports the PR into a new task. */

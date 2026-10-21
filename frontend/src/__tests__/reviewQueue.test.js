@@ -24,6 +24,14 @@ const stub = {
   global: { stubs: { RouterLink: RouterLinkStub, ShareFindingsModal: { template: '<div class="share-stub" />' } } }
 }
 
+// The state word and count a tri-state kind filter shows.
+function filterState(wrapper, kind) {
+  return wrapper.get(`.review-${kind}-filter .state`).text()
+}
+function filterCount(wrapper, kind) {
+  return wrapper.get(`.review-${kind}-filter .count`).text()
+}
+
 // Open the author dropdown (a SearchSelect) and toggle one author's option.
 async function openAuthors(wrapper) {
   await wrapper.get('.review-author-select .ss-trigger').trigger('click')
@@ -244,10 +252,50 @@ describe('ReviewsView', () => {
     const wrapper = mount(ReviewsView, stub)
     await flushPromises()
 
-    expect(wrapper.get('.review-source').text()).toBe('requested')
+    expect(wrapper.get('.review-source').text()).toBe('📨')
     expect(wrapper.get('.review-source').attributes('title')).toBe('A review is requested from you')
+    expect(wrapper.get('.review-source').attributes('aria-label')).toBe('A review is requested from you')
     // Nothing has run for it, so every step column reads as empty.
     expect(wrapper.findAll('.review-step').length).toBe(0)
+  })
+
+  it('marks an already-reviewed pull request with the review emoji', async () => {
+    mocks.queue.mockResolvedValue({
+      root: null,
+      counts: { total: 1 },
+      prs: [pr({ request_source: 'reviewed' })]
+    })
+    const wrapper = mount(ReviewsView, stub)
+    await flushPromises()
+
+    expect(wrapper.get('.review-source').text()).toBe('👀')
+    expect(wrapper.get('.review-source').attributes('title')).toBe(
+      'You reviewed this pull request and it is still open'
+    )
+  })
+
+  it('marks a pull request GitHub has already approved', async () => {
+    mocks.queue.mockResolvedValue({
+      root: null,
+      counts: { total: 2 },
+      prs: [pr({ number: 42, review_decision: 'APPROVED' }), pr({ number: 9, review_decision: 'REVIEW_REQUIRED' })]
+    })
+    const wrapper = mount(ReviewsView, stub)
+    await flushPromises()
+
+    // Approved rows are left out by default; cycle to "all" to read the mark.
+    await wrapper.get('.review-approved-filter').trigger('click')
+    await wrapper.get('.review-approved-filter').trigger('click')
+    await flushPromises()
+
+    const approved = wrapper.findAll('.review-approved')
+    expect(approved).toHaveLength(1)
+    expect(approved[0].text()).toBe('✅')
+    expect(approved[0].attributes('aria-label')).toBe('Approved on GitHub')
+    // The mark rides on the approved PR only, so the other row carries none.
+    const rows = wrapper.findAll('tbody tr')
+    expect(rows[0].find('.review-approved').exists()).toBe(true)
+    expect(rows[1].find('.review-approved').exists()).toBe(false)
   })
 
   it('opens a report when a step cell is clicked', async () => {
@@ -364,7 +412,7 @@ describe('ReviewsView', () => {
     expect(wrapper.find('a[href="https://github.com/TomzxCode/agentic/pull/42"]').exists()).toBe(true)
   })
 
-  it('leaves drafts out of the queue by default and counts them on the toggle', async () => {
+  it('hides drafts by default, then shows only drafts, then everything', async () => {
     mocks.queue.mockResolvedValue({
       root: null,
       counts: { total: 2 },
@@ -373,31 +421,36 @@ describe('ReviewsView', () => {
     const wrapper = mount(ReviewsView, stub)
     await flushPromises()
 
+    // Hidden by default: the draft row is out, the other row stays.
     expect(wrapper.find('a[href="https://github.com/TomzxCode/agentic/pull/42"]').exists()).toBe(true)
     expect(wrapper.find('a[href="https://github.com/TomzxCode/agentic/pull/9"]').exists()).toBe(false)
-
-    const toggle = wrapper.get('.review-draft-filter')
-    expect(toggle.text()).toBe('Drafts 1')
-    expect(toggle.attributes('aria-pressed')).toBe('false')
+    expect(filterState(wrapper, 'draft')).toBe('hidden')
+    expect(filterCount(wrapper, 'draft')).toBe('1')
+    expect(wrapper.get('.review-draft-filter').attributes('title')).toBe('Drafts are hidden; click to show only drafts')
     // Drafts are left out of the header totals too.
     expect(wrapper.text()).toContain('1 PR ·')
-  })
 
-  it('includes drafts when the drafts toggle is pressed', async () => {
-    mocks.queue.mockResolvedValue({
-      root: null,
-      counts: { total: 2 },
-      prs: [pr({ number: 42 }), pr({ number: 9, draft: true })]
-    })
-    const wrapper = mount(ReviewsView, stub)
-    await flushPromises()
-
+    // One click keeps only drafts.
     await wrapper.get('.review-draft-filter').trigger('click')
     await flushPromises()
-
+    expect(wrapper.find('a[href="https://github.com/TomzxCode/agentic/pull/42"]').exists()).toBe(false)
     expect(wrapper.find('a[href="https://github.com/TomzxCode/agentic/pull/9"]').exists()).toBe(true)
-    expect(wrapper.get('.review-draft-filter').attributes('aria-pressed')).toBe('true')
+    expect(filterState(wrapper, 'draft')).toBe('only')
+
+    // A second click keeps everything.
+    await wrapper.get('.review-draft-filter').trigger('click')
+    await flushPromises()
+    expect(wrapper.find('a[href="https://github.com/TomzxCode/agentic/pull/42"]').exists()).toBe(true)
+    expect(wrapper.find('a[href="https://github.com/TomzxCode/agentic/pull/9"]').exists()).toBe(true)
+    expect(filterState(wrapper, 'draft')).toBe('all')
     expect(wrapper.text()).toContain('2 PRs ·')
+
+    // A third click hides them again.
+    await wrapper.get('.review-draft-filter').trigger('click')
+    await flushPromises()
+    expect(wrapper.find('a[href="https://github.com/TomzxCode/agentic/pull/9"]').exists()).toBe(false)
+    expect(filterState(wrapper, 'draft')).toBe('hidden')
+    expect(filterCount(wrapper, 'draft')).toBe('1')
   })
 
   it('names the hidden drafts in the empty state and includes them on request', async () => {
@@ -411,7 +464,26 @@ describe('ReviewsView', () => {
     await flushPromises()
 
     expect(wrapper.find('a[href="https://github.com/TomzxCode/agentic/pull/9"]').exists()).toBe(true)
-    expect(wrapper.get('.review-draft-filter').attributes('aria-pressed')).toBe('true')
+    expect(filterState(wrapper, 'draft')).toBe('all')
+  })
+
+  it('says when only drafts are shown and offers to show everything', async () => {
+    mocks.queue.mockResolvedValue({ root: null, counts: { total: 1 }, prs: [pr({ number: 42 })] })
+    const wrapper = mount(ReviewsView, stub)
+    await flushPromises()
+
+    // Only drafts is a state where nothing here matches.
+    await wrapper.get('.review-draft-filter').trigger('click')
+    await flushPromises()
+    expect(wrapper.text()).toContain('No drafts match.')
+
+    const showAll = wrapper.findAll('button').find((button) => button.text() === 'Show every pull request')
+    await showAll.trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('a[href="https://github.com/TomzxCode/agentic/pull/42"]').exists()).toBe(true)
+    expect(filterState(wrapper, 'draft')).toBe('all')
+    expect(filterCount(wrapper, 'draft')).toBe('0')
   })
 
   it('filters the rows by the search text', async () => {
@@ -664,7 +736,182 @@ describe('ReviewsView', () => {
     const reopened = mount(ReviewsView, stub)
     await flushPromises()
 
-    expect(reopened.get('.review-draft-filter').attributes('aria-pressed')).toBe('true')
+    expect(filterState(reopened, 'draft')).toBe('only')
+    expect(reopened.find('a[href="https://github.com/TomzxCode/agentic/pull/9"]').exists()).toBe(true)
+  })
+
+  it('hides approved pull requests by default, then shows only approved, then everything', async () => {
+    mocks.queue.mockResolvedValue({
+      root: null,
+      counts: { total: 2 },
+      prs: [pr({ number: 42 }), pr({ number: 9, review_decision: 'APPROVED' })]
+    })
+    const wrapper = mount(ReviewsView, stub)
+    await flushPromises()
+
+    expect(wrapper.find('a[href="https://github.com/TomzxCode/agentic/pull/42"]').exists()).toBe(true)
+    expect(wrapper.find('a[href="https://github.com/TomzxCode/agentic/pull/9"]').exists()).toBe(false)
+    const toggle = wrapper.get('.review-approved-filter')
+    expect(filterState(wrapper, 'approved')).toBe('hidden')
+    expect(filterCount(wrapper, 'approved')).toBe('1')
+    expect(toggle.attributes('title')).toBe(
+      'Approved pull requests are hidden; click to show only approved pull requests'
+    )
+    // The hidden row is left out of the header totals too.
+    expect(wrapper.text()).toContain('1 PR ·')
+
+    // One click keeps only the approved pull request.
+    await toggle.trigger('click')
+    await flushPromises()
+    expect(wrapper.find('a[href="https://github.com/TomzxCode/agentic/pull/42"]').exists()).toBe(false)
+    expect(wrapper.find('a[href="https://github.com/TomzxCode/agentic/pull/9"]').exists()).toBe(true)
+    expect(filterState(wrapper, 'approved')).toBe('only')
+
+    // A second click keeps everything, and the approved row carries its mark.
+    await wrapper.get('.review-approved-filter').trigger('click')
+    await flushPromises()
+    expect(wrapper.find('a[href="https://github.com/TomzxCode/agentic/pull/42"]').exists()).toBe(true)
+    expect(wrapper.find('a[href="https://github.com/TomzxCode/agentic/pull/9"]').exists()).toBe(true)
+    expect(filterState(wrapper, 'approved')).toBe('all')
+    expect(wrapper.text()).toContain('2 PRs ·')
+    expect(wrapper.findAll('.review-approved')).toHaveLength(1)
+  })
+
+  it('names the hidden approved pull requests in the empty state and includes them on request', async () => {
+    mocks.queue.mockResolvedValue({
+      root: null,
+      counts: { total: 1 },
+      prs: [pr({ number: 9, review_decision: 'APPROVED' })]
+    })
+    const wrapper = mount(ReviewsView, stub)
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('1 approved pull request is hidden.')
+    const include = wrapper.findAll('button').find((button) => button.text() === 'Include approved')
+    await include.trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('a[href="https://github.com/TomzxCode/agentic/pull/9"]').exists()).toBe(true)
+    expect(filterState(wrapper, 'approved')).toBe('all')
+  })
+
+  it('remembers the approved choice when the queue is reopened', async () => {
+    mocks.queue.mockResolvedValue({
+      root: null,
+      counts: { total: 1 },
+      prs: [pr({ number: 9, review_decision: 'APPROVED' })]
+    })
+    const wrapper = mount(ReviewsView, stub)
+    await flushPromises()
+
+    await wrapper.get('.review-approved-filter').trigger('click')
+    await flushPromises()
+    wrapper.unmount()
+
+    const reopened = mount(ReviewsView, stub)
+    await flushPromises()
+
+    expect(filterState(reopened, 'approved')).toBe('only')
+    expect(reopened.find('a[href="https://github.com/TomzxCode/agentic/pull/9"]').exists()).toBe(true)
+  })
+
+  it('keeps reviewed pull requests by default and cycles them hidden, only, all', async () => {
+    mocks.queue.mockResolvedValue({
+      root: null,
+      counts: { total: 2 },
+      prs: [pr({ number: 42 }), pr({ number: 9, request_source: 'reviewed' })]
+    })
+    const wrapper = mount(ReviewsView, stub)
+    await flushPromises()
+
+    // Reviewed rows are kept by default, unlike drafts and approved ones.
+    expect(wrapper.find('a[href="https://github.com/TomzxCode/agentic/pull/42"]').exists()).toBe(true)
+    expect(wrapper.find('a[href="https://github.com/TomzxCode/agentic/pull/9"]').exists()).toBe(true)
+    expect(filterState(wrapper, 'reviewed')).toBe('all')
+    expect(filterCount(wrapper, 'reviewed')).toBe('1')
+    expect(wrapper.get('.review-reviewed-filter').attributes('title')).toBe(
+      'Everything is shown; click to hide reviewed pull requests'
+    )
+
+    // One click hides the ones already reviewed.
+    await wrapper.get('.review-reviewed-filter').trigger('click')
+    await flushPromises()
+    expect(filterState(wrapper, 'reviewed')).toBe('hidden')
+    expect(wrapper.find('a[href="https://github.com/TomzxCode/agentic/pull/9"]').exists()).toBe(false)
+
+    // Another click keeps only those.
+    await wrapper.get('.review-reviewed-filter').trigger('click')
+    await flushPromises()
+    expect(filterState(wrapper, 'reviewed')).toBe('only')
+    expect(wrapper.find('a[href="https://github.com/TomzxCode/agentic/pull/42"]').exists()).toBe(false)
+    expect(wrapper.find('a[href="https://github.com/TomzxCode/agentic/pull/9"]').exists()).toBe(true)
+
+    // The last click brings everything back.
+    await wrapper.get('.review-reviewed-filter').trigger('click')
+    await flushPromises()
+    expect(filterState(wrapper, 'reviewed')).toBe('all')
+    expect(wrapper.find('a[href="https://github.com/TomzxCode/agentic/pull/42"]').exists()).toBe(true)
+  })
+
+  it('offers to include the reviewed pull requests it hides', async () => {
+    mocks.queue.mockResolvedValue({
+      root: null,
+      counts: { total: 1 },
+      prs: [pr({ number: 9, request_source: 'reviewed' })]
+    })
+    const wrapper = mount(ReviewsView, stub)
+    await flushPromises()
+
+    await wrapper.get('.review-reviewed-filter').trigger('click')
+    await flushPromises()
+    expect(wrapper.text()).toContain('1 reviewed pull request is hidden.')
+
+    const include = wrapper.findAll('button').find((button) => button.text() === 'Include reviewed')
+    await include.trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('a[href="https://github.com/TomzxCode/agentic/pull/9"]').exists()).toBe(true)
+    expect(filterState(wrapper, 'reviewed')).toBe('all')
+  })
+
+  it('says when only reviewed pull requests are shown and offers to show everything', async () => {
+    mocks.queue.mockResolvedValue({ root: null, counts: { total: 1 }, prs: [pr({ number: 42 })] })
+    const wrapper = mount(ReviewsView, stub)
+    await flushPromises()
+
+    // Cycle from all to hidden to only.
+    await wrapper.get('.review-reviewed-filter').trigger('click')
+    await wrapper.get('.review-reviewed-filter').trigger('click')
+    await flushPromises()
+    expect(wrapper.text()).toContain('No pull requests you reviewed match.')
+
+    const showAll = wrapper.findAll('button').find((button) => button.text() === 'Show every pull request')
+    await showAll.trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('a[href="https://github.com/TomzxCode/agentic/pull/42"]').exists()).toBe(true)
+    expect(filterState(wrapper, 'reviewed')).toBe('all')
+  })
+
+  it('remembers the reviewed choice when the queue is reopened', async () => {
+    mocks.queue.mockResolvedValue({
+      root: null,
+      counts: { total: 1 },
+      prs: [pr({ number: 9, request_source: 'reviewed' })]
+    })
+    const wrapper = mount(ReviewsView, stub)
+    await flushPromises()
+
+    // From "all", one click hides them and a second keeps only them.
+    await wrapper.get('.review-reviewed-filter').trigger('click')
+    await wrapper.get('.review-reviewed-filter').trigger('click')
+    await flushPromises()
+    wrapper.unmount()
+
+    const reopened = mount(ReviewsView, stub)
+    await flushPromises()
+
+    expect(filterState(reopened, 'reviewed')).toBe('only')
     expect(reopened.find('a[href="https://github.com/TomzxCode/agentic/pull/9"]').exists()).toBe(true)
   })
 
@@ -676,7 +923,14 @@ describe('ReviewsView', () => {
     })
     localStorage.setItem(
       'agentic.reviewQueueFilters',
-      JSON.stringify({ state: 'bogus', repositories: 'acme/api', authors: 3, includeDrafts: 'yes', search: { q: 'x' } })
+      JSON.stringify({
+        state: 'bogus',
+        repositories: 'acme/api',
+        authors: 3,
+        includeDrafts: 'yes',
+        includeApproved: 'yes',
+        search: { q: 'x' }
+      })
     )
 
     const wrapper = mount(ReviewsView, stub)
@@ -685,10 +939,32 @@ describe('ReviewsView', () => {
     expect(wrapper.findAll('.review-state-filter')[0].attributes('aria-pressed')).toBe('true')
     expect(wrapper.get('.review-repository-select .ss-label').text()).toBe('All repositories')
     expect(wrapper.get('.review-author-select .ss-label').text()).toBe('All authors')
-    expect(wrapper.get('.review-draft-filter').attributes('aria-pressed')).toBe('false')
+    expect(filterState(wrapper, 'draft')).toBe('hidden')
+    expect(filterCount(wrapper, 'draft')).toBe('1')
+    expect(filterState(wrapper, 'approved')).toBe('hidden')
+    expect(filterCount(wrapper, 'approved')).toBe('0')
+    expect(filterState(wrapper, 'reviewed')).toBe('all')
     expect(wrapper.get('.review-search').element.value).toBe('')
     expect(wrapper.find('a[href="https://github.com/TomzxCode/agentic/pull/42"]').exists()).toBe(true)
     expect(wrapper.find('a[href="https://github.com/TomzxCode/agentic/pull/9"]').exists()).toBe(false)
+  })
+
+  it('migrates a stored boolean draft or approved choice to the three-state filter', async () => {
+    mocks.queue.mockResolvedValue({
+      root: null,
+      counts: { total: 2 },
+      prs: [pr({ number: 42 }), pr({ number: 9, draft: true })]
+    })
+    // The old toggles stored booleans; true meant "show them alongside the
+    // rest", which is now the "all" state.
+    localStorage.setItem('agentic.reviewQueueFilters', JSON.stringify({ includeDrafts: true, includeApproved: true }))
+
+    const wrapper = mount(ReviewsView, stub)
+    await flushPromises()
+
+    expect(filterState(wrapper, 'draft')).toBe('all')
+    expect(filterState(wrapper, 'approved')).toBe('all')
+    expect(wrapper.find('a[href="https://github.com/TomzxCode/agentic/pull/9"]').exists()).toBe(true)
   })
 
   it('falls back to the default filters when the stored filters cannot be parsed', async () => {

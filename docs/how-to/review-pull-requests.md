@@ -23,8 +23,10 @@ The reports live under `AGENTIC_SDLC_DIR` (`~/.sdlc` by default), at `{owner}/{r
 
 2. Filter the queue. By default it shows only **open** pull requests; a pull request whose state could not be read is treated as open.
    The status chips (**Open**, **Merged**, **Closed**, **All**) each carry a count over the whole queue, and the header totals follow what the filter shows.
-   Draft pull requests are left out by default; the **Drafts** chip carries their count, and clicking it includes them in the other filters.
-   When the other filters would keep only drafts, the empty state says how many are hidden and offers to include them.
+   The **Drafts**, **Approved**, and **Reviewed** chips each carry a count over the whole queue and step through three states on click: **hidden**, **only** (keep just that kind), and **all** (keep everything); the chip shows its current state.
+   Drafts and approved pull requests start **hidden**, since neither waits for a review; pull requests you already reviewed start **all**, since they may still need a follow-up.
+   When one of them hides the only matching rows, the empty state says how many are hidden and offers to include them.
+   When only one kind is shown and nothing matches, the empty state offers to show every pull request.
    Use the **All repositories** dropdown to pick one or more repositories; type in its filter box to narrow the list, and each choice toggles on and off.
    With nothing chosen it shows every repository, and the queue keeps only the rows of the chosen ones.
    Use the **All authors** dropdown the same way to pick one or more authors.
@@ -34,6 +36,8 @@ The reports live under `AGENTIC_SDLC_DIR` (`~/.sdlc` by default), at `{owner}/{r
    When nothing matches, the empty state offers to clear the search, repositories, or author, or show all statuses.
 3. Read the row's own columns: the pull request number and title, its author, its age, the last comment and who made it, the commit last reviewed, and when the last review ran.
    Click the number to open the pull request on GitHub.
+   A **✅** after the number means GitHub has already approved the pull request (the reviews its branch requires are in), so it needs no further review from you.
+   A **📨** means a review is requested from you, and **👀** means you already reviewed the pull request and it is still open.
 4. Read the merge-readiness light beside the number:
    - 🟢 green: the collected signals could be approved automatically.
    - 🟡 yellow: something still needs attention.
@@ -80,12 +84,13 @@ Without it, the poke reports that Slack is not configured.
 ## Where the data comes from
 
 The review-step state comes from the reports the review skills write under the store, and each pull request's own fields come from `ghx`.
+A pull request's GitHub review decision (which is what the **✅** approval mark reads) comes from `ghx` too, falling back to the store's `gh-pr-view.md` cache when `ghx` cannot answer.
 A pull request item's reviewer list comes from `gh pr view`, because `ghx` does not carry reviews.
 Fields that would need a read the queue does not make (the diff size, the pull requests an open PR blocks) are left out.
 
 ## Verification
 
-Every PR with a report in the store appears, plus the ones the scan found awaiting your review, its readiness light reflects its step verdicts, and clicking a step cell opens that report.
+Every PR with a report in the store appears (unless a kind filter hides it, which its chip changes), plus the ones the scan found awaiting your review, its readiness light reflects its step verdicts, and clicking a step cell opens that report.
 
 ## Related
 

@@ -85,6 +85,7 @@ def test_fetch_github_pull_request_carries_draft_and_state(monkeypatch):
             "state": "MERGED",
             "isDraft": False,
             "mergedAt": "2026-10-11T05:23:53Z",
+            "reviewDecision": "APPROVED",
             "author": {"login": "a"},
             "labels": [],
             "body": "wip",
@@ -97,6 +98,7 @@ def test_fetch_github_pull_request_carries_draft_and_state(monkeypatch):
     assert issue["state"] == "MERGED"
     assert issue["is_draft"] is False
     assert issue["merged_at"] == "2026-10-11T05:23:53Z"
+    assert issue["review_decision"] == "APPROVED"
 
     # The fetched metadata carries the state, draft flag, merge time, and author
     # through to the item.

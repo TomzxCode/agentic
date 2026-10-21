@@ -215,6 +215,10 @@ class ReviewPrRead(BaseModel):
     head_branch: str = ""
     base_branch: str = ""
     labels: list[str] = []
+    # GitHub's review decision: APPROVED when the reviews the branch requires
+    # are in, CHANGES_REQUESTED, REVIEW_REQUIRED, or empty when it was never
+    # read (or the repository requires no reviews).
+    review_decision: str = ""
     created_at: str | None = None
     last_comment_at: str | None = None
     last_comment_by: str = ""

@@ -72,6 +72,18 @@ export const READINESS_TITLES = {
   red: 'A signal blocks approval'
 }
 
+// How each way the review scan found a pull request reads, as the emoji the
+// queue shows beside it. "requested" is a review asked of the user, "reviewed"
+// is one they already reviewed that is still open.
+export const REQUEST_SOURCE_BADGES = { requested: '📨', reviewed: '👀' }
+
+// Whether GitHub has already approved the pull request: its review decision is
+// APPROVED, which means the reviews the branch requires are in. Reads the
+// decision case-insensitively, since the store's cache spells it in lower case.
+export function isApproved(pr) {
+  return String(pr?.review_decision || '').toUpperCase() === 'APPROVED'
+}
+
 // The in-progress marker a step published while it runs, or null when it is
 // not running. The marker is empty; its presence is the signal.
 export function runningStep(pr, key) {
@@ -185,16 +197,67 @@ export function stateFilterCounts(prs) {
   return counts
 }
 
-// Whether a row passes the draft filter: drafts are left out by default, and
-// including them keeps every other filter in force.
-export function matchesDraftFilter(pr, includeDrafts) {
-  return !!includeDrafts || !pr?.draft
+// The three states a kind filter (drafts, approved) takes, in click order: the
+// kind is hidden, then only that kind is shown, then everything. Both start
+// hidden, because the queue is about what still needs a review.
+export const KIND_FILTER_STATES = ['hide', 'only', 'all']
+export const KIND_FILTER_LABELS = { hide: 'hidden', only: 'only', all: 'all' }
+
+// The state a kind filter takes on its next click, wrapping around. An unknown
+// state starts the cycle over at hidden.
+export function nextKindFilter(state) {
+  const index = KIND_FILTER_STATES.indexOf(state)
+  return KIND_FILTER_STATES[(index + 1) % KIND_FILTER_STATES.length]
+}
+
+// Whether a row passes the draft filter for a kind-filter state: hidden keeps
+// drafts out, only keeps just drafts, and all keeps everything.
+export function matchesDraftFilter(pr, state) {
+  if (state === 'all') return true
+  if (state === 'only') return !!pr?.draft
+  return !pr?.draft
 }
 
 // How many rows in the queue are drafts, for the toggle's count. Like the state
 // counts, it covers the whole queue.
 export function draftFilterCount(prs) {
   return (prs || []).filter((pr) => pr?.draft).length
+}
+
+// Whether a row passes the approved filter for a kind-filter state: hidden keeps
+// approved pull requests out, only keeps just the approved ones, and all keeps
+// everything.
+export function matchesApprovedFilter(pr, state) {
+  if (state === 'all') return true
+  if (state === 'only') return isApproved(pr)
+  return !isApproved(pr)
+}
+
+// How many rows in the queue GitHub has already approved, for the toggle's
+// count. Like the draft count, it covers the whole queue.
+export function approvedFilterCount(prs) {
+  return (prs || []).filter((pr) => isApproved(pr)).length
+}
+
+// Whether the user already reviewed the pull request: the review scan found it
+// through the reviewed-by search, which is what the 👀 mark reports.
+export function isReviewedByMe(pr) {
+  return pr?.request_source === 'reviewed'
+}
+
+// Whether a row passes the reviewed filter for a kind-filter state: hidden keeps
+// the pull requests the user already reviewed out, only keeps just those, and
+// all keeps everything.
+export function matchesReviewedFilter(pr, state) {
+  if (state === 'all') return true
+  if (state === 'only') return isReviewedByMe(pr)
+  return !isReviewedByMe(pr)
+}
+
+// How many rows in the queue the user already reviewed, for the toggle's count.
+// Like the draft count, it covers the whole queue.
+export function reviewedFilterCount(prs) {
+  return (prs || []).filter((pr) => isReviewedByMe(pr)).length
 }
 
 // Whether a row matches the search text: its repository, number, title, or
