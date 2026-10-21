@@ -88,21 +88,21 @@ describe('sidebarNav', () => {
   describe('moveNavItem', () => {
     it('swaps an item with its neighbour', () => {
       moveNavItem('inbox', 1)
-      expect(ids(sidebarNavList.value).slice(0, 3)).toEqual(['tasks', 'reviews', 'inbox'])
+      expect(ids(sidebarNavList.value).slice(1, 4)).toEqual(['tasks', 'reviews', 'inbox'])
       moveNavItem('inbox', -1)
-      expect(ids(sidebarNavList.value).slice(0, 3)).toEqual(['tasks', 'inbox', 'reviews'])
+      expect(ids(sidebarNavList.value).slice(1, 4)).toEqual(['tasks', 'inbox', 'reviews'])
     })
 
     it('does nothing at the ends', () => {
-      moveNavItem('tasks', -1)
-      expect(sidebarNavList.value[0].id).toBe('tasks')
+      moveNavItem('stack', -1)
+      expect(sidebarNavList.value[0].id).toBe('stack')
       moveNavItem('settings', 1)
       expect(sidebarNavList.value.at(-1).id).toBe('settings')
     })
 
     it('moves to an explicit index and clamps to the bounds', () => {
       moveNavItemTo('tasks', 2)
-      expect(ids(sidebarNavList.value).slice(0, 3)).toEqual(['inbox', 'reviews', 'tasks'])
+      expect(ids(sidebarNavList.value).slice(0, 3)).toEqual(['stack', 'inbox', 'tasks'])
       moveNavItemTo('tasks', 99)
       expect(sidebarNavList.value.at(-1).id).toBe('tasks')
       moveNavItemTo('tasks', -5)

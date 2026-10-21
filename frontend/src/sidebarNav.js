@@ -9,11 +9,11 @@ import { computed, reactive } from 'vue'
 // are the route names that light the icon, so a detail route keeps its list
 // icon lit (a person page lights People, a repository page lights Repositories).
 export const SIDEBAR_NAV_ITEMS = [
+  { id: 'stack', label: 'Stack', to: '/stack', icon: 'stack', routeNames: ['stack'] },
   { id: 'tasks', label: 'Tasks', to: '/', icon: 'tasks', routeNames: ['tasks'] },
   { id: 'inbox', label: 'Inbox', to: '/inbox', icon: 'inbox', routeNames: ['inbox'], badge: 'inbox' },
   { id: 'reviews', label: 'Review queue', to: '/reviews', icon: 'reviews', routeNames: ['reviews'] },
   { id: 'feedback', label: 'PR feedback', to: '/feedback', icon: 'feedback', routeNames: ['feedback'] },
-  { id: 'stack', label: 'Stack', to: '/stack', icon: 'stack', routeNames: ['stack'] },
   { id: 'gantt', label: 'Gantt', to: '/gantt', icon: 'gantt', routeNames: ['gantt'] },
   { id: 'graph', label: 'Graph', to: '/graph', icon: 'graph', routeNames: ['graph'] },
   { id: 'events', label: 'Events', to: '/events', icon: 'events', routeNames: ['events'] },

@@ -632,6 +632,6 @@ describe('SettingsView', () => {
 
     const tasks = wrapper.findAll('.nav-config-row').find((row) => row.text().includes('Tasks'))
     await tasks.get('.nav-config-grip').trigger('keydown', { key: 'ArrowDown' })
-    expect(JSON.parse(localStorage.getItem('agentic.sidebarNav')).order[1]).toBe('tasks')
+    expect(JSON.parse(localStorage.getItem('agentic.sidebarNav')).order[2]).toBe('tasks')
   })
 })
