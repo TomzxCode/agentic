@@ -16,8 +16,10 @@ import {
   attentionRank,
   ciLabel,
   ciTone,
+  groupPulls,
   matchesPullSearch,
   needsAttention,
+  PULL_GROUPINGS,
   pullCounts,
   reviewLabel,
   reviewTone,
@@ -52,6 +54,7 @@ function report(pulls, overrides = {}) {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  localStorage.clear()
   store.people = []
   store.repositories = []
   store.toast = null
@@ -121,6 +124,72 @@ describe('my pulls helpers', () => {
   })
 })
 
+describe('grouping', () => {
+  it('offers the flat list plus the three facets', () => {
+    expect(PULL_GROUPINGS.map((option) => option.value)).toEqual(['', 'repository', 'ci', 'review'])
+  })
+
+  it('returns the flat list as one unlabeled section when no grouping is chosen', () => {
+    const rows = [pull({ number: 2 }), pull({ number: 1 })]
+    const groups = groupPulls(rows, '')
+    expect(groups).toHaveLength(1)
+    expect(groups[0].label).toBe(null)
+    expect(groups[0].pulls.map((entry) => entry.number)).toEqual([2, 1])
+  })
+
+  it('groups by repository in name order, keeping each row once', () => {
+    const groups = groupPulls(
+      [
+        pull({ repository: 'TomzxCode/other', number: 7 }),
+        pull({ repository: 'TomzxCode/agentic', number: 42 }),
+        pull({ repository: 'tomzxcode/other', number: 9 })
+      ],
+      'repository'
+    )
+    expect(groups.map((group) => group.label)).toEqual(['TomzxCode/agentic', 'TomzxCode/other'])
+    // A casing difference does not split one repository in two.
+    expect(groups[1].pulls.map((entry) => entry.number)).toEqual([7, 9])
+    expect(groups.every((group) => group.badge === false)).toBe(true)
+  })
+
+  it('groups CI and review states with what needs the author first', () => {
+    const ci = groupPulls(
+      [pull({ ci: 'success' }), pull({ ci: 'none' }), pull({ ci: 'failure' }), pull({ ci: 'pending' })],
+      'ci'
+    )
+    expect(ci.map((group) => [group.label, group.tone])).toEqual([
+      ['Failing', 'danger'],
+      ['Running', 'warn'],
+      ['Passing', 'ok'],
+      ['No checks', '']
+    ])
+    // State sections carry a badge; repository sections do not.
+    expect(ci.every((group) => group.badge)).toBe(true)
+
+    const review = groupPulls(
+      [
+        pull({ review_decision: 'APPROVED', approved: true }),
+        pull({ review_decision: '' }),
+        pull({ review_decision: 'REVIEW_REQUIRED' }),
+        pull({ review_decision: 'CHANGES_REQUESTED' })
+      ],
+      'review'
+    )
+    expect(review.map((group) => group.label)).toEqual([
+      'Changes requested',
+      'Review required',
+      'Approved',
+      'No review'
+    ])
+  })
+
+  it('drops the states the list has none of', () => {
+    const groups = groupPulls([pull({ ci: 'success' })], 'ci')
+    expect(groups).toHaveLength(1)
+    expect(groups[0].label).toBe('Passing')
+  })
+})
+
 describe('MyPullsView', () => {
   it('renders each pull request with its state', async () => {
     mocks.list.mockResolvedValue(
@@ -172,6 +241,42 @@ describe('MyPullsView', () => {
     await flushPromises()
 
     expect(wrapper.text()).toContain('You have no open pull requests')
+  })
+
+  it('splits the list into sections for the chosen grouping and remembers the choice', async () => {
+    mocks.list.mockResolvedValue(
+      report([pull({ number: 42, ci: 'success' }), pull({ number: 7, ci: 'failure', repository: 'TomzxCode/other' })])
+    )
+    const wrapper = mount(MyPullsView, { global: { stubs: { RouterLink: RouterLinkStub } } })
+    await flushPromises()
+
+    const select = wrapper.find('.my-pulls-group-select')
+    expect(select.findAll('option').map((option) => option.text())).toEqual([
+      'None',
+      'Repository',
+      'CI status',
+      'Review status'
+    ])
+
+    // Flat by default: one table, no headings.
+    expect(wrapper.findAll('.my-pulls-group')).toHaveLength(1)
+    expect(wrapper.find('.my-pulls-group-head').exists()).toBe(false)
+
+    await select.setValue('ci')
+    const stateHeads = wrapper.findAll('.my-pulls-group-head')
+    expect(stateHeads.map((head) => head.element.firstElementChild.textContent)).toEqual(['Failing', 'Passing'])
+    expect(stateHeads.map((head) => head.find('.my-pulls-group-count').text())).toEqual(['1', '1'])
+    expect(wrapper.findAll('.my-pulls-link').map((link) => link.text())).toEqual(['#7', '#42'])
+    expect(localStorage.getItem('agentic.myPullsGroupBy')).toBe('ci')
+
+    await select.setValue('repository')
+    const repositoryHeads = wrapper.findAll('.my-pulls-group-head')
+    expect(repositoryHeads.map((head) => head.element.firstElementChild.textContent)).toEqual([
+      'TomzxCode/agentic',
+      'TomzxCode/other'
+    ])
+    // The heading names the repository, so the rows no longer repeat it.
+    expect(wrapper.findAll('.my-pulls-repository')).toHaveLength(0)
   })
 
   it('refreshes with the refresh flag and filters by search', async () => {

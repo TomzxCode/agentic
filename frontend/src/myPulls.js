@@ -1,5 +1,6 @@
 // Helpers for the My PRs page. They are pure so the labels, the attention order,
-// and the search are testable without rendering the view or calling the API.
+// the grouping, and the search are testable without rendering the view or
+// calling the API.
 
 // The API reports a pull request's head-commit check rollup as one of these.
 export const CI_LABELS = { success: 'Passing', pending: 'Running', failure: 'Failing', none: 'No checks' }
@@ -15,6 +16,21 @@ export const REVIEW_LABELS = {
   REVIEW_REQUIRED: 'Review required'
 }
 export const REVIEW_TONES = { APPROVED: 'ok', CHANGES_REQUESTED: 'danger', REVIEW_REQUIRED: 'warn' }
+
+// How the list can be split into sections. "None" is the flat list; every other
+// value gives one section per distinct value of that facet.
+export const PULL_GROUPINGS = [
+  { value: '', label: 'None' },
+  { value: 'repository', label: 'Repository' },
+  { value: 'ci', label: 'CI status' },
+  { value: 'review', label: 'Review status' }
+]
+
+// The order the state groupings present, the states that need the author first:
+// failing checks before running ones, requested changes before an approval, and
+// the pull requests GitHub decided nothing about last.
+const CI_ORDER = ['failure', 'pending', 'success', 'none']
+const REVIEW_ORDER = ['CHANGES_REQUESTED', 'REVIEW_REQUIRED', 'APPROVED', '']
 
 export function ciLabel(pull) {
   return CI_LABELS[pull.ci] || 'Unknown'
@@ -60,6 +76,54 @@ export function sortPulls(pulls) {
     if (rank !== 0) return rank
     return String(b.updated_at || '').localeCompare(String(a.updated_at || ''))
   })
+}
+
+// The pull requests split into sections for the chosen grouping, each keeping the
+// order it was handed (so what needs attention still leads inside a section). A
+// pull request belongs to exactly one section, and only non-empty sections are
+// returned. A state section carries the tone for its badge; a repository section
+// is a plain heading. With no grouping the whole list comes back as one unlabeled
+// section.
+export function groupPulls(pulls, groupBy) {
+  const list = [...(pulls || [])]
+  if (!groupBy) return [{ key: '', label: null, tone: '', badge: false, pulls: list }]
+
+  if (groupBy === 'ci') {
+    return CI_ORDER.map((ci) => ({
+      key: ci || 'none',
+      label: CI_LABELS[ci] || 'Unknown',
+      tone: CI_TONES[ci] || '',
+      badge: true,
+      pulls: list.filter((pull) => (pull.ci || 'none') === ci)
+    })).filter((group) => group.pulls.length)
+  }
+
+  if (groupBy === 'review') {
+    return REVIEW_ORDER.map((decision) => ({
+      key: decision || 'none',
+      label: REVIEW_LABELS[decision] || 'No review',
+      tone: REVIEW_TONES[decision] || '',
+      badge: true,
+      pulls: list.filter((pull) => (pull.review_decision || '') === decision)
+    })).filter((group) => group.pulls.length)
+  }
+
+  if (groupBy === 'repository') {
+    // Buckets keyed case-insensitively, so one repository never splits in two on
+    // a casing difference, and labelled with the first spelling seen.
+    const buckets = new Map()
+    for (const pull of list) {
+      const repository = pull.repository || ''
+      const key = repository.toLowerCase()
+      if (!buckets.has(key)) {
+        buckets.set(key, { key, label: repository || 'Unknown repository', tone: '', badge: false, pulls: [] })
+      }
+      buckets.get(key).pulls.push(pull)
+    }
+    return [...buckets.values()].sort((a, b) => a.label.localeCompare(b.label))
+  }
+
+  return [{ key: '', label: null, tone: '', badge: false, pulls: list }]
 }
 
 // Whether a pull request matches a free-text search over the fields the row

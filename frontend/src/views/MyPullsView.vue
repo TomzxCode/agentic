@@ -1,11 +1,13 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { api } from '../api'
 import {
   ciLabel,
   ciTone,
+  groupPulls,
   matchesPullSearch,
   needsAttention,
+  PULL_GROUPINGS,
   pullCounts,
   reviewLabel,
   reviewTone,
@@ -24,9 +26,38 @@ const loading = ref(true)
 const error = ref(false)
 const search = ref('')
 
-// The list in display order, and what the search keeps of it.
+// How the rows are split into sections. It is a per-device view preference,
+// remembered in localStorage like the feedback page's grouping, so leaving the
+// page and coming back keeps it.
+const GROUP_KEY = 'agentic.myPullsGroupBy'
+
+// The stored grouping, falling back to the flat list when nothing (or something
+// no longer offered) is stored.
+function readStoredGrouping() {
+  try {
+    const stored = localStorage.getItem(GROUP_KEY) || ''
+    return PULL_GROUPINGS.some((option) => option.value === stored) ? stored : ''
+  } catch {
+    // Storage can be blocked (private mode); the flat list still applies.
+    return ''
+  }
+}
+
+const groupBy = ref(readStoredGrouping())
+
+watch(groupBy, (value) => {
+  try {
+    localStorage.setItem(GROUP_KEY, value)
+  } catch {
+    // Not fatal: the grouping still applies for this session.
+  }
+})
+
+// The list in display order, what the search keeps of it, and those rows split
+// into the sections the grouping asks for.
 const pulls = computed(() => sortPulls(report.value.pulls || []))
 const filtered = computed(() => pulls.value.filter((pull) => matchesPullSearch(pull, search.value)))
+const groups = computed(() => groupPulls(filtered.value, groupBy.value))
 // The header's totals, over the whole list rather than the search result.
 const counts = computed(() => pullCounts(pulls.value))
 
@@ -130,6 +161,14 @@ onMounted(load)
           placeholder="Search repository, number, title, or approver…"
           aria-label="Search my pull requests"
         />
+        <label class="faint my-pulls-group-by">
+          Group by
+          <select v-model="groupBy" class="select my-pulls-group-select" aria-label="Group my pull requests by">
+            <option v-for="option in PULL_GROUPINGS" :key="option.value" :value="option.value">
+              {{ option.label }}
+            </option>
+          </select>
+        </label>
       </div>
 
       <div v-if="!filtered.length" class="empty">
@@ -137,78 +176,93 @@ onMounted(load)
         <button class="btn sm ghost" @click="search = ''">Clear search</button>
       </div>
 
-      <div v-else class="my-pulls-table-wrap">
-        <table class="my-pulls-table">
-          <thead>
-            <tr>
-              <th>PR</th>
-              <th>CI</th>
-              <th>Review</th>
-              <th>Approvers</th>
-              <th>Threads</th>
-              <th>Updated</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr
-              v-for="pull in filtered"
-              :key="`${pull.repository}#${pull.number}`"
-              :class="{ 'needs-attention': needsAttention(pull) }"
-            >
-              <td class="my-pulls-pr-cell">
-                <a
-                  class="my-pulls-link"
-                  :href="pull.url"
-                  target="_blank"
-                  rel="noopener"
-                  :title="`Open #${pull.number} on GitHub`"
-                  >#{{ pull.number }}</a
+      <div v-else class="my-pulls-groups">
+        <section v-for="group in groups" :key="group.key" class="my-pulls-group">
+          <h2 v-if="group.label" class="group-head my-pulls-group-head">
+            <span v-if="group.badge" class="badge" :class="group.tone">{{ group.label }}</span>
+            <span v-else>{{ group.label }}</span>
+            <span class="faint my-pulls-group-count">{{ group.pulls.length }}</span>
+          </h2>
+          <div class="my-pulls-table-wrap">
+            <table class="my-pulls-table">
+              <thead>
+                <tr>
+                  <th>PR</th>
+                  <th>CI</th>
+                  <th>Review</th>
+                  <th>Approvers</th>
+                  <th>Threads</th>
+                  <th>Updated</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr
+                  v-for="pull in group.pulls"
+                  :key="`${pull.repository}#${pull.number}`"
+                  :class="{ 'needs-attention': needsAttention(pull) }"
                 >
-                <span v-if="pull.draft" class="badge st-draft">draft</span>
-                <router-link
-                  v-if="repositoryLink(pull.repository)"
-                  class="my-pulls-repository"
-                  :to="`/repositories/${repositoryLink(pull.repository)}`"
-                  :title="`Open ${pull.repository} in the app`"
-                  >{{ pull.repository }}</router-link
-                >
-                <span v-else class="my-pulls-repository faint">{{ pull.repository }}</span>
-                <span class="my-pulls-title" :title="pull.title">{{ pull.title }}</span>
-              </td>
-              <td>
-                <span class="badge" :class="ciTone(pull)">{{ ciLabel(pull) }}</span>
-              </td>
-              <td>
-                <span class="badge" :class="reviewTone(pull)">{{ reviewLabel(pull) }}</span>
-              </td>
-              <td class="my-pulls-approvers">
-                <span v-if="pull.approvers.length" class="my-pulls-approvers-label faint">approved by </span>
-                <template v-if="pull.approvers.length">
-                  <template v-for="(login, index) in pull.approvers" :key="login">
-                    <span v-if="index" class="faint">, </span>
-                    <router-link
-                      v-if="personLinkFor(login)"
-                      :to="personLinkFor(login).path"
-                      :class="{ faint: personLinkFor(login).missing }"
-                      >{{ login }}</router-link
+                  <td class="my-pulls-pr-cell">
+                    <a
+                      class="my-pulls-link"
+                      :href="pull.url"
+                      target="_blank"
+                      rel="noopener"
+                      :title="`Open #${pull.number} on GitHub`"
+                      >#{{ pull.number }}</a
                     >
-                    <span v-else>{{ login }}</span>
-                  </template>
-                </template>
-                <span v-else class="faint">—</span>
-              </td>
-              <td class="my-pulls-threads" :title="threadTitle(pull)">
-                <span :class="{ 'my-pulls-threads-open': pull.open_threads > 0 }">{{ pull.open_threads }} open</span>
-              </td>
-              <td class="faint">
-                <span v-if="pull.updated_at" class="mono" :title="formatDateTime(pull.updated_at)">{{
-                  timeAgo(pull.updated_at)
-                }}</span>
-                <span v-else>—</span>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+                    <span v-if="pull.draft" class="badge st-draft">draft</span>
+                    <!-- The heading already names the repository when the list is
+                         grouped by it, so the row does not repeat it. -->
+                    <template v-if="groupBy !== 'repository'">
+                      <router-link
+                        v-if="repositoryLink(pull.repository)"
+                        class="my-pulls-repository"
+                        :to="`/repositories/${repositoryLink(pull.repository)}`"
+                        :title="`Open ${pull.repository} in the app`"
+                        >{{ pull.repository }}</router-link
+                      >
+                      <span v-else class="my-pulls-repository faint">{{ pull.repository }}</span>
+                    </template>
+                    <span class="my-pulls-title" :title="pull.title">{{ pull.title }}</span>
+                  </td>
+                  <td>
+                    <span class="badge" :class="ciTone(pull)">{{ ciLabel(pull) }}</span>
+                  </td>
+                  <td>
+                    <span class="badge" :class="reviewTone(pull)">{{ reviewLabel(pull) }}</span>
+                  </td>
+                  <td class="my-pulls-approvers">
+                    <span v-if="pull.approvers.length" class="my-pulls-approvers-label faint">approved by </span>
+                    <template v-if="pull.approvers.length">
+                      <template v-for="(login, index) in pull.approvers" :key="login">
+                        <span v-if="index" class="faint">, </span>
+                        <router-link
+                          v-if="personLinkFor(login)"
+                          :to="personLinkFor(login).path"
+                          :class="{ faint: personLinkFor(login).missing }"
+                          >{{ login }}</router-link
+                        >
+                        <span v-else>{{ login }}</span>
+                      </template>
+                    </template>
+                    <span v-else class="faint">—</span>
+                  </td>
+                  <td class="my-pulls-threads" :title="threadTitle(pull)">
+                    <span :class="{ 'my-pulls-threads-open': pull.open_threads > 0 }"
+                      >{{ pull.open_threads }} open</span
+                    >
+                  </td>
+                  <td class="faint">
+                    <span v-if="pull.updated_at" class="mono" :title="formatDateTime(pull.updated_at)">{{
+                      timeAgo(pull.updated_at)
+                    }}</span>
+                    <span v-else>—</span>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
       </div>
     </template>
   </div>

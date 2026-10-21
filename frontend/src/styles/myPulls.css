@@ -18,6 +18,32 @@
   min-width: 0;
   max-width: 420px;
 }
+/* The "Group by" control beside the search: a label with a compact select, like
+   the tasks page's. */
+.my-pulls-group-by {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.my-pulls-group-select {
+  width: auto;
+  min-width: 130px;
+}
+/* One section per group. The heading is global (responsive.css); a group of
+   state badges keeps its badge in the badge's own case rather than the
+   heading's uppercase. */
+.my-pulls-group + .my-pulls-group {
+  margin-top: 16px;
+}
+.my-pulls-group-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.my-pulls-group-head .badge {
+  text-transform: none;
+  letter-spacing: 0;
+}
 .my-pulls-table-wrap {
   overflow-x: auto;
   border: 1px solid var(--border);
