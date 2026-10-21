@@ -341,7 +341,8 @@ async function createTask() {
     })
     showNew.value = false
     resetDraft()
-    await refresh()
+    await store.loadTasks().catch(() => {})
+    store.loadInbox().catch(() => {})
     router.push(`/task/${task.id}`)
   } catch (e) {
     store.notify(e.message, true)
