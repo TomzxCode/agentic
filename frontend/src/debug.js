@@ -1,5 +1,7 @@
 import { reactive } from 'vue'
 
+const seenRequestIds = new Set()
+
 export const debugStats = reactive({
   apiCalls: 0,
   apiTime: 0,
@@ -9,10 +11,18 @@ export const debugStats = reactive({
   lastDbQueries: 0,
   lastDbTime: 0,
   calls: [],
-  requests: []
+  requests: [],
+  dbRequests: []
 })
 
-export function recordApiCall({ method = 'GET', path = '', duration = 0, dbQueries = 0, dbTime = 0, dbQueryDetails = [] } = {}) {
+export function recordApiCall({
+  method = 'GET',
+  path = '',
+  duration = 0,
+  dbQueries = 0,
+  dbTime = 0,
+  dbQueryDetails = []
+} = {}) {
   debugStats.apiCalls += 1
   debugStats.apiTime += duration
   debugStats.dbQueries += dbQueries
@@ -25,6 +35,7 @@ export function recordApiCall({ method = 'GET', path = '', duration = 0, dbQueri
 }
 
 export function resetDebugStats() {
+  seenRequestIds.clear()
   debugStats.apiCalls = 0
   debugStats.apiTime = 0
   debugStats.dbQueries = 0
@@ -34,6 +45,15 @@ export function resetDebugStats() {
   debugStats.lastDbTime = 0
   debugStats.calls = []
   debugStats.requests = []
+  debugStats.dbRequests = []
+}
+
+export function clearApiCalls() {
+  debugStats.requests = []
+}
+
+export function clearDbQueries() {
+  debugStats.dbRequests = []
 }
 
 export async function refreshDebugRequests() {
@@ -41,7 +61,17 @@ export async function refreshDebugRequests() {
     const res = await fetch('/api/debug/requests')
     if (!res.ok) return
     const data = await res.json()
-    debugStats.requests = Array.isArray(data) ? data : []
+    if (!Array.isArray(data)) return
+    // Older servers have no stable IDs, so retain their snapshot behavior.
+    if (data.some((request) => !request.id)) {
+      debugStats.requests = data
+      debugStats.dbRequests = data
+      return
+    }
+    const incoming = data.filter((request) => !seenRequestIds.has(request.id))
+    incoming.forEach((request) => seenRequestIds.add(request.id))
+    debugStats.requests = [...incoming, ...debugStats.requests]
+    debugStats.dbRequests = [...incoming, ...debugStats.dbRequests]
   } catch {
     // ignore
   }

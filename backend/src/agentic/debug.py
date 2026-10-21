@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import time
 from contextvars import ContextVar, Token
+from uuid import uuid4
 
 from sqlalchemy import event
 
@@ -87,6 +88,7 @@ class DebugMiddleware:
             if not path.startswith("/api/debug"):
                 duration_ms = (time.perf_counter() - state["start"]) * 1000.0
                 entry = {
+                    "id": str(uuid4()),
                     "method": method,
                     "path": path,
                     "duration_ms": round(duration_ms, 2),

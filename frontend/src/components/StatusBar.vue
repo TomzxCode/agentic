@@ -5,6 +5,7 @@
     role="status"
     aria-live="polite"
   >
+    <div v-if="expanded" class="status-bar-resizer" data-testid="status-bar-resizer" @pointerdown="startResize"></div>
     <button class="status-bar-toggle" data-testid="status-bar-toggle" type="button" @click="expanded = !expanded">
       {{ expanded ? 'Hide' : 'Show' }} details
     </button>
@@ -21,8 +22,8 @@
       {{ debugStats.requests.reduce((s, r) => s + (r.duration_ms || 0), 0).toFixed(2) }} ms
     </span>
     <span class="status-bar-item" data-testid="db-queries">
-      DB: {{ debugStats.requests.reduce((s, r) => s + (r.db_queries || 0), 0) }} queries,
-      {{ debugStats.requests.reduce((s, r) => s + (r.db_time_ms || 0), 0).toFixed(2) }} ms
+      DB: {{ debugStats.dbRequests.reduce((s, r) => s + (r.db_queries || 0), 0) }} queries,
+      {{ debugStats.dbRequests.reduce((s, r) => s + (r.db_time_ms || 0), 0).toFixed(2) }} ms
     </span>
     <span v-if="lastRequest" class="status-bar-item" data-testid="last-api-call">
       Last: {{ Number(lastRequest.duration_ms || 0).toFixed(2) }} ms ({{ lastRequest.db_queries || 0 }} queries,
@@ -32,9 +33,8 @@
       v-if="expanded"
       class="status-bar-details"
       data-testid="status-bar-details"
-      :style="{ maxHeight: detailsHeight + 'px' }"
+      :style="{ height: detailsHeight + 'px' }"
     >
-      <div class="status-bar-resizer" data-testid="status-bar-resizer" @pointerdown="startResize"></div>
       <input v-model="filter" class="status-bar-filter" data-testid="debug-filter" type="text" placeholder="Filter…" />
       <div class="status-bar-tabs">
         <button
@@ -54,6 +54,18 @@
           @click="activeTab = 'db'"
         >
           DB queries
+        </button>
+        <button
+          v-if="activeTab === 'api'"
+          type="button"
+          class="status-bar-tab"
+          data-testid="clear-api-calls"
+          @click="clearApiCalls"
+        >
+          Clear API calls
+        </button>
+        <button v-else type="button" class="status-bar-tab" data-testid="clear-db-queries" @click="clearDbQueries">
+          Clear DB queries
         </button>
       </div>
       <div v-if="activeTab === 'api'">
@@ -106,10 +118,12 @@
 
 <script setup>
 import { ref, watch, computed, onMounted, onUnmounted } from 'vue'
+import { useRoute } from 'vue-router'
 import { usePageLoadPerformance } from '../composables/usePageLoadPerformance'
-import { debugStats, refreshDebugRequests } from '../debug.js'
+import { debugStats, refreshDebugRequests, clearApiCalls, clearDbQueries } from '../debug.js'
 
 const { metrics } = usePageLoadPerformance()
+const route = useRoute()
 const expanded = ref(false)
 const activeTab = ref('api')
 const collapsedCalls = ref(new Set())
@@ -123,7 +137,7 @@ watch(filter, (value) => {
 const lastRequest = computed(() => (debugStats.requests && debugStats.requests.length ? debugStats.requests[0] : null))
 
 const sortedRequests = computed(() => {
-  const list = [...debugStats.requests]
+  const list = [...(activeTab.value === 'api' ? debugStats.requests : debugStats.dbRequests)]
   if (sortBy.value === 'duration') return list.sort((a, b) => (b.duration_ms || 0) - (a.duration_ms || 0))
   if (sortBy.value === 'dbQueries') return list.sort((a, b) => (b.db_queries || 0) - (a.db_queries || 0))
   if (sortBy.value === 'dbTime') return list.sort((a, b) => (b.db_time_ms || 0) - (a.db_time_ms || 0))
@@ -165,16 +179,27 @@ function startResize(event) {
   window.addEventListener('pointerup', onUp)
 }
 
+let refreshTimer
+
+function scheduleRefresh() {
+  clearTimeout(refreshTimer)
+  refreshTimer = setTimeout(refreshDebugRequests, 100)
+}
+
+watch(() => route.fullPath, scheduleRefresh)
+watch(() => debugStats.apiCalls, scheduleRefresh)
 watch(expanded, (value) => {
-  if (value) refreshDebugRequests()
+  if (value) {
+    clearTimeout(refreshTimer)
+    refreshDebugRequests()
+  }
 })
 
 onMounted(() => {
   refreshDebugRequests()
-  const timer = setInterval(refreshDebugRequests, 2000)
-  // store timer on component instance for cleanup
-  onUnmounted(() => clearInterval(timer))
 })
+
+onUnmounted(() => clearTimeout(refreshTimer))
 </script>
 
 <style scoped>
@@ -257,11 +282,13 @@ onMounted(() => {
   padding-top: 6px;
 }
 .status-bar-resizer {
+  position: absolute;
+  top: -3px;
+  left: 0;
+  right: 0;
   height: 6px;
   cursor: row-resize;
-  background: var(--border, #2a2a2a);
-  border-radius: 3px;
-  margin-bottom: 6px;
+  touch-action: none;
 }
 .status-bar-call {
   margin-bottom: 8px;
