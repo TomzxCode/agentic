@@ -10,7 +10,7 @@ from ..links import run_read, session_read
 from ..models.agents import AgentRun, AgentSession
 from ..models.base import WorktreeStatus
 from ..models.changes import Change
-from ..models.items import Association, Person, SourceItem, TaskPerson, TaskRequester
+from ..models.items import Association, ItemPerson, Person, SourceItem, TaskPerson, TaskRequester
 from ..models.repositories import Repository, TaskRepository, Worktree
 from ..models.tasks import Task, TimelineEvent
 from ..schemas.changes import ChangeRead
@@ -155,8 +155,34 @@ def _detail(session: Session, task: Task) -> TaskDetail:
     details: list[AssociationDetail] = []
     suggested: list[Person] = []
     seen_suggested: set[str] = set()
+
+    item_ids = [assoc.item_id for assoc in associations]
+    items_by_id: dict[str, SourceItem] = {}
+    if item_ids:
+        for item in session.exec(select(SourceItem).where(col(SourceItem.id).in_(item_ids))).all():
+            items_by_id[item.id] = item
+
+    item_person_ids_by_item: dict[str, list[str]] = {item_id: [] for item_id in item_ids}
+    if item_ids:
+        for link in session.exec(select(ItemPerson).where(col(ItemPerson.item_id).in_(item_ids))).all():
+            item_person_ids_by_item.setdefault(link.item_id, []).append(link.person_id)
+
+    candidate_person_ids: set[str] = set()
     for assoc in associations:
-        item = session.get(SourceItem, assoc.item_id)
+        item = items_by_id.get(assoc.item_id)
+        if item is None:
+            continue
+        for person_id in item_person_ids_by_item.get(item.id, []):
+            if person_id not in linked_person_ids and person_id not in seen_suggested:
+                candidate_person_ids.add(person_id)
+
+    people_by_id: dict[str, Person] = {}
+    if candidate_person_ids:
+        for person in session.exec(select(Person).where(col(Person.id).in_(candidate_person_ids))).all():
+            people_by_id[person.id] = person
+
+    for assoc in associations:
+        item = items_by_id.get(assoc.item_id)
         if item is None:
             continue
         details.append(
@@ -169,10 +195,10 @@ def _detail(session: Session, task: Task) -> TaskDetail:
         )
         # People the item names (an issue/PR author, a commenter, a Slack
         # participant) that the task does not link yet become suggestions.
-        for person_id in item_person_ids(session, item.id):
+        for person_id in item_person_ids_by_item.get(item.id, []):
             if person_id in linked_person_ids or person_id in seen_suggested:
                 continue
-            person = session.get(Person, person_id)
+            person = people_by_id.get(person_id)
             if person is not None:
                 seen_suggested.add(person_id)
                 suggested.append(person)
