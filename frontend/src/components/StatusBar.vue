@@ -17,10 +17,12 @@
       First paint: {{ metrics.firstPaint }} ms
     </span>
     <span class="status-bar-item" data-testid="api-calls">
-      API: {{ debugStats.apiCalls }} calls, {{ Math.round(debugStats.apiTime) }} ms
+      API: {{ debugStats.requests.length }} calls,
+      {{ debugStats.requests.reduce((s, r) => s + (r.duration_ms || 0), 0).toFixed(2) }} ms
     </span>
     <span class="status-bar-item" data-testid="db-queries">
-      DB: {{ debugStats.dbQueries }} queries, {{ Math.round(debugStats.dbTime) }} ms
+      DB: {{ debugStats.requests.reduce((s, r) => s + (r.db_queries || 0), 0) }} queries,
+      {{ debugStats.requests.reduce((s, r) => s + (r.db_time_ms || 0), 0).toFixed(2) }} ms
     </span>
     <div
       v-if="expanded"
@@ -99,7 +101,7 @@
 </template>
 
 <script setup>
-import { ref, watch, computed, onMounted } from 'vue'
+import { ref, watch, computed, onMounted, onUnmounted } from 'vue'
 import { usePageLoadPerformance } from '../composables/usePageLoadPerformance'
 import { debugStats, refreshDebugRequests } from '../debug.js'
 
@@ -159,6 +161,13 @@ function startResize(event) {
 
 watch(expanded, (value) => {
   if (value) refreshDebugRequests()
+})
+
+onMounted(() => {
+  refreshDebugRequests()
+  const timer = setInterval(refreshDebugRequests, 2000)
+  // store timer on component instance for cleanup
+  onUnmounted(() => clearInterval(timer))
 })
 </script>
 
