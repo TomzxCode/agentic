@@ -13,6 +13,7 @@ import {
   personLink
 } from '../repositories/parse'
 import { itemsForRepository, repositoryRows, sortItems } from '../repositories/rows'
+import { ghxItemUrl, ghxRepoUrl } from '../toolLinks'
 import GridColumnChooser from '../components/GridColumnChooser.vue'
 import RepositoryItemsGrid from '../components/RepositoryItemsGrid.vue'
 
@@ -56,6 +57,9 @@ const rows = computed(() => repositoryRows(ghxItems.value, linkedItems.value))
 // The repository has a GitHub remote worth listing.
 const canListGithub = computed(() => !!parseRemote(repository.value?.remote_url))
 
+// The repository's page in the ghx web UI, when one is configured in Settings.
+const ghxRepositoryLink = computed(() => ghxRepoUrl(repository.value?.remote_url, store.settings?.ghx_url))
+
 // Every issue and PR the repository has, newest number first. Filtering and
 // sorting are done in the grid, at the column level.
 const sortedRows = computed(() => sortItems(rows.value))
@@ -93,6 +97,8 @@ const tableRows = computed(() =>
       changes: row.kind === 'pr' ? changesFor(row) : [],
       canCreate: !row.linked && !!row.url,
       canRecord: canRecordChange(row),
+      // The row's page in the ghx web UI, when one is configured in Settings.
+      ghxUrl: ghxItemUrl(row, store.settings?.ghx_url) || '',
       busy: (!!row.url && creatingId.value === row.url) || (!!row.id && recordingId.value === row.id),
       fetched: row.fetched_at ? `fetched ${timeAgo(row.fetched_at)}` : '',
       raw: row
@@ -323,6 +329,16 @@ onMounted(load)
         <span class="row" style="gap: 6px; flex-wrap: wrap; justify-content: flex-end">
           <span v-if="repository.default_branch" class="badge">{{ repository.default_branch }}</span>
           <span v-if="repository.remote_url" class="faint">{{ repository.remote_url }}</span>
+          <a
+            v-if="ghxRepositoryLink"
+            class="btn sm ghost"
+            :href="ghxRepositoryLink"
+            target="_blank"
+            rel="noopener"
+            title="Open this repository in the local ghx web UI"
+          >
+            Open in ghx
+          </a>
           <button
             class="btn sm"
             :disabled="refreshingAll || loading || !canListGithub"

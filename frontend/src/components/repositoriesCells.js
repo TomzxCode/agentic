@@ -8,16 +8,26 @@ import { defineComponent, h } from 'vue'
 
 const params = { type: Object, required: true }
 
-// The repository name, linking to its detail page.
+// The repository name, linking to its detail page, with the ghx link after it
+// when a local ghx server is configured.
 export const NameCell = defineComponent({
   props: { params },
   setup: (props) => () => {
     const row = props.params.data
-    return h(
+    const name = h(
       props.params.context.RouterLink,
       { to: `/repositories/${row.id}`, class: 'title' },
       () => row.name || row.path
     )
+    if (!row.ghxUrl) return name
+    return h('div', { class: 'repo-name-cell' }, [
+      name,
+      h(
+        'a',
+        { class: 'btn sm ghost', href: row.ghxUrl, target: '_blank', rel: 'noopener', title: 'Open in ghx' },
+        'ghx'
+      )
+    ])
   }
 })
 

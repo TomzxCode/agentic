@@ -4,6 +4,7 @@ import { api } from '../api'
 import { changeCreateBody, changeReferencesItem, isPullRequestItem } from '../changes'
 import { sourceLabel, store, timeAgo } from '../store'
 import ItemCard from './ItemCard.vue'
+import ItemToolLinks from './ItemToolLinks.vue'
 
 const props = defineProps({ task: { type: Object, required: true } })
 const emit = defineEmits(['changed'])
@@ -175,6 +176,7 @@ async function toggleDone(item) {
           >
             Record change
           </button>
+          <ItemToolLinks :item="assoc.item" compact />
           <a
             v-if="itemUrl(assoc.item)"
             class="btn sm ghost"

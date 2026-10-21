@@ -14,6 +14,8 @@ def test_settings_read_and_patch_round_trip():
             "openchamber_session_path",
             "terminal_url_template",
             "editor_url_template",
+            "ghx_url",
+            "slackx_url",
         }
 
         patched = client.patch("/api/settings", json={"terminal_url_template": "warp://{session}"}).json()
@@ -23,6 +25,14 @@ def test_settings_read_and_patch_round_trip():
         # An empty string disables the override but records it.
         reset = client.patch("/api/settings", json={"terminal_url_template": ""}).json()
         assert reset["effective"]["terminal_url_template"] == ""
+
+        tools = client.patch(
+            "/api/settings", json={"ghx_url": "http://localhost:8080", "slackx_url": "http://localhost:8280"}
+        ).json()
+        assert tools["effective"]["ghx_url"] == "http://localhost:8080"
+        assert tools["overrides"]["slackx_url"] == "http://localhost:8280"
+
+        client.patch("/api/settings", json={"ghx_url": "", "slackx_url": ""})
 
 
 def test_refresh_policy_setting_validates_and_previews():

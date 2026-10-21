@@ -7,6 +7,7 @@ import { store } from '../store'
 import Icon from '../components/Icon.vue'
 import RepositoryGroupsPanel from '../components/RepositoryGroupsPanel.vue'
 import SettingsSessionLinks from '../components/SettingsSessionLinks.vue'
+import SettingsToolServers from '../components/SettingsToolServers.vue'
 import SettingsIdentity from '../components/SettingsIdentity.vue'
 import SettingsHarnesses from '../components/SettingsHarnesses.vue'
 import SettingsPrompts from '../components/SettingsPrompts.vue'
@@ -75,6 +76,11 @@ onMounted(load)
       <div class="settings-content">
         <SettingsSessionLinks
           v-show="active === 'sessions'"
+          :overrides="settings.overrides"
+          :defaults="settings.defaults"
+        />
+        <SettingsToolServers
+          v-show="active === 'tools'"
           :overrides="settings.overrides"
           :defaults="settings.defaults"
         />

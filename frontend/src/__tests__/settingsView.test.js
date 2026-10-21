@@ -130,7 +130,7 @@ describe('SettingsView', () => {
     await flushPromises()
 
     const items = wrapper.findAll('.settings-nav-item')
-    expect(items.length).toBe(9)
+    expect(items.length).toBe(10)
     for (const item of items) {
       expect(item.find('svg').exists()).toBe(true)
     }
@@ -156,6 +156,28 @@ describe('SettingsView', () => {
     await input.trigger('blur')
     await flushPromises()
     expect(mocks.settingsUpdate).toHaveBeenCalledWith({ openchamber_url: 'http://oc/' })
+  })
+
+  it('saves the ghx and slackx server URLs on blur', async () => {
+    mocks.settingsUpdate.mockResolvedValue({})
+    const wrapper = mountView()
+    await flushPromises()
+
+    const nav = wrapper.findAll('.settings-nav-item').find((b) => b.text() === 'Local tools')
+    await nav.trigger('click')
+    await flushPromises()
+
+    const ghx = wrapper.get('input[placeholder="http://localhost:8080"]')
+    await ghx.setValue('http://localhost:8080')
+    await ghx.trigger('blur')
+    await flushPromises()
+    expect(mocks.settingsUpdate).toHaveBeenCalledWith({ ghx_url: 'http://localhost:8080' })
+
+    const slackx = wrapper.get('input[placeholder="http://localhost:8280"]')
+    await slackx.setValue('http://localhost:8280')
+    await slackx.trigger('blur')
+    await flushPromises()
+    expect(mocks.settingsUpdate).toHaveBeenCalledWith({ slackx_url: 'http://localhost:8280' })
   })
 
   it('previews and saves each source refresh policy', async () => {

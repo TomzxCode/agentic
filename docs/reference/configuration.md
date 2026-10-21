@@ -34,6 +34,8 @@ The Slack credentials keep the names `slackx` uses (`SLACK_TOKEN`, `SLACK_COOKIE
 | `AGENTIC_OPENCHAMBER_SESSION_PATH` | `/?session={session}` | Path appended to the OpenChamber base. |
 | `AGENTIC_TERMINAL_URL_TEMPLATE` | (unset) | URL template for **Open in terminal** links. |
 | `AGENTIC_EDITOR_URL_TEMPLATE` | (unset) | URL template for the worktree **Open in editor** button. |
+| `AGENTIC_GHX_URL` | (unset) | Base URL of the ghx web UI (`ghx serve`, default port 8080). When set, GitHub items link into it. |
+| `AGENTIC_SLACKX_URL` | (unset) | Base URL of the slackx web UI (`slackx serve`, default port 8280). When set, Slack items link into it. |
 | `AGENTIC_SLACK_REFRESH_POLICY` | (empty) | When to re-fetch Slack threads, for example `1d=1h,7d=6h,30d=1d,*=7d`. Empty disables it. |
 | `AGENTIC_GITHUB_REFRESH_POLICY` | (empty) | When to re-fetch GitHub issues and pull requests, in the same format. Empty disables it. |
 | `AGENTIC_ITEM_REFRESH_TICK` | `300` | Seconds between checks for items that are due. `0` disables the loop. |
@@ -57,6 +59,7 @@ Template placeholders:
 ## Settings overrides
 
 The session-link settings (OpenChamber URL and path, terminal URL template, and editor URL template) can also be set on the **Settings** page.
+The ghx and slackx web UI base URLs are under **Settings → Local tools**.
 A stored override wins over the matching environment variable.
 
 The GitHub login is editable under **Settings → Identity**; leave it blank to fall back to the authenticated `gh` account.

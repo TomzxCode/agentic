@@ -3,6 +3,7 @@ import { computed, onMounted, ref, resolveComponent, shallowRef } from 'vue'
 import { api } from '../api'
 import { store, timeAgo } from '../store'
 import { groupItemsByRepository } from '../repositories/rows'
+import { ghxRepoUrl } from '../toolLinks'
 import DirectoryPicker from '../components/DirectoryPicker.vue'
 import GridColumnChooser from '../components/GridColumnChooser.vue'
 import RepositoriesGrid from '../components/RepositoriesGrid.vue'
@@ -39,6 +40,8 @@ const rows = computed(() =>
     states_line: stateLine(repo),
     added: repo.created_at ? `added ${timeAgo(repo.created_at)}` : '',
     added_at: repo.created_at ? new Date(repo.created_at).getTime() : null,
+    // The repository's page in the ghx web UI, when one is configured.
+    ghxUrl: ghxRepoUrl(repo.remote_url, store.settings?.ghx_url) || '',
     raw: repo
   }))
 )

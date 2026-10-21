@@ -1,5 +1,10 @@
 # Memory
 
+## 2026-10-21: ghx and slackx web links use their own settings, not the RPC URLs
+
+- `ghx_url` and `slackx_url` are the base URLs of the tools' **web** UIs (`ghx serve`, `slackx serve`), editable under Settings → Local tools. They are deliberately separate from `AGENTIC_GHX_RPC_URL` / `AGENTIC_SLACKX_RPC_URL`: `ghx serve` defaults to :8080 while `ghx rpc serve` defaults to :8090, and `ghx rpc serve` has no web UI at all. slackx happens to serve both on :8280.
+- Links are built client-side in `frontend/src/toolLinks.js` from the effective settings in `store.settings`, then rendered by `ItemToolLinks.vue`. ghx routes are `#/<owner>/<repo>/<issues|pulls>/<n>`; slackx routes are `/archives/<channel>/p<ts>?thread_ts=<dotted ts>`. Keep the URL's repository casing: ghx matches routes against its cache case-sensitively.
+
 ## 2026-10-19: the worker never hot-reloads; only the API does
 
 - `make run-dev` passes `--reload` to `agentic-server serve`, so the API picks up backend edits, but `agentic-server worker` is a separate long-lived process that keeps its imported classes. After adding a field to a SQLModel table, the API writes it while the old worker raises `AttributeError: 'X' object has no attribute 'y'` inside `execute_run` and the run fails. Restart the worker (or the whole `make run`) after backend model changes; `scripts/dev.py` does not restart a worker that exits, so killing it leaves runs stalling until it is started again.

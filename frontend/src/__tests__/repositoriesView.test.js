@@ -80,6 +80,7 @@ beforeEach(() => {
   store.harnesses = []
   store.repositories = []
   store.people = []
+  store.settings = {}
   mocks.changesList.mockResolvedValue([])
   mocks.githubRepository.mockResolvedValue({ items: [], failed: [] })
   mocks.routeQuery = {}
@@ -165,6 +166,26 @@ describe('RepositoriesView', () => {
     expect(wrapper.text()).toContain('/src/api')
     expect(wrapper.text()).toContain('/src/tools')
     expect(wrapper.get('a[href="/repositories/r1"]').text()).toBe('api')
+  })
+
+  it('links a repository into the local ghx web UI when configured', async () => {
+    store.settings = { ghx_url: 'http://localhost:8080/' }
+    store.repositories = [
+      { id: 'r1', name: 'api', remote_url: 'https://github.com/acme/api.git', path: '/src/api' },
+      { id: 'r2', name: 'tools', remote_url: null, path: '/src/tools' }
+    ]
+    const wrapper = await mountView()
+
+    const cell = wrapper.get('.repo-name-cell')
+    expect(cell.findAll('a').map((a) => a.text())).toEqual(['api', 'ghx'])
+    const link = cell.get('a[title="Open in ghx"]')
+    expect(link.text()).toBe('ghx')
+    expect(link.attributes('href')).toBe('http://localhost:8080/#/acme/api')
+  })
+
+  it('shows no ghx link when no ghx server is configured', async () => {
+    const wrapper = await mountView()
+    expect(wrapper.find('a[title="Open in ghx"]').exists()).toBe(false)
   })
 
   it('filters the rows through the grid, and reports how much is shown', async () => {

@@ -73,6 +73,12 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("AGENTIC_SLACK_API_BASE_URL", "SLACK_API_BASE_URL"),
     )
 
+    # Base URLs of the tools' own web UIs (`ghx serve`, `slackx serve`). When
+    # set, GitHub and Slack items link into those UIs, so an item opens in the
+    # local copy instead of the hosted one.
+    ghx_url: str = ""
+    slackx_url: str = ""
+
     # Session links. These are defaults; the Settings page can override them,
     # and overrides are stored in the database.
     # OpenChamber opens a session at "<base><path>" (default: /?session=<id>).

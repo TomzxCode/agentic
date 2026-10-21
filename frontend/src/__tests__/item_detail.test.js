@@ -67,6 +67,7 @@ beforeEach(() => {
   store.toast = null
   store.tasks = []
   store.people = []
+  store.settings = {}
   vi.spyOn(store, 'loadTasks').mockResolvedValue()
   vi.spyOn(store, 'loadPeople').mockResolvedValue()
   mocks.reviewersGet.mockResolvedValue({ reviewers: [], error: null })
@@ -86,6 +87,36 @@ describe('ItemDetailView', () => {
     expect(wrapper.text()).toContain('The body of the issue.')
     expect(wrapper.get('.task-actions a.btn').attributes('href')).toBe('https://github.com/acme/api/issues/42')
     expect(wrapper.get('.task-actions a.btn').text()).toBe('Open on GitHub')
+  })
+
+  it('links a GitHub item into the configured ghx server', async () => {
+    store.settings = { ghx_url: 'http://localhost:8080' }
+    mocks.itemsGet.mockResolvedValue(item())
+    const wrapper = mountView()
+    await flushPromises()
+
+    const link = wrapper.get('a[href="http://localhost:8080/#/acme/api/issues/42"]')
+    expect(link.text()).toBe('Open in ghx')
+  })
+
+  it('links a Slack thread into the configured slackx server', async () => {
+    store.settings = { slackx_url: 'http://localhost:8280' }
+    mocks.itemsGet.mockResolvedValue(
+      item({
+        source: 'slack',
+        kind: 'thread',
+        title: 'Design chat',
+        url: 'https://acme.slack.com/archives/C0123ABCD/p1734567890123456',
+        external_id: 'C0123ABCD:1734567890123456'
+      })
+    )
+    const wrapper = mountView()
+    await flushPromises()
+
+    const link = wrapper.get(
+      'a[href="http://localhost:8280/archives/C0123ABCD/p1734567890123456?thread_ts=1734567890.123456"]'
+    )
+    expect(link.text()).toBe('Open in slackx')
   })
 
   it('renders the GitHub description as Markdown', async () => {

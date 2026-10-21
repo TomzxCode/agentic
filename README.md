@@ -224,6 +224,8 @@ note's text, or a fetched link) with its linked tasks and people. A Slack thread
 can be marked **Done** from either its row or its page. A message that arrives
 after that is flagged as **new messages** on the item, and the thread keeps its
 done state: **Reopen** is an explicit choice, not something a reply does.
+When a ghx or slackx web server is configured under **Settings → Local tools**, a
+GitHub or Slack item also links into that tool's local UI.
 
 The **Events** page (`/events`, the stream icon) is one stream of every task's
 timeline, newest first: task creation, edits, status moves, items, people,
@@ -486,6 +488,8 @@ Environment variables (prefix `AGENTIC_`; the Slack credentials keep slackx's na
 | `AGENTIC_OPENCHAMBER_SESSION_PATH` | `/?session={session}` | Path appended to the base. |
 | `AGENTIC_TERMINAL_URL_TEMPLATE` | (unset) | URL template for "Open in terminal" links. |
 | `AGENTIC_EDITOR_URL_TEMPLATE` | (unset) | URL template for the worktree "Open in editor" button. |
+| `AGENTIC_GHX_URL` | (unset) | Base URL of the ghx web UI (`ghx serve`), so GitHub items link into it. |
+| `AGENTIC_SLACKX_URL` | (unset) | Base URL of the slackx web UI (`slackx serve`), so Slack items link into it. |
 | `AGENTIC_SLACK_REFRESH_POLICY` | (empty) | When to re-fetch Slack threads, e.g. `1d=1h,7d=6h,30d=1d,*=7d`. Empty disables it. |
 | `AGENTIC_GITHUB_REFRESH_POLICY` | (empty) | When to re-fetch GitHub issues/PRs, same format. Empty disables it. |
 | `AGENTIC_ITEM_REFRESH_TICK` | `300` | Seconds between checks for due items (0 disables the loop). |

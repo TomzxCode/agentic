@@ -19,6 +19,9 @@ class SettingsUpdate(BaseModel):
     openchamber_session_path: str | None = None
     terminal_url_template: str | None = None
     editor_url_template: str | None = None
+    # Base URLs of the ghx and slackx web UIs, used to link items into them.
+    ghx_url: str | None = None
+    slackx_url: str | None = None
     slack_refresh_policy: str | None = None
     github_refresh_policy: str | None = None
     # The review scan's cadence ("1h", "30m"; empty disables it) and what a

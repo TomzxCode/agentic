@@ -135,6 +135,11 @@ const ICONS = {
     ['rect', { x: 12.5, y: 12.5, width: 8, height: 8, rx: 1.8 }]
   ],
   diagnostics: [['path', { d: 'M3.5 12h4l2.2-5.5 4.1 11 2.2-5.5h4.5' }]],
+  server: [
+    ['rect', { x: 3.5, y: 4.5, width: 17, height: 6, rx: 1.8 }],
+    ['rect', { x: 3.5, y: 13.5, width: 17, height: 6, rx: 1.8 }],
+    ['path', { d: 'M7 7.5h.01M7 16.5h.01' }]
+  ],
 
   // Actions.
   plus: [['path', { d: 'M12 5v14M5 12h14' }]],

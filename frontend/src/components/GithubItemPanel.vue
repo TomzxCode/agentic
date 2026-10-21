@@ -4,6 +4,7 @@ import { api } from '../api'
 import { renderMarkdown } from '../markdown'
 import { STATE_LABELS, itemState, parseGithubUrl, personLink } from '../repositories/parse'
 import { store, timeAgo } from '../store'
+import { ghxItemUrl } from '../toolLinks'
 
 // The detail of one GitHub issue or pull request, read fresh from GitHub and
 // falling back to the stored item while the read is in flight or when GitHub
@@ -49,6 +50,9 @@ const entry = computed(() => {
   }
 })
 
+// The same issue or PR in the local ghx UI, when one is configured.
+const ghxLink = computed(() => ghxItemUrl({ url: entry.value.url }, store.settings?.ghx_url))
+
 // The state badge: its label and class, or null when no state is known.
 const status = computed(() =>
   entry.value.state ? { label: STATE_LABELS[entry.value.state], className: `st-${entry.value.state}` } : null
@@ -90,6 +94,9 @@ watch(() => props.url, load)
            button), ahead of the link out to GitHub. -->
       <slot name="head" />
       <a class="btn sm ghost" :href="entry.url" target="_blank" rel="noopener">Open on GitHub</a>
+      <a v-if="ghxLink" class="btn sm ghost" :href="ghxLink" target="_blank" rel="noopener" title="Open in ghx">
+        Open in ghx
+      </a>
     </div>
 
     <div class="task-item-meta">

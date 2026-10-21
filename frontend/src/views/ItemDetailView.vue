@@ -7,6 +7,7 @@ import { itemAuthor, itemStatus, parseGithubUrl, personLink } from '../repositor
 import { renderMarkdown } from '../markdown'
 import { groupReviewFiles, githubReviewState, orderGithubReviewers, reviewLabel, stripReportMarker } from '../reviews'
 import EditableText from '../components/EditableText.vue'
+import ItemToolLinks from '../components/ItemToolLinks.vue'
 import TaskLink from '../components/TaskLink.vue'
 
 const props = defineProps({ id: { type: String, required: true } })
@@ -283,6 +284,7 @@ onMounted(async () => {
         </div>
         <div class="row task-actions">
           <a v-if="item.url" class="btn sm ghost" :href="item.url" target="_blank" rel="noopener">{{ openLabel }}</a>
+          <ItemToolLinks :item="item" />
           <button
             v-if="variant === 'slack'"
             class="btn sm"

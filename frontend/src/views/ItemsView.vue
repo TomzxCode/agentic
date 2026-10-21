@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from 'vue'
 import { api } from '../api'
 import { SOURCE_ORDER, sourceLabel, store, statusLabel } from '../store'
 import ItemCard from '../components/ItemCard.vue'
+import ItemToolLinks from '../components/ItemToolLinks.vue'
 import SearchSelect from '../components/SearchSelect.vue'
 import StatusIcon from '../components/StatusIcon.vue'
 import TaskLink from '../components/TaskLink.vue'
@@ -210,6 +211,7 @@ onMounted(async () => {
           >
             {{ item.done ? 'Reopen' : 'Done' }}
           </button>
+          <ItemToolLinks :item="item" compact />
           <button v-if="!isNote(item)" class="btn sm ghost" title="Refresh" @click="refresh(item)">↻</button>
           <button class="btn sm ghost" title="Expand" @click="expanded[item.id] = !expanded[item.id]">
             {{ expanded[item.id] ? '▾' : '▸' }}

@@ -31,7 +31,8 @@ export const StateCell = defineComponent({
   }
 })
 
-// The title, linking to the item on GitHub, with the last-fetched time below it.
+// The title, linking to the item on GitHub, with the ghx link after it when a
+// local ghx server is configured, and the last-fetched time below it.
 export const TitleCell = defineComponent({
   props: { params },
   setup: (props) => () => {
@@ -40,7 +41,17 @@ export const TitleCell = defineComponent({
     const title = row.url
       ? h('a', { class: 'title', href: row.url, target: '_blank', rel: 'noopener' }, label)
       : h('span', { class: 'title' }, label)
-    const children = [title]
+    const heading = row.ghxUrl
+      ? h('div', { class: 'repo-name-cell' }, [
+          title,
+          h(
+            'a',
+            { class: 'btn sm ghost', href: row.ghxUrl, target: '_blank', rel: 'noopener', title: 'Open in ghx' },
+            'ghx'
+          )
+        ])
+      : title
+    const children = [heading]
     if (row.fetched) children.push(h('div', { class: 'faint' }, row.fetched))
     return h('div', { class: 'repo-title-cell' }, children)
   }

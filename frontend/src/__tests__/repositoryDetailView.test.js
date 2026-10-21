@@ -458,6 +458,31 @@ describe('RepositoryDetailView', () => {
     expect(link.classes()).toContain('faint')
   })
 
+  it('links the repository and its items into the local ghx web UI when configured', async () => {
+    store.settings = { ghx_url: 'http://localhost:8080/' }
+    store.items = [ghItem('i1', 'issue', 1, 'Open issue', { state: 'OPEN' })]
+    const wrapper = await mountRepoLinked()
+    await flushPromises()
+
+    expect(wrapper.get('a[title="Open this repository in the local ghx web UI"]').attributes('href')).toBe(
+      'http://localhost:8080/#/acme/api'
+    )
+    const cell = wrapper.get('.repo-title-cell')
+    expect(cell.findAll('a').map((a) => a.text())).toEqual(['Open issue', 'ghx'])
+    const link = cell.get('a[title="Open in ghx"]')
+    expect(link.text()).toBe('ghx')
+    expect(link.attributes('href')).toBe('http://localhost:8080/#/acme/api/issues/1')
+  })
+
+  it('shows no ghx links when no ghx server is configured', async () => {
+    store.items = [ghItem('i1', 'issue', 1, 'Open issue', { state: 'OPEN' })]
+    const wrapper = await mountRepoLinked()
+    await flushPromises()
+
+    expect(wrapper.find('a[title="Open this repository in the local ghx web UI"]').exists()).toBe(false)
+    expect(wrapper.find('a[title="Open in ghx"]').exists()).toBe(false)
+  })
+
   it('refreshes the repository listing from GitHub', async () => {
     mocks.githubRepository.mockResolvedValue({
       items: [

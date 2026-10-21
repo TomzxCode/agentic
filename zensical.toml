@@ -21,6 +21,7 @@ nav = [
     { "Use the focus stack" = "how-to/use-the-focus-stack.md" },
     { "Track changes and read the metrics" = "how-to/track-changes-and-metrics.md" },
     { "Configure session links" = "how-to/configure-session-links.md" },
+    { "Open items in ghx and slackx" = "how-to/open-items-in-local-tools.md" },
     { "Refresh items on a schedule" = "how-to/refresh-items.md" },
     { "Schedule a shell command" = "how-to/schedule-a-script.md" },
     { "Expose Agentic on your network" = "how-to/expose-on-your-network.md" },
