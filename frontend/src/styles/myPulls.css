@@ -1,0 +1,210 @@
+/* My PRs page: the viewer's open pull requests, one row each. */
+
+/* The login the list was asked for, kept off the heading. */
+.my-pulls-root {
+  margin: 0 0 12px;
+  font-size: 12px;
+}
+/* The search box row above the table. */
+.my-pulls-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.my-pulls-search {
+  flex: 1 1 240px;
+  min-width: 0;
+  max-width: 420px;
+}
+.my-pulls-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-1);
+}
+.my-pulls-table {
+  width: 100%;
+  /* A floor keeps every column legible; narrower viewports scroll sideways. */
+  min-width: 840px;
+  /* Fixed layout gives every column the width declared below, so a long
+     repository or title truncates in its cell instead of widening the table. */
+  table-layout: fixed;
+  border-collapse: collapse;
+}
+/* The PR column carries the number, repository, and title, so it takes the
+   room the state columns do not need. */
+.my-pulls-table th:nth-child(1) {
+  width: 46%;
+}
+.my-pulls-table th:nth-child(2),
+.my-pulls-table th:nth-child(3) {
+  width: 12%;
+}
+.my-pulls-table th:nth-child(4) {
+  width: 14%;
+}
+.my-pulls-table th:nth-child(5) {
+  width: 7%;
+}
+.my-pulls-table th:nth-child(6) {
+  width: 9%;
+}
+.my-pulls-table th {
+  text-align: left;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--faint);
+  padding: 8px;
+  white-space: nowrap;
+  border-bottom: 1px solid var(--border);
+}
+.my-pulls-table td {
+  padding: 7px 8px;
+  vertical-align: middle;
+  border-top: 1px solid var(--border);
+}
+.my-pulls-table tbody tr:hover td {
+  background: var(--bg-2);
+}
+/* A pull request that needs its author (failing checks, requested changes, or an
+   open thread) carries a marker down its first cell, so the sorted list is
+   scannable without reading every badge. */
+.my-pulls-table tbody tr.needs-attention td:first-child {
+  box-shadow: inset 2px 0 0 var(--warn);
+}
+.my-pulls-pr-cell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.my-pulls-link {
+  flex: none;
+  color: var(--accent);
+  white-space: nowrap;
+}
+.my-pulls-pr-cell .badge {
+  flex: none;
+}
+/* The repository reads as one token after the number; it truncates rather than
+   pushing the title off the row. */
+.my-pulls-repository {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 40%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--muted);
+}
+a.my-pulls-repository:hover {
+  color: var(--accent);
+}
+/* The title takes the rest of the cell and truncates; the tooltip carries it. */
+.my-pulls-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted);
+  font-size: 12px;
+}
+.my-pulls-table .badge {
+  white-space: nowrap;
+}
+/* The approvers' logins stay on one line and truncate; the cell's tooltip
+   carries none, so a long list is still readable by widening the window. */
+.my-pulls-approvers {
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.my-pulls-threads {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+/* An unresolved thread is what the author has to answer, so it is not faint like
+   the total beside it. */
+.my-pulls-threads-open {
+  color: var(--warn);
+  font-weight: 600;
+}
+/* On a phone the card layout below has no header naming the approvers, so the
+   cell carries a label of its own; the desktop table's header makes it
+   redundant. */
+.my-pulls-approvers-label {
+  display: none;
+}
+
+/* On a phone the table becomes a stack of cards: the state columns sit under the
+   PR instead of off-screen behind a sideways scroll. */
+@media (max-width: 760px) {
+  .my-pulls-table-wrap {
+    overflow: visible;
+    border: none;
+    background: none;
+  }
+  .my-pulls-table {
+    display: block;
+    min-width: 0;
+  }
+  .my-pulls-table thead {
+    display: none;
+  }
+  .my-pulls-table tbody {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .my-pulls-table tr {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 10px;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--bg-1);
+  }
+  .my-pulls-table tbody tr.needs-attention {
+    border-left: 2px solid var(--warn);
+  }
+  .my-pulls-table tbody tr.needs-attention td:first-child {
+    box-shadow: none;
+  }
+  .my-pulls-table tbody tr:hover td {
+    background: none;
+  }
+  .my-pulls-table td {
+    display: block;
+    padding: 0;
+    border: 0;
+  }
+  /* Re-assert the flex row: the generic mobile `td` rule above would otherwise
+     turn the PR cell into a block and let its nowrap title overflow the card. */
+  .my-pulls-table .my-pulls-pr-cell {
+    display: flex;
+    flex: 1 1 100%;
+  }
+  /* The approvers take a line of their own so they can wrap. */
+  .my-pulls-table td:nth-child(4) {
+    flex: 1 1 100%;
+  }
+  .my-pulls-approvers {
+    overflow: visible;
+    text-overflow: clip;
+    white-space: normal;
+  }
+  .my-pulls-approvers-label {
+    display: inline;
+  }
+  .my-pulls-table .badge {
+    font-size: 10px;
+  }
+}

@@ -429,6 +429,144 @@ def _paginate_connection(
     return rows[:limit]
 
 
+# --- The viewer's own open pull requests ------------------------------------
+#
+# ghx lists a repository's pull requests but carries neither review threads nor
+# a check rollup, and gh's --json field set exposes no resolved state for a
+# thread, so this read goes to the GraphQL search API through ``gh`` (the same
+# exception the cycle-time reads above make). One search finds every open pull
+# request the login authored, with the thread, check, and review state the My
+# PRs page shows.
+
+#: The most open pull requests one lookup reads.
+MY_PULLS_LIMIT = 500
+
+_MY_PULLS_QUERY = """
+query($q: String!, $endCursor: String) {
+  search(query: $q, type: ISSUE, first: 50, after: $endCursor) {
+    pageInfo { hasNextPage endCursor }
+    nodes {
+      ... on PullRequest {
+        number
+        title
+        url
+        isDraft
+        createdAt
+        updatedAt
+        reviewDecision
+        repository { nameWithOwner }
+        commits(last: 1) { nodes { commit { statusCheckRollup { state } } } }
+        reviewThreads(first: 100) {
+          totalCount
+          nodes { isResolved }
+        }
+        latestOpinionatedReviews(first: 50) { nodes { author { login } state } }
+      }
+    }
+  }
+}
+"""
+
+#: A check rollup state, as the CI badge reads it. ``EXPECTED`` means a check is
+#: required but has not reported yet, which GitHub shows as pending too.
+_CI_STATES = {
+    "SUCCESS": "success",
+    "FAILURE": "failure",
+    "ERROR": "failure",
+    "PENDING": "pending",
+    "EXPECTED": "pending",
+}
+
+
+def _ci_state(node: dict[str, Any]) -> str:
+    """The head commit's check rollup as success / pending / failure / none."""
+    commits = (node.get("commits") or {}).get("nodes") or []
+    commit = (commits[0] or {}).get("commit") if commits else None
+    rollup = (commit or {}).get("statusCheckRollup") or {}
+    return _CI_STATES.get(str(rollup.get("state") or "").upper(), "none")
+
+
+def _thread_counts(node: dict[str, Any]) -> tuple[int, int]:
+    """The PR's (unresolved, total) review threads.
+
+    GitHub can filter threads by their resolution state but not a connection by
+    it, so the unresolved count comes from the first page of threads; a pull
+    request with more than a hundred threads reports the ones it read. The total
+    comes from the connection itself, so it stays exact.
+    """
+    threads = node.get("reviewThreads") or {}
+    nodes = threads.get("nodes") or []
+    open_threads = sum(1 for thread in nodes if not thread.get("isResolved"))
+    return open_threads, int(threads.get("totalCount") or len(nodes))
+
+
+def _approvers(node: dict[str, Any]) -> list[str]:
+    """The logins whose latest opinionated review approves the pull request.
+
+    Only opinionated reviews are read, so a later plain comment neither drops an
+    approval nor adds an approver, and a dismissed review drops it.
+    """
+    approvers: list[str] = []
+    reviews = (node.get("latestOpinionatedReviews") or {}).get("nodes") or []
+    for review in reviews:
+        login = (review.get("author") or {}).get("login")
+        if not login or str(review.get("state") or "").upper() != "APPROVED":
+            continue
+        if login not in approvers:
+            approvers.append(login)
+    return approvers
+
+
+def _pull_row(node: dict[str, Any]) -> dict[str, Any] | None:
+    """One GraphQL search node as the My PRs row, or None when it names no PR."""
+    repository = str((node.get("repository") or {}).get("nameWithOwner") or "")
+    number = node.get("number")
+    if not repository or number is None:
+        return None
+    decision = str(node.get("reviewDecision") or "")
+    open_threads, total_threads = _thread_counts(node)
+    return {
+        "repository": repository,
+        "number": int(number),
+        "title": node.get("title") or "",
+        "url": node.get("url") or "",
+        "draft": bool(node.get("isDraft")),
+        "created_at": node.get("createdAt"),
+        "updated_at": node.get("updatedAt"),
+        "review_decision": decision,
+        # The decision is APPROVED only once the reviews the branch protection
+        # requires are in, which is not the same as having one approval.
+        "approved": decision == "APPROVED",
+        "approvers": _approvers(node),
+        "ci": _ci_state(node),
+        "open_threads": open_threads,
+        "threads_total": total_threads,
+    }
+
+
+def search_my_open_pulls(login: str, limit: int = MY_PULLS_LIMIT) -> list[dict[str, Any]] | None:
+    """The open pull requests authored by *login*, newest update first.
+
+    None when GitHub could not be read or the search failed. Archived
+    repositories are left out: their pull requests are not work in flight.
+    """
+    login = login.strip()
+    if not login:
+        return None
+    query = f"is:pr is:open archived:false author:{login} sort:updated-desc"
+    nodes = _paginate_connection(
+        _MY_PULLS_QUERY,
+        {"q": query},
+        lambda payload: payload["data"]["search"],
+        limit=max(1, limit),
+    )
+    if nodes is None:
+        return None
+    rows = [row for node in nodes if (row := _pull_row(node)) is not None]
+    rows.sort(key=lambda row: str(row.get("updated_at") or ""), reverse=True)
+    return rows
+
+
 def fetch_github_cycle_time(
     owner: str,
     repo: str,

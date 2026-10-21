@@ -6,11 +6,12 @@ import { h } from 'vue'
 // stroke icon, rendered with a render function so no v-html lands in templates.
 const ICONS = {
   // Pages: the sidebar's bottom nav. Each page keeps one silhouette that the
-  // others do not use, so the fifteen stay apart at 18px: Tasks a checklist,
-  // Inbox a mail tray, Reviews a document, Feedback a speech bubble, Decisions a
-  // signpost, Stack layers, Gantt and Metrics a chart (bars against a trend
-  // line), Items a box, Graph a node network, Events a stream, People a pair,
-  // Repositories a book, Schedules a clock, Settings a gear.
+  // others do not use, so the sixteen stay apart at 18px: Tasks a checklist,
+  // Inbox a mail tray, Reviews a document, My PRs a pull-request glyph, Feedback
+  // a speech bubble, Decisions a signpost, Stack layers, Gantt and Metrics a
+  // chart (bars against a trend line), Items a box, Graph a node network, Events
+  // a stream, People a pair, Repositories a book, Schedules a clock, Settings a
+  // gear.
   tasks: [
     ['path', { d: 'M10 5.5h9.5M10 12h9.5M10 18.5h9.5' }],
     ['path', { d: 'M3.5 5.2l1.6 1.6 3-3.2' }],
@@ -30,6 +31,13 @@ const ICONS = {
     ['path', { d: 'M13.5 3H7.5a2.5 2.5 0 0 0-2.5 2.5v13A2.5 2.5 0 0 0 7.5 21h9a2.5 2.5 0 0 0 2.5-2.5V8.5z' }],
     ['path', { d: 'M13.5 3v4a1.5 1.5 0 0 0 1.5 1.5h4' }],
     ['path', { d: 'M9.5 14.6l1.9 1.9 3.6-3.8' }]
+  ],
+  pulls: [
+    ['circle', { cx: 6, cy: 6, r: 2.5 }],
+    ['circle', { cx: 6, cy: 18, r: 2.5 }],
+    ['path', { d: 'M6 8.5v7' }],
+    ['path', { d: 'M13.5 6H16a3.5 3.5 0 0 1 3.5 3.5V13' }],
+    ['path', { d: 'M16.2 10.6 19.5 13.9l3.3-3.3' }]
   ],
   feedback: [
     [

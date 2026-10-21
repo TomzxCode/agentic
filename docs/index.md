@@ -30,6 +30,7 @@ The web app is organized into these pages:
 | Tasks (`/`) | The task list, with status filters, grouping, upcoming deadlines, and the people in flight. |
 | Inbox (`/inbox`) | Suggested next actions, recomputed on every read. |
 | Review queue (`/reviews`) | Pull requests awaiting your review and those with review reports, one row per PR with a column per review step and a merge-readiness light. |
+| My PRs (`/my-pulls`) | The open pull requests you authored, with their check rollup, review decision, approvers, and open review threads. |
 | PR feedback (`/feedback`) | Reviewer comments awaiting a decision, one card per comment, with Implement / Decline / Defer. |
 | Decisions (`/decisions`) | What your colleagues decided, from the extract-colleague-decisions reports: by author, supporter, opponent, or a support/opposition matrix. |
 | Stack (`/stack`) | The focus queue, with the current task on top. |

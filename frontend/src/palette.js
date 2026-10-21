@@ -206,6 +206,13 @@ export function buildPaletteItems({ route, router, showNew, sidebarHidden, toggl
       run: () => router.push('/reviews')
     },
     {
+      id: 'go-my-pulls',
+      label: 'Go to My PRs',
+      group: 'Navigation',
+      icon: 'pulls',
+      run: () => router.push('/my-pulls')
+    },
+    {
       id: 'go-feedback',
       label: 'Go to PR feedback',
       group: 'Navigation',

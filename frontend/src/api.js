@@ -169,6 +169,13 @@ export const api = {
       request(`/feedback/${encodeURIComponent(feedbackId)}/decision`, { method: 'POST', body: { decision } })
   },
 
+  myPulls: {
+    // The open pull requests the configured GitHub login authored, with their
+    // check rollup, review decision, approvers, and open threads. refresh
+    // re-queries GitHub instead of reusing the short cache.
+    list: ({ refresh = false } = {}) => request(`/my-pulls${refresh ? '?refresh=true' : ''}`)
+  },
+
   decisions: {
     // The colleague-decisions reports the extract-colleague-decisions skill
     // writes under the notes root, aggregated for the Decisions page.

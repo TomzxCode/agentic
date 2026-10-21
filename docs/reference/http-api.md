@@ -102,6 +102,12 @@ There is no authentication, so expose it only on a trusted network.
 | `GET` | `/api/reviews/scan` | The review scan's cadence, its last pass, and how many pull requests it holds. |
 | `POST` | `/api/reviews/scan` | Run the review scan now, ignoring its cadence. |
 
+## My PRs
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| `GET` | `/api/my-pulls` | The open pull requests the configured GitHub login authored, with each PR's check rollup, review decision, approvers, and unresolved review threads (`?refresh=true` re-queries GitHub instead of the short cache). |
+
 ## PR feedback
 
 | Method | Path | Purpose |

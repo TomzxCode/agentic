@@ -308,6 +308,19 @@ repository with no policy of its own is included or excluded, and each
 registered repository's own Include / Exclude / Default choice; **Scan now** runs
 it immediately.
 
+The **My PRs** page (`/my-pulls`, the pull-request icon) lists the open pull
+requests the GitHub login in Settings → Identity authored, one row per PR, and
+the four things that decide whether it is moving: its head commit's check
+rollup (passing, running, failing, or no checks), its review decision (approved,
+changes requested, review required, or no review), who approved it, and how many
+of its review threads are still open. Rows that need you (failing checks,
+requested changes, or an open thread) are marked and sorted first, then by
+newest update; a text search filters by repository, number, title, or approver,
+and **Refresh** re-queries GitHub instead of reusing the short cache. The list
+comes from one GraphQL search through `gh`, because neither `ghx` nor `gh`'s
+`--json` field set carries a review thread's resolved state, and nothing is
+stored, so a PR that merges leaves the page on the next refresh.
+
 The **PR feedback** page (`/feedback`, the speech-bubble icon) triages the
 reviewer comments on the pull requests you authored. It reads the analysis files
 the `handle-pr-reviewer-feedback` skill writes under
