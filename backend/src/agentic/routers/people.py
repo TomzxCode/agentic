@@ -27,6 +27,7 @@ from .people_links import _link_item, _link_requester, _link_task, merge_people
 from .people_service import (
     _create_person,
     _person_read,
+    _person_reads,
     _resolve_person,
     _set_aliases,
     get_person_or_404,
@@ -47,7 +48,7 @@ link_router = APIRouter(tags=["people"])
 def list_people(session: Session = Depends(get_session)) -> list[PersonRead]:
     """List people by name (case-insensitive), each with their link counts."""
     people = session.exec(select(Person).order_by(func.lower(col(Person.name)))).all()
-    return [_person_read(session, person) for person in people]
+    return _person_reads(session, list(people))
 
 
 @router.post("", response_model=PersonRead, status_code=201)

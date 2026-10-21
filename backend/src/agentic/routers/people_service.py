@@ -95,6 +95,43 @@ def _person_read(session: Session, person: Person) -> PersonRead:
     return data
 
 
+def _person_reads(session: Session, people: list[Person]) -> list[PersonRead]:
+    if not people:
+        return []
+    person_ids = [person.id for person in people]
+
+    aliases_by_person: dict[str, list[str]] = {pid: [] for pid in person_ids}
+    for alias in session.exec(
+        select(PersonAlias).where(col(PersonAlias.person_id).in_(person_ids)).order_by(col(PersonAlias.created_at))
+    ).all():
+        aliases_by_person.setdefault(alias.person_id, []).append(alias.value)
+
+    involved_by_person: dict[str, list[str]] = {pid: [] for pid in person_ids}
+    for link in session.exec(select(TaskPerson).where(col(TaskPerson.person_id).in_(person_ids))).all():
+        involved_by_person.setdefault(link.person_id, []).append(link.task_id)
+
+    requester_by_person: dict[str, list[str]] = {pid: [] for pid in person_ids}
+    for link in session.exec(select(TaskRequester).where(col(TaskRequester.person_id).in_(person_ids))).all():
+        requester_by_person.setdefault(link.person_id, []).append(link.task_id)
+
+    item_counts: dict[str, int] = {pid: 0 for pid in person_ids}
+    for link in session.exec(select(ItemPerson).where(col(ItemPerson.person_id).in_(person_ids))).all():
+        item_counts[link.person_id] = item_counts.get(link.person_id, 0) + 1
+
+    reads: list[PersonRead] = []
+    for person in people:
+        data = PersonRead.model_validate(person)
+        data.aliases = aliases_by_person.get(person.id, [])
+        task_ids = list(involved_by_person.get(person.id, []))
+        for task_id in requester_by_person.get(person.id, []):
+            if task_id not in task_ids:
+                task_ids.append(task_id)
+        data.task_count = len(task_ids)
+        data.item_count = item_counts.get(person.id, 0)
+        reads.append(data)
+    return reads
+
+
 def _create_person(session: Session, payload: PersonCreate) -> Person:
     name = (payload.name or "").strip()
     if not name:
