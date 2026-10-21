@@ -12,6 +12,7 @@ import StatusIcon from './components/StatusIcon.vue'
 import PriorityIcon from './components/PriorityIcon.vue'
 import Icon from './components/Icon.vue'
 import CommandPalette from './components/CommandPalette.vue'
+import StatusBar from './components/StatusBar.vue'
 import { useFocusHints } from './composables/useFocusHints'
 import { useSidebar } from './composables/useSidebar'
 import { buildPaletteItems } from './palette'
@@ -630,5 +631,6 @@ onUnmounted(() => {
     >
 
     <CommandPalette v-if="paletteOpen" :items="paletteItems" @select="runPaletteItem" @close="paletteOpen = false" />
+    <StatusBar />
   </div>
 </template>

@@ -19,6 +19,7 @@ from .agents.harnesses import seed_harnesses
 from .agents.pool import pool
 from .config import settings
 from .db import create_db_and_tables, engine
+from .debug import DebugMiddleware, recent_requests
 from .jobs import close_queue, get_queue, reconcile_runs
 from .provenance import ProvenanceMiddleware
 from .routers import (
@@ -197,6 +198,14 @@ app.add_middleware(
 
 # Records each mutating request (client + actor) and exposes the context to handlers.
 app.add_middleware(ProvenanceMiddleware)
+
+# Expose per-request timing and database query counts for the web UI debug bar.
+app.add_middleware(DebugMiddleware)
+
+
+@app.get("/api/debug/requests")
+def debug_requests() -> list[dict]:
+    return recent_requests()
 
 for module in (
     repositories,

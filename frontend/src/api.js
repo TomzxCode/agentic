@@ -1,3 +1,5 @@
+import { recordApiCall } from './debug.js'
+
 const API = '/api'
 
 // Every request declares its provenance: the web UI is always a human.
@@ -6,11 +8,27 @@ const PROVENANCE_HEADERS = { 'X-Agentic-Client': 'web', 'X-Agentic-Actor': 'huma
 async function request(path, { method = 'GET', body } = {}) {
   const headers = { ...PROVENANCE_HEADERS }
   if (body !== undefined) headers['Content-Type'] = 'application/json'
+  const start =
+    typeof performance !== 'undefined' && typeof performance.now === 'function' ? performance.now() : Date.now()
   const res = await fetch(API + path, {
     method,
     headers,
     body: body !== undefined ? JSON.stringify(body) : undefined
   })
+  const duration =
+    (typeof performance !== 'undefined' && typeof performance.now === 'function' ? performance.now() : Date.now()) -
+    start
+  const getHeader = (name) => (res.headers && typeof res.headers.get === 'function' ? res.headers.get(name) : null)
+  const dbQueries = Number(getHeader('x-debug-db-queries') || 0)
+  const dbTime = Number(getHeader('x-debug-db-time-ms') || 0)
+  let dbQueryDetails = []
+  try {
+    const raw = getHeader('x-debug-db-queries-json')
+    if (raw) dbQueryDetails = JSON.parse(raw)
+  } catch {
+    dbQueryDetails = []
+  }
+  recordApiCall({ method, path, duration, dbQueries, dbTime, dbQueryDetails })
   if (res.status === 204) return null
   const text = await res.text()
   const data = text ? JSON.parse(text) : null
