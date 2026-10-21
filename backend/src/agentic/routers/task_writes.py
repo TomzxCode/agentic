@@ -14,6 +14,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import delete as sa_delete
 from sqlmodel import Session, col, select
 
+from ..auto_changes import record_merged_pr_changes
 from ..crud import add_timeline, field_label, get_task_or_404, jsonable, normalize_tags
 from ..db import get_session
 from ..events import bus
@@ -85,6 +86,8 @@ async def create_task(payload: TaskCreate, session: Session = Depends(get_sessio
 
     if item is not None:
         _link_item(session, task.id, item, note=f"imported from {import_source}")
+        # An imported, already-merged pull request is a landed change.
+        record_merged_pr_changes(session, item_ids=[item.id])
         add_timeline(
             session,
             task.id,

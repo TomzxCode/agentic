@@ -122,7 +122,7 @@ def _issue_label(item: SourceItem) -> str:
     return f"Issue #{number}" if number else (item.title or "The issue")
 
 
-def _change_references(changes: Sequence[Change], item: SourceItem) -> bool:
+def change_references(changes: Sequence[Change], item: SourceItem) -> bool:
     """True when any change already names the item via its external ref."""
     refs = {value.strip() for value in (item.url, item.external_id) if value}
     return any((change.external_ref or "").strip() in refs for change in changes)
@@ -240,7 +240,7 @@ def build_suggestions(
             for item in merged:
                 if viewer_login and not is_authored_by(item, viewer_login):
                     continue
-                if not _change_references(changes, item):
+                if not change_references(changes, item):
                     suggestions.append(_record_change_suggestion(task, item))
 
         if closed:
@@ -258,6 +258,7 @@ __all__ = [
     "RECORD_CHANGE_MERGED_PR",
     "REMOVE_WORKTREE_DONE_TASK",
     "build_suggestions",
+    "change_references",
     "is_authored_by",
     "is_finished_item",
     "is_github_item",

@@ -17,7 +17,7 @@ The Slack credentials keep the names `slackx` uses (`SLACK_TOKEN`, `SLACK_COOKIE
 | `AGENTIC_STATIC_DIR` | `backend/static` | Built SPA for the API to serve. |
 | `AGENTIC_CORS_ORIGINS` | `["http://localhost:5173","http://127.0.0.1:5173"]` | CORS origins allowed for the Vite dev server. |
 | `AGENTIC_DEFAULT_HARNESS` | `opencode` | Fallback harness by name, used when no harness is marked default. |
-| `AGENTIC_GITHUB_LOGIN` | (empty) | The GitHub login that counts as "you": the inbox and a repository's pull requests only offer to record a change for a merged PR this account authored. Empty auto-detects the authenticated `gh` account. |
+| `AGENTIC_GITHUB_LOGIN` | (empty) | The GitHub login that counts as "you": a merged PR this account authored and a task links is recorded as a change automatically, and the inbox and a repository's pull requests only offer to record a change for the same PRs. Empty auto-detects the authenticated `gh` account. |
 | `SLACK_TOKEN` | (empty) | Slack token the item view's poke action sends with. Also read as `AGENTIC_SLACK_TOKEN`. A web token (`xoxc-`) needs `SLACK_COOKIE` (the `xoxd-` value); a bot token (`xoxb-`) does not. Empty disables poking. |
 | `SLACK_COOKIE` | (empty) | The `xoxd-` cookie that goes with an `xoxc-` web token. Also read as `AGENTIC_SLACK_COOKIE`. |
 | `SLACK_API_BASE_URL` | `https://slack.com/api` | Slack API base the poke action posts to. Also read as `AGENTIC_SLACK_API_BASE_URL`. |

@@ -10,6 +10,7 @@ from collections import Counter
 
 from sqlmodel import Session, col, select
 
+from ..auto_changes import record_merged_pr_changes
 from ..models.base import utcnow
 from ..models.items import SourceItem
 from ..parallel import run_parallel
@@ -156,6 +157,7 @@ def refresh_due_items(session: Session, policies: dict[str, str], now=None, orig
             due.append(item)
     entries = _refresh_entries(session, due, now)
     _record_runs(session, active, entries, now, origin)
+    record_merged_pr_changes(session, item_ids=[entry["item_id"] for entry in entries], now=now)
     return _refresh_report(len(items), entries)
 
 
@@ -173,6 +175,7 @@ def force_refresh_source(session: Session, source: str, now=None) -> dict:
     fetchable = [item for item in items if item.url]
     entries = _refresh_entries(session, fetchable, now)
     _record_runs(session, [source], entries, now, "manual")
+    record_merged_pr_changes(session, item_ids=[entry["item_id"] for entry in entries], now=now)
     return _refresh_report(len(items), entries)
 
 
@@ -239,4 +242,7 @@ def sync_github_listing(session: Session, owner: str, repo: str, entries: list[d
             changed += 1
     if changed:
         session.commit()
+    # A listing is where an unmerged PR turns merged, so it is also where the
+    # change record for it is due; the pass covers items the merge did not change.
+    record_merged_pr_changes(session, now=now)
     return changed

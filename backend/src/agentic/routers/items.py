@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import delete as sa_delete
 from sqlmodel import Session, col, select
 
+from ..auto_changes import record_merged_pr_changes
 from ..crud import get_or_404
 from ..db import get_session
 from ..models.base import utcnow
@@ -217,6 +218,8 @@ def update_item(item_id: str, payload: ItemUpdate, session: Session = Depends(ge
     session.add(item)
     session.commit()
     session.refresh(item)
+    # A metadata patch can flip the PR to merged, which is a landed change.
+    record_merged_pr_changes(session, item_ids=[item.id])
     return _item_read(session, item)
 
 
@@ -229,6 +232,8 @@ def refresh_item(item_id: str, session: Session = Depends(get_session)) -> ItemR
     session.commit()
     session.refresh(item)
     link_people_to_item(session, item.id, fetched.get("people") or [])
+    # A refresh is how an already-linked PR is first seen as merged.
+    record_merged_pr_changes(session, item_ids=[item.id])
     return _item_read(session, item, fetch_error=error)
 
 

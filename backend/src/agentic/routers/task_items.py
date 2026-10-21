@@ -10,6 +10,7 @@ import anyio
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
 
+from ..auto_changes import record_merged_pr_changes
 from ..crud import add_timeline, get_or_404, get_task_or_404
 from ..db import get_session
 from ..events import bus
@@ -39,6 +40,9 @@ async def associate_item(
     await anyio.to_thread.run_sync(_populate_item_people, session, item)
 
     assoc = _link_item(session, task_id, item, payload.note)
+    # Linking a pull request that has already merged is the moment its change
+    # becomes recordable, so record it here rather than waiting for a refresh.
+    record_merged_pr_changes(session, item_ids=[item.id])
     add_timeline(
         session,
         task_id,

@@ -21,7 +21,7 @@ You want to know how much work the agent lands without your help, and whether th
 
    ![The Metrics page: autonomy rate and yield cards, each with a direction against its baseline, above the recent changes](../assets/metrics.png)
 
-   At the bottom the page lists every task that has a linked pull request with no change record yet, so you can see what still needs recording. Each row has a **Record accepted** button that creates the change already accepted (dated to the PR's merge when GitHub reports one) without going through the proposed step.
+   At the bottom the page lists every task that has a linked pull request with no change record yet, so you can see what still needs recording. Each row has a **Record accepted** button that creates the change already accepted (dated to the PR's merge when GitHub reports one) without going through the proposed step. A merge the app observes on its own is recorded without this button; the list is what is left over (no known login, or no stored author).
 
 6. Set a baseline so each metric is shown with a direction (improving, worsening, or flat):
 
@@ -36,8 +36,10 @@ You want to know how much work the agent lands without your help, and whether th
 
 A change still inside its observation window is pending and is excluded from yield, so a recent change never counts as a survivor by default.
 
-Changes are recorded explicitly.
-Nothing auto-creates a change from a run, a git commit, or a GitHub pull request yet, so the metrics are only as complete as what gets recorded.
+A change is recorded automatically when the app observes one of your linked pull requests merge: it opens accepted and dated to the merge.
+The app learns about a merge from an item refresh, a repository view visit, a link you add after the merge, or at startup.
+A run or a git commit still creates no change.
+Set the GitHub login under **Settings → Identity** (it falls back to the authenticated `gh` account) so the app knows which pull requests are yours.
 
 ## Verification
 

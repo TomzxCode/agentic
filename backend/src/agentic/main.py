@@ -91,6 +91,19 @@ async def _refresh_due_forever() -> None:
             log.info("refreshed due items", refreshed=result["refreshed"])
 
 
+def _auto_record_changes_once() -> int:
+    """Record changes for authored, task-linked merged PRs the store already holds.
+
+    A merge an earlier process observed (or that predates this feature) would
+    otherwise wait for its item's next refresh, leaving the metrics short of a
+    change that already landed. Opens its own session, like the refresh pass.
+    """
+    from .auto_changes import record_merged_pr_changes
+
+    with Session(engine) as session:
+        return len(record_merged_pr_changes(session))
+
+
 def _review_scan_once() -> dict:
     """Run the review scan when its cadence says it is due (gh blocks).
 
@@ -128,6 +141,11 @@ async def lifespan(app: FastAPI):
     # A scheduled run executes in this process, so any left running by a
     # previous process is gone.
     reconcile_scheduled_runs()
+    # Record the merged pull requests already on file, so the metrics do not
+    # wait for each item's next refresh.
+    recorded = await asyncio.to_thread(_auto_record_changes_once)
+    if recorded:
+        log.info("recorded changes for merged pull requests at startup", count=recorded)
     # Re-fetch Slack/GitHub items on the configured schedule.
     refresh_task = asyncio.create_task(_refresh_due_forever())
     # Ask GitHub which pull requests await the user's review, on its own cadence.

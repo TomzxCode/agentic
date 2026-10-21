@@ -254,6 +254,11 @@ that had no human intervention) and **yield** (the share of accepted changes
 that survived the observation window without a revert). Each metric is shown
 against a stored baseline with a direction (improving, worsening, or flat).
 
+Recording is automatic for the common case: when the app observes one of your
+pull requests merge and a task already links it, it records the change as
+**accepted**, dated to the merge, so autonomy rate and yield do not depend on
+remembering to log it. You can still record, edit, or revert a change by hand.
+
 The **Inbox** page (`/inbox`, the envelope icon in the sidebar, with a count
 badge) suggests things to do, derived from the current state rather than stored:
 it recomputes on every read, so acting on a suggestion makes it disappear. It
@@ -263,7 +268,9 @@ merged), record a change for a merged PR that has none, and remove a worktree
 left behind by a closed task. A task with no linked issue or PR is left alone.
 A merged PR is only offered a change record when you authored it (the login in
 Settings → Identity, else the authenticated `gh` account); a PR someone else
-wrote is not your change to record. Each suggestion
+wrote is not your change to record. A merged PR you authored and a task links is
+recorded automatically, so the suggestion only remains for a PR the app could not
+record on its own (no known login, or no stored author). Each suggestion
 names the task it is about and offers the action as a button that calls the
 same endpoint the rest of the app uses.
 
@@ -688,6 +695,7 @@ To run the tray on its own, use `make dev-tray` (or `uv run agentic-stack`). On 
   queued or running with no live job are marked failed when the API starts. You
   must run a worker for runs to make progress.
 - Permission requests are auto-approved; there is no interactive approval UI yet.
-- Changes are recorded explicitly; nothing auto-creates a change from a run,
-  a git commit, or a GitHub PR yet, so the autonomy and yield metrics are only
-  as complete as what gets recorded.
+- A merged pull request you authored and a task links is recorded as an accepted
+  change automatically, dated to the merge. A run or a git commit still creates
+  no change, so the autonomy and yield metrics count only what GitHub reports as
+  merged.
