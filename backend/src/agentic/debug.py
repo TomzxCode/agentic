@@ -84,16 +84,17 @@ class DebugMiddleware:
         try:
             await self.app(scope, receive, send_wrapper)
         finally:
-            duration_ms = (time.perf_counter() - state["start"]) * 1000.0
-            entry = {
-                "method": method,
-                "path": path,
-                "duration_ms": round(duration_ms, 2),
-                "db_queries": state["count"],
-                "db_time_ms": round(state["time_ms"], 2),
-                "queries": list(state["queries"]),
-            }
-            _recent_requests.append(entry)
+            if not path.startswith("/api/debug"):
+                duration_ms = (time.perf_counter() - state["start"]) * 1000.0
+                entry = {
+                    "method": method,
+                    "path": path,
+                    "duration_ms": round(duration_ms, 2),
+                    "db_queries": state["count"],
+                    "db_time_ms": round(state["time_ms"], 2),
+                    "queries": list(state["queries"]),
+                }
+                _recent_requests.append(entry)
             if len(_recent_requests) > _RECENT_LIMIT:
                 del _recent_requests[: len(_recent_requests) - _RECENT_LIMIT]
             _debug_state.reset(token)
