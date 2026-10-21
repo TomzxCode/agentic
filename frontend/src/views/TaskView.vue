@@ -203,7 +203,6 @@ async function copyId() {
 async function removeTask() {
   if (!confirm('Delete this task? This cannot be undone.')) return
   await api.tasks.remove(props.id)
-  emit('changed')
   router.push('/')
 }
 
