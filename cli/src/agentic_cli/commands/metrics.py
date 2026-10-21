@@ -8,6 +8,7 @@ from cyclopts import App
 
 from .. import runtime
 from ..render import (
+    _cycle_time_text,
     _join,
     _metrics_text,
 )
@@ -45,6 +46,43 @@ def metrics_show(
             change_class=change_class,
         )
     return emit(report, _metrics_text(report))
+
+
+@metrics_app.command(name="cycle-time")
+@safe
+def metrics_cycle_time(
+    days: int = 90,
+    bucket_days: int = 7,
+    repository: str | None = None,
+    refresh: bool = False,
+) -> str:
+    """Show cycle-time trends (issue close, review wait, review to merge) per repository.
+
+    ``--repository`` matches a repository's id, name, or path; without it every
+    repository with a GitHub remote is read, one GitHub request each.
+    """
+    with runtime._client() as client:
+        repository_id = None
+        if repository:
+            repositories = client.list_repositories()
+            matches = [
+                item
+                for item in repositories
+                if repository in (item.get("id"), item.get("name")) or repository in (item.get("path") or "")
+            ]
+            if not matches:
+                raise ValueError(f"no repository matches {repository!r}")
+            if len(matches) > 1:
+                names = ", ".join(item.get("name", item.get("id", "?")) for item in matches)
+                raise ValueError(f"{repository!r} matches several repositories: {names}")
+            repository_id = matches[0]["id"]
+        report = client.get_cycle_time(
+            days=days,
+            bucket_days=bucket_days,
+            repository_id=repository_id,
+            refresh=refresh,
+        )
+    return emit(report, _cycle_time_text(report))
 
 
 @baseline_app.command(name="list")

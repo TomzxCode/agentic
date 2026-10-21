@@ -1,7 +1,9 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { api } from '../api'
 import { changeStatusBadge, changeCreateBody, changeReferencesItem, isPullRequestItem } from '../changes'
+import CycleTimeTrend from '../components/CycleTimeTrend.vue'
+import { formatCycleHours } from '../cycleTime'
 import { authoredByLogin, itemState } from '../repositories/parse'
 import { store } from '../store'
 
@@ -16,6 +18,33 @@ const recordingId = ref('')
 
 const windowDays = ref(30)
 const observationDays = ref(14)
+
+// Cycle time is read from GitHub, so it has its own window and loads per
+// repository rather than with the factory metrics above.
+const cycle = ref(null)
+const cycleLoading = ref(false)
+const cycleError = ref('')
+const cycleDays = ref(90)
+// Remember the last repository on this device, like the other per-device UI
+// preferences (the server's settings are shared by every client).
+const CYCLE_REPOSITORY_KEY = 'agentic.metricsRepository'
+const cycleRepositoryId = ref(localStorage.getItem(CYCLE_REPOSITORY_KEY) || '')
+watch(cycleRepositoryId, (value) => {
+  if (value) localStorage.setItem(CYCLE_REPOSITORY_KEY, value)
+  else localStorage.removeItem(CYCLE_REPOSITORY_KEY)
+})
+// The viewer's own repositories come first, so the default selection is one
+// whose activity is theirs; upstream checkouts stay available below them.
+const cycleRepositories = computed(() => {
+  const login = (store.settings?.github_login || '').toLowerCase()
+  const owner = (repository) => (/(?:github\.com[/:])([^/]+)\//.exec(repository.remote_url || '')?.[1] || '').toLowerCase()
+  return (store.repositories || [])
+    .filter((repository) => /github\.com/.test(repository.remote_url || ''))
+    .sort((a, b) => {
+      const own = Number(owner(b) === login) - Number(owner(a) === login)
+      return own || (a.name || '').localeCompare(b.name || '')
+    })
+})
 
 const DIRECTIONS = {
   improving: { label: 'Improving', badge: 'badge ok' },
@@ -76,9 +105,38 @@ async function load() {
     loading.value = false
   }
 }
+// Requests can overlap when the selection changes quickly, so only the latest
+// one is allowed to replace what is on screen.
+let cycleRequest = 0
+async function loadCycle(refresh = false) {
+  const request = ++cycleRequest
+  cycleLoading.value = true
+  cycleError.value = ''
+  try {
+    const result = await api.metrics.cycleTime({
+      days: Math.max(1, Number(cycleDays.value) || 90),
+      repositoryId: cycleRepositoryId.value || undefined,
+      refresh
+    })
+    if (request === cycleRequest) cycle.value = result
+  } catch (e) {
+    if (request === cycleRequest) cycleError.value = e.message
+  } finally {
+    if (request === cycleRequest) cycleLoading.value = false
+  }
+}
+
 onMounted(async () => {
   await store.loadTasks().catch(() => {})
+  const repositoriesLoaded = await store
+    .loadRepositories()
+    .then(() => true)
+    .catch(() => false)
+  if (repositoriesLoaded && !cycleRepositories.value.some((repository) => repository.id === cycleRepositoryId.value)) {
+    cycleRepositoryId.value = cycleRepositories.value[0]?.id || ''
+  }
   await load()
+  if (cycleRepositories.value.length) await loadCycle()
 })
 
 async function setBaseline(metric) {
@@ -187,6 +245,55 @@ async function recordAccepted(row) {
           Accepted {{ counts.accepted }}, touchless {{ counts.touchless }}, reverted {{ counts.reverted }}, rejected
           {{ counts.rejected }}, pending observation {{ counts.pending_observation }}, open {{ counts.open }}.
         </p>
+      </template>
+    </section>
+
+    <section class="panel" style="margin-top: 16px">
+      <div class="panel-head">
+        <h2>Cycle time</h2>
+        <div class="cycle-controls">
+          <label class="metric-window">
+            <span>Repository</span>
+            <select v-model="cycleRepositoryId" class="input" @change="loadCycle()">
+              <option value="">All repositories</option>
+              <option v-for="repository in cycleRepositories" :key="repository.id" :value="repository.id">
+                {{ repository.name }}
+              </option>
+            </select>
+          </label>
+          <label class="metric-window">
+            <span>Window (days)</span>
+            <input v-model.number="cycleDays" type="number" min="1" max="730" class="input" @change="loadCycle()" />
+          </label>
+          <button class="btn sm ghost" :disabled="cycleLoading" @click="loadCycle(true)">
+            <span v-if="cycleLoading" class="spinner"></span> Refresh
+          </button>
+        </div>
+      </div>
+      <p class="faint">
+        Medians per week, from closed issues and merged pull requests on GitHub. Review wait starts at the first review
+        request and ends at the first review; review to merge starts at the first review and ends at the merge.
+      </p>
+      <div v-if="!cycleRepositories.length" class="empty">No repository has a GitHub remote yet.</div>
+      <div v-else-if="cycleError" class="empty">Couldn't load cycle time: {{ cycleError }}.</div>
+      <div v-else-if="!cycle" class="empty"><span class="spinner"></span></div>
+      <template v-else>
+        <div v-for="repository in cycle.repositories" :key="repository.repository_id" class="cycle-repo">
+          <div class="cycle-repo-head">
+            <h3>{{ repository.name }}</h3>
+            <span v-if="repository.full_name" class="faint">{{ repository.full_name }}</span>
+          </div>
+          <div v-if="repository.error" class="empty">{{ repository.error }}</div>
+          <div v-else class="metric-grid">
+            <article v-for="series in repository.series" :key="series.metric" class="metric-card">
+              <h2>{{ series.label }}</h2>
+              <p class="metric-value">{{ formatCycleHours(series.median_hours) }}</p>
+              <p class="faint">{{ series.count }} observed</p>
+              <CycleTimeTrend :series="series" />
+            </article>
+          </div>
+        </div>
+        <div v-if="!cycle.repositories.length" class="empty">No repository has a GitHub remote yet.</div>
       </template>
     </section>
 

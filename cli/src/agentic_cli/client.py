@@ -395,6 +395,24 @@ class AgenticClient:
                 params.append((key, value))
         return self._request("GET", "/api/metrics", params=params)
 
+    def get_cycle_time(
+        self,
+        days: int | None = None,
+        bucket_days: int | None = None,
+        repository_id: str | None = None,
+        refresh: bool | None = None,
+    ) -> dict:
+        params: list[tuple[str, Any]] = []
+        for key, value in (
+            ("days", days),
+            ("bucket_days", bucket_days),
+            ("repository_id", repository_id),
+            ("refresh", "true" if refresh else None),
+        ):
+            if value is not None:
+                params.append((key, value))
+        return self._request("GET", "/api/metrics/cycle-time", params=params)
+
     def list_baselines(self) -> list[dict]:
         return self._request("GET", "/api/metrics/baselines")
 

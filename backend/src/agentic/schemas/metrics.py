@@ -39,6 +39,37 @@ class MetricsReport(BaseModel):
     counts: MetricCounts = MetricCounts()
 
 
+class CycleTimeBucket(BaseModel):
+    start: datetime
+    end: datetime
+    median_hours: float | None = None
+    count: int = 0
+
+
+class CycleTimeSeries(BaseModel):
+    metric: str
+    label: str
+    unit: str = "hours"
+    median_hours: float | None = None
+    count: int = 0
+    buckets: list[CycleTimeBucket] = []
+
+
+class RepositoryCycleTime(BaseModel):
+    repository_id: str
+    name: str
+    full_name: str | None = None
+    error: str | None = None
+    series: list[CycleTimeSeries] = []
+
+
+class CycleTimeReport(BaseModel):
+    window_days: int
+    bucket_days: int
+    generated_at: datetime
+    repositories: list[RepositoryCycleTime] = []
+
+
 class BaselineSet(BaseModel):
     value: float
     window_days: int = 30

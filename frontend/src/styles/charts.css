@@ -342,6 +342,61 @@ button.gantt-marker::after {
 .metric-form {
   flex-wrap: wrap;
 }
+.cycle-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.cycle-controls .input {
+  padding: 5px 8px;
+  font-size: 12px;
+  background: var(--bg-2);
+}
+.cycle-trend {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 4px;
+}
+.cycle-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 64px;
+  padding-top: 4px;
+  border-bottom: 1px solid var(--border);
+}
+.cycle-bar {
+  flex: 1;
+  min-width: 2px;
+  border-radius: 2px 2px 0 0;
+  background: var(--accent-2);
+}
+.cycle-bar-empty {
+  height: 2px !important;
+  background: var(--border);
+}
+.cycle-span {
+  margin: 0;
+  font-size: 11px;
+}
+.cycle-repo {
+  margin-top: 18px;
+}
+.cycle-repo:first-of-type {
+  margin-top: 0;
+}
+.cycle-repo-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.cycle-repo-head h3 {
+  margin: 0;
+  font-size: 14px;
+}
 .change-row {
   display: flex;
   align-items: center;

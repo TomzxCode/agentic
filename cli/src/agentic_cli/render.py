@@ -157,6 +157,37 @@ def _metrics_text(report: dict) -> str:
     return "\n".join(lines)
 
 
+def _hours_text(hours: float | None) -> str:
+    """A duration in hours, rendered in the largest unit that keeps it readable."""
+    if hours is None:
+        return "n/a"
+    if hours < 1:
+        return f"{hours * 60:.0f}m"
+    if hours < 48:
+        return f"{hours:.1f}h"
+    return f"{hours / 24:.1f}d"
+
+
+def _cycle_time_text(report: dict) -> str:
+    lines = [f"window {report['window_days']}d  buckets {report['bucket_days']}d"]
+    if not report["repositories"]:
+        lines.append("No repository with a GitHub remote.")
+        return "\n".join(lines)
+    for repository in report["repositories"]:
+        heading = f"{repository['name']}"
+        if repository.get("full_name"):
+            heading += f"  ({repository['full_name']})"
+        lines.append(heading)
+        if repository.get("error"):
+            lines.append(f"  {repository['error']}")
+            continue
+        for series in repository["series"]:
+            lines.append(
+                f"  {series['label']:<26} {_hours_text(series['median_hours']):>6}  ({series['count']} observed)"
+            )
+    return "\n".join(lines)
+
+
 def _format_duration(seconds: float) -> str:
     total = max(0, int(seconds))
     minutes, sec = divmod(total, 60)

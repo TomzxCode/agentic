@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 import re
+from collections.abc import Callable
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import structlog
@@ -309,6 +311,207 @@ def detect_github_login() -> str:
     """
     raw = shell._run_cli(["gh", "api", "user", "--jq", ".login"], timeout=15)
     return (raw or "").strip()
+
+
+# --- Cycle-time data -------------------------------------------------------
+#
+# ghx's cache and list commands carry no reviews or timeline events, and gh's
+# --json field set exposes neither, so these two reads go straight to the
+# GitHub GraphQL API through ``gh`` (the same exception the reviewer read
+# above makes). One query per repository for closed issues and one for merged
+# pull requests, with every review and review request the PR received.
+
+#: How long a repository's cycle-time data is reused before it is fetched again.
+CYCLE_TIME_CACHE_SECONDS = 600
+
+#: Merged PRs and closed issues the GraphQL search API will return, in total.
+CYCLE_TIME_RESULT_LIMIT = 1000
+
+_CYCLE_TIME_CACHE: dict[tuple[str, str, str], tuple[datetime, dict[str, list[dict[str, Any]]]]] = {}
+
+_ISSUES_QUERY = """
+query($owner: String!, $repo: String!, $since: DateTime!, $endCursor: String) {
+  repository(owner: $owner, name: $repo) {
+    issues(
+      first: 100
+      after: $endCursor
+      filterBy: {since: $since, states: [CLOSED]}
+      orderBy: {field: UPDATED_AT, direction: DESC}
+    ) {
+      pageInfo { hasNextPage endCursor }
+      nodes { number createdAt closedAt }
+    }
+  }
+}
+"""
+
+_PULLS_QUERY = """
+query($owner: String!, $repo: String!, $endCursor: String) {
+  repository(owner: $owner, name: $repo) {
+    pullRequests(first: 100, after: $endCursor, states: [MERGED], orderBy: {field: UPDATED_AT, direction: DESC}) {
+      pageInfo { hasNextPage endCursor }
+      nodes {
+        number
+        createdAt
+        updatedAt
+        mergedAt
+        reviews(first: 100) {
+          nodes { author { login } state submittedAt }
+        }
+        timelineItems(first: 100, itemTypes: [REVIEW_REQUESTED_EVENT]) {
+          nodes {
+            ... on ReviewRequestedEvent {
+              createdAt
+              requestedReviewer { ... on User { login } }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+"""
+
+
+def _graphql(query: str, variables: dict[str, Any]) -> dict[str, Any] | None:
+    """Run one GraphQL query through ``gh``. None when it could not run."""
+    cmd = ["gh", "api", "graphql", "-f", f"query={query}"]
+    for key, value in variables.items():
+        if value is None:
+            continue
+        cmd.extend(["-f", f"{key}={value}"])
+    raw = shell._run_cli(cmd, timeout=120)
+    if not raw:
+        return None
+    try:
+        payload = json.loads(raw)
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(payload, dict) or payload.get("errors"):
+        if payload.get("errors"):
+            log.warning("github graphql error", errors=payload.get("errors"))
+        return None
+    return payload
+
+
+def _paginate_connection(
+    query: str,
+    variables: dict[str, Any],
+    connection: Any,
+    limit: int = CYCLE_TIME_RESULT_LIMIT,
+    stop: Callable[[list[dict[str, Any]]], bool] | None = None,
+) -> list[dict[str, Any]] | None:
+    """Follow a connection's cursor until it is exhausted or ``limit`` rows are read.
+
+    ``stop`` sees each page's nodes and returns True when nothing older can be
+    wanted; the page it stopped on is still included.
+    """
+    rows: list[dict[str, Any]] = []
+    cursor: str | None = None
+    while len(rows) < limit:
+        payload = _graphql(query, {**variables, "endCursor": cursor})
+        if payload is None:
+            return None
+        try:
+            node = connection(payload)
+            page_info = node.get("pageInfo") or {}
+            nodes = node.get("nodes") or []
+            rows.extend(nodes)
+        except (KeyError, TypeError, AttributeError):
+            return None
+        if not page_info.get("hasNextPage"):
+            break
+        if stop is not None and nodes and stop(nodes):
+            break
+        cursor = page_info.get("endCursor")
+        if not cursor:
+            break
+    return rows[:limit]
+
+
+def fetch_github_cycle_time(
+    owner: str,
+    repo: str,
+    since: datetime,
+    *,
+    refresh: bool = False,
+) -> dict[str, list[dict[str, Any]]] | None:
+    """A repository's closed issues and merged pull requests since ``since``.
+
+    Returns ``{"issues": [...], "pulls": [...]}`` with ISO timestamps, or None
+    when GitHub could not be read. Results are cached for
+    ``CYCLE_TIME_CACHE_SECONDS`` per repository and window start.
+    """
+    key = (owner.lower(), repo.lower(), since.date().isoformat())
+    cached = _CYCLE_TIME_CACHE.get(key)
+    if cached is not None and not refresh:
+        fetched_at, data = cached
+        if datetime.now(UTC) - fetched_at < timedelta(seconds=CYCLE_TIME_CACHE_SECONDS):
+            return data
+
+    since_iso = since.astimezone(UTC).isoformat().replace("+00:00", "Z")
+    raw_issues = _paginate_connection(
+        _ISSUES_QUERY,
+        {"owner": owner, "repo": repo, "since": since_iso},
+        lambda payload: payload["data"]["repository"]["issues"],
+    )
+    if raw_issues is None:
+        return None
+    issues = [
+        {
+            "number": issue.get("number"),
+            "created_at": issue.get("createdAt"),
+            "closed_at": issue.get("closedAt"),
+        }
+        for issue in raw_issues
+        if issue.get("closedAt")
+    ]
+
+    raw_pulls = _paginate_connection(
+        _PULLS_QUERY,
+        {"owner": owner, "repo": repo},
+        lambda payload: payload["data"]["repository"]["pullRequests"],
+        # Pull requests arrive newest-updated first, and a PR merged in the
+        # window was updated in the window too, so a page entirely older than
+        # the window ends the walk. A missing timestamp keeps the walk going.
+        stop=lambda nodes: all(node.get("updatedAt") and node["updatedAt"] < since_iso for node in nodes),
+    )
+    if raw_pulls is None:
+        return None
+    pulls = []
+    for pull in raw_pulls:
+        if not pull.get("mergedAt"):
+            continue
+        reviews = [
+            {
+                "author": (review.get("author") or {}).get("login"),
+                "state": review.get("state"),
+                "submitted_at": review.get("submittedAt"),
+            }
+            for review in (pull.get("reviews") or {}).get("nodes") or []
+            if review.get("submittedAt")
+        ]
+        requests = [
+            {
+                "reviewer": (event.get("requestedReviewer") or {}).get("login"),
+                "requested_at": event.get("createdAt"),
+            }
+            for event in (pull.get("timelineItems") or {}).get("nodes") or []
+            if event.get("createdAt")
+        ]
+        pulls.append(
+            {
+                "number": pull.get("number"),
+                "created_at": pull.get("createdAt"),
+                "merged_at": pull.get("mergedAt"),
+                "reviews": reviews,
+                "review_requests": requests,
+            }
+        )
+
+    data = {"issues": issues, "pulls": pulls}
+    _CYCLE_TIME_CACHE[key] = (datetime.now(UTC), data)
+    return data
 
 
 def _fetch_github(url: str, result: dict[str, Any]) -> None:

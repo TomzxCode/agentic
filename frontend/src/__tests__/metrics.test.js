@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   metricsGet: vi.fn(),
   metricsSetBaseline: vi.fn(),
   metricsRemoveBaseline: vi.fn(),
+  cycleTime: vi.fn(),
   changesList: vi.fn(),
   changesCreate: vi.fn(),
   itemsList: vi.fn(),
@@ -22,7 +23,8 @@ vi.mock('../api', () => ({
       get: mocks.metricsGet,
       baselines: vi.fn().mockResolvedValue([]),
       setBaseline: mocks.metricsSetBaseline,
-      removeBaseline: mocks.metricsRemoveBaseline
+      removeBaseline: mocks.metricsRemoveBaseline,
+      cycleTime: mocks.cycleTime
     },
     changes: { list: mocks.changesList, create: mocks.changesCreate },
     items: { list: mocks.itemsList, refresh: mocks.itemsRefresh }
@@ -61,6 +63,42 @@ const report = {
     }
   ],
   counts: { accepted: 2, touchless: 1, reverted: 0, rejected: 0, pending_observation: 0, open: 0 }
+}
+
+const cycleReport = {
+  window_days: 90,
+  bucket_days: 7,
+  generated_at: '2026-10-20T12:00:00Z',
+  repositories: [
+    {
+      repository_id: 'r1',
+      name: 'api',
+      full_name: 'acme/api',
+      series: [
+        {
+          metric: 'issue_close',
+          label: 'Issue close',
+          median_hours: 26,
+          count: 3,
+          buckets: [{ start: '2026-10-13T00:00:00Z', end: '2026-10-20T00:00:00Z', median_hours: 26, count: 3 }]
+        },
+        {
+          metric: 'review_wait',
+          label: 'Review request to review',
+          median_hours: 2,
+          count: 1,
+          buckets: [{ start: '2026-10-13T00:00:00Z', end: '2026-10-20T00:00:00Z', median_hours: 2, count: 1 }]
+        },
+        {
+          metric: 'review_to_merge',
+          label: 'Review to merge',
+          median_hours: 0.5,
+          count: 1,
+          buckets: [{ start: '2026-10-13T00:00:00Z', end: '2026-10-20T00:00:00Z', median_hours: 0.5, count: 1 }]
+        }
+      ]
+    }
+  ]
 }
 
 const change = {
@@ -125,8 +163,11 @@ beforeEach(() => {
   store.toast = null
   store.settings = {}
   store.tasks = [{ id: 't1', title: 'Task One' }]
+  store.repositories = [{ id: 'r1', name: 'api', remote_url: 'https://github.com/acme/api.git' }]
   vi.spyOn(store, 'loadTasks').mockResolvedValue()
+  vi.spyOn(store, 'loadRepositories').mockResolvedValue()
   mocks.metricsGet.mockResolvedValue(report)
+  mocks.cycleTime.mockResolvedValue(cycleReport)
   mocks.changesList.mockResolvedValue([change])
   mocks.itemsList.mockResolvedValue([recordedPr, openPr, mergedPr, orphanPr])
 })
@@ -152,6 +193,22 @@ describe('MetricsView', () => {
     // The metrics page does not carry the task page's inline change form.
     expect(wrapper.find('input[placeholder="What changed?"]').exists()).toBe(false)
     expect(wrapper.findAll('button').some((b) => b.text() === 'Accept')).toBe(false)
+  })
+
+  it('shows cycle-time medians and a trend per repository', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(mocks.cycleTime).toHaveBeenCalledWith({ days: 90, repositoryId: 'r1', refresh: false })
+    const text = wrapper.text()
+    expect(text).toContain('Cycle time')
+    expect(text).toContain('acme/api')
+    expect(text).toContain('Issue close')
+    expect(text).toContain('26.0h')
+    expect(text).toContain('2.0h')
+    expect(text).toContain('30m')
+    expect(text).toContain('3 observed')
+    expect(wrapper.findAll('.cycle-bar').length).toBe(3)
   })
 
   it('lists tasks with a merged PR that has no change record', async () => {

@@ -111,6 +111,7 @@ agentic session remove <task> <session>
 agentic change create <task> --title "Fix the flaky ingest test" --change-class bugfix
 agentic change accept <change>       # also: verify, reject, revert, intervene
 agentic metrics show                 # autonomy rate and yield, with direction
+agentic metrics cycle-time --repository ghx --days 90   # issue-close and review trends
 agentic metrics baseline set autonomy_rate 0.2
 ```
 

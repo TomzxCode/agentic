@@ -29,10 +29,20 @@ You want to know how much work the agent lands without your help, and whether th
    agentic metrics baseline set autonomy_rate 0.2
    ```
 
+7. Read the **Cycle time** section below the factory metrics.
+   Pick a repository and a window to see three medians and their weekly trend:
+   - **Issue close** is the time from opening an issue to closing it.
+   - **Review request to review** is the time from a pull request's first review request to its first review.
+   - **Review to merge** is the time from a pull request's first review to its merge.
+
+   The section reads closed issues and merged pull requests from GitHub through `gh`, caches a repository's data for ten minutes, and refreshes on demand with **Refresh**.
+   **All repositories** fetches every repository with a GitHub remote at once, which takes longer on the first load.
+
 ## How the numbers are computed
 
 - Autonomy rate = touchless accepted changes / accepted changes in the window.
 - Yield = accepted changes not reverted / accepted changes whose observation window has elapsed.
+- Cycle times are per-event durations (close, first review, merge), reported as the median of each weekly bucket.
 
 A change still inside its observation window is pending and is excluded from yield, so a recent change never counts as a survivor by default.
 

@@ -8,10 +8,23 @@ per metric so the direction (improving, worsening, flat) means something stable.
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import delete as sa_delete
 from sqlmodel import Session, col, select
 
+from ..cycle_time import (
+    DEFAULT_BUCKET_DAYS,
+    IssueRecord,
+    PullRecord,
+    Review,
+    ReviewRequest,
+    build_series_for,
+)
+from ..cycle_time import (
+    DEFAULT_WINDOW_DAYS as DEFAULT_CYCLE_TIME_WINDOW_DAYS,
+)
 from ..db import get_session
 from ..metrics import (
     DEFAULT_OBSERVATION_DAYS,
@@ -22,8 +35,21 @@ from ..metrics import (
 )
 from ..models.base import ChangeClass, utcnow
 from ..models.changes import Change
+from ..models.repositories import Repository
 from ..models.system import MetricBaseline
-from ..schemas.metrics import BaselineRead, BaselineSet, MetricCounts, MetricResult, MetricsReport
+from ..parallel import run_parallel
+from ..schemas.metrics import (
+    BaselineRead,
+    BaselineSet,
+    CycleTimeBucket,
+    CycleTimeReport,
+    CycleTimeSeries,
+    MetricCounts,
+    MetricResult,
+    MetricsReport,
+    RepositoryCycleTime,
+)
+from ..services.github import fetch_github_cycle_time, github_owner_repo
 
 router = APIRouter(prefix="/api/metrics", tags=["metrics"])
 
@@ -85,6 +111,143 @@ def get_metrics(
         generated_at=now,
         metrics=results,
         counts=MetricCounts(**vars(computed.counts)),
+    )
+
+
+def _timestamp(value: object) -> datetime | None:
+    """Parse a GitHub ISO timestamp, or None when it is missing or malformed."""
+    if not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return parsed
+
+
+def _issue_records(rows: list[dict]) -> list[IssueRecord]:
+    records = []
+    for row in rows:
+        created, closed = _timestamp(row.get("created_at")), _timestamp(row.get("closed_at"))
+        if created is None or closed is None or row.get("number") is None:
+            continue
+        records.append(IssueRecord(number=row["number"], created_at=created, closed_at=closed))
+    return records
+
+
+def _pull_records(rows: list[dict]) -> list[PullRecord]:
+    records = []
+    for row in rows:
+        created, merged = _timestamp(row.get("created_at")), _timestamp(row.get("merged_at"))
+        if created is None or merged is None or row.get("number") is None:
+            continue
+        reviews = tuple(
+            Review(author=review.get("author"), submitted_at=submitted_at)
+            for review in row.get("reviews") or []
+            if (submitted_at := _timestamp(review.get("submitted_at"))) is not None
+        )
+        requests = tuple(
+            ReviewRequest(reviewer=event.get("reviewer"), requested_at=requested_at)
+            for event in row.get("review_requests") or []
+            if (requested_at := _timestamp(event.get("requested_at"))) is not None
+        )
+        records.append(
+            PullRecord(
+                number=row["number"], created_at=created, merged_at=merged, reviews=reviews, review_requests=requests
+            )
+        )
+    return records
+
+
+@router.get("/cycle-time", response_model=CycleTimeReport)
+def get_cycle_time(
+    days: int = Query(default=DEFAULT_CYCLE_TIME_WINDOW_DAYS, ge=1, le=730),
+    bucket_days: int = Query(default=DEFAULT_BUCKET_DAYS, ge=1, le=90),
+    repository_id: str | None = None,
+    refresh: bool = False,
+    session: Session = Depends(get_session),
+) -> CycleTimeReport:
+    """Cycle-time trends per repository, read from GitHub.
+
+    Without a ``repository_id`` every repository with a GitHub remote is
+    included; those reads run a few at a time, so a wide selection costs
+    several GitHub round trips.
+    """
+    now = utcnow()
+    start = now - timedelta(days=days)
+    query = select(Repository).order_by(col(Repository.name))
+    if repository_id:
+        repository = session.get(Repository, repository_id)
+        if repository is None:
+            raise HTTPException(status_code=404, detail=f"Unknown repository: {repository_id}")
+        if github_owner_repo(repository.remote_url) is None:
+            raise HTTPException(status_code=400, detail=f"Repository has no GitHub remote: {repository.name}")
+        repositories = [repository]
+    else:
+        repositories = list(session.exec(query).all())
+
+    targets = [(repository, github_owner_repo(repository.remote_url)) for repository in repositories]
+    targets = [(repository, owner_repo) for repository, owner_repo in targets if owner_repo is not None]
+    fetched = run_parallel(
+        [
+            lambda repository=repository, owner_repo=owner_repo: fetch_github_cycle_time(
+                *owner_repo, start, refresh=refresh
+            )
+            for repository, owner_repo in targets
+        ]
+    )
+
+    results: list[RepositoryCycleTime] = []
+    for (repository, owner_repo), data in zip(targets, fetched, strict=True):
+        owner, name = owner_repo
+        if data is None:
+            results.append(
+                RepositoryCycleTime(
+                    repository_id=repository.id,
+                    name=repository.name,
+                    full_name=f"{owner}/{name}",
+                    error="GitHub could not be read (check gh auth status and the API rate limit)",
+                )
+            )
+            continue
+        series = build_series_for(
+            _issue_records(data.get("issues") or []),
+            _pull_records(data.get("pulls") or []),
+            start,
+            now,
+            bucket_days,
+        )
+        results.append(
+            RepositoryCycleTime(
+                repository_id=repository.id,
+                name=repository.name,
+                full_name=f"{owner}/{name}",
+                series=[
+                    CycleTimeSeries(
+                        metric=item.metric,
+                        label=item.label,
+                        median_hours=item.median_hours,
+                        count=item.count,
+                        buckets=[
+                            CycleTimeBucket(
+                                start=bucket.start,
+                                end=bucket.end,
+                                median_hours=bucket.median_hours,
+                                count=bucket.count,
+                            )
+                            for bucket in item.buckets
+                        ],
+                    )
+                    for item in series
+                ],
+            )
+        )
+
+    return CycleTimeReport(
+        window_days=days,
+        bucket_days=bucket_days,
+        generated_at=now,
+        repositories=results,
     )
 
 

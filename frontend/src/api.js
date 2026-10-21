@@ -180,6 +180,15 @@ export const api = {
       const query = qs.toString()
       return request(`/metrics${query ? `?${query}` : ''}`)
     },
+    cycleTime: ({ days, bucketDays, repositoryId, refresh } = {}) => {
+      const qs = new URLSearchParams()
+      if (days) qs.set('days', String(days))
+      if (bucketDays) qs.set('bucket_days', String(bucketDays))
+      if (repositoryId) qs.set('repository_id', repositoryId)
+      if (refresh) qs.set('refresh', 'true')
+      const query = qs.toString()
+      return request(`/metrics/cycle-time${query ? `?${query}` : ''}`)
+    },
     baselines: () => request('/metrics/baselines'),
     setBaseline: (metric, body) => request(`/metrics/baselines/${metric}`, { method: 'PUT', body }),
     removeBaseline: (metric) => request(`/metrics/baselines/${metric}`, { method: 'DELETE' })

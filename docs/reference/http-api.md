@@ -139,6 +139,7 @@ There is no authentication, so expose it only on a trusted network.
 | `POST` | `/api/changes/{id}/status` | Move a change through its lifecycle. |
 | `POST` | `/api/changes/{id}/interventions` | Record a human touch. |
 | `GET` | `/api/metrics` | Autonomy rate and yield. |
+| `GET` | `/api/metrics/cycle-time` | Issue-close and review cycle-time trends, per repository, read from GitHub. |
 | `GET` | `/api/metrics/baselines` | List stored baselines. |
 | `PUT` / `DELETE` | `/api/metrics/baselines/{metric}` | Set or clear one metric's baseline. |
 
