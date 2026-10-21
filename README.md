@@ -321,6 +321,21 @@ next run; **Reset** clears the decision. Cards filter and group by pull request,
 repository, author, recommendation, status, or comment type, and a card for a
 closed PR is marked and hidden under the default "Active PRs" filter.
 
+The **Decisions** page (`/decisions`, the signpost icon) collects what your
+colleagues decided, from the reports the `extract-colleague-decisions` skill
+writes under `decisions/YYYY/MM/DD.md` (or an ad-hoc
+`*.colleague-decisions.md`) in the notes tree. It reads the same files the
+skill's `colleague_decisions_page.py` script reads, through
+`AGENTIC_NOTES_DIR` (or `NOTES_DIR`, default `~/notes`), and renders them in the
+app. Each decision carries its bucket (Decided, Deferred, Open, Committed), its
+Slack permalink, and who supported or opposed it. Switch between **By author**,
+**By supporter**, **By opponent**, and a **Matrix** view that crosses authors
+against the people who backed or opposed their decisions; the diagonal cell is
+the author's own total. Search, a date range with 7/30/90-day presets, and the
+status chips narrow everything, and the page closes with the report's
+not-heard list and cross-cutting notes. It is read-only: the reports belong to
+the skill.
+
 A task that links a pull request or an issue gets a **Default / Issue / PR**
 switch beside the title. **PR** and **Issue** both lead with each linked item
 read fresh from GitHub (state, author, labels, description), so what the pull
@@ -644,6 +659,7 @@ GET                 /api/reviews/report/{number}/{name}  (one review report)
 GET/POST            /api/reviews/scan                   (the review scan: state, or run it now)
 GET                 /api/feedback                        (reviewer comments awaiting a decision)
 POST                /api/feedback/{feedback_id}/decision (record implement/decline/defer)
+GET                 /api/decisions                       (colleague-decisions reports from the notes tree)
 GET/POST            /api/schedules                      (cron-scheduled shell tasks)
 GET/PATCH/DELETE    /api/schedules/{id}
 POST                /api/schedules/{id}/run            (run now)

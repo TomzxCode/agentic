@@ -18,6 +18,7 @@ The goal is that resuming a task takes under a minute: the context you need sits
 - Runs user-defined shell scripts on a cron schedule, with a run history.
 - Reads the review reports your review skills write, scans GitHub for the pull requests awaiting your review, and shows each open pull request's merge readiness.
 - Collects the reviewer comments your PR-feedback skill analyzed, so you can decide what to implement, decline, or defer.
+- Collects what your colleagues decided from the extract-colleague-decisions reports, so you can catch up without reading every Slack thread.
 - Records changes, so it can report autonomy rate and yield.
 
 ## The app
@@ -30,6 +31,7 @@ The web app is organized into these pages:
 | Inbox (`/inbox`) | Suggested next actions, recomputed on every read. |
 | Review queue (`/reviews`) | Pull requests awaiting your review and those with review reports, one row per PR with a column per review step and a merge-readiness light. |
 | PR feedback (`/feedback`) | Reviewer comments awaiting a decision, one card per comment, with Implement / Decline / Defer. |
+| Decisions (`/decisions`) | What your colleagues decided, from the extract-colleague-decisions reports: by author, supporter, opponent, or a support/opposition matrix. |
 | Stack (`/stack`) | The focus queue, with the current task on top. |
 | Task (`/task/:id`) | One task: context, items, people, dependencies, worktrees, runs, and changes. |
 | Gantt (`/gantt`) | Tasks in flight as a timeline, one marker per event. |

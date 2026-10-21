@@ -6,11 +6,11 @@ import { h } from 'vue'
 // stroke icon, rendered with a render function so no v-html lands in templates.
 const ICONS = {
   // Pages: the sidebar's bottom nav. Each page keeps one silhouette that the
-  // others do not use, so the fourteen stay apart at 18px: Tasks a checklist,
-  // Inbox a mail tray, Reviews a document, Feedback a speech bubble, Stack
-  // layers, Gantt and Metrics a chart (bars against a trend line), Items a box,
-  // Graph a node network, Events a stream, People a pair, Repositories a book,
-  // Schedules a clock, Settings a gear.
+  // others do not use, so the fifteen stay apart at 18px: Tasks a checklist,
+  // Inbox a mail tray, Reviews a document, Feedback a speech bubble, Decisions a
+  // signpost, Stack layers, Gantt and Metrics a chart (bars against a trend
+  // line), Items a box, Graph a node network, Events a stream, People a pair,
+  // Repositories a book, Schedules a clock, Settings a gear.
   tasks: [
     ['path', { d: 'M10 5.5h9.5M10 12h9.5M10 18.5h9.5' }],
     ['path', { d: 'M3.5 5.2l1.6 1.6 3-3.2' }],
@@ -39,6 +39,11 @@ const ICONS = {
       }
     ],
     ['path', { d: 'M9.2 11.6l2 2 3.8-4' }]
+  ],
+  decisions: [
+    ['path', { d: 'M12 3v18' }],
+    ['path', { d: 'M12 7h6.6l2.4 2.7-2.4 2.7H12' }],
+    ['path', { d: 'M12 14.2H5.4L3 16.9l2.4 2.7H12' }]
   ],
   stack: [
     ['path', { d: 'M12 3.4 20.5 7.9 12 12.4 3.5 7.9z' }],

@@ -14,6 +14,7 @@ The Slack credentials keep the names `slackx` uses (`SLACK_TOKEN`, `SLACK_COOKIE
 | `AGENTIC_WORKTREE_ROOT` | `~/.agentic/worktrees` | Where git worktrees are created. |
 | `AGENTIC_FS_ROOT` | `~` | Root the repository picker may browse. Use `/` to allow browsing anywhere. |
 | `AGENTIC_SDLC_DIR` | `~/.sdlc` | User-global SDLC reviews store the item view reads PR review reports from. |
+| `AGENTIC_NOTES_DIR` | `~/notes` | Markdown notes tree holding the colleague-decisions reports the Decisions page reads (`decisions/YYYY/MM/DD.md`). Also read as `NOTES_DIR`. Read-only. |
 | `AGENTIC_STATIC_DIR` | `backend/static` | Built SPA for the API to serve. |
 | `AGENTIC_CORS_ORIGINS` | `["http://localhost:5173","http://127.0.0.1:5173"]` | CORS origins allowed for the Vite dev server. |
 | `AGENTIC_DEFAULT_HARNESS` | `opencode` | Fallback harness by name, used when no harness is marked default. |

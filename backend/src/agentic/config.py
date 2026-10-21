@@ -40,6 +40,14 @@ class Settings(BaseSettings):
     # ($HOME/.sdlc/{owner}/{repo}/pull-requests/{n}/). Read-only here.
     sdlc_dir: Path = Path.home() / ".sdlc"
 
+    # Root of the markdown notes tree that holds the colleague-decisions reports
+    # the extract-colleague-decisions skill writes (decisions/YYYY/MM/DD.md).
+    # Read-only here. The skill's own NOTES_DIR name is accepted too.
+    notes_dir: Path = Field(
+        default=Path.home() / "notes",
+        validation_alias=AliasChoices("AGENTIC_NOTES_DIR", "NOTES_DIR"),
+    )
+
     # Static frontend build output (frontend/dist). Served when it exists.
     static_dir: Path = Path(__file__).resolve().parents[2] / "static"
 

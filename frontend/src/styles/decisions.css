@@ -1,0 +1,418 @@
+/* Colleague-decisions page styles. */
+
+.decisions-head {
+  margin-bottom: 4px;
+}
+.decisions-head h1 {
+  margin-right: 4px;
+}
+.decisions-root {
+  margin: 0 0 12px;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+}
+
+/* The header's counts. */
+.decisions-stats {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.decisions-stats .stat {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  background: var(--bg-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 6px 12px;
+}
+.decisions-stats .n {
+  font-size: 18px;
+  font-weight: 700;
+}
+.decisions-stats .l {
+  font-size: 11px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.decisions-stats .yes .n {
+  color: var(--ok);
+}
+.decisions-stats .no .n {
+  color: var(--danger);
+}
+
+/* The filter row: search grows, dates and buttons size to their content. */
+.decisions-controls {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-bottom: 10px;
+}
+.decisions-controls .input {
+  flex: 1 1 220px;
+  width: auto;
+}
+.decisions-controls .input.date {
+  flex: 0 1 150px;
+}
+.decisions-presets {
+  display: flex;
+  gap: 2px;
+  background: var(--bg-1);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 2px;
+}
+.decisions-presets .preset {
+  background: transparent;
+  border: 0;
+  color: var(--muted);
+  padding: 4px 9px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+}
+.decisions-presets .preset:hover {
+  color: var(--text);
+}
+.decisions-presets .preset.active {
+  background: var(--bg-3);
+  color: var(--text);
+}
+
+/* The status chips count what the date and search filters leave. */
+.decisions-status {
+  gap: 6px;
+}
+.status-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--bg-1);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 999px;
+  padding: 4px 11px;
+  cursor: pointer;
+  font-size: 12.5px;
+}
+.status-chip:hover {
+  border-color: var(--bucket-color, var(--border));
+}
+.status-chip .cnt {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.status-chip.active {
+  border-color: var(--bucket-color);
+  color: var(--bucket-color);
+  background: var(--bg-2);
+}
+.status-chip.active .cnt {
+  color: inherit;
+}
+.status-chip.clear {
+  color: var(--muted);
+}
+
+/* The view tabs, shared by the list views and the matrix's mode switch. */
+.decisions-tabs {
+  display: flex;
+  gap: 3px;
+  background: var(--bg-1);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 3px;
+  margin-bottom: 14px;
+  width: max-content;
+  max-width: 100%;
+  overflow-x: auto;
+}
+.decisions-tabs button {
+  background: transparent;
+  border: 0;
+  color: var(--muted);
+  padding: 5px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  white-space: nowrap;
+}
+.decisions-tabs button:hover {
+  color: var(--text);
+}
+.decisions-tabs button.active {
+  background: var(--bg-3);
+  color: var(--text);
+}
+
+/* The people nav beside the cards. It is a convenience on wide screens and is
+   hidden on phones, where the group headings carry the same names. */
+.decisions-layout {
+  display: flex;
+  gap: 20px;
+  align-items: flex-start;
+}
+.decisions-nav {
+  position: sticky;
+  top: 12px;
+  flex: none;
+  width: 220px;
+  max-height: calc(100vh - 24px);
+  overflow-y: auto;
+}
+.decisions-nav .nav-group {
+  margin-bottom: 14px;
+}
+.decisions-nav .sidebar-title {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  margin: 0 6px 6px;
+}
+.decisions-nav .nav-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+  border-radius: 6px;
+  color: var(--muted);
+  font-size: 12.5px;
+  margin-bottom: 2px;
+}
+.decisions-nav .nav-item:hover {
+  background: var(--bg-2);
+  color: var(--text);
+  text-decoration: none;
+}
+.decisions-nav .nav-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.decisions-nav .nav-count {
+  margin-left: auto;
+  flex: none;
+  font-size: 11px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.decisions-list {
+  flex: 1;
+  min-width: 0;
+}
+.decisions-group {
+  margin-bottom: 26px;
+  scroll-margin-top: 12px;
+}
+.decisions-group .group-head {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+  margin-bottom: 4px;
+}
+.decisions-group h2 {
+  font-size: 15.5px;
+}
+.decisions-headline {
+  color: var(--muted);
+  font-size: 13px;
+  font-style: italic;
+  margin: 2px 0 10px;
+}
+
+/* One decision. The rail's colour is the decision bucket's. */
+.decision-card {
+  background: var(--bg-1);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--bucket-color, var(--border));
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  margin-bottom: 10px;
+}
+.decision-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+  font-size: 12px;
+}
+.decision-top a {
+  font-size: 12px;
+}
+.decision-card .bucket {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--bucket-color);
+  border: 1px solid var(--bucket-color);
+  border-radius: 999px;
+  padding: 2px 9px;
+}
+.decision-text {
+  margin: 2px 0 8px;
+}
+.decision-card .relation {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  margin-top: 5px;
+}
+.relation-label {
+  color: var(--muted);
+  font-size: 12px;
+}
+.person-chip {
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 1px 9px;
+  font-size: 12px;
+}
+.person-chip.author {
+  border-color: var(--accent-2);
+}
+.relation.yes .person-chip {
+  border-color: color-mix(in srgb, var(--ok) 45%, var(--border));
+}
+.relation.no .person-chip {
+  border-color: color-mix(in srgb, var(--danger) 45%, var(--border));
+  color: var(--danger);
+}
+
+/* The author-by-person matrix. */
+.decisions-matrix .matrix-mode {
+  margin-bottom: 10px;
+}
+.matrix-wrap {
+  overflow: auto;
+  max-height: 70vh;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.matrix-wrap table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 12.5px;
+}
+.matrix-wrap th,
+.matrix-wrap td {
+  border: 1px solid var(--border);
+  padding: 5px 8px;
+  text-align: center;
+}
+.matrix-wrap th {
+  background: var(--bg-2);
+  font-weight: 600;
+}
+.matrix-wrap th.row,
+.matrix-wrap td.row {
+  text-align: left;
+  white-space: nowrap;
+}
+.matrix-wrap thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+.matrix-wrap tbody th.row {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--bg-1);
+}
+.matrix-wrap thead th.row {
+  left: 0;
+  z-index: 3;
+}
+.matrix-wrap td.zero {
+  color: var(--faint);
+}
+.matrix-wrap .n {
+  font-weight: 600;
+}
+.matrix-wrap td.diag {
+  background: color-mix(in srgb, var(--accent-2) 14%, transparent);
+  color: var(--accent-2);
+}
+.matrix-wrap td.pct {
+  background: color-mix(in srgb, var(--cell-color) 22%, transparent);
+  color: var(--cell-color);
+}
+.matrix-wrap td.clickable {
+  cursor: pointer;
+}
+.matrix-wrap td.clickable:hover {
+  background: color-mix(in srgb, var(--accent-2) 22%, transparent);
+}
+.matrix-wrap td.selected {
+  box-shadow: inset 0 0 0 2px var(--accent-2);
+}
+.matrix-wrap .sub {
+  display: block;
+  font-size: 10.5px;
+  color: var(--muted);
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+.matrix-wrap td.selected .sub {
+  color: inherit;
+}
+.decisions-legend {
+  margin: 10px 0 0;
+  font-size: 12px;
+}
+.cell-detail {
+  margin-top: 22px;
+}
+.cell-detail-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+.cell-detail-head h3 {
+  margin: 0;
+  font-size: 14.5px;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--text);
+}
+
+.decisions-footer {
+  margin-top: 32px;
+  font-size: 13px;
+}
+.decisions-footer .faint {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.decisions-footer .not-heard,
+.decisions-footer .cross-cutting p {
+  margin: 2px 0 14px;
+  color: var(--muted);
+  white-space: pre-line;
+}
+
+@media (max-width: 760px) {
+  /* The people nav steps aside; the group headings in the flow name the groups. */
+  .decisions-nav {
+    display: none;
+  }
+  .decisions-controls .input,
+  .decisions-controls .input.date {
+    flex: 1 1 100%;
+    width: 100%;
+  }
+}

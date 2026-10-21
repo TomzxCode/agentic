@@ -169,6 +169,12 @@ export const api = {
       request(`/feedback/${encodeURIComponent(feedbackId)}/decision`, { method: 'POST', body: { decision } })
   },
 
+  decisions: {
+    // The colleague-decisions reports the extract-colleague-decisions skill
+    // writes under the notes root, aggregated for the Decisions page.
+    list: () => request('/decisions')
+  },
+
   metrics: {
     get: ({ windowDays, observationDays, tolerance, taskId, changeClass } = {}) => {
       const qs = new URLSearchParams()

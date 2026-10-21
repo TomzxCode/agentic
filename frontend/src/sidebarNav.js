@@ -14,6 +14,7 @@ export const SIDEBAR_NAV_ITEMS = [
   { id: 'inbox', label: 'Inbox', to: '/inbox', icon: 'inbox', routeNames: ['inbox'], badge: 'inbox' },
   { id: 'reviews', label: 'Review queue', to: '/reviews', icon: 'reviews', routeNames: ['reviews'] },
   { id: 'feedback', label: 'PR feedback', to: '/feedback', icon: 'feedback', routeNames: ['feedback'] },
+  { id: 'decisions', label: 'Decisions', to: '/decisions', icon: 'decisions', routeNames: ['decisions'] },
   { id: 'gantt', label: 'Gantt', to: '/gantt', icon: 'gantt', routeNames: ['gantt'] },
   { id: 'graph', label: 'Graph', to: '/graph', icon: 'graph', routeNames: ['graph'] },
   { id: 'events', label: 'Events', to: '/events', icon: 'events', routeNames: ['events'] },

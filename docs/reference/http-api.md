@@ -109,6 +109,12 @@ There is no authentication, so expose it only on a trusted network.
 | `GET` | `/api/feedback` | Every reviewer-comment analysis file in the store, with its recommendation and decision state (`?refresh=true` re-reads each PR's GitHub state). |
 | `POST` | `/api/feedback/{feedback_id}/decision` | Record an `implement` / `decline` / `defer` decision, or `null` to reset it, in one analysis file's frontmatter. |
 
+## Decisions
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| `GET` | `/api/decisions` | Every colleague-decisions report under the configured notes root (`AGENTIC_NOTES_DIR` or `NOTES_DIR`, default `~/notes`), aggregated into decisions, headlines, not-heard names, and cross-cutting notes. Read-only; a missing root yields an empty payload with `root` null. |
+
 ## Scheduled tasks
 
 | Method | Path | Purpose |

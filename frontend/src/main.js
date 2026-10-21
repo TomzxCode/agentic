@@ -17,6 +17,7 @@ import MetricsView from './views/MetricsView.vue'
 import InboxView from './views/InboxView.vue'
 import ReviewsView from './views/ReviewsView.vue'
 import FeedbackView from './views/FeedbackView.vue'
+import DecisionsView from './views/DecisionsView.vue'
 import SchedulesView from './views/SchedulesView.vue'
 import StackView from './views/StackView.vue'
 import SettingsView from './views/SettingsView.vue'
@@ -27,6 +28,7 @@ import './styles/chips.css'
 import './styles/items.css'
 import './styles/reviews.css'
 import './styles/feedback.css'
+import './styles/decisions.css'
 import './styles/tasks.css'
 import './styles/overlays.css'
 import './styles/charts.css'
@@ -40,6 +42,7 @@ const router = createRouter({
     { path: '/inbox', name: 'inbox', component: InboxView },
     { path: '/reviews', name: 'reviews', component: ReviewsView },
     { path: '/feedback', name: 'feedback', component: FeedbackView },
+    { path: '/decisions', name: 'decisions', component: DecisionsView },
     { path: '/stack', name: 'stack', component: StackView },
     { path: '/task/:id', name: 'task', component: TaskView, props: true },
     { path: '/gantt', name: 'gantt', component: GanttView },
