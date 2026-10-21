@@ -107,10 +107,7 @@ def sessions_for(session: Session, entry_id: str) -> list[TaskSession]:
     )
 
 
-def entry_stats(session: Session, entry: StackEntry, now: datetime | None = None) -> EntryStats:
-    """Derive an entry's session stats: started_at, last_current, duration, count."""
-    now = now or utcnow()
-    sessions = sessions_for(session, entry.id)
+def _entry_stats_from_sessions(sessions: list[TaskSession], now: datetime) -> EntryStats:
     started_at = _as_utc(sessions[0].started_at) if sessions else None
     last = sessions[-1] if sessions else None
     last_current = None
@@ -136,6 +133,13 @@ def entry_stats(session: Session, entry: StackEntry, now: datetime | None = None
         "duration": duration,
         "execution_count": len(sessions),
     }
+
+
+def entry_stats(session: Session, entry: StackEntry, now: datetime | None = None) -> EntryStats:
+    """Derive an entry's session stats: started_at, last_current, duration, count."""
+    now = now or utcnow()
+    sessions = sessions_for(session, entry.id)
+    return _entry_stats_from_sessions(sessions, now)
 
 
 def _close_open_session(session: Session, entry: StackEntry, now: datetime) -> None:

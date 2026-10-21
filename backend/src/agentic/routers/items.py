@@ -128,6 +128,33 @@ def _item_read(session: Session, item: SourceItem, fetch_error: str | None = Non
     return data
 
 
+def _item_reads(session: Session, items: list[SourceItem]) -> list[ItemRead]:
+    if not items:
+        return []
+    item_ids = [item.id for item in items]
+    task_ids_by_item: dict[str, list[str]] = {item_id: [] for item_id in item_ids}
+    for assoc in session.exec(select(Association).where(col(Association.item_id).in_(item_ids))).all():
+        task_ids_by_item.setdefault(assoc.item_id, []).append(assoc.task_id)
+    person_ids_by_item: dict[str, list[str]] = {item_id: [] for item_id in item_ids}
+    for link in session.exec(select(ItemPerson).where(col(ItemPerson.item_id).in_(item_ids))).all():
+        person_ids_by_item.setdefault(link.item_id, []).append(link.person_id)
+
+    reads: list[ItemRead] = []
+    for item in items:
+        data = ItemRead.model_validate(item)
+        latest_ts = _slack_latest_ts(item)
+        data.done = item.done_at is not None
+        data.done_at = item.done_at
+        data.latest_message_at = slack_ts_datetime(latest_ts)
+        data.new_since_done = bool(
+            item.done_at is not None and latest_ts and slack_ts_after(latest_ts, item.done_message_ts)
+        )
+        data.task_ids = task_ids_by_item.get(item.id, [])
+        data.person_ids = person_ids_by_item.get(item.id, [])
+        reads.append(data)
+    return reads
+
+
 @router.get("", response_model=list[ItemRead])
 def list_items(
     source: str | None = None,
@@ -147,7 +174,7 @@ def list_items(
             or needle in (item.url or "").lower()
             or needle in (item.content or "").lower()
         ]
-    return [_item_read(session, item) for item in items]
+    return _item_reads(session, items)
 
 
 @router.post("", response_model=ItemRead, status_code=201)

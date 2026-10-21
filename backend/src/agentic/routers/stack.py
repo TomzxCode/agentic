@@ -3,14 +3,15 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlmodel import Session
+from sqlmodel import Session, col, select
 
 from .. import stack as service
 from ..crud import get_task_or_404
 from ..db import get_session
-from ..models.tasks import StackEntry, Task
+from ..models.base import utcnow
+from ..models.tasks import StackEntry, Task, TaskSession
 from ..schemas.stack import StackEntryRead, StackEntryUpdate, StackPush, StackReorder
-from .task_service import _task_read
+from .task_service import _task_read, _task_reads
 
 router = APIRouter(prefix="/api/stack", tags=["stack"])
 
@@ -30,7 +31,41 @@ def _read(session: Session, entry: StackEntry) -> StackEntryRead:
 
 
 def _read_all(session: Session, entries: list[StackEntry]) -> list[StackEntryRead]:
-    return [_read(session, entry) for entry in entries]
+    task_ids = [entry.task_id for entry in entries if entry.task_id]
+    tasks_by_id = {}
+    if task_ids:
+        for task in session.exec(select(Task).where(Task.id.in_(task_ids))).all():
+            tasks_by_id[task.id] = task
+    task_reads = _task_reads(session, [tasks_by_id[tid] for tid in task_ids if tid in tasks_by_id])
+    task_read_by_id = {read.id: read for read in task_reads}
+
+    entry_ids = [entry.id for entry in entries]
+    sessions_by_entry: dict[str, list[TaskSession]] = {entry_id: [] for entry_id in entry_ids}
+    if entry_ids:
+        for stint in session.exec(
+            select(TaskSession).where(TaskSession.stack_entry_id.in_(entry_ids)).order_by(col(TaskSession.started_at))
+        ).all():
+            sessions_by_entry.setdefault(stint.stack_entry_id, []).append(stint)
+
+    now = utcnow()
+    result: list[StackEntryRead] = []
+    for entry in entries:
+        task = tasks_by_id.get(entry.task_id) if entry.task_id else None
+        task_read = task_read_by_id.get(entry.task_id) if entry.task_id else None
+        stats = service._entry_stats_from_sessions(sessions_by_entry.get(entry.id, []), now)
+        result.append(
+            StackEntryRead(
+                id=entry.id,
+                task_id=entry.task_id,
+                task=task_read,
+                position=entry.position,
+                is_current=entry.is_current,
+                created_at=entry.created_at,
+                deleted_at=entry.deleted_at,
+                **stats,
+            )
+        )
+    return result
 
 
 @router.get("", response_model=list[StackEntryRead])
