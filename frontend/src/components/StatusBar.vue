@@ -29,6 +29,7 @@
       :style="{ maxHeight: detailsHeight + 'px' }"
     >
       <div class="status-bar-resizer" data-testid="status-bar-resizer" @pointerdown="startResize"></div>
+      <input v-model="filter" class="status-bar-filter" data-testid="debug-filter" type="text" placeholder="Filter…" />
       <div class="status-bar-tabs">
         <button
           type="button"
@@ -59,13 +60,13 @@
             <option value="dbTime">DB time</option>
           </select>
         </div>
-        <div v-for="(req, i) in sortedRequests" :key="i" class="status-bar-call">
+        <div v-for="(req, i) in filteredRequests" :key="i" class="status-bar-call">
           <div class="status-bar-call-head">
             {{ Math.round(req.duration_ms) }} ms — {{ req.method }} {{ req.path }} (DB: {{ req.db_queries }} queries,
             {{ Math.round(req.db_time_ms) }} ms)
           </div>
         </div>
-        <p v-if="!debugStats.requests.length" class="status-bar-empty">No API calls recorded yet.</p>
+        <p v-if="!filteredRequests.length" class="status-bar-empty">No API calls recorded yet.</p>
       </div>
       <div v-else>
         <div class="status-bar-sort">
@@ -77,7 +78,7 @@
             <option value="dbTime">DB time</option>
           </select>
         </div>
-        <div v-for="(req, i) in sortedRequests" :key="i" class="status-bar-call">
+        <div v-for="(req, i) in filteredRequests" :key="i" class="status-bar-call">
           <div class="status-bar-call-head" style="cursor: pointer" @click="toggleCall(i)">
             {{ collapsedCalls.has(i) ? '▸' : '▾' }} {{ Math.round(req.duration_ms) }} ms — {{ req.method }}
             {{ req.path }} ({{ (req.queries || []).length }} queries, {{ Number(req.db_time_ms || 0).toFixed(2) }} ms)
@@ -89,7 +90,9 @@
             </li>
           </ul>
         </div>
-        <p v-if="!allDbQueries.length" class="status-bar-empty">No DB queries recorded yet.</p>
+        <p v-if="!filteredRequests.some((r) => (r.queries || []).length)" class="status-bar-empty">
+          No DB queries recorded yet.
+        </p>
       </div>
     </div>
   </div>
@@ -105,6 +108,11 @@ const expanded = ref(false)
 const activeTab = ref('api')
 const collapsedCalls = ref(new Set())
 const sortBy = ref('recent')
+const filter = ref(localStorage.getItem('agentic.debugFilter') || '')
+
+watch(filter, (value) => {
+  localStorage.setItem('agentic.debugFilter', value)
+})
 
 const sortedRequests = computed(() => {
   const list = [...debugStats.requests]
@@ -112,6 +120,12 @@ const sortedRequests = computed(() => {
   if (sortBy.value === 'dbQueries') return list.sort((a, b) => (b.db_queries || 0) - (a.db_queries || 0))
   if (sortBy.value === 'dbTime') return list.sort((a, b) => (b.db_time_ms || 0) - (a.db_time_ms || 0))
   return list
+})
+
+const filteredRequests = computed(() => {
+  const q = filter.value.trim().toLowerCase()
+  if (!q) return sortedRequests.value
+  return sortedRequests.value.filter((req) => `${req.method} ${req.path}`.toLowerCase().includes(q))
 })
 
 function toggleCall(index) {
@@ -142,16 +156,6 @@ function startResize(event) {
   window.addEventListener('pointermove', onMove)
   window.addEventListener('pointerup', onUp)
 }
-
-const allDbQueries = computed(() => {
-  const out = []
-  for (const req of debugStats.requests) {
-    for (const q of req.queries || []) {
-      out.push({ ...q, path: `${req.method} ${req.path}` })
-    }
-  }
-  return out
-})
 
 watch(expanded, (value) => {
   if (value) refreshDebugRequests()
@@ -206,6 +210,16 @@ watch(expanded, (value) => {
   border-radius: 4px;
   font: inherit;
   padding: 2px 4px;
+}
+.status-bar-filter {
+  width: 100%;
+  background: var(--bg-2, #1a1a1a);
+  color: inherit;
+  border: 1px solid var(--border, #2a2a2a);
+  border-radius: 4px;
+  font: inherit;
+  padding: 2px 6px;
+  margin-bottom: 6px;
 }
 .status-bar-tab {
   background: transparent;
@@ -275,5 +289,4 @@ watch(expanded, (value) => {
   margin: 4px 0 0;
   color: var(--faint, #666);
 }
-
 </style>
