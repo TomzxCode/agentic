@@ -133,6 +133,6 @@ async def stream_task(task_id: str, session: Session = Depends(get_session)) -> 
                 elif signature != last:
                     last = signature
                     yield {"event": "message", "data": json.dumps({"kind": "task", "action": "updated"})}
-                await asyncio.sleep(1)
+                await asyncio.sleep(2)
 
     return EventSourceResponse(generator(), ping=15)
