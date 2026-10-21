@@ -89,6 +89,11 @@ def _read_version(path: str, args: tuple[str, ...]) -> tuple[str | None, str | N
     Helpers do not agree on where a version goes (stdout or stderr) or whether
     they report one at all, so an empty result is not an error: the caller then
     shows the command as installed without a version.
+
+    Stdin is closed because some harnesses (``pi-acp``) ignore ``--version`` and
+    start their ACP loop instead, reading stdin until it ends. Inheriting the
+    server's stdin (a terminal) kept such a probe alive until the timeout, which
+    held the whole Diagnostics read open.
     """
     if not args:
         return None, None
@@ -99,6 +104,7 @@ def _read_version(path: str, args: tuple[str, ...]) -> tuple[str | None, str | N
             text=True,
             timeout=VERSION_TIMEOUT,
             check=False,
+            stdin=subprocess.DEVNULL,
         )
     except subprocess.TimeoutExpired:
         return None, f"timed out after {VERSION_TIMEOUT}s"
@@ -154,19 +160,18 @@ def _python_report() -> DependencyRead:
     )
 
 
-def _harness_reports(session: Session) -> list[DependencyRead]:
-    """Every configured harness command, including custom ones."""
-    reports: list[DependencyRead] = []
-    for harness in session.exec(select(Harness).order_by(Harness.name)).all():
-        spec = DependencySpec(
+def _harness_specs(session: Session) -> list[DependencySpec]:
+    """One probe spec per configured harness command, including custom ones."""
+    return [
+        DependencySpec(
             id=f"harness:{harness.id}",
             name=harness.name,
             command=harness.command,
             purpose=harness.description or "ACP agent harness.",
             category="harness",
         )
-        reports.append(probe(spec))
-    return reports
+        for harness in session.exec(select(Harness).order_by(Harness.name)).all()
+    ]
 
 
 # ghx prints an em dash (or a plain dash) in a column with no value.
@@ -315,16 +320,19 @@ def collect_diagnostics(session: Session) -> DiagnosticsRead:
     """Probe every runtime, helper CLI, and harness, plus both local caches.
 
     Every probe and both cache listings wait on a subprocess, so they run
-    together rather than one after another. ``_harness_reports`` is the only one
-    that reads the database, so it stays on this thread.
+    together rather than one after another, harnesses included: a harness whose
+    version probe has to be killed must not add its timeout to the others. The
+    harness list is read from the database first, on this thread, because a
+    session is not shared across threads.
     """
+    harness_specs = _harness_specs(session)
     probes: list[Callable[[], Any]] = [_python_report]
-    probes.extend(lambda spec=spec: probe(spec) for spec in TOOL_DEPENDENCIES)
+    probes.extend(lambda spec=spec: probe(spec) for spec in (*TOOL_DEPENDENCIES, *harness_specs))
     # Each probe returns its own report type; the pool's result is unpacked back
     # into the positions the constructor expects.
     results: list[Any] = run_parallel([*probes, ghx_cache, slackx_cache])
     return DiagnosticsRead(
-        dependencies=[*results[: len(probes)], *_harness_reports(session)],
+        dependencies=results[: len(probes)],
         ghx_cache=results[-2],
         slackx_cache=results[-1],
         checked_at=datetime.now(UTC),

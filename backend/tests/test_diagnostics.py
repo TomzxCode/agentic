@@ -60,6 +60,24 @@ def test_probe_falls_back_to_stderr_and_tolerates_no_version(monkeypatch):
     assert report.error is None
 
 
+def test_probe_closes_stdin_so_a_server_style_command_cannot_hang(monkeypatch):
+    # A harness that ignores --version (pi-acp) starts its ACP loop and reads
+    # stdin until it ends; inheriting the server's terminal kept it alive for the
+    # whole timeout.
+    seen: dict[str, object] = {}
+
+    def record(*args, **kwargs):
+        seen.update(kwargs)
+        return _completed(stdout="1.0.0\n")
+
+    monkeypatch.setattr(diagnostics.shutil, "which", lambda name: "/usr/bin/opencode")
+    monkeypatch.setattr(diagnostics.subprocess, "run", record)
+
+    diagnostics.probe(_spec())
+
+    assert seen["stdin"] is subprocess.DEVNULL
+
+
 def test_probe_reports_a_timeout(monkeypatch):
     monkeypatch.setattr(diagnostics.shutil, "which", lambda name: "/usr/bin/ghx")
 
