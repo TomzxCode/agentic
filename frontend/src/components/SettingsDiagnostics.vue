@@ -62,6 +62,14 @@ function updatedLabel(iso) {
   return iso ? timeAgo(iso) : '—'
 }
 
+// A ghx hit rate, rendered the way the CLI prints it: the percentage followed
+// by the number of retrievals it is computed over, or a dash when ghx recorded
+// a retrieval of that kind.
+function hitRateLabel(rate) {
+  if (!rate || rate.percent === null || rate.percent === undefined) return '—'
+  return `${rate.percent}% (${rate.retrievals})`
+}
+
 async function load() {
   loading.value = true
   try {
@@ -140,6 +148,10 @@ watch(
           {{ cachedRepositories.length }} repositories · {{ cachedItemCount }} issues and PRs ·
           {{ staleRepositories.length }} stale
         </p>
+        <p v-if="cachedRepositories.length" class="faint" style="margin-top: 0">
+          Hit rates are per retrieval operation, with the number of retrievals in parentheses; a dash means none
+          recorded.
+        </p>
         <div v-if="cachedRepositories.length" class="diagnostics-table-wrap">
           <table class="diagnostics-table">
             <thead>
@@ -149,6 +161,10 @@ watch(
                 <th class="num">PRs</th>
                 <th>Cached</th>
                 <th>Status</th>
+                <th class="num">Issue list</th>
+                <th class="num">Issue view</th>
+                <th class="num">PR list</th>
+                <th class="num">PR view</th>
               </tr>
             </thead>
             <tbody>
@@ -158,6 +174,10 @@ watch(
                 <td class="num">{{ repository.pull_requests }}</td>
                 <td>{{ repository.cached_age || '—' }}</td>
                 <td class="faint">{{ repository.status }}</td>
+                <td class="num">{{ hitRateLabel(repository.issue_list) }}</td>
+                <td class="num">{{ hitRateLabel(repository.issue_view) }}</td>
+                <td class="num">{{ hitRateLabel(repository.pr_list) }}</td>
+                <td class="num">{{ hitRateLabel(repository.pr_view) }}</td>
               </tr>
             </tbody>
           </table>

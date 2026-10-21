@@ -105,6 +105,15 @@ class DependencyRead(BaseModel):
     error: str | None = None
 
 
+class GhxHitRateRead(BaseModel):
+    """How often one ghx retrieval was served from the local cache."""
+
+    # A whole percentage; None when ghx recorded no retrieval of this kind.
+    percent: int | None = None
+    # The retrievals the percentage is computed over.
+    retrievals: int = 0
+
+
 class CachedRepositoryRead(BaseModel):
     """One repository in ghx's local cache."""
 
@@ -114,6 +123,11 @@ class CachedRepositoryRead(BaseModel):
     # For example "14d"; None when ghx has no cache metadata for the repository.
     cached_age: str | None = None
     status: str = ""
+    # The cache hit rate per retrieval operation, as ghx reports it.
+    issue_list: GhxHitRateRead = GhxHitRateRead()
+    issue_view: GhxHitRateRead = GhxHitRateRead()
+    pr_list: GhxHitRateRead = GhxHitRateRead()
+    pr_view: GhxHitRateRead = GhxHitRateRead()
 
 
 class GhxCacheRead(BaseModel):

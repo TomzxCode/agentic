@@ -79,21 +79,52 @@ def test_parse_ghx_repositories_reads_both_row_shapes():
     rows = diagnostics.parse_ghx_repositories(
         "\n".join(
             [
-                "REPO                               ISSUES  PRS   CACHED AGE  STATUS",
-                "openchamber/openchamber            1854    2409  14d         stale",
-                "exolnet/laravel-module             0       1     —           no cache info",
+                "REPO                               ISSUES  PRS   CACHED AGE  STATUS         "
+                "ISSUE-LIST  ISSUE-VIEW  PR-LIST  PR-VIEW",
+                "openchamber/openchamber            2119    2883  23h43m      stale          "
+                "33% (6)     100% (5)    —        72% (29)",
+                "exolnet/laravel-module             0       1     —           no cache info  "
+                "—           —           0% (1)   —",
                 "",
             ]
         )
     )
 
     assert [row.repository for row in rows] == ["openchamber/openchamber", "exolnet/laravel-module"]
-    assert rows[0].issues == 1854
-    assert rows[0].pull_requests == 2409
-    assert rows[0].cached_age == "14d"
+    assert rows[0].issues == 2119
+    assert rows[0].pull_requests == 2883
+    assert rows[0].cached_age == "23h43m"
     assert rows[0].status == "stale"
+    assert rows[0].issue_list.percent == 33
+    assert rows[0].issue_list.retrievals == 6
+    assert rows[0].issue_view.percent == 100
+    assert rows[0].pr_list.percent is None
+    assert rows[0].pr_view.percent == 72
+    assert rows[0].pr_view.retrievals == 29
     assert rows[1].cached_age is None
     assert rows[1].status == "no cache info"
+    assert rows[1].pr_list.percent == 0
+    assert rows[1].pr_list.retrievals == 1
+
+
+def test_parse_ghx_repositories_accepts_rows_without_hit_rates():
+    # A ghx that predates the hit-rate columns stops at the status.
+    rows = diagnostics.parse_ghx_repositories(
+        "\n".join(
+            [
+                "REPO                   ISSUES  PRS   CACHED AGE  STATUS",
+                "openchamber/openchamber 1854   2409  14d         stale",
+                "exolnet/laravel-module  0       1     —           no cache info",
+            ]
+        )
+    )
+
+    assert [row.repository for row in rows] == ["openchamber/openchamber", "exolnet/laravel-module"]
+    assert rows[0].cached_age == "14d"
+    assert rows[0].status == "stale"
+    assert rows[1].status == "no cache info"
+    assert rows[1].issue_list.percent is None
+    assert rows[1].pr_view.retrievals == 0
 
 
 def test_ghx_cache_reports_a_missing_command(monkeypatch):
@@ -106,7 +137,10 @@ def test_ghx_cache_reports_a_missing_command(monkeypatch):
 
 
 def test_ghx_cache_lists_repositories_and_reports_a_failed_listing(monkeypatch):
-    output = "REPO  ISSUES  PRS  CACHED AGE  STATUS\ntomzx/agents  2  3  —  no cache info\n"
+    output = (
+        "REPO           ISSUES  PRS   CACHED AGE  STATUS         ISSUE-LIST  ISSUE-VIEW  PR-LIST  PR-VIEW\n"
+        "tomzx/agents   2       3     —           no cache info  —           —           —        71% (7)\n"
+    )
     monkeypatch.setattr(
         diagnostics,
         "run_cli_raw",
@@ -118,6 +152,8 @@ def test_ghx_cache_lists_repositories_and_reports_a_failed_listing(monkeypatch):
     assert cache.available is True
     assert cache.error is None
     assert cache.repositories[0].repository == "tomzx/agents"
+    assert cache.repositories[0].pr_view.percent == 71
+    assert cache.repositories[0].pr_view.retrievals == 7
 
     monkeypatch.setattr(
         diagnostics,

@@ -27,6 +27,7 @@ from .schemas.settings import (
     DependencyRead,
     DiagnosticsRead,
     GhxCacheRead,
+    GhxHitRateRead,
     SlackxCacheRead,
 )
 from .services.shell import run_cli_raw
@@ -168,17 +169,57 @@ def _harness_reports(session: Session) -> list[DependencyRead]:
     return reports
 
 
+# ghx prints an em dash (or a plain dash) in a column with no value.
+_NO_VALUE = {"—", "-"}
+# The hit-rate columns ghx appends to each row, right to left.
+_HIT_RATE_COLUMNS = 4
+
+
+def _parse_hit_rates(cells: list[str]) -> tuple[list[GhxHitRateRead], list[str]]:
+    """Split the trailing hit-rate columns off a row.
+
+    ghx renders a rate as a percentage followed by the retrieval count in
+    parentheses, for example ``67% (3)``, or a dash when it has recorded no
+    retrieval of that kind. The row is whitespace-split, so the count is its own
+    cell. Rows from a ghx that predates the columns end at the status and yield
+    no rates.
+    """
+    rates: list[GhxHitRateRead] = []
+    index = len(cells)
+    while len(rates) < _HIT_RATE_COLUMNS and index > 0:
+        token = cells[index - 1]
+        if token in _NO_VALUE:
+            rates.append(GhxHitRateRead())
+            index -= 1
+        elif token.startswith("(") and token.endswith(")") and index >= 2 and cells[index - 2].endswith("%"):
+            try:
+                retrievals = int(token[1:-1])
+                percent = int(cells[index - 2][:-1])
+            except ValueError:
+                break
+            rates.append(GhxHitRateRead(percent=percent, retrievals=retrievals))
+            index -= 2
+        else:
+            break
+    rates.reverse()
+    return rates, cells[:index]
+
+
 def parse_ghx_repositories(text: str) -> list[CachedRepositoryRead]:
     """Parse the table ``ghx repo list`` prints.
 
     ghx has no JSON output for this command, so the columns are read from the
-    whitespace-separated rows. The age is an em dash when ghx has no cache
-    metadata, and the status can be several words.
+    whitespace-separated rows. The age is a dash when ghx has no cache metadata,
+    and the status can be several words, so the hit-rate columns are peeled off
+    the end first.
     """
     repositories: list[CachedRepositoryRead] = []
     for line in text.splitlines():
         cells = line.split()
         if len(cells) < 4 or cells[0] == "REPO":
+            continue
+        rates, cells = _parse_hit_rates(cells)
+        if len(cells) < 3:
             continue
         try:
             issues = int(cells[1])
@@ -187,11 +228,11 @@ def parse_ghx_repositories(text: str) -> list[CachedRepositoryRead]:
             continue
         rest = cells[3:]
         cached_age = None
-        if rest and rest[0] in {"—", "-"}:
-            rest = rest[1:]
-        elif rest:
+        if rest and rest[0] not in _NO_VALUE:
             cached_age = rest[0]
-            rest = rest[1:]
+        rest = rest[1:]
+        # A ghx that predates the hit-rate columns leaves the four fields empty.
+        rates.extend(GhxHitRateRead() for _ in range(_HIT_RATE_COLUMNS - len(rates)))
         repositories.append(
             CachedRepositoryRead(
                 repository=cells[0],
@@ -199,6 +240,10 @@ def parse_ghx_repositories(text: str) -> list[CachedRepositoryRead]:
                 pull_requests=pull_requests,
                 cached_age=cached_age,
                 status=" ".join(rest),
+                issue_list=rates[0],
+                issue_view=rates[1],
+                pr_list=rates[2],
+                pr_view=rates[3],
             )
         )
     return repositories

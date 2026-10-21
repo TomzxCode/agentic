@@ -295,9 +295,23 @@ describe('SettingsView', () => {
             issues: 1854,
             pull_requests: 2409,
             cached_age: '14d',
-            status: 'stale'
+            status: 'stale',
+            issue_list: { percent: 33, retrievals: 6 },
+            issue_view: { percent: 100, retrievals: 5 },
+            pr_list: { percent: null, retrievals: 0 },
+            pr_view: { percent: 72, retrievals: 29 }
           },
-          { repository: 'tomzx/agents', issues: 2, pull_requests: 3, cached_age: null, status: 'no cache info' }
+          {
+            repository: 'tomzx/agents',
+            issues: 2,
+            pull_requests: 3,
+            cached_age: null,
+            status: 'no cache info',
+            issue_list: { percent: null, retrievals: 0 },
+            issue_view: { percent: null, retrievals: 0 },
+            pr_list: { percent: null, retrievals: 0 },
+            pr_view: { percent: null, retrievals: 0 }
+          }
         ]
       },
       slackx_cache: {
@@ -388,6 +402,10 @@ describe('SettingsView', () => {
     expect(wrapper.text()).toContain('1 stale')
     expect(wrapper.get('.diagnostics-table').text()).toContain('openchamber/openchamber')
     expect(wrapper.get('.diagnostics-table').text()).toContain('1854')
+    // The per-operation hit rates ghx reports, with their retrieval counts.
+    expect(wrapper.get('.diagnostics-table').text()).toContain('33% (6)')
+    expect(wrapper.get('.diagnostics-table').text()).toContain('72% (29)')
+    expect(wrapper.text()).toContain('a dash means none')
 
     // The slackx cache counts, read from its JSON status.
     expect(wrapper.text()).toContain('slackx cache')
