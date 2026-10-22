@@ -38,6 +38,7 @@ const visible = computed(() => {
     return (
       item.title.toLowerCase().includes(q) ||
       (item.url || '').toLowerCase().includes(q) ||
+      (item.metadata_json?.path || '').toLowerCase().includes(q) ||
       (item.content || '').toLowerCase().includes(q)
     )
   })
@@ -80,6 +81,11 @@ function itemPeople(item) {
 // author, so the list offers it no refresh and no person linker.
 function isNote(item) {
   return item.source === 'note'
+}
+
+// A local path has no author, so it offers no person linker.
+function isPath(item) {
+  return item.source === 'file'
 }
 
 function linkablePeople(item) {
@@ -173,7 +179,7 @@ onMounted(async () => {
     </div>
 
     <div class="row" style="margin-bottom: 12px">
-      <input v-model="search" class="input grow" placeholder="Search title, link, or content…" />
+      <input v-model="search" class="input grow" placeholder="Search title, link, path, or content…" />
     </div>
 
     <div class="row" style="margin-bottom: 16px">
@@ -231,7 +237,7 @@ onMounted(async () => {
             @update:model-value="(value) => linkTask(item, value)"
           />
         </div>
-        <div v-if="!isNote(item)" class="row" style="margin-top: 6px; gap: 6px; flex-wrap: wrap">
+        <div v-if="!isNote(item) && !isPath(item)" class="row" style="margin-top: 6px; gap: 6px; flex-wrap: wrap">
           <span v-for="person in itemPeople(item)" :key="person.id" class="chip">
             {{ person.name }}
             <button class="chip-x" title="Unlink person" @click="unlinkPerson(item, person.id)">✕</button>

@@ -18,7 +18,7 @@
 | Follow-up date | The date and time to check back with the person a task waits on; when it passes, the task rejoins the focus stack. |
 | Harness | A coding-agent command reachable over ACP, stored as a row (`command` plus `args`). |
 | Human intervention | A recorded human touch on a change (question, correction, manual fix, rerun, or approval) that makes the change non-touchless. |
-| Item | A `SourceItem`: something external (Slack thread, GitHub issue or PR, Drive doc, URL, note, commit, file) that can be associated to tasks. |
+| Item | A `SourceItem`: something external (Slack thread, GitHub issue or PR, Drive doc, URL, note, commit, or a local file or directory path) that can be associated to tasks. |
 | Merge | Folding one person into another: the source's aliases and its task and item links move to the target, then the source is deleted. |
 | Metric baseline | The stored value a metric's direction (improving, worsening, flat, or no-baseline) is measured against. |
 | Next steps | The agent-maintained list of concrete actions for a task, each with a `done` flag. |
@@ -30,7 +30,7 @@
 | Requester | A person recorded as having asked for a task, a link set separate from the people the task involves. |
 | Session link | A way to reopen an agent session: an OpenChamber URL, a terminal URL, or a copyable resume command. |
 | Snooze | A date and time a task is parked until, without changing its status or marking it done. |
-| Source | The origin kind of an item: `slack`, `github`, `gdrive`, `url`, `note`, `commit`, or `file`. |
+| Source | The origin kind of an item: `slack`, `github`, `gdrive`, `url`, `note`, `commit`, or `file` (a local file or directory path). |
 | Stack | The focus queue of tasks: an ordered list where the top task is current and the rest are queued. It is materialized from the in-flight tasks, so an open, in-progress, or blocked task joins automatically unless it is parked. |
 | Stack entry | A task's presence on the stack, carrying its position, whether it is current, a soft-delete timestamp, and why it was deleted (popped, removed, or parked). A parked entry is restored when its deferral ends. |
 | Current task | The task at the top of the stack (position 0); the one being worked on now. |
@@ -56,7 +56,7 @@
 | Gantt view | A timeline page showing each task in flight as a bar with one marker per timeline event. |
 | People page | The SPA route (`/people`) listing people with the tasks and items each is linked to. |
 | Mobile support | The application is designed with mobile in mind, so layouts and controls work on small phone screens as well as desktops. |
-| Source inference | Deriving an item's source, kind, and external id from a pasted value (URL or plain text). |
+| Source inference | Deriving an item's source, kind, and external id from a pasted value (URL, filesystem path, or plain text). |
 | SSE | Server-Sent Events, used for the live run transcript and task-change streams. |
 
 ## Acronyms and Abbreviations

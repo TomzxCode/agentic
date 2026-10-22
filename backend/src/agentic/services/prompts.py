@@ -81,6 +81,10 @@ def build_context_prompt(task: dict[str, Any], items: list[dict[str, Any]]) -> s
         lines.append(f"\n### [{item['source']}] {item.get('title') or item.get('url')}")
         if item.get("url"):
             lines.append(f"URL: {item['url']}")
+        if item.get("path"):
+            # A path is a reference: the file is not copied into the prompt, so
+            # the agent reads it from disk and always sees the current content.
+            lines.append(f"Path: {item['path']}")
         content = (item.get("content") or "").strip()
         if content:
             lines.append(content[:4000])

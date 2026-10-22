@@ -152,7 +152,7 @@ export const SOURCE_LABELS = {
   url: 'Web',
   note: 'Note',
   commit: 'Commit',
-  file: 'File'
+  file: 'Path'
 }
 
 export const SOURCE_ORDER = ['github', 'slack', 'gdrive', 'url', 'note', 'commit', 'file']

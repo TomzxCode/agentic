@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import delete as sa_delete
 from sqlmodel import Session, col, select
@@ -19,6 +21,7 @@ from ..schemas.items import (
     ItemCreate,
     ItemGithubReviewer,
     ItemGithubReviewers,
+    ItemPathPreview,
     ItemPoke,
     ItemPokeRequest,
     ItemRead,
@@ -29,9 +32,9 @@ from ..schemas.items import (
 )
 from ..schemas.settings import RefreshDueReport
 from ..services.github import fetch_github_pull_reviewers
-from ..services.parsing import looks_like_url, parse_github
+from ..services.parsing import looks_like_url, parse_github, parse_path
 from ..services.slack import SlackError, resolve_slack_user_id, slack_send_dm, slack_ts_after, slack_ts_datetime
-from ..services.sources import fetch_source, infer_item_source
+from ..services.sources import fetch_source, infer_item_source, read_path
 from ..settings_store import get_settings
 from .items_refresh import _apply_fetch, force_refresh_source, refresh_due_items
 from .people_links import link_people_to_item
@@ -40,18 +43,34 @@ from .people_service import item_person_ids, person_aliases, person_for_alias
 router = APIRouter(prefix="/api/items", tags=["items"])
 
 
+def _item_path(item: SourceItem) -> str | None:
+    """The filesystem path a ``file`` item points at, if it carries one."""
+    return (item.metadata_json or {}).get("path") or item.external_id
+
+
 def _upsert_item(session: Session, payload: ItemCreate, errors: list[str] | None = None) -> SourceItem:
+    # A path is not a URL and not text: it names a local file or directory, so
+    # it is stored in metadata rather than rendered as a link or kept as content.
+    raw_url = (payload.url or "").strip()
+    raw_path = (payload.path or "").strip()
+    parsed_path = None
+    if payload.source in (None, "file"):
+        parsed_path = parse_path(raw_path or raw_url)
+        if parsed_path is None and payload.source == "file" and payload.external_id:
+            parsed_path = parse_path(payload.external_id)
+    path = parsed_path["path"] if parsed_path else None
+
     # Text pasted where a URL was expected is not a URL: keep it as the note's
     # content instead of storing (and later rendering) a bogus link.
-    raw_url = (payload.url or "").strip()
-    url = raw_url if looks_like_url(raw_url) else None
-    content = payload.content or (raw_url if raw_url and url is None else "")
+    url = None if path else (raw_url if looks_like_url(raw_url) else None)
+    content = payload.content or ("" if path else (raw_url if raw_url and url is None else ""))
 
     # Infer the source/kind/external id when the caller did not spell them out.
-    inferred = infer_item_source(url, payload.external_id, content)
+    inferred = infer_item_source(url, payload.external_id, content, path=path)
     source = payload.source or inferred["source"] or "note"
     kind = payload.kind or inferred.get("kind") or ""
     external_id = payload.external_id or inferred.get("external_id")
+    path = path or inferred.get("path")
 
     item: SourceItem | None = None
     if external_id:
@@ -73,17 +92,28 @@ def _upsert_item(session: Session, payload: ItemCreate, errors: list[str] | None
         item.title_custom = True
     if url:
         item.url = url
+    if path:
+        item.title = item.title or Path(path).name or path
     item.external_id = external_id or item.external_id
-    item.metadata_json = {**(item.metadata_json or {}), **payload.metadata_json}
+    item.metadata_json = {**(item.metadata_json or {}), **({"path": path} if path else {}), **payload.metadata_json}
     if content:
         item.content = content
+    elif item.source == "file":
+        # A path item is a reference: drop any snapshot an older version stored.
+        item.content = ""
 
     fetched_people: list[dict] = []
-    if payload.fetch and item.url and not item.content:
-        fetched = fetch_source(item.source, item.url, item.external_id, item.title)
-        item.title = item.title or fetched.get("title") or item.url or item.source
+    if payload.fetch and not item.content and (item.url or item.source == "file"):
+        fetched = (
+            fetch_source(item.source, item.url, item.external_id, item.title, path=path)
+            if item.source == "file"
+            else fetch_source(item.source, item.url, item.external_id, item.title)
+        )
+        item.title = item.title or fetched.get("title") or item.url or path or item.source
         item.content = item.content or fetched.get("content", "")
         item.metadata_json = {**(item.metadata_json or {}), **fetched.get("metadata", {})}
+        if item.source == "file":
+            item.kind = fetched.get("metadata", {}).get("kind") or item.kind
         item.fetched_at = utcnow()
         fetched_people = fetched.get("people") or []
         if fetched.get("error") and errors is not None:
@@ -172,6 +202,7 @@ def list_items(
             for item in items
             if needle in item.title.lower()
             or needle in (item.url or "").lower()
+            or needle in str((item.metadata_json or {}).get("path") or "").lower()
             or needle in (item.content or "").lower()
         ]
     return _item_reads(session, items)
@@ -207,6 +238,18 @@ def get_item(item_id: str, session: Session = Depends(get_session)) -> ItemRead:
     return _item_read(session, item)
 
 
+@router.get("/{item_id}/path", response_model=ItemPathPreview)
+def read_item_path(item_id: str, session: Session = Depends(get_session)) -> ItemPathPreview:
+    """Read a path item's current listing or file preview, without storing it."""
+    item = get_or_404(session, SourceItem, item_id, "Item not found")
+    if item.source != "file":
+        raise HTTPException(status_code=400, detail="Item is not a local path")
+    path = _item_path(item)
+    if not path:
+        raise HTTPException(status_code=404, detail="Item has no path")
+    return ItemPathPreview.model_validate(read_path(path))
+
+
 @router.patch("/{item_id}", response_model=ItemRead)
 def update_item(item_id: str, payload: ItemUpdate, session: Session = Depends(get_session)) -> ItemRead:
     item = get_or_404(session, SourceItem, item_id, "Item not found")
@@ -237,7 +280,11 @@ def update_item(item_id: str, payload: ItemUpdate, session: Session = Depends(ge
         # title back: the same name a first fetch would have produced.
         item.title_custom = False
         item.title = ""
-        derived = fetch_source(item.source, item.url, item.external_id, "")
+        derived = (
+            fetch_source(item.source, item.url, item.external_id, "", path=_item_path(item))
+            if item.source == "file"
+            else fetch_source(item.source, item.url, item.external_id, "")
+        )
         item.title = derived.get("title") or ""
         if not item.title and item.content:
             item.title = item.content.strip().splitlines()[0][:120]
@@ -253,7 +300,11 @@ def update_item(item_id: str, payload: ItemUpdate, session: Session = Depends(ge
 @router.post("/{item_id}/refresh", response_model=ItemRead)
 def refresh_item(item_id: str, session: Session = Depends(get_session)) -> ItemRead:
     item = get_or_404(session, SourceItem, item_id, "Item not found")
-    fetched = fetch_source(item.source, item.url, item.external_id, item.title)
+    fetched = (
+        fetch_source(item.source, item.url, item.external_id, item.title, path=_item_path(item))
+        if item.source == "file"
+        else fetch_source(item.source, item.url, item.external_id, item.title)
+    )
     error = _apply_fetch(item, fetched, utcnow())
     session.add(item)
     session.commit()

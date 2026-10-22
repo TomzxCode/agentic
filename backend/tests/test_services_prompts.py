@@ -14,12 +14,17 @@ def test_build_context_prompt_includes_repositories_worktrees_and_items():
             "worktrees": [{"branch": "b", "path": "/w"}],
             "group": None,
         },
-        [{"source": "note", "title": "n", "url": None, "content": "c"}],
+        [
+            {"source": "note", "title": "n", "url": None, "content": "c"},
+            {"source": "file", "title": "spec.md", "url": None, "path": "/docs/spec.md", "content": ""},
+        ],
     )
     assert "## Description" in prompt and "D" in prompt
     assert "## Repositories" in prompt and "/r/a" in prompt
     assert "## Active worktrees" in prompt and "b at /w" in prompt
     assert "[note] n" in prompt
+    # A path is handed to the agent as a reference, not copied as content.
+    assert "[file] spec.md" in prompt and "Path: /docs/spec.md" in prompt
 
 
 def test_iter_json_objects_respects_strings_and_braces():

@@ -10,7 +10,11 @@ session_link: "http://localhost:10000/?session=ses_ed778bb8affeJQ6f9Tkxe4MjUl"
 
 Items are served by `routers/items.py`.
 The shared upsert helper `_upsert_item` infers source, kind, and external id, deduplicates, and optionally fetches content.
-`services.py` holds the parsing (`parse_github`, `parse_slack`, `GOOGLE_DOC_RE`), classification (`looks_like_url`, `infer_item_source`), and fetching (`fetch_source` plus the `ghx`/`slackx`/HTTP helpers).
+`services/` holds the parsing (`parse_github`, `parse_slack`, `parse_path`, `GOOGLE_DOC_RE`), classification (`looks_like_url`, `looks_like_path`, `infer_item_source`), and fetching (`fetch_source` plus the `ghx`/`slackx`/HTTP/path helpers).
+A local path is stored as source `file`, with the resolved absolute path in `external_id` and `metadata_json.path`, and kind `file` or `directory` (empty until the path exists).
+A path item is a reference: its `content` stays empty, and `GET /api/items/{id}/path` reads a file preview or directory listing live from disk without writing it to the item.
+A text preview is not capped, and the item view renders a `.md`/`.markdown`/`.mdx` file as Markdown.
+The context prompt includes the path itself, so an agent reads the current file instead of a stale copy.
 GitHub import is served by `routers/github.py`, which lists and fetches issues through `services.list_github_issues` and `services.fetch_github_issue`.
 The Resources page (`frontend/src/views/ItemsView.vue`) is the UI for this feature: it lists every item with source filters, a search box, expand/refresh/delete actions, and links to the tasks each item is associated with.
 
@@ -38,10 +42,10 @@ flowchart LR
 | source | string | not null | slack, github, gdrive, url, note, commit, file |
 | kind | string | default "" | thread, issue, pr, doc, ... |
 | title | string | default "" | Display title |
-| url | string | nullable | Link when the value is a URL |
-| external_id | string | nullable | Dedup key (for example `o/r#42`) |
-| metadata_json | JSON | default {} | Fetched metadata (Slack's `latest_ts` is the newest message the last fetch saw) |
-| content | string | default "" | Pulled text |
+| url | string | nullable | Link when the value is a URL (null for a local path) |
+| external_id | string | nullable | Dedup key (for example `o/r#42`, or a resolved absolute path) |
+| metadata_json | JSON | default {} | Fetched metadata (Slack's `latest_ts` is the newest message the last fetch saw; a path item holds `path`, `exists`, `kind`, `size`, and `modified_at`) |
+| content | string | default "" | Pulled text; always empty for a path, whose preview is read live |
 | done_at | datetime | nullable | When a person marked a Slack thread done |
 | done_message_ts | string | nullable | Newest Slack message at the moment it was marked done |
 | fetched_at | datetime | nullable | Last fetch |
@@ -71,7 +75,8 @@ The normative contract is in [`api.yaml`](api.yaml) once written; the table belo
 | POST | /api/items | Create or upsert an item |
 | GET | /api/items/{item_id} | Read an item |
 | PATCH | /api/items/{item_id} | Update an item, including `done` to mark a Slack thread done (`true`) or reopen it (`false`) |
-| POST | /api/items/{item_id}/refresh | Re-fetch content |
+| POST | /api/items/{item_id}/refresh | Re-fetch content (a path is re-statted, never copied) |
+| GET | /api/items/{item_id}/path | Read a path item's current file preview or directory listing, live and unstored |
 | DELETE | /api/items/{item_id} | Delete an item and its associations |
 | POST | /api/tasks/{task_id}/items | Associate an item (existing or inline) |
 | DELETE | /api/tasks/{task_id}/items/{item_id} | Unassociate an item |

@@ -83,7 +83,9 @@ agentic stack history                # popped and removed entries
 ### Items and links
 
 ```bash
+agentic item create --path ./docs/design.md       # a local file or directory
 agentic link add <task> --url https://github.com/o/r/issues/482
+agentic link add <task> --path ./docs/design.md   # a local file or directory
 agentic link add <task> --item-id <item>
 agentic item refresh-due             # run one refresh pass immediately
 agentic item done <item>             # mark a Slack conversation done

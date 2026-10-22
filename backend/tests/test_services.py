@@ -3,7 +3,7 @@ import subprocess
 
 from agentic.services import names, shell
 from agentic.services.names import random_branch_name, random_name
-from agentic.services.parsing import looks_like_url
+from agentic.services.parsing import looks_like_path, looks_like_url, parse_path
 from agentic.services.prompts import extract_context_json
 from agentic.services.sources import infer_item_source
 
@@ -71,6 +71,43 @@ def test_infer_item_source_from_value():
     # Plain text pasted where a URL is expected is a note, not a url.
     assert infer_item_source("User doesn't know what they want.")["source"] == "note"
     assert infer_item_source("just a reminder")["source"] == "note"
+
+
+def test_infer_item_source_from_a_path(tmp_path):
+    folder = tmp_path / "project"
+    folder.mkdir()
+    target = folder / "main.py"
+    target.write_text("x")
+
+    inferred = infer_item_source(str(target))
+    assert inferred["source"] == "file" and inferred["kind"] == "file"
+    assert inferred["external_id"] == str(target.resolve()) and inferred["path"] == str(target.resolve())
+
+    directory = infer_item_source(None, None, None, path=str(folder))
+    assert directory["source"] == "file" and directory["kind"] == "directory"
+
+    # A typed path that does not exist is still a path, with no kind yet.
+    missing = infer_item_source(str(folder / "gone.txt"))
+    assert missing["source"] == "file" and missing["kind"] == ""
+
+
+def test_path_detection_keeps_prose_and_urls_out(tmp_path):
+    target = tmp_path / "file.txt"
+    target.write_text("x")
+
+    assert looks_like_path(str(target))
+    assert looks_like_path(f"file://{target}")
+    assert looks_like_path("~/somewhere")
+    assert looks_like_path("./relative")
+    # A bare relative name only counts when it exists on the server.
+    assert not looks_like_path("just a reminder")
+    assert not looks_like_path("https://example.com/page")
+    assert not looks_like_path("")
+    assert not looks_like_path(None)
+
+    parsed = parse_path(str(target))
+    assert parsed == {"path": str(target.resolve()), "kind": "file"}
+    assert parse_path("not a path") is None
 
 
 def test_looks_like_url():

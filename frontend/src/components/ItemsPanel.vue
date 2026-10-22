@@ -121,7 +121,7 @@ async function toggleDone(item) {
         <input
           v-model="draft.url"
           class="input grow"
-          placeholder="Paste a Slack/GitHub/Drive link, any URL, or just text (type is inferred)"
+          placeholder="Paste a Slack/GitHub/Drive link, a file/folder path, any URL, or just text (type is inferred)"
         />
       </div>
       <div class="row" style="margin-top: 8px">
@@ -142,7 +142,7 @@ async function toggleDone(item) {
     </div>
 
     <div v-if="!itemCount" class="faint" style="margin-bottom: 12px">
-      Nothing associated yet. Paste a Slack thread, GitHub issue/PR, or Drive link.
+      Nothing associated yet. Paste a Slack thread, GitHub issue/PR, Drive link, or a file/folder path.
     </div>
 
     <div v-for="(items, source) in grouped" :key="source" style="margin-bottom: 12px">

@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   reviewsGet: vi.fn(),
   reviewGet: vi.fn(),
   reviewersGet: vi.fn(),
+  pathPreview: vi.fn(),
   poke: vi.fn()
 }))
 
@@ -29,6 +30,7 @@ vi.mock('../api', () => ({
       reviews: mocks.reviewsGet,
       review: mocks.reviewGet,
       reviewers: mocks.reviewersGet,
+      pathPreview: mocks.pathPreview,
       poke: mocks.poke
     }
   }
@@ -117,6 +119,103 @@ describe('ItemDetailView', () => {
       'a[href="http://localhost:8280/archives/C0123ABCD/p1734567890123456?thread_ts=1734567890.123456"]'
     )
     expect(link.text()).toBe('Open in slackx')
+  })
+
+  it('renders a local path with its live preview and an editor link', async () => {
+    store.settings = { editor_url_template: 'vscode://file{path}' }
+    mocks.itemsGet.mockResolvedValue(
+      item({
+        source: 'file',
+        kind: 'directory',
+        title: 'project',
+        url: null,
+        external_id: '/tmp/project',
+        metadata_json: {
+          path: '/tmp/project',
+          exists: true,
+          kind: 'directory',
+          size: 4096,
+          modified_at: '2026-01-02T00:00:00Z'
+        },
+        // A path item never stores content.
+        content: ''
+      })
+    )
+    mocks.pathPreview.mockResolvedValue({
+      path: '/tmp/project',
+      exists: true,
+      kind: 'directory',
+      content: '/tmp/project\nmain.py\nsub/',
+      truncated: false,
+      error: null
+    })
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Directory')
+    expect(wrapper.text()).toContain('/tmp/project')
+    expect(wrapper.text()).toContain('main.py')
+    expect(wrapper.get('.path-content').text()).toContain('sub/')
+    expect(wrapper.text()).toContain('Preview read live from disk, not stored.')
+    expect(wrapper.get('a[href="vscode://file/tmp/project"]').text()).toBe('Open in editor')
+    // A path has no author, so it offers no person linker.
+    expect(wrapper.text()).not.toContain('People')
+  })
+
+  it('renders a Markdown file in full as Markdown', async () => {
+    mocks.itemsGet.mockResolvedValue(
+      item({
+        source: 'file',
+        kind: 'file',
+        title: 'spec.md',
+        url: null,
+        external_id: '/tmp/spec.md',
+        metadata_json: { path: '/tmp/spec.md', exists: true, kind: 'file', size: 40000 },
+        content: ''
+      })
+    )
+    const body = '# The spec\n\nA **bold** line.\n\n- one\n- two\n'
+    mocks.pathPreview.mockResolvedValue({
+      path: '/tmp/spec.md',
+      exists: true,
+      kind: 'file',
+      content: body,
+      truncated: false,
+      error: null
+    })
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(wrapper.get('.path-markdown h1').text()).toBe('The spec')
+    expect(wrapper.get('.path-markdown strong').text()).toBe('bold')
+    expect(wrapper.findAll('.path-markdown li')).toHaveLength(2)
+    // Text files and Markdown are shown whole, so no truncation notice.
+    expect(wrapper.text()).not.toContain('Showing the first part of a large file.')
+  })
+
+  it('flags a local path that no longer exists', async () => {
+    mocks.itemsGet.mockResolvedValue(
+      item({
+        source: 'file',
+        kind: 'file',
+        title: 'gone.txt',
+        url: null,
+        external_id: '/tmp/gone.txt',
+        metadata_json: { path: '/tmp/gone.txt', exists: false },
+        content: ''
+      })
+    )
+    mocks.pathPreview.mockResolvedValue({
+      path: '/tmp/gone.txt',
+      exists: false,
+      content: '',
+      truncated: false,
+      error: '/tmp/gone.txt does not exist'
+    })
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('This path no longer exists')
   })
 
   it('renders the GitHub description as Markdown', async () => {

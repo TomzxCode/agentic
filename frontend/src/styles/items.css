@@ -60,6 +60,10 @@
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+/* A path's preview or listing is monospaced so its lines line up. */
+.path-content {
+  font-family: var(--mono);
+}
 /* A Slack thread keeps its own lines and reads better with a little air. */
 .slack-thread {
   border-left: 2px solid var(--border);

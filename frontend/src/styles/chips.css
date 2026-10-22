@@ -84,6 +84,9 @@ button.status-badge.active {
 .src-commit {
   color: #f472b6;
 }
+.src-file {
+  color: #38bdf8;
+}
 
 /* Chips (removable pills, e.g. task repositories) */
 .chip {

@@ -32,6 +32,7 @@ This feature stores each piece of context as a source item, infers its source fr
 | FR-8 | Should | The system shall list a repository's open issues via `ghx` for the import picker. |
 | FR-9 | Should | The system shall return each item's linked task ids and support searching items by a text query over title, url, and content. |
 | FR-10 | Should | The system shall let a user mark a Slack thread done, flag a message that arrives after it was marked done while keeping the done state, and let the user reopen it. |
+| FR-11 | Should | The system shall accept a path to a local file or directory as an item, store its resolved absolute path and stat metadata as a reference, and read a file preview or directory listing live on request without storing it. A text file is previewed in full, and a Markdown file is rendered as Markdown. |
 
 ## Non-Functional Requirements
 
@@ -122,6 +123,37 @@ This feature stores each piece of context as a source item, infers its source fr
       Given a Slack thread marked done
       When the user reopens it
       Then it is no longer done and carries no new-message flag
+    ```
+
+- [ ] **FR-11**
+
+    ```gherkin
+    @FR-11
+    Scenario: Add a local path as an item
+      Given a path to an existing file or directory
+      When the user creates an item with that path
+      Then the source is "file", the external id is the resolved absolute path, and the kind is "file" or "directory"
+      And the stored content is empty
+
+    @FR-11
+    Scenario: Read a path item's preview
+      Given a path item
+      When the user opens its preview, or refreshes it
+      Then the API reads the file or directory from disk
+      And the item record is left without a content snapshot
+
+    @FR-11
+    Scenario: Preview a long Markdown file
+      Given a path item for a Markdown file larger than 20,000 characters
+      When the user opens the item
+      Then the whole file is read
+      And it is rendered as Markdown
+
+    @FR-11
+    Scenario: Deduplicate a path item
+      Given an item already stored for a path
+      When the user adds the same path again, by url or by path
+      Then the existing item is returned
     ```
 
 ## Conflicts

@@ -37,7 +37,7 @@ one virtualenv.
 | Concept | What it is |
 | --- | --- |
 | **Task** | The unit of work. Everything hangs off it. Carries an agent-maintained `summary` and `next_steps`. |
-| **Item** | Something external: a Slack thread, GitHub issue/PR, Drive doc, URL, note, or commit. Items are deduplicated by URL / external id. |
+| **Item** | Something external: a Slack thread, GitHub issue/PR, Drive doc, URL, note, commit, or a local file/directory path. Items are deduplicated by URL / external id. |
 | **Association** | A link between an item and a task (many-to-many), with a note. |
 | **Person** | An individual a task or an item involves: a name plus optional email, handle, and notes. Linked to tasks and items many-to-many. |
 | **Worktree** | An isolated `git worktree` created for a task from a registered repository. |
@@ -176,10 +176,12 @@ only expose this on a trusted network.
    Waiting marks an open task blocked and names the person on its row; a snooze
    leaves the status alone.
 2. **Associate items**: paste a Slack thread permalink, a GitHub issue/PR URL, a
-   Drive doc, or write a note. The source (Slack/GitHub/Drive/URL/note) is
-   inferred from what you paste. GitHub and Slack/URL items are fetched on demand
-   (via `ghx` for GitHub and `slackx` for Slack); you can also paste content
-   directly.
+   Drive doc, a path to a local file or directory, or write a note. The source
+   (Slack/GitHub/Drive/URL/path/note) is inferred from what you paste. GitHub and
+   Slack/URL items are fetched on demand (via `ghx` for GitHub and `slackx` for
+   Slack); a path stays a reference to the file or directory, with its preview
+   read live when opened and never stored. Text files are shown in full, and a
+   Markdown file is rendered as Markdown; you can also paste content directly.
 3. **Add repositories** in Settings. Use **Browse…** to pick folders on the
    machine (select several at once); git repositories are marked. Group related
    repositories (**Repository groups**) so a task can point the agent at

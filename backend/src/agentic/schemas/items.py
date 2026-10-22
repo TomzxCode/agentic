@@ -11,10 +11,13 @@ from .base import ORMModel
 
 
 class ItemCreate(BaseModel):
-    source: str | None = None  # inferred from url/content when omitted
+    source: str | None = None  # inferred from url/path/content when omitted
     kind: str = ""
     title: str = ""
     url: str | None = None
+    # A local file or directory path. Also accepted in ``url``, where it is
+    # detected and stored as source ``file`` instead of as a link.
+    path: str | None = None
     external_id: str | None = None
     content: str = ""
     metadata_json: dict[str, Any] = {}
@@ -56,6 +59,23 @@ class ItemRead(ORMModel):
     # Set on a single-item response (create or refresh) when the fetch could not
     # run, so the UI can show the failure instead of reading empty data as success.
     fetch_error: str | None = None
+
+
+class ItemPathPreview(BaseModel):
+    """A live read of a path item's file preview or directory listing.
+
+    Read from disk when requested and never stored, so it always reflects the
+    current file and cannot go stale in the item record.
+    """
+
+    path: str
+    exists: bool = False
+    kind: str = ""
+    size: int | None = None
+    modified_at: str | None = None
+    content: str = ""
+    truncated: bool = False
+    error: str | None = None
 
 
 class ItemReviewFile(BaseModel):

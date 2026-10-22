@@ -280,6 +280,9 @@ export const api = {
     create: (body) => request('/items', { method: 'POST', body }),
     update: (id, body) => request(`/items/${id}`, { method: 'PATCH', body }),
     refresh: (id) => request(`/items/${id}/refresh`, { method: 'POST' }),
+    // Read a path item's current file preview or directory listing. Live, and
+    // never stored, so it does not go stale between refreshes.
+    pathPreview: (id) => request(`/items/${id}/path`),
     refreshSource: (source) => request(`/items/refresh-source/${source}`, { method: 'POST' }),
     reviews: (id) => request(`/items/${id}/reviews`),
     // The reviewers on a PR, one row each, read live from GitHub (gh); a

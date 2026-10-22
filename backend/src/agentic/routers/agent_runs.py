@@ -129,7 +129,15 @@ async def refresh_context(task_id: str, session: Session = Depends(get_session))
     for assoc in assocs:
         item = session.get(SourceItem, assoc.item_id)
         if item is not None:
-            items.append({"source": item.source, "title": item.title, "url": item.url, "content": item.content})
+            items.append(
+                {
+                    "source": item.source,
+                    "title": item.title,
+                    "url": item.url,
+                    "path": (item.metadata_json or {}).get("path"),
+                    "content": item.content,
+                }
+            )
     worktrees = [
         {"branch": w.branch, "path": w.path}
         for w in session.exec(select(Worktree).where(Worktree.task_id == task_id)).all()

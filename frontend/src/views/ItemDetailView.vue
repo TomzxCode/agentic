@@ -62,6 +62,7 @@ const githubHtml = computed(() => renderMarkdown(item.value?.content))
 const variant = computed(() => {
   const source = item.value?.source
   if (source === 'github' || source === 'slack' || source === 'note') return source
+  if (source === 'file') return 'path'
   return 'link'
 })
 
@@ -69,6 +70,28 @@ const status = computed(() => itemStatus(item.value))
 // A note has no source to re-fetch from and no author, so its view offers no
 // Refresh and no People field.
 const isNote = computed(() => item.value?.source === 'note')
+// A local path has no author, so its view offers no People field.
+const isPath = computed(() => item.value?.source === 'file')
+const itemPath = computed(() => item.value?.metadata_json?.path || '')
+const pathKind = computed(() => item.value?.kind || item.value?.metadata_json?.kind || 'path')
+// The file preview or directory listing, read from disk when the page opens.
+// It is never stored on the item, so it reflects the path as it is now.
+const pathPreview = ref(null)
+const pathPreviewLoading = ref(false)
+const pathPreviewError = ref(null)
+const pathSize = computed(() => pathPreview.value?.size ?? item.value?.metadata_json?.size ?? null)
+const pathModifiedAt = computed(() => pathPreview.value?.modified_at || item.value?.metadata_json?.modified_at || null)
+const pathExists = computed(() =>
+  pathPreview.value ? pathPreview.value.exists : item.value?.metadata_json?.exists !== false
+)
+// A Markdown file is rendered, the same as a GitHub body or a review report.
+const pathIsMarkdown = computed(() => /\.(md|markdown|mdx)$/i.test(pathPreview.value?.path || itemPath.value))
+const pathPreviewHtml = computed(() => renderMarkdown(pathPreview.value?.content))
+// Open the path in a configured editor (e.g. vscode://file/{path}).
+const editorUrl = computed(() => {
+  const template = store.settings?.editor_url_template
+  return itemPath.value && template ? template.replaceAll('{path}', encodeURI(itemPath.value)) : ''
+})
 const github = computed(() => parseGithubUrl(item.value?.url))
 // "issue" or "pull request", the two GitHub kinds, as a readable label.
 const githubKind = computed(() => (github.value?.kind === 'pr' ? 'pull request' : 'issue'))
@@ -91,9 +114,21 @@ const openLabel = computed(
       slack: 'Open in Slack',
       gdrive: 'Open in Drive',
       commit: 'Open commit',
-      file: 'Open file'
+      file: 'Open path'
     })[item.value?.source] || 'Open link'
 )
+
+function formatBytes(value) {
+  if (value === null || value === undefined) return ''
+  const units = ['B', 'KB', 'MB', 'GB']
+  let size = Number(value)
+  let unit = 0
+  while (size >= 1024 && unit < units.length - 1) {
+    size /= 1024
+    unit += 1
+  }
+  return `${size.toFixed(unit ? 1 : 0)} ${units[unit]}`
+}
 
 const tasksById = computed(() => Object.fromEntries(store.tasks.map((task) => [task.id, task])))
 const linkedTasks = computed(() => (item.value?.task_ids || []).map((id) => tasksById.value[id]).filter(Boolean))
@@ -103,12 +138,30 @@ const linkedPeople = computed(() => (item.value?.person_ids || []).map((id) => p
 async function load() {
   loading.value = true
   notFound.value = false
+  pathPreview.value = null
+  pathPreviewError.value = null
   try {
     item.value = await api.items.get(props.id)
   } catch {
     notFound.value = true
   } finally {
     loading.value = false
+  }
+}
+
+// Read the path from disk for display only. Nothing from this response is
+// written back to the item.
+async function loadPathPreview() {
+  if (!isPath.value) return
+  pathPreviewLoading.value = true
+  pathPreviewError.value = null
+  try {
+    pathPreview.value = await api.items.pathPreview(props.id)
+    if (pathPreview.value.error) pathPreviewError.value = pathPreview.value.error
+  } catch (e) {
+    pathPreviewError.value = e.message
+  } finally {
+    pathPreviewLoading.value = false
   }
 }
 
@@ -144,6 +197,7 @@ async function refresh() {
   try {
     item.value = await api.items.refresh(props.id)
     store.notifyRefresh(item.value)
+    await loadPathPreview()
   } catch (e) {
     store.notify(e.message, true)
   } finally {
@@ -250,7 +304,7 @@ async function remove() {
 onMounted(async () => {
   await Promise.all([store.loadTasks().catch(() => {}), store.loadPeople().catch(() => {})])
   await load()
-  await Promise.all([loadReviews(), loadReviewers()])
+  await Promise.all([loadReviews(), loadReviewers(), loadPathPreview()])
 })
 </script>
 
@@ -284,6 +338,7 @@ onMounted(async () => {
         </div>
         <div class="row task-actions">
           <a v-if="item.url" class="btn sm ghost" :href="item.url" target="_blank" rel="noopener">{{ openLabel }}</a>
+          <a v-if="editorUrl" class="btn sm ghost" :href="editorUrl" target="_blank" rel="noopener">Open in editor</a>
           <ItemToolLinks :item="item" />
           <button
             v-if="variant === 'slack'"
@@ -409,7 +464,35 @@ onMounted(async () => {
         <div class="item-body">{{ item.content || 'Empty note.' }}</div>
       </section>
 
-      <!-- A fetched link: a Drive doc, another URL, a commit, or a file. -->
+      <!-- A local path: the file's preview or the directory's listing. -->
+      <section v-else-if="variant === 'path'" class="panel">
+        <div class="panel-head">
+          <h2>{{ pathKind === 'directory' ? 'Directory' : pathKind === 'file' ? 'File' : 'Path' }}</h2>
+        </div>
+        <p class="faint mono" style="margin-top: 0">{{ itemPath || item.external_id }}</p>
+        <div class="row" style="gap: 24px; flex-wrap: wrap; margin-bottom: 12px">
+          <div v-if="pathSize !== null" class="field" style="margin-bottom: 0">
+            <label>Size</label>
+            <div>{{ formatBytes(pathSize) }}</div>
+          </div>
+          <div v-if="pathModifiedAt" class="field" style="margin-bottom: 0">
+            <label>Modified</label>
+            <div>{{ formatDateTime(pathModifiedAt) }}</div>
+          </div>
+        </div>
+        <p v-if="!pathExists" class="badge danger" style="margin-bottom: 12px">
+          This path no longer exists. Use Refresh to check again.
+        </p>
+        <div v-if="pathPreviewLoading" class="empty"><span class="spinner"></span></div>
+        <p v-else-if="pathPreviewError" class="badge danger">{{ pathPreviewError }}</p>
+        <!-- eslint-disable-next-line vue/no-v-html -->
+        <div v-else-if="pathIsMarkdown && pathPreview?.content" class="md path-markdown" v-html="pathPreviewHtml"></div>
+        <div v-else-if="pathPreview?.content" class="item-body path-content">{{ pathPreview.content }}</div>
+        <div v-else class="faint">Nothing to preview. Open the path in your editor to inspect it.</div>
+        <p class="faint" style="margin-bottom: 0">Preview read live from disk, not stored.</p>
+      </section>
+
+      <!-- A fetched link: a Drive doc, another URL, or a commit. -->
       <section v-else class="panel">
         <div class="panel-head">
           <h2>{{ sourceLabel(item.source) }}</h2>
@@ -464,7 +547,7 @@ onMounted(async () => {
             </div>
             <div v-else class="faint">Not linked to a task.</div>
           </div>
-          <div v-if="!isNote" class="field" style="margin-bottom: 0">
+          <div v-if="!isNote && !isPath" class="field" style="margin-bottom: 0">
             <label>People</label>
             <div v-if="linkedPeople.length" class="row" style="gap: 6px; flex-wrap: wrap">
               <router-link v-for="person in linkedPeople" :key="person.id" class="chip" :to="`/person/${person.id}`">
@@ -484,6 +567,10 @@ onMounted(async () => {
           <div v-if="item.kind" class="field">
             <label>Kind</label>
             <div>{{ String(item.kind).replace('_', ' ') }}</div>
+          </div>
+          <div v-if="itemPath" class="field">
+            <label>Path</label>
+            <div class="mono" style="overflow-wrap: anywhere">{{ itemPath }}</div>
           </div>
           <div v-if="item.external_id" class="field">
             <label>External id</label>

@@ -8,7 +8,7 @@ This page explains the parts and how they relate.
 | Concept | What it is |
 | --- | --- |
 | **Task** | The unit of work. Everything hangs off it. Carries an agent-maintained `summary` and `next_steps`. |
-| **Item** | Something external: a Slack thread, GitHub issue or pull request, Drive doc, URL, note, or commit. Items are deduplicated by URL or external id. |
+| **Item** | Something external: a Slack thread, GitHub issue or pull request, Drive doc, URL, note, commit, or a local file or directory path. Items are deduplicated by URL or external id. |
 | **Association** | A link between an item and a task (many-to-many), with a note. |
 | **Person** | An individual a task or an item involves: a name plus optional email, handle, and notes. Linked to tasks and items many-to-many. |
 | **Worktree** | An isolated `git worktree` created for a task from a registered repository. |

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from pathlib import Path
 
 GITHUB_RE = re.compile(r"github\.com/(?P<owner>[^/]+)/(?P<repo>[^/]+)/(?P<kind>issues|pull)/(?P<num>\d+)")
 
@@ -52,3 +53,48 @@ def looks_like_url(value: str | None) -> bool:
     if not text or any(char.isspace() for char in text):
         return False
     return bool(URL_SCHEME_RE.match(text) or BARE_HOST_RE.match(text))
+
+
+# A filesystem path the user typed: absolute, home-relative, explicit relative,
+# a Windows drive, or a UNC share. A relative path without a marker is only
+# taken as a path when it exists on the server.
+PATH_PREFIX_RE = re.compile(r"^(?:~[/\\]|/|\.{1,2}[/\\]|[A-Za-z]:[/\\]|\\\\)")
+
+
+def _strip_file_scheme(text: str) -> str:
+    if text.lower().startswith("file://"):
+        return text[7:]
+    return text
+
+
+def looks_like_path(value: str | None) -> bool:
+    """True when the value is a filesystem path rather than a URL or text."""
+    text = _strip_file_scheme((value or "").strip())
+    if not text or "\n" in text or "\r" in text:
+        return False
+    if looks_like_url(text):
+        return False
+    if PATH_PREFIX_RE.match(text):
+        return True
+    # A bare relative path is ambiguous with prose, so only an existing one counts.
+    try:
+        return Path(text).expanduser().exists()
+    except (OSError, ValueError):
+        return False
+
+
+def parse_path(value: str | None) -> dict[str, str] | None:
+    """Resolve a typed path to an absolute path and its kind.
+
+    A missing path is still returned (with an empty kind), so a reference to a
+    file that is not there yet can be captured; a fetch reports it as missing.
+    """
+    text = _strip_file_scheme((value or "").strip())
+    if not looks_like_path(text):
+        return None
+    try:
+        path = Path(text).expanduser().resolve()
+    except (OSError, RuntimeError, ValueError):
+        return None
+    kind = "directory" if path.is_dir() else "file" if path.is_file() else ""
+    return {"path": str(path), "kind": kind}

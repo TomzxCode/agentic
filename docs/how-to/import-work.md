@@ -23,8 +23,10 @@ You want a task that already carries its upstream context, instead of retyping a
 4. To browse GitHub instead of pasting, expand **or pick from a repository**, choose a registered repository, and pick an issue from the filterable, newest-first list.
 5. Optionally pick a repository group, add tags, and set a deadline.
 6. Save the task.
-7. Add more context later from the task's **Items** panel: paste a GitHub or Slack permalink, a Google Drive doc, a URL, or a note.
+7. Add more context later from the task's **Items** panel: paste a GitHub or Slack permalink, a Google Drive doc, a URL, a note, or a path to a local file or directory.
    Agentic infers the source from what you paste.
+   A path stays a reference: its preview is read live when you open the item, not stored.
+   Text files are shown in full, and a Markdown file is rendered as Markdown.
 
 If the Slack naming run fails, open the task and click **Name & summarize** in the **Context** panel to retry it.
 

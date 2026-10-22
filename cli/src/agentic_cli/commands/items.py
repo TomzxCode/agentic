@@ -15,7 +15,7 @@ from ..runtime import (
     safe,
 )
 
-item_app = App(name="item", help="Create and manage source items (Slack/GitHub/Drive/URL/note).")
+item_app = App(name="item", help="Create and manage source items (Slack/GitHub/Drive/URL/path/note).")
 
 
 def register(app: App) -> None:
@@ -45,15 +45,22 @@ def item_get(item_id: str) -> str:
 def item_create(
     source: Source | None = None,
     url: str | None = None,
+    path: str | None = None,
     title: str = "",
     content: str = "",
     external_id: str | None = None,
     fetch: bool = True,
 ) -> str:
-    """Create an item (source is inferred from the url/content; fetches unless --no-fetch)."""
+    """Create an item (source is inferred from the url/path/content; fetches unless --no-fetch)."""
     with runtime._client() as client:
         item = client.create_item(
-            source=source, url=url, title=title, content=content, external_id=external_id, fetch=fetch
+            source=source,
+            url=url,
+            path=path,
+            title=title,
+            content=content,
+            external_id=external_id,
+            fetch=fetch,
         )
     return emit(item, f"created {item['id']}  {_item_line(item)}")
 

@@ -18,7 +18,7 @@ session_link: "http://localhost:10000/?session=ses_ed209e713ffe1UX3Qqhq0UZ7Tw"
 
 ```
 agentic
-├── item                    Create and manage source items (Slack/GitHub/Drive/URL/note)
+├── item                    Create and manage source items (Slack/GitHub/Drive/URL/path/note)
 │   ├── list                List items (filter: --source)
 │   ├── get                 Show an item
 │   ├── create              Create an item (source inferred; fetches unless --no-fetch)
@@ -97,14 +97,15 @@ agentic item get 5f2a1c --format json
 
 ### `agentic item create`
 
-**Description:** Creates an item, inferring source, kind, and external id from the URL or text when `--source` is omitted, and fetching the title and content unless `--no-fetch`.
+**Description:** Creates an item, inferring source, kind, and external id from the URL, path, or text when `--source` is omitted, and fetching the title and content unless `--no-fetch`.
 Text that is not a URL is stored as a note's content rather than a link.
-Serves FR-1, FR-2, FR-3, and FR-4.
+A path is stored as source `file` with its directory listing or file preview as content.
+Serves FR-1, FR-2, FR-3, FR-4, and FR-11.
 
 **Synopsis:**
 
 ```
-agentic item create [--source SOURCE] [--url URL] [--title TEXT] [--content TEXT]
+agentic item create [--source SOURCE] [--url URL] [--path PATH] [--title TEXT] [--content TEXT]
                     [--external-id ID] [--fetch | --no-fetch]
 ```
 
@@ -120,6 +121,7 @@ agentic item create [--source SOURCE] [--url URL] [--title TEXT] [--content TEXT
 |---|---|---|---|---|
 | | `--source` | slack \| github \| gdrive \| url \| note \| commit \| file | (inferred) | Override the inferred source |
 | | `--url` | url | | The item's URL; a non-URL value is stored as note content |
+| | `--path` | path | | A local file or directory path |
 | | `--title` | text | `""` | Item title |
 | | `--content` | text | `""` | Item content |
 | | `--external-id` | id | | The external id (for example `o/r#42`) |
@@ -130,6 +132,7 @@ agentic item create [--source SOURCE] [--url URL] [--title TEXT] [--content TEXT
 ```bash
 agentic item create --url https://github.com/o/r/issues/42
 agentic item create --content "remember to rotate the token"
+agentic item create --path ./docs/design.md
 agentic item create --url https://acme.slack.com/archives/C1/p1700000000 --no-fetch
 ```
 
@@ -246,13 +249,13 @@ agentic item delete 5f2a1c
 
 ### `agentic link add`
 
-**Description:** Associates an existing item (`--item-id`) or a newly created item (`--url` or `--content`) with a task, with an optional note.
-Serves FR-5 and FR-7 (as the manual linking path).
+**Description:** Associates an existing item (`--item-id`) or a newly created item (`--url`, `--path`, or `--content`) with a task, with an optional note.
+Serves FR-5, FR-7 (as the manual linking path), and FR-11.
 
 **Synopsis:**
 
 ```
-agentic link add TASK_ID [--item-id ID | --url URL --content TEXT --title TEXT]
+agentic link add TASK_ID [--item-id ID | --url URL --path PATH --content TEXT --title TEXT]
                [--source SOURCE] [--external-id ID] [--note TEXT] [--fetch | --no-fetch]
 ```
 
@@ -268,6 +271,7 @@ agentic link add TASK_ID [--item-id ID | --url URL --content TEXT --title TEXT]
 |---|---|---|---|---|
 | | `--item-id` | id | | Link an existing item |
 | | `--url` | url | | Create and link a new item from this URL |
+| | `--path` | path | | Create and link a new item from this local path |
 | | `--content` | text | | Create and link a new item from this content |
 | | `--title` | text | `""` | Title for the new item |
 | | `--source` | slack \| github \| gdrive \| url \| note \| commit \| file | (inferred) | Source for the new item |
@@ -275,7 +279,7 @@ agentic link add TASK_ID [--item-id ID | --url URL --content TEXT --title TEXT]
 | | `--note` | text | `""` | A note recorded with the association |
 | | `--fetch` / `--no-fetch` | bool | fetch on | Fetch the new item's content on create |
 
-Provide either `--item-id` or one of `--url`/`--content`/`--title`; the command rejects a call with none of them.
+Provide either `--item-id` or one of `--url`/`--path`/`--content`/`--title`; the command rejects a call with none of them.
 
 **Examples:**
 
@@ -284,7 +288,7 @@ agentic link add 8dcb9b08ca12 --item-id 5f2a1c
 agentic link add 8dcb9b08ca12 --url https://github.com/o/r/issues/42 --note "tracked upstream"
 ```
 
-**Errors:** with no `--item-id` and no new-item input, prints `error: provide --item-id, or a --url/--content for a new item` on stderr and exits 1; an unknown task prints `error: Task not found (HTTP 404)` and exits 1.
+**Errors:** with no `--item-id` and no new-item input, prints `error: provide --item-id, or a --url/--path/--content for a new item` on stderr and exits 1; an unknown task prints `error: Task not found (HTTP 404)` and exits 1.
 
 ### `agentic link remove`
 

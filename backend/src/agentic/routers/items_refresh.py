@@ -39,6 +39,11 @@ def _apply_fetch(item: SourceItem, fetched: dict, now) -> str | None:
         item.title = fetched.get("title") or item.title
     item.content = fetched.get("content") or item.content
     item.metadata_json = {**(item.metadata_json or {}), **fetched.get("metadata", {})}
+    if item.source == "file":
+        item.kind = fetched.get("metadata", {}).get("kind") or item.kind
+        # A path is a reference: the file's content is never stored, so a
+        # snapshot written by an older version is dropped on the next fetch.
+        item.content = ""
     if item.source == "slack" and item.done_at is not None and not item.done_message_ts:
         # A thread marked done before its newest message was ever recorded gets
         # its baseline here, so the first fetch does not flag everything as new.
@@ -59,6 +64,9 @@ def _safe_fetch(item: SourceItem) -> dict:
     item's failure must not take the whole pass down with it.
     """
     try:
+        if item.source == "file":
+            path = (item.metadata_json or {}).get("path") or item.external_id
+            return fetch_source(item.source, item.url, item.external_id, item.title, path=path)
         return fetch_source(item.source, item.url, item.external_id, item.title)
     except Exception as exc:  # noqa: BLE001
         return {"metadata": {}, "content": "", "title": item.title, "people": [], "error": str(exc)}

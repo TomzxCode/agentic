@@ -68,11 +68,12 @@ The task representation returns those fields plus `waiting_on_name`.
 
 | Method | Path | Purpose |
 | --- | --- | --- |
-| `GET` / `POST` | `/api/items` | List and create source items. |
+| `GET` / `POST` | `/api/items` | List and create source items. A create takes `url`, `path`, or `content`; a filesystem path is stored as source `file` with kind `file` or `directory`. |
 | `POST` | `/api/items/refresh-due` | Run one refresh pass immediately. |
 | `POST` | `/api/items/refresh-source/{source}` | Re-fetch every item of one source now, ignoring the refresh policy. |
 | `GET` / `PATCH` / `DELETE` | `/api/items/{id}` | Read, update, and delete an item. A Slack thread is marked done with `{"done": true}` and reopened with `{"done": false}`; `new_since_done` on the read says a message arrived after the decision. |
-| `POST` | `/api/items/{id}/refresh` | Refresh one item now. |
+| `POST` | `/api/items/{id}/refresh` | Refresh one item now. A path is re-statted and its content is never stored. |
+| `GET` | `/api/items/{id}/path` | Read a path item's current file preview or directory listing. The read does not write the content back to the item. |
 | `GET` | `/api/items/{id}/reviews` | List the review reports a pull request item has on disk. |
 | `GET` | `/api/items/{id}/reviews/{name}` | Read one review report. |
 | `GET` | `/api/items/{id}/reviewers` | The PR's reviewers and pending review requests, one row each, read live from GitHub through `gh`. |

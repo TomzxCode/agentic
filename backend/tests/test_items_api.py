@@ -146,6 +146,87 @@ def test_create_item_dedupes_by_url():
         client.delete(f"/api/items/{first['id']}")
 
 
+def test_create_item_from_a_file_path_stores_only_a_reference(tmp_path):
+    target = tmp_path / "notes.txt"
+    target.write_text("first line\nsecond line\n")
+    with TestClient(app) as client:
+        first = client.post("/api/items", json={"url": str(target)}).json()
+        assert first["source"] == "file" and first["kind"] == "file"
+        assert first["title"] == "notes.txt" and first["url"] is None
+        assert first["external_id"] == str(target.resolve())
+        assert first["metadata_json"]["path"] == str(target.resolve())
+        assert first["fetched_at"] is not None
+        # A path is a reference: its content stays out of the item record.
+        assert first["content"] == ""
+
+        # The content is read live, on demand, and never written back.
+        preview = client.get(f"/api/items/{first['id']}/path").json()
+        assert "first line" in preview["content"] and preview["truncated"] is False
+        refetched = client.get(f"/api/items/{first['id']}").json()
+        assert refetched["content"] == ""
+
+        # The explicit path field and a path pasted as a url name the same item.
+        second = client.post("/api/items", json={"path": str(target)}).json()
+        assert second["id"] == first["id"]
+        client.delete(f"/api/items/{first['id']}")
+
+
+def test_create_item_from_a_directory_path_lists_it_live(tmp_path):
+    folder = tmp_path / "project"
+    (folder / "sub").mkdir(parents=True)
+    (folder / "main.py").write_text("print('hi')\n")
+    with TestClient(app) as client:
+        item = client.post("/api/items", json={"path": str(folder)}).json()
+        assert item["source"] == "file" and item["kind"] == "directory"
+        assert item["title"] == "project"
+        assert item["content"] == ""
+        preview = client.get(f"/api/items/{item['id']}/path").json()
+        assert "main.py" in preview["content"] and "sub/" in preview["content"]
+        client.delete(f"/api/items/{item['id']}")
+
+
+def test_a_missing_path_is_still_recorded_and_refresh_reports_it(tmp_path):
+    target = tmp_path / "gone.txt"
+    with TestClient(app) as client:
+        item = client.post("/api/items", json={"path": str(target)}).json()
+        assert item["source"] == "file" and item["kind"] == ""
+        assert "does not exist" in (item["fetch_error"] or "")
+        assert item["metadata_json"]["exists"] is False
+
+        target.write_text("now it is here")
+        refreshed = client.post(f"/api/items/{item['id']}/refresh").json()
+        assert refreshed["fetch_error"] is None
+        assert refreshed["kind"] == "file" and refreshed["content"] == ""
+        preview = client.get(f"/api/items/{item['id']}/path").json()
+        assert "now it is here" in preview["content"]
+        client.delete(f"/api/items/{item['id']}")
+
+
+def test_a_path_item_never_keeps_a_content_snapshot(tmp_path):
+    target = tmp_path / "tracked.txt"
+    target.write_text("version one")
+    with TestClient(app) as client:
+        item = client.post(
+            "/api/items",
+            json={"path": str(target), "content": "an old copied snapshot", "fetch": False},
+        ).json()
+        assert item["content"] == "an old copied snapshot"
+
+        target.write_text("version two")
+        refreshed = client.post(f"/api/items/{item['id']}/refresh").json()
+        assert refreshed["content"] == ""
+        preview = client.get(f"/api/items/{item['id']}/path").json()
+        assert "version two" in preview["content"]
+        client.delete(f"/api/items/{item['id']}")
+
+
+def test_reading_a_non_path_item_as_a_path_is_rejected():
+    with TestClient(app) as client:
+        item = client.post("/api/items", json={"content": "a note", "fetch": False}).json()
+        assert client.get(f"/api/items/{item['id']}/path").status_code == 400
+        client.delete(f"/api/items/{item['id']}")
+
+
 def test_create_item_respects_explicit_source_and_derives_title():
     with TestClient(app) as client:
         explicit = client.post(

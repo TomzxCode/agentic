@@ -27,21 +27,23 @@ def link_add(
     item_id: str | None = None,
     source: Source | None = None,
     url: str | None = None,
+    path: str | None = None,
     title: str = "",
     content: str = "",
     external_id: str | None = None,
     note: str = "",
     fetch: bool = True,
 ) -> str | int:
-    """Associate an existing item (--item-id) or a new one (--url/--content) with a task."""
+    """Associate an existing item (--item-id) or a new one (--url/--path/--content) with a task."""
     item = None
     if item_id is None:
-        if not (url or content or title):
-            print("error: provide --item-id, or a --url/--content for a new item", file=sys.stderr)
+        if not (url or path or content or title):
+            print("error: provide --item-id, or a --url/--path/--content for a new item", file=sys.stderr)
             return 1
         item = {
             "source": source,
             "url": url,
+            "path": path,
             "title": title,
             "content": content,
             "external_id": external_id,
