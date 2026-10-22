@@ -27,27 +27,29 @@ The web app is organized into these pages:
 
 | Page | What it shows |
 | --- | --- |
-| Tasks (`/`) | The task list, with status filters, grouping, upcoming deadlines, and the people in flight. |
-| Inbox (`/inbox`) | Suggested next actions, recomputed on every read. |
-| Review queue (`/reviews`) | Pull requests awaiting your review and those with review reports, one row per PR with a column per review step and a merge-readiness light. |
-| My PRs (`/my-pulls`) | The open pull requests you authored, with their check rollup, review decision, approvers, and open review threads. |
-| PR feedback (`/feedback`) | Reviewer comments awaiting a decision, one card per comment, with Implement / Decline / Defer. |
-| Decisions (`/decisions`) | What your colleagues decided, from the extract-colleague-decisions reports: by author, supporter, opponent, or a support/opposition matrix. |
-| Stack (`/stack`) | The focus queue, with the current task on top. |
-| Task (`/task/:id`) | One task: context, items, people, dependencies, worktrees, runs, and changes. |
-| Gantt (`/gantt`) | Tasks in flight as a timeline, one marker per event. |
-| Graph (`/graph`) | The before/after dependency DAG. |
-| Events (`/events`) | Every task's activity as one stream, newest first and grouped by day with a timeline per day, filtered by search, actor, or client. |
-| Metrics (`/metrics`) | Autonomy rate and yield, each against a stored baseline. |
-| Items (`/items`) | Every tracked resource, with per-source filters. |
-| Item (`/items/:id`) | One resource, laid out for its type, with its linked tasks and people. |
-| People (`/people`) | The people directory and what each is attached to. |
-| Person (`/person/:id`) | One person and the tasks and items they are attached to. |
-| New person (`/person/new`) | Create a person from an unresolved handle; a handle no person carries links here, kept grey. |
-| Repositories (`/repositories`) | Registered checkouts and their issues and pull requests. |
-| Repository (`/repositories/:id`) | One repository's issues and pull requests, read fresh from GitHub. |
-| Scheduled tasks (`/schedules`) | Cron-scheduled shell tasks, with run history and output. |
-| Settings (`/settings`) | Harnesses, repository groups, refresh policies, link templates, the sidebar layout, and dependency and cache diagnostics. |
+| [Stack](views/stack.md) (`/stack`) | The focus queue, with the current task on top. |
+| [Tasks](views/tasks.md) (`/`) | The task list, with status filters, grouping, upcoming deadlines, and the people in flight. |
+| [Task](views/task.md) (`/task/:id`) | One task: context, items, people, dependencies, worktrees, runs, and changes. |
+| [Inbox](views/inbox.md) (`/inbox`) | Suggested next actions, recomputed on every read. |
+| [Review queue](views/reviews.md) (`/reviews`) | Pull requests awaiting your review and those with review reports, one row per PR with a column per review step and a merge-readiness light. |
+| [My PRs](views/my-pulls.md) (`/my-pulls`) | The open pull requests you authored, with their check rollup, review decision, approvers, and open review threads. |
+| [PR feedback](views/feedback.md) (`/feedback`) | Reviewer comments awaiting a decision, one card per comment, with Implement / Decline / Defer. |
+| [Decisions](views/decisions.md) (`/decisions`) | What your colleagues decided, from the extract-colleague-decisions reports: by author, supporter, opponent, or a support/opposition matrix. |
+| [Gantt](views/gantt.md) (`/gantt`) | Tasks in flight as a timeline, one marker per event. |
+| [Graph](views/graph.md) (`/graph`) | The before/after dependency DAG. |
+| [Events](views/events.md) (`/events`) | Every task's activity as one stream, newest first and grouped by day with a timeline per day, filtered by search, actor, or client. |
+| [Metrics](views/metrics.md) (`/metrics`) | Autonomy rate and yield, each against a stored baseline. |
+| [Items](views/items.md) (`/items`) | Every tracked resource, with per-source filters. |
+| [Item](views/items.md) (`/items/:id`) | One resource, laid out for its type, with its linked tasks and people. |
+| [People](views/people.md) (`/people`) | The people directory and what each is attached to. |
+| [Person](views/people.md) (`/person/:id`) | One person and the tasks and items they are attached to. |
+| [New person](views/people.md) (`/person/new`) | Create a person from an unresolved handle; a handle no person carries links here, kept grey. |
+| [Repositories](views/repositories.md) (`/repositories`) | Registered checkouts and their issues and pull requests. |
+| [Repository](views/repositories.md) (`/repositories/:id`) | One repository's issues and pull requests, read fresh from GitHub. |
+| [Scheduled tasks](views/schedules.md) (`/schedules`) | Cron-scheduled shell tasks, with run history and output. |
+| [Settings](views/settings.md) (`/settings`) | Harnesses, repository groups, refresh policies, link templates, the sidebar layout, and dependency and cache diagnostics. |
+
+The order matches the sidebar's default order, with each detail route listed under the page that owns it.
 
 The app is built to work at phone widths: below 760px the sidebar becomes a drawer you open from the top bar.
 
@@ -61,6 +63,7 @@ The documentation follows the [Divio](https://docs.divio.com/documentation-syste
 | --- | --- |
 | [Tutorial](tutorials/getting-started.md) | Learn the app from scratch by completing a first task end to end. |
 | [How-to guides](how-to/run-an-agent.md) | Accomplish a specific task you already know you want. |
+| [Views](views/tasks.md) | Understand one page of the app: what it solves, how to use it, and the CLI and HTTP interface behind it. |
 | [Reference](reference/cli.md) | Look up a command, an environment variable, or an endpoint. |
 | [Explanation](explanation/concepts.md) | Understand how a part of the system works and why. |
 
