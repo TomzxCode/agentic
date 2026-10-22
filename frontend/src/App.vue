@@ -380,21 +380,16 @@ onUnmounted(() => {
         <router-link to="/" class="brand">
           <svg viewBox="0 0 512 512" aria-hidden="true">
             <path
-              d="M160 168 L256 128 L352 168 M160 168 L160 288 L256 344 L352 288 L352 168 M160 288 L256 248 L352 288"
-              stroke="#6ee7b7"
-              stroke-width="16"
-              fill="none"
-              stroke-linecap="round"
+              d="M124 380 Q112 380 117 368 L226 136 Q233 120 248 120 H268
+                   Q281 120 288 136 L340 248 H276 L258 208 L184 368
+                   Q179 380 166 380 Z"
+              fill="#6ee7b7"
             />
-            <g fill="#6ee7b7">
-              <circle cx="256" cy="128" r="26" />
-              <circle cx="160" cy="168" r="18" />
-              <circle cx="352" cy="168" r="18" />
-              <circle cx="256" cy="248" r="20" />
-              <circle cx="160" cy="288" r="18" />
-              <circle cx="352" cy="288" r="18" />
-              <circle cx="256" cy="344" r="26" />
-            </g>
+            <path
+              d="M244 280 H354 L395 368 Q401 380 388 380 H350
+                   Q338 380 333 368 L316 332 H220 Z"
+              fill="#eef2f6"
+            />
           </svg>
           <span>Agentic</span>
         </router-link>
