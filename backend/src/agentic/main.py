@@ -21,6 +21,7 @@ from .config import settings
 from .db import create_db_and_tables, engine
 from .debug import DebugMiddleware, recent_requests
 from .jobs import close_queue, get_queue, reconcile_runs
+from .log_setup import configure_logging
 from .provenance import ProvenanceMiddleware
 from .request_logging import configure_request_logging
 from .routers import (
@@ -59,6 +60,7 @@ from .routers import tags as tags_router
 from .schedules import reconcile_scheduled_runs, scheduler_loop
 
 log = structlog.get_logger(__name__)
+configure_logging()
 configure_request_logging()
 
 

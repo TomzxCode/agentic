@@ -14,7 +14,7 @@
 
 | Library | Pillar | Configuration |
 |---|---|---|
-| structlog | Logging | `structlog.get_logger(__name__)`; key/value structured events; output goes to the process stdout via uvicorn |
+| structlog | Logging | `structlog.get_logger(__name__)`; key/value structured events stamped to the millisecond (`log_setup.configure_logging`); output goes to the process stdout via uvicorn |
 | uvicorn | Logging | Access and startup logs at default level |
 
 ## Log Aggregation

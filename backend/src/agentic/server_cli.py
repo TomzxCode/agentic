@@ -37,7 +37,9 @@ def worker(concurrency: int | None = None) -> None:
     import asyncio
 
     from .jobs import run_worker
+    from .log_setup import configure_logging
 
+    configure_logging()
     asyncio.run(run_worker(concurrency=concurrency))
 
 
