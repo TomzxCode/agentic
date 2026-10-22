@@ -21,7 +21,19 @@ The Slack credentials keep the names `slackx` uses (`SLACK_TOKEN`, `SLACK_COOKIE
 | `AGENTIC_GITHUB_LOGIN` | (empty) | The GitHub login that counts as "you": a merged PR this account authored and a task links is recorded as a change automatically, and the inbox and a repository's pull requests only offer to record a change for the same PRs. Empty auto-detects the authenticated `gh` account. |
 | `SLACK_TOKEN` | (empty) | Slack token the item view's poke action sends with. Also read as `AGENTIC_SLACK_TOKEN`. A web token (`xoxc-`) needs `SLACK_COOKIE` (the `xoxd-` value); a bot token (`xoxb-`) does not. Empty disables poking. |
 | `SLACK_COOKIE` | (empty) | The `xoxd-` cookie that goes with an `xoxc-` web token. Also read as `AGENTIC_SLACK_COOKIE`. |
-| `SLACK_API_BASE_URL` | `https://slack.com/api` | Slack API base the poke action posts to. Also read as `AGENTIC_SLACK_API_BASE_URL`. |
+| `SLACK_BOT_TOKEN` | (empty) | Bot token used to post event notifications as a bot instead of as you. Also read as `AGENTIC_SLACK_BOT_TOKEN`. Falls back to `SLACK_TOKEN` when unset. |
+| `SLACK_BOT_COOKIE` | (empty) | Cookie paired with an `xoxc-` bot token. Also read as `AGENTIC_SLACK_BOT_COOKIE`. |
+| `SLACK_USER_ID` | (empty) | Default recipient for event notifications (a Slack user id, channel id, or channel name). Also read as `AGENTIC_SLACK_USER_ID` and settable under **Settings → Slack**. |
+| `SLACK_EVENTS_USER_ID` | (empty) | Preferred recipient for event notifications; overrides `SLACK_USER_ID`. Also read as `AGENTIC_SLACK_EVENTS_USER_ID`. |
+| `SLACK_EVENTS_CHANNEL` | (empty) | Channel recipient for event notifications. Also read as `AGENTIC_SLACK_EVENTS_CHANNEL`. |
+| `SLACK_NOTIFY_USER_ID` | (empty) | Recipient used for test notifications. Also read as `AGENTIC_SLACK_NOTIFY_USER_ID`. |
+| `SLACK_API_BASE_URL` | `https://slack.com/api` | Slack API base event notifications post to. Also read as `AGENTIC_SLACK_API_BASE_URL`. |
+| `AGENTIC_GHX_BACKEND` | `cli` | How the server runs `ghx`: `cli` spawns the binary per call, `rpc` calls its JSON-RPC server (start one with `ghx rpc serve`), using the typed methods for reads and `cli.run` for the rest. Also on **Settings → Local tools**, where a change applies without a restart. |
+| `AGENTIC_GHX_RPC_URL` | `http://127.0.0.1:8090` | `ghx rpc serve` base URL when the transport is rpc (the JSON-RPC endpoint is `<url>/rpc`). Also on **Settings → Local tools**. |
+| `AGENTIC_GHX_RPC_TOKEN` | (empty) | Bearer token sent to the `ghx rpc serve` server. Only needed when it is bound beyond loopback. Also on **Settings → Local tools**. |
+| `AGENTIC_SLACKX_BACKEND` | `cli` | How the server runs `slackx`: `cli` spawns the binary per call, `rpc` calls its JSON-RPC server (start one with `slackx rpc serve`), using the typed methods for reads and `cli.run` for the rest. Also on **Settings → Local tools**, where a change applies without a restart. |
+| `AGENTIC_SLACKX_RPC_URL` | `http://127.0.0.1:8280` | `slackx rpc serve` base URL when the transport is rpc (the JSON-RPC endpoint is `<url>/rpc`). Also on **Settings → Local tools**. |
+| `AGENTIC_SLACKX_RPC_TOKEN` | (empty) | Bearer token sent to the `slackx rpc serve` server. Only needed when it is bound beyond loopback. Also on **Settings → Local tools**. |
 | `AGENTIC_AUTO_APPROVE_PERMISSIONS` | `true` | Auto-approve ACP permission requests. |
 | `AGENTIC_WARM_HARNESS_SESSION` | `true` | Hold an ACP session open for the default harness from API startup, so the task view lists its model choices without spawning it. Runs still spawn their own session. |
 | `AGENTIC_QUEUE_URL` | `sqlite:///<data_dir>/queue.db` | Agent-run queue. Use a `redis://` or `postgres://` URL to share the queue across machines. |
@@ -59,7 +71,8 @@ Template placeholders:
 ## Settings overrides
 
 The session-link settings (OpenChamber URL and path, terminal URL template, and editor URL template) can also be set on the **Settings** page.
-The ghx and slackx web UI base URLs are under **Settings → Local tools**.
+The ghx and slackx settings are under **Settings → Local tools**: the web UI base URLs, and how the server runs each tool (`cli` spawns the binary per call, `rpc` asks the tool's JSON-RPC server instead, started with `ghx rpc serve` or `slackx rpc serve`; reads go through the server's typed methods, so they answer in-process instead of spawning a child per call).
+The transport is read per call, so a change there applies without a restart, also for the worker that runs agents.
 A stored override wins over the matching environment variable.
 
 The GitHub login is editable under **Settings → Identity**; leave it blank to fall back to the authenticated `gh` account.

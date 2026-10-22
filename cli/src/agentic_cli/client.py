@@ -116,6 +116,12 @@ class AgenticClient:
     def task_timeline(self, task_id: str) -> list[dict]:
         return self._request("GET", f"/api/tasks/{task_id}/timeline")
 
+    def send_event_to_slack(self, event_id: str, body: dict | None = None) -> dict:
+        return self._request("POST", f"/api/events/{event_id}/slack", json=body or {})
+
+    def send_events_to_slack(self, body: dict | None = None) -> dict:
+        return self._request("POST", "/api/slack/events", json=body or {})
+
     def associate(
         self,
         task_id: str,

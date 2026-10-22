@@ -5,7 +5,25 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
+from pydantic import BaseModel
+
 from .base import ORMModel
+
+
+class SlackEventSend(BaseModel):
+    """Ask the API to send one or more events through Slack."""
+
+    user_id: str | None = None
+    slack_user_id: str | None = None
+    channel: str | None = None
+    recipient: str | None = None
+    to: str | None = None
+    login: str | None = None
+    event_id: str | None = None
+    event_ids: list[str] | None = None
+    task_id: str | None = None
+    task_title: str | None = None
+    text: str | None = None
 
 
 class EventRead(ORMModel):

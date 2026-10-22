@@ -99,7 +99,10 @@ export const api = {
       if (limit) qs.set('limit', String(limit))
       const query = qs.toString()
       return request(`/events${query ? `?${query}` : ''}`)
-    }
+    },
+    sendToSlack: (id, body = {}) => request(`/events/${id}/slack`, { method: 'POST', body }),
+    send: (id, body = {}) => request(`/events/${id}/send`, { method: 'POST', body }),
+    sendToSlackBulk: (body = {}) => request(`/events/slack`, { method: 'POST', body })
   },
 
   gantt: {
@@ -345,7 +348,12 @@ export const api = {
     users: (ids = []) => {
       const qs = new URLSearchParams(ids.map((id) => ['ids', id])).toString()
       return request(`/slack/users${qs ? `?${qs}` : ''}`)
-    }
+    },
+    sendEvent: (id, body = {}) => request(`/slack/events/${id}`, { method: 'POST', body }),
+    sendEvents: (body = {}) => request(`/slack/events`, { method: 'POST', body }),
+    send: (body = {}) => request(`/slack/send`, { method: 'POST', body }),
+    test: (body = {}) => request(`/slack/test`, { method: 'POST', body }),
+    testNotification: (body = {}) => request(`/slack/test-notification`, { method: 'POST', body })
   },
 
   harnesses: {

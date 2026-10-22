@@ -5,13 +5,17 @@ from __future__ import annotations
 import json
 from datetime import UTC, datetime, timedelta
 
-from sqlmodel import Session, select
+import structlog
+from sqlalchemy.exc import OperationalError
+from sqlmodel import Session, col, select
 
 from .config import settings
 from .models.base import utcnow
 from .models.system import Setting
 from .refresh import REFRESHABLE_SOURCES
 from .services.github import detect_github_login
+
+log = structlog.get_logger(__name__)
 
 # Keys the Settings page can override. Values are strings (URLs, templates, and
 # JSON-encoded lists such as ``agent_prompts``).
@@ -23,7 +27,18 @@ OVERRIDABLE_KEYS = (
     "editor_url_template",
     "ghx_url",
     "slackx_url",
+    "ghx_backend",
+    "ghx_rpc_url",
+    "ghx_rpc_token",
+    "slackx_backend",
+    "slackx_rpc_url",
+    "slackx_rpc_token",
     "slack_refresh_policy",
+    "slack_user_id",
+    "slack_bot_token",
+    "slack_events_user_id",
+    "slack_events_channel",
+    "slack_notify_user_id",
     "github_refresh_policy",
     "review_scan_interval",
     "review_scan_default",
@@ -71,7 +86,18 @@ def env_defaults() -> dict[str, str]:
         "editor_url_template": settings.editor_url_template,
         "ghx_url": settings.ghx_url,
         "slackx_url": settings.slackx_url,
+        "ghx_backend": settings.ghx_backend,
+        "ghx_rpc_url": settings.ghx_rpc_url,
+        "ghx_rpc_token": settings.ghx_rpc_token,
+        "slackx_backend": settings.slackx_backend,
+        "slackx_rpc_url": settings.slackx_rpc_url,
+        "slackx_rpc_token": settings.slackx_rpc_token,
         "slack_refresh_policy": settings.slack_refresh_policy,
+        "slack_user_id": settings.slack_user_id,
+        "slack_bot_token": settings.slack_bot_token,
+        "slack_events_user_id": settings.slack_events_user_id,
+        "slack_events_channel": settings.slack_events_channel,
+        "slack_notify_user_id": settings.slack_notify_user_id,
         "github_refresh_policy": settings.github_refresh_policy,
         "review_scan_interval": settings.review_scan_interval,
         "review_scan_default": settings.review_scan_default,
@@ -81,6 +107,40 @@ def env_defaults() -> dict[str, str]:
 
 def get_overrides(session: Session) -> dict[str, str]:
     return {row.key: row.value for row in session.exec(select(Setting)).all() if row.key in OVERRIDABLE_KEYS}
+
+
+# The transport keys for the ghx and slackx helper CLIs. They decide how the
+# server runs those tools ("cli" spawns the binary, "rpc" calls its JSON-RPC
+# server), so they are read per call by ``services.shell``, which has no
+# session of its own.
+RPC_SETTING_KEYS = (
+    "ghx_backend",
+    "ghx_rpc_url",
+    "ghx_rpc_token",
+    "slackx_backend",
+    "slackx_rpc_url",
+    "slackx_rpc_token",
+)
+
+
+def get_rpc_overrides() -> dict[str, str]:
+    """The stored rpc transport overrides, read fresh from the setting table.
+
+    Opens its own session: the callers resolve the transport deep inside the
+    fetchers (and from the worker), where no request session is at hand. A
+    store that is not there yet (before the first migration) reads as no
+    overrides; anything else raises, and the caller falls back to the
+    environment values.
+    """
+    from .db import engine
+
+    try:
+        with Session(engine) as session:
+            rows = session.exec(select(Setting).where(col(Setting.key).in_(RPC_SETTING_KEYS))).all()
+    except OperationalError:
+        log.debug("rpc settings store not ready")
+        return {}
+    return {row.key: row.value for row in rows if row.value is not None}
 
 
 def get_settings(session: Session) -> dict[str, str]:

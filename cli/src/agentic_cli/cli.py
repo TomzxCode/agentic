@@ -21,6 +21,7 @@ from . import runtime as runtime
 from .client import DEFAULT_API_URL
 from .commands import (
     changes,
+    events,
     harnesses,
     health,
     items,
@@ -81,6 +82,7 @@ _COMMAND_MODULES = (
     tags,
     people,
     changes,
+    events,
     metrics,
     items,
     links,

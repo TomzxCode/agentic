@@ -7,6 +7,7 @@ export const SETTINGS_SECTIONS = [
   { id: 'sessions', label: 'Session links', icon: 'link' },
   { id: 'tools', label: 'Local tools', icon: 'server' },
   { id: 'identity', label: 'Identity', icon: 'identity' },
+  { id: 'slack', label: 'Slack', icon: 'server' },
   { id: 'harnesses', label: 'Agent harnesses', icon: 'harness' },
   { id: 'prompts', label: 'Agent prompts', icon: 'prompt' },
   { id: 'refresh', label: 'Refresh', icon: 'refresh' },

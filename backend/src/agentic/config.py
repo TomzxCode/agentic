@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Literal
 
 from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -68,10 +69,34 @@ class Settings(BaseSettings):
     # xoxd- cookie. Empty disables poking.
     slack_token: str = Field(default="", validation_alias=AliasChoices("AGENTIC_SLACK_TOKEN", "SLACK_TOKEN"))
     slack_cookie: str = Field(default="", validation_alias=AliasChoices("AGENTIC_SLACK_COOKIE", "SLACK_COOKIE"))
+    # A bot token (xoxb-) used to post notifications as a bot rather than as
+    # you. Empty falls back to SLACK_TOKEN.
+    slack_bot_token: str = Field(default="", validation_alias=AliasChoices("AGENTIC_SLACK_BOT_TOKEN", "SLACK_BOT_TOKEN"))
+    slack_bot_cookie: str = Field(default="", validation_alias=AliasChoices("AGENTIC_SLACK_BOT_COOKIE", "SLACK_BOT_COOKIE"))
     slack_api_base_url: str = Field(
         default="https://slack.com/api",
         validation_alias=AliasChoices("AGENTIC_SLACK_API_BASE_URL", "SLACK_API_BASE_URL"),
     )
+
+    # The Slack user or channel that receives events sent through Slack. Empty
+    # disables sending unless a recipient is given on the call.
+    slack_user_id: str = Field(default="", validation_alias=AliasChoices("AGENTIC_SLACK_USER_ID", "SLACK_USER_ID", "AGENTIC_SLACK_EVENTS_USER_ID", "SLACK_EVENTS_USER_ID"))
+    slack_events_user_id: str = Field(default="", validation_alias=AliasChoices("AGENTIC_SLACK_EVENTS_USER_ID", "SLACK_EVENTS_USER_ID"))
+    slack_events_channel: str = Field(default="", validation_alias=AliasChoices("AGENTIC_SLACK_EVENTS_CHANNEL", "SLACK_EVENTS_CHANNEL"))
+    slack_notify_user_id: str = Field(default="", validation_alias=AliasChoices("AGENTIC_SLACK_NOTIFY_USER_ID", "SLACK_NOTIFY_USER_ID"))
+
+    # How the server runs the ghx and slackx helper CLIs: "cli" spawns the
+    # binary per call, "rpc" sends the same command lines to the tool's own
+    # JSON-RPC server instead (`ghx rpc serve`, `slackx rpc serve`), so one warm
+    # process serves every read. The URL is the server's base URL; the
+    # JSON-RPC endpoint lives at <url>/rpc. A token is only needed when a
+    # server is bound beyond loopback.
+    ghx_backend: Literal["cli", "rpc"] = "cli"
+    ghx_rpc_url: str = "http://127.0.0.1:8090"
+    ghx_rpc_token: str = ""
+    slackx_backend: Literal["cli", "rpc"] = "cli"
+    slackx_rpc_url: str = "http://127.0.0.1:8280"
+    slackx_rpc_token: str = ""
 
     # Base URLs of the tools' own web UIs (`ghx serve`, `slackx serve`). When
     # set, GitHub and Slack items link into those UIs, so an item opens in the

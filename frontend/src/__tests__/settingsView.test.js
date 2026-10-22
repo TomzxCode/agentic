@@ -130,7 +130,7 @@ describe('SettingsView', () => {
     await flushPromises()
 
     const items = wrapper.findAll('.settings-nav-item')
-    expect(items.length).toBe(10)
+    expect(items.length).toBe(11)
     for (const item of items) {
       expect(item.find('svg').exists()).toBe(true)
     }
@@ -178,6 +178,23 @@ describe('SettingsView', () => {
     await slackx.trigger('blur')
     await flushPromises()
     expect(mocks.settingsUpdate).toHaveBeenCalledWith({ slackx_url: 'http://localhost:8280' })
+
+    const ghxTransport = wrapper.findAll('select').find((s) => s.text().includes('ghx JSON-RPC server'))
+    await ghxTransport.setValue('rpc')
+    await flushPromises()
+    expect(mocks.settingsUpdate).toHaveBeenCalledWith({ ghx_backend: 'rpc' })
+
+    const ghxRpcUrl = wrapper.get('input[placeholder="http://127.0.0.1:8090"]')
+    await ghxRpcUrl.setValue('http://127.0.0.1:19090')
+    await ghxRpcUrl.trigger('blur')
+    await flushPromises()
+    expect(mocks.settingsUpdate).toHaveBeenCalledWith({ ghx_rpc_url: 'http://127.0.0.1:19090' })
+
+    const ghxRpcToken = wrapper.get('input[placeholder="only when the server is bound beyond loopback"]')
+    await ghxRpcToken.setValue('t0ken')
+    await ghxRpcToken.trigger('blur')
+    await flushPromises()
+    expect(mocks.settingsUpdate).toHaveBeenCalledWith({ ghx_rpc_token: 't0ken' })
   })
 
   it('previews and saves each source refresh policy', async () => {

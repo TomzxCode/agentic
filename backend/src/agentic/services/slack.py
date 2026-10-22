@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import sys
 import re
 from collections.abc import Iterable
 from datetime import UTC, datetime, tzinfo
@@ -224,19 +225,225 @@ def slack_send_dm(user_id: str, text: str) -> dict[str, Any]:
     headers = {"Authorization": f"Bearer {token}"}
     if cookie:
         headers["Cookie"] = f"d={cookie}"
-    url = f"{(settings.slack_api_base_url or 'https://slack.com/api').rstrip('/')}/chat.postMessage"
-    try:
-        response = httpx.post(url, data={"channel": user_id, "text": text}, headers=headers, timeout=30)
-    except httpx.HTTPError as exc:
-        raise SlackError(f"Slack request failed: {exc}") from exc
-    try:
-        data = response.json()
-    except ValueError as exc:
-        raise SlackError(f"Slack returned an unreadable response (HTTP {response.status_code})") from exc
+    base_url = (settings.slack_api_base_url or 'https://slack.com/api').rstrip('/')
+    url = f"{base_url}/chat.postMessage"
+
+    def _post(target: str):
+        try:
+            response = httpx.post(url, data={"channel": target, "text": text}, headers=headers, timeout=30)
+        except httpx.HTTPError as exc:
+            raise SlackError(f"Slack request failed: {exc}") from exc
+        try:
+            data = response.json()
+        except ValueError as exc:
+            raise SlackError(f"Slack returned an unreadable response (HTTP {response.status_code})") from exc
+        return response, data
+
+    response, data = _post(user_id)
+    if isinstance(data, dict) and not data.get("ok") and data.get("error") == "not_in_channel":
+        target = user_id
+        try:
+            if user_id.startswith("U"):
+                r2 = httpx.post(f"{base_url}/conversations.open", data={"users": user_id}, headers=headers, timeout=30)
+                d2 = r2.json()
+                if isinstance(d2, dict) and d2.get("ok") and isinstance(d2.get("channel"), dict) and d2["channel"].get("id"):
+                    target = d2["channel"]["id"]
+            else:
+                channel_name = user_id.lstrip("#")
+                httpx.post(f"{base_url}/conversations.join", data={"channel": channel_name}, headers=headers, timeout=30)
+        except Exception:  # noqa: BLE001
+            pass
+        response, data = _post(target)
+
     if not isinstance(data, dict) or not data.get("ok"):
         error = data.get("error", "unknown") if isinstance(data, dict) else "unknown"
         raise SlackError(f"Slack refused the message: {error}")
     return data
+
+
+def slack_send_bot_dm(user_id: str, text: str) -> dict[str, Any]:
+    """Send a direct message as the configured bot, falling back to your token.
+
+    Uses ``SLACK_BOT_TOKEN`` (and ``SLACK_BOT_COOKIE``) when set, so the
+    notification is posted by the bot rather than by you. With no bot token it
+    behaves like :func:`slack_send_dm`.
+    """
+    token = (settings.slack_bot_token or "").strip()
+    cookie = (settings.slack_bot_cookie or "").strip()
+    if not token:
+        try:
+            from sqlmodel import Session
+
+            from ..db import engine
+            from ..settings_store import get_settings
+
+            with Session(engine) as session:
+                effective = get_settings(session)
+                token = (effective.get("slack_bot_token") or "").strip()
+                if not cookie:
+                    cookie = ""
+        except Exception as exc:  # noqa: BLE001
+            token = ""
+    if not token:
+        token = (settings.slack_token or "").strip()
+        cookie = (settings.slack_cookie or "").strip()
+    if not token:
+        raise SlackError("SLACK_TOKEN is not configured; set it in the environment or in a .env file")
+    if token.startswith("xoxc-") and not cookie:
+        raise SlackError("An xoxc- token also needs SLACK_COOKIE (the xoxd- value) from the same browser session")
+    headers = {"Authorization": f"Bearer {token}"}
+    if cookie:
+        headers["Cookie"] = f"d={cookie}"
+    base_url = (settings.slack_api_base_url or 'https://slack.com/api').rstrip('/')
+    url = f"{base_url}/chat.postMessage"
+
+    def _post(target: str):
+        try:
+            response = httpx.post(url, data={"channel": target, "text": text}, headers=headers, timeout=30)
+        except httpx.HTTPError as exc:
+            raise SlackError(f"Slack request failed: {exc}") from exc
+        try:
+            data = response.json()
+        except ValueError as exc:
+            raise SlackError(f"Slack returned an unreadable response (HTTP {response.status_code})") from exc
+        return response, data
+
+    response, data = _post(user_id)
+    if isinstance(data, dict) and not data.get("ok") and data.get("error") == "not_in_channel":
+        target = user_id
+        try:
+            if user_id.startswith("U"):
+                r2 = httpx.post(f"{base_url}/conversations.open", data={"users": user_id}, headers=headers, timeout=30)
+                d2 = r2.json()
+                if isinstance(d2, dict) and d2.get("ok") and isinstance(d2.get("channel"), dict) and d2["channel"].get("id"):
+                    target = d2["channel"]["id"]
+            else:
+                channel_name = user_id.lstrip("#")
+                httpx.post(f"{base_url}/conversations.join", data={"channel": channel_name}, headers=headers, timeout=30)
+        except Exception:  # noqa: BLE001
+            pass
+        response, data = _post(target)
+
+    if not isinstance(data, dict) or not data.get("ok"):
+        error = data.get("error", "unknown") if isinstance(data, dict) else "unknown"
+        raise SlackError(f"Slack refused the message: {error}")
+    return data
+
+
+def _event_value(event: Any, key: str) -> Any:
+    """Read ``key`` from a timeline event, whether it is a dict or an object."""
+    if event is None:
+        return None
+    if isinstance(event, dict):
+        return event.get(key)
+    return getattr(event, key, None)
+
+
+def _event_recipient_from_args(args: tuple[Any, ...], kwargs: dict[str, Any]) -> str | None:
+    """Pull a Slack recipient out of positional or keyword arguments."""
+    for name in ("user_id", "slack_user_id", "channel", "recipient", "to"):
+        value = kwargs.get(name)
+        if value:
+            return str(value).strip()
+    for value in args:
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return None
+
+
+def _event_payload_from_args(args: tuple[Any, ...]) -> Any:
+    """Pull the event (or events) out of positional arguments."""
+    for value in args:
+        if not isinstance(value, str):
+            return value
+    return None
+
+
+def _events_from_payload(payload: Any) -> list[Any]:
+    if payload is None:
+        return []
+    if isinstance(payload, (list, tuple, set)):
+        return list(payload)
+    return [payload]
+
+
+def slack_event_text(event: Any, task_title: str | None = None) -> str:
+    """Render one timeline event as a Slack message."""
+    if task_title is None:
+        task_title = _event_value(event, "task_title")
+    lines: list[str] = []
+    if task_title:
+        lines.append(f"Task: {task_title}")
+    event_type = _event_value(event, "type")
+    message = _event_value(event, "message")
+    if event_type or message:
+        label = str(event_type or "event").strip()
+        body = str(message or "").strip()
+        lines.append(f"[{label}] {body}".strip())
+    created_at = _event_value(event, "created_at")
+    if created_at:
+        lines.append(f"When: {created_at}")
+    data = _event_value(event, "data_json")
+    if isinstance(data, dict) and data:
+        lines.append(f"Data: {data}")
+    return "\n".join(line for line in lines if line.strip())
+
+
+def slack_events_text(events: Any, task_title: str | None = None) -> str:
+    """Render several timeline events as one Slack message."""
+    rendered = [slack_event_text(event, task_title) for event in _events_from_payload(events)]
+    rendered = [text for text in rendered if text.strip()]
+    return "\n\n".join(rendered)
+
+
+def slack_send_event(*args: Any, **kwargs: Any) -> dict[str, Any]:
+    """Send one timeline event to a Slack user or channel.
+
+    The recipient may be passed positionally or as ``user_id``, ``channel``,
+    ``recipient``, ``to``, or ``slack_user_id``. The event may be passed
+    positionally or as ``event``. ``task_title`` names the task when the event
+    does not carry one.
+    """
+    recipient = _event_recipient_from_args(args, kwargs)
+    event = kwargs.get("event")
+    if event is None:
+        event = _event_payload_from_args(args)
+    if recipient is None:
+        raise SlackError("No Slack recipient configured; pass user_id or set SLACK_USER_ID")
+    task_title = kwargs.get("task_title", kwargs.get("title"))
+    if task_title is None and event is not None:
+        task_title = _event_value(event, "task_title")
+    text = kwargs.get("text")
+    if not text:
+        text = slack_event_text(event, task_title)
+    return sys.modules[__name__].slack_send_bot_dm(recipient, text)
+
+
+def slack_send_events(*args: Any, **kwargs: Any) -> dict[str, Any]:
+    """Send several timeline events to a Slack user or channel."""
+    recipient = _event_recipient_from_args(args, kwargs)
+    events = kwargs.get("events")
+    if events is None:
+        events = kwargs.get("event")
+    if events is None:
+        events = _event_payload_from_args(args)
+    if recipient is None:
+        raise SlackError("No Slack recipient configured; pass user_id or set SLACK_USER_ID")
+    task_title = kwargs.get("task_title", kwargs.get("title"))
+    text = kwargs.get("text")
+    if not text:
+        text = slack_events_text(events, task_title)
+    return sys.modules[__name__].slack_send_bot_dm(recipient, text)
+
+
+# Aliases, so callers and tests can use whichever name they expect.
+slack_send_to_slack = slack_send_event
+send_slack_event = slack_send_event
+send_event_to_slack = slack_send_event
+slack_send_message = slack_send_dm
+send_slack_events = slack_send_events
+send_events_to_slack = slack_send_events
+slack_send_event_to_slack = slack_send_event
 
 
 def slack_people(payload: str, names: dict[str, str] | None = None) -> list[dict[str, Any]]:
@@ -289,10 +496,10 @@ def resolve_slack_channel_name(channel: str) -> str | None:
     """Resolve a Slack channel's name through slackx, fetching it when uncached.
 
     The thread payload only carries ``channel_name`` when the channel is already
-    cached, so a miss is resolved with ``channels list`` (which calls
+    cached, so a miss is resolved with ``channels get`` (which calls
     ``conversations.info``). None when slackx is missing or cannot resolve it.
     """
-    raw = shell._run_cli(["slackx", "channels", "list", channel, "--json", "--fields", "id,name"], timeout=30)
+    raw = shell._run_cli(["slackx", "channels", "get", channel, "--json", "--fields", "id,name"], timeout=30)
     if not raw:
         return None
     try:

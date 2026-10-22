@@ -22,7 +22,23 @@ class SettingsUpdate(BaseModel):
     # Base URLs of the ghx and slackx web UIs, used to link items into them.
     ghx_url: str | None = None
     slackx_url: str | None = None
+    # How the server runs the ghx and slackx helper CLIs: "cli" spawns the
+    # binary per call, "rpc" sends the same command lines to the tool's own
+    # JSON-RPC server (`ghx rpc serve`, `slackx rpc serve`). The URL is the
+    # server's base (the endpoint is <url>/rpc); a token is only needed when a
+    # server is bound beyond loopback.
+    ghx_backend: str | None = None
+    ghx_rpc_url: str | None = None
+    ghx_rpc_token: str | None = None
+    slackx_backend: str | None = None
+    slackx_rpc_url: str | None = None
+    slackx_rpc_token: str | None = None
     slack_refresh_policy: str | None = None
+    slack_user_id: str | None = None
+    slack_bot_token: str | None = None
+    slack_events_user_id: str | None = None
+    slack_events_channel: str | None = None
+    slack_notify_user_id: str | None = None
     github_refresh_policy: str | None = None
     # The review scan's cadence ("1h", "30m"; empty disables it) and what a
     # repository with no policy of its own does (include or exclude).

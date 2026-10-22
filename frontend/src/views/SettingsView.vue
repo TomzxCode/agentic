@@ -9,6 +9,7 @@ import RepositoryGroupsPanel from '../components/RepositoryGroupsPanel.vue'
 import SettingsSessionLinks from '../components/SettingsSessionLinks.vue'
 import SettingsToolServers from '../components/SettingsToolServers.vue'
 import SettingsIdentity from '../components/SettingsIdentity.vue'
+import SettingsSlack from '../components/SettingsSlack.vue'
 import SettingsHarnesses from '../components/SettingsHarnesses.vue'
 import SettingsPrompts from '../components/SettingsPrompts.vue'
 import SettingsRefresh from '../components/SettingsRefresh.vue'
@@ -88,6 +89,11 @@ onMounted(load)
           v-show="active === 'identity'"
           :overrides="settings.overrides"
           :effective="settings.effective"
+        />
+        <SettingsSlack
+          v-show="active === 'slack'"
+          :overrides="settings.overrides"
+          :defaults="settings.defaults"
         />
         <SettingsHarnesses v-show="active === 'harnesses'" />
         <SettingsPrompts v-show="active === 'prompts'" :overrides="settings.overrides" :defaults="settings.defaults" />
