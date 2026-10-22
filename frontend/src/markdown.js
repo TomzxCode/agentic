@@ -29,12 +29,51 @@ md.core.ruler.after('block', 'task-lists', (state) => {
   }
 })
 
-// External links open in a new tab so the app stays put.
+// An @ mention starts at the beginning of the text or after whitespace or
+// opening punctuation.
+const MENTION_BEFORE = /[\s([{"'“‘>]/
+// And ends at the end of the text or before whitespace or trailing punctuation.
+const MENTION_AFTER = /[\s.,;:!?)\]}>'"]/
+
+// Turn a plain `@name` into a reference link when the name is a person or an
+// item the caller supplied in `env.mentions` (see mentionTargets). The editor
+// writes plain text, so this is where a reference becomes clickable; the source
+// itself never carries the link syntax.
+md.inline.ruler.before('emphasis', 'mention', (state, silent) => {
+  const targets = state.env?.mentions
+  if (!targets?.length) return false
+  if (state.src.charCodeAt(state.pos) !== 0x40) return false
+  // A link inside a link is invalid (and the mention rule must not fire in one).
+  if (state.linkLevel > 0) return false
+  if (state.pos > 0 && !MENTION_BEFORE.test(state.src[state.pos - 1])) return false
+  const rest = state.src.slice(state.pos + 1)
+  const target = targets.find((entry) => rest.startsWith(entry.name))
+  if (!target) return false
+  const next = rest[target.name.length]
+  if (next !== undefined && !MENTION_AFTER.test(next)) return false
+  if (!silent) {
+    const open = state.push('link_open', 'a', 1)
+    open.attrs = [['href', target.href]]
+    const text = state.push('text', '', 0)
+    text.content = `@${target.name}`
+    state.push('link_close', 'a', -1)
+  }
+  state.pos += target.name.length + 1
+  return true
+})
+
+// External links open in a new tab so the app stays put. A reference to a
+// person or an item stays in the app and gets the mention styling.
 const defaultLinkOpen =
   md.renderer.rules.link_open || ((tokens, idx, options, _env, self) => self.renderToken(tokens, idx, options))
 md.renderer.rules.link_open = (tokens, idx, options, env, self) => {
-  tokens[idx].attrSet('target', '_blank')
-  tokens[idx].attrSet('rel', 'noopener noreferrer')
+  const href = tokens[idx].attrGet('href') || ''
+  if (/^\/(person|items)\//.test(href)) {
+    tokens[idx].attrJoin('class', 'mention')
+  } else {
+    tokens[idx].attrSet('target', '_blank')
+    tokens[idx].attrSet('rel', 'noopener noreferrer')
+  }
   return defaultLinkOpen(tokens, idx, options, env, self)
 }
 

@@ -1,6 +1,9 @@
 <script setup>
 import { computed, nextTick, ref } from 'vue'
+import { decodeMentionLinks } from '../mentions'
+import { useMentions } from '../composables/useMentions'
 import MarkdownView from './MarkdownView.vue'
+import MentionMenu from './MentionMenu.vue'
 
 const props = defineProps({
   value: { type: String, default: '' },
@@ -35,10 +38,23 @@ const displayEl = ref(null)
 const editorHeight = ref(null)
 let skipCommit = false
 
+// A multiline field can name a person or an item with @, as plain text.
+const {
+  open: mentionOpen,
+  options: mentionOptions,
+  highlighted: mentionHighlighted,
+  onInput: onMentionInput,
+  onClick: onMentionClick,
+  onKeydown: onMentionKeydown,
+  choose: chooseMention,
+  close: closeMentions
+} = useMentions({ value: draft, input })
+
 // Open the editor with the raw value; what both the click target and the edit
 // button do once a click is theirs to handle.
 function open() {
-  draft.value = props.value || ''
+  draft.value = decodeMentionLinks(props.value || '')
+  closeMentions()
   // Measure the displayed value before the editor replaces it.
   const displayed = props.multiline ? displayEl.value?.offsetHeight || 0 : 0
   editorHeight.value = null
@@ -77,6 +93,7 @@ function commit() {
     return
   }
   const value = draft.value
+  closeMentions()
   editing.value = false
   emit('editing', false)
   if (value !== (props.value || '')) emit('save', value)
@@ -84,11 +101,14 @@ function commit() {
 
 function cancel() {
   skipCommit = true
+  closeMentions()
   editing.value = false
   emit('editing', false)
 }
 
 function onKeydown(event) {
+  // The mention picker owns its navigation keys while it is open.
+  if (onMentionKeydown(event)) return
   if (event.key === 'Escape') {
     event.preventDefault()
     cancel()
@@ -123,16 +143,26 @@ defineExpose({ activate: open, isEditing: () => editing.value })
     @keydown="onKeydown"
     @blur="commit"
   />
-  <textarea
-    v-else-if="editing"
-    ref="input"
-    v-model="draft"
-    class="inline-input"
-    rows="3"
-    :style="editorHeight ? { height: editorHeight + 'px' } : undefined"
-    @keydown="onKeydown"
-    @blur="commit"
-  ></textarea>
+  <div v-else-if="editing" class="mention-field">
+    <textarea
+      ref="input"
+      v-model="draft"
+      class="inline-input"
+      rows="3"
+      :style="editorHeight ? { height: editorHeight + 'px' } : undefined"
+      @input="onMentionInput"
+      @click="onMentionClick"
+      @keydown="onKeydown"
+      @blur="commit"
+    ></textarea>
+    <MentionMenu
+      v-if="mentionOpen"
+      :options="mentionOptions"
+      :highlighted="mentionHighlighted"
+      @choose="chooseMention"
+      @update:highlighted="mentionHighlighted = $event"
+    />
+  </div>
   <!-- Displayed as Markdown; the editor still opens the raw value. When the
        content is protected, a control inside it (a <details> to expand, a link)
        gets the click instead of the editor. -->

@@ -209,9 +209,11 @@ onMounted(async () => {
           <h2>Notes</h2>
         </div>
         <EditableText
+          as="div"
           multiline
+          markdown
           :value="person.notes || ''"
-          placeholder="No notes"
+          placeholder="No notes. Use @ to mention a person or an item."
           @save="(value) => save('notes', value)"
         />
       </section>

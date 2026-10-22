@@ -1,6 +1,17 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { mount } from '@vue/test-utils'
 import EditableText from '../components/EditableText.vue'
+import { store } from '../store'
+
+beforeEach(() => {
+  store.people = [{ id: 'p1', name: 'Ada Lovelace', aliases: ['ada'] }]
+  store.items = []
+})
+
+afterEach(() => {
+  store.people = []
+  store.items = []
+})
 
 describe('EditableText', () => {
   it('shows the value, or the placeholder when empty', () => {
@@ -142,5 +153,16 @@ describe('EditableText', () => {
 
     await wrapper.get('textarea').trigger('blur')
     expect(wrapper.emitted('editing')).toEqual([[true], [false]])
+  })
+
+  it('writes an @ mention as plain text in the field', async () => {
+    const wrapper = mount(EditableText, { props: { value: '', markdown: true, multiline: true, as: 'div' } })
+    await wrapper.vm.activate()
+    const field = wrapper.get('textarea')
+    field.element.value = 'ask @ad'
+    field.element.setSelectionRange(7, 7)
+    await field.trigger('input')
+    await wrapper.get('.mention-option').trigger('click')
+    expect(field.element.value).toBe('ask @Ada Lovelace ')
   })
 })

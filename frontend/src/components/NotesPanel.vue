@@ -4,6 +4,7 @@ import { api } from '../api'
 import { store, formatDateTime } from '../store'
 import EditableText from './EditableText.vue'
 import EntityCard from './EntityCard.vue'
+import MentionTextarea from './MentionTextarea.vue'
 
 const props = defineProps({ task: { type: Object, required: true } })
 const emit = defineEmits(['changed'])
@@ -69,13 +70,13 @@ async function remove(itemId) {
       <!-- The Add button is overlaid in the field's bottom band (see .note-add)
            so the typed text keeps the full width. -->
       <div class="note-add">
-        <textarea
+        <MentionTextarea
           v-model="draft"
           class="textarea"
           rows="2"
-          placeholder="Add a note…"
+          placeholder="Add a note… Use @ to mention a person or an item."
           @keydown="onAddKeydown"
-        ></textarea>
+        />
         <button class="btn primary sm" :disabled="busy || !draft.trim()" @click="addNote">
           <span v-if="busy" class="spinner"></span> Add note
         </button>

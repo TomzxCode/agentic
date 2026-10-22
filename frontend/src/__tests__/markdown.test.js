@@ -44,6 +44,41 @@ describe('renderMarkdown', () => {
     expect(html).toContain('target="_blank"')
   })
 
+  it('keeps person and item references in the app, styled as mentions', () => {
+    const html = renderMarkdown('[@Ada](/person/p1) and [@Fix](/items/i1)')
+    expect(html.match(/class="mention"/g)).toHaveLength(2)
+    expect(html).not.toContain('target="_blank"')
+  })
+
+  it('links a plain @ name to the person or item it names', () => {
+    const html = renderMarkdown('ask @Ada Lovelace to review', {
+      mentions: [{ name: 'Ada Lovelace', href: '/person/p1' }]
+    })
+    expect(html).toContain('href="/person/p1"')
+    expect(html).toContain('class="mention"')
+    expect(html).toContain('@Ada Lovelace')
+    expect(html).not.toContain('target="_blank"')
+  })
+
+  it('uses the longest matching name and respects word boundaries', () => {
+    const mentions = [
+      { name: 'Ada Lovelace', href: '/person/p1' },
+      { name: 'Ada', href: '/person/p2' }
+    ]
+    const longest = renderMarkdown('hi @Ada Lovelace', { mentions })
+    expect(longest).toContain('href="/person/p1"')
+    expect(renderMarkdown('hi @Ada', { mentions })).toContain('href="/person/p2"')
+    expect(renderMarkdown('mail@Ada', { mentions })).not.toContain('href="/person')
+    expect(renderMarkdown('@Adax', { mentions })).not.toContain('href="/person')
+  })
+
+  it('does not link a mention inside inline code or another link label', () => {
+    const mentions = [{ name: 'Ada', href: '/person/p1' }]
+    expect(renderMarkdown('`@Ada`', { mentions })).not.toContain('href="/person')
+    const nested = renderMarkdown('[see @Ada](/x)', { mentions })
+    expect(nested.match(/<a /g)).toHaveLength(1)
+  })
+
   it('renders a task list with checkboxes disabled by default', () => {
     const html = renderMarkdown('- [ ] one\n- [x] two\n')
     expect(html).toContain('class="task-list-item"')

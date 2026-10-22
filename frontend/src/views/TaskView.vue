@@ -517,7 +517,7 @@ watch(
             markdown
             edit-trigger="external"
             :value="task.description"
-            placeholder="Add a description…"
+            placeholder="Add a description… Use @ to mention a person or an item."
             @editing="editingDescription = $event"
             @save="(value) => update('description', value)"
           />

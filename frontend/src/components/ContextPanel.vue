@@ -117,7 +117,7 @@ async function summarize() {
       task-lists
       as="div"
       :value="stepsText"
-      placeholder="No next steps yet. Click to write some, or hit Refresh with agent."
+      placeholder="No next steps yet. Click to write some, or hit Refresh with agent. Use @ to mention a person or an item."
       @click="onFieldClick"
       @save="saveNextSteps"
     />

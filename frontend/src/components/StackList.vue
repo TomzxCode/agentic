@@ -4,6 +4,7 @@ import { api } from '../api'
 import { formatTimestamp, moveItem, targetIndexAt } from '../stack'
 import { deadlineInfo, formatDeadline, priorityLabel as priorityName, store } from '../store'
 import EditableText from './EditableText.vue'
+import MentionTextarea from './MentionTextarea.vue'
 import PriorityIcon from './PriorityIcon.vue'
 import SearchSelect from './SearchSelect.vue'
 import StatusSelect from './StatusSelect.vue'
@@ -337,14 +338,14 @@ onUnmounted(() => {
                 <span class="faint">Description</span>
                 <router-link class="faint" :to="`/task/${entry.task_id}`">Open task →</router-link>
               </div>
-              <textarea
-                :value="description"
+              <MentionTextarea
+                :model-value="description"
                 class="textarea"
-                placeholder="Add a description…"
-                @input="emit('update:description', $event.target.value)"
+                placeholder="Add a description… Use @ to mention a person or an item."
+                @update:model-value="emit('update:description', $event)"
                 @blur="saveDescription"
                 @keydown.escape="saveDescription"
-              ></textarea>
+              />
             </div>
           </td>
         </tr>

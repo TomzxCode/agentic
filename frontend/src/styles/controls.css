@@ -58,6 +58,53 @@
 .textarea:focus {
   border-color: var(--accent-2);
 }
+
+/* An @ mention field: the picker floats under the field it belongs to. */
+.mention-field {
+  position: relative;
+  display: block;
+}
+.mention-panel {
+  position: absolute;
+  z-index: 70;
+  top: calc(100% + 4px);
+  left: 0;
+  width: max-content;
+  min-width: min(100%, 260px);
+  max-width: min(360px, calc(100vw - 32px));
+  max-height: 280px;
+  overflow: auto;
+  padding: 6px;
+  background: var(--bg-1);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5);
+}
+.mention-group {
+  padding: 6px 8px 2px;
+  font-size: 11px;
+  color: var(--faint);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.mention-option .ss-option-label {
+  flex: 1;
+}
+.mention-mark {
+  flex: none;
+  width: 14px;
+  text-align: center;
+  color: var(--accent);
+  font-family: var(--mono);
+}
+.mention-mark.item {
+  color: var(--accent-2);
+}
+.mention-detail {
+  flex: none;
+  font-size: 11px;
+  white-space: nowrap;
+}
 .textarea {
   resize: vertical;
   min-height: 70px;

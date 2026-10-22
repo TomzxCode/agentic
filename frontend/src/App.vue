@@ -6,6 +6,7 @@ import { store, timeAgo } from './store'
 import SearchSelect from './components/SearchSelect.vue'
 import RepositorySelect from './components/RepositorySelect.vue'
 import TagInput from './components/TagInput.vue'
+import MentionTextarea from './components/MentionTextarea.vue'
 import DeadlinePicker from './components/DeadlinePicker.vue'
 import StatusSelect from './components/StatusSelect.vue'
 import StatusIcon from './components/StatusIcon.vue'
@@ -553,7 +554,11 @@ onUnmounted(() => {
         </div>
         <div class="field">
           <label>Description</label>
-          <textarea v-model="draft.description" class="textarea" placeholder="Context, links, anything…"></textarea>
+          <MentionTextarea
+            v-model="draft.description"
+            class="textarea"
+            placeholder="Context, links, anything… Use @ to mention a person or an item."
+          />
         </div>
         <div class="field">
           <label>Status</label>

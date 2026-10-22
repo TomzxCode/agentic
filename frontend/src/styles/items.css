@@ -189,6 +189,17 @@
 .md a {
   color: var(--accent);
 }
+/* An @ mention renders as a reference chip rather than a plain link. */
+.md a.mention {
+  padding: 1px 5px;
+  border-radius: 6px;
+  background: var(--bg-3);
+  text-decoration: none;
+  font-weight: 500;
+}
+.md a.mention:hover {
+  text-decoration: underline;
+}
 /* The selected review report: rendered Markdown in its own framed, scrollable
    box. */
 .review-content {
