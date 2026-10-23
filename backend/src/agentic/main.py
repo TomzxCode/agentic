@@ -23,7 +23,7 @@ from .debug import DebugMiddleware, recent_cli_calls, recent_requests
 from .jobs import close_queue, get_queue, reconcile_runs
 from .log_setup import configure_logging
 from .provenance import ProvenanceMiddleware
-from .request_logging import configure_request_logging
+from .request_logging import RequestErrorMiddleware, configure_request_logging
 from .routers import (
     agent_runs,
     agent_streams,
@@ -203,6 +203,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Log why a request failed; the access line only carries the status.
+app.add_middleware(RequestErrorMiddleware)
 
 # Records each mutating request (client + actor) and exposes the context to handlers.
 app.add_middleware(ProvenanceMiddleware)
