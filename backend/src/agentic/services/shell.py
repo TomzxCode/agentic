@@ -12,12 +12,14 @@ import itertools
 import json
 import shutil
 import subprocess
+import time
 from typing import Any
 
 import httpx
 import structlog
 
 from ..config import settings
+from .. import debug as _debug
 
 log = structlog.get_logger(__name__)
 
@@ -298,21 +300,37 @@ def _cli_run(cmd: list[str], timeout: int) -> tuple[int, str, str] | None:
     PATH or the spawn failed (cli mode). In rpc mode the server answers with an
     outcome for every call.
     """
+    started = time.perf_counter()
     endpoint = _rpc_endpoint(cmd[0])
     if endpoint is None and shutil.which(cmd[0]) is None:
         return None
     _log_cli_call(cmd)
-    if endpoint is not None:
-        typed = _typed_dispatch(cmd, endpoint, timeout)
-        if typed is not None:
-            return typed
-        return _rpc_cli_run(endpoint, cmd, timeout)
+    mode = "rpc" if endpoint is not None else "cli"
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, check=False)
-    except (subprocess.TimeoutExpired, OSError) as exc:
-        log.info("cli fetch failed", cmd=cmd[0], error=str(exc))
-        return None
-    return result.returncode, result.stdout, result.stderr
+        if endpoint is not None:
+            typed = _typed_dispatch(cmd, endpoint, timeout)
+            if typed is not None:
+                duration_ms = (time.perf_counter() - started) * 1000.0
+                _debug.record_cli_call(cmd, duration_ms, mode=mode, exit_code=typed[0])
+                return typed
+            outcome = _rpc_cli_run(endpoint, cmd, timeout)
+            duration_ms = (time.perf_counter() - started) * 1000.0
+            _debug.record_cli_call(cmd, duration_ms, mode=mode, exit_code=(outcome[0] if outcome is not None else None))
+            return outcome
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, check=False)
+        except (subprocess.TimeoutExpired, OSError) as exc:
+            log.info("cli fetch failed", cmd=cmd[0], error=str(exc))
+            duration_ms = (time.perf_counter() - started) * 1000.0
+            _debug.record_cli_call(cmd, duration_ms, mode=mode, exit_code=1)
+            return None
+        duration_ms = (time.perf_counter() - started) * 1000.0
+        _debug.record_cli_call(cmd, duration_ms, mode=mode, exit_code=result.returncode)
+        return result.returncode, result.stdout, result.stderr
+    except Exception:
+        duration_ms = (time.perf_counter() - started) * 1000.0
+        _debug.record_cli_call(cmd, duration_ms, mode=mode, exit_code=1)
+        raise
 
 
 def _cli_available(name: str) -> bool:

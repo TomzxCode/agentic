@@ -307,6 +307,9 @@ def dedupe_people(people: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return result
 
 
+_cached_github_login: str | None = None
+
+
 def detect_github_login() -> str:
     """The login of the authenticated ``gh`` account, or "" when unavailable.
 
@@ -314,8 +317,12 @@ def detect_github_login() -> str:
     cached for the process, so a re-login to another account needs a restart or
     an explicit setting; both are cheap for a single-user local tool.
     """
+    global _cached_github_login
+    if _cached_github_login is not None:
+        return _cached_github_login
     raw = shell._run_cli(["gh", "api", "user", "--jq", ".login"], timeout=15)
-    return (raw or "").strip()
+    _cached_github_login = (raw or "").strip()
+    return _cached_github_login
 
 
 # --- Cycle-time data -------------------------------------------------------

@@ -19,7 +19,7 @@ from .agents.harnesses import seed_harnesses
 from .agents.pool import pool
 from .config import settings
 from .db import create_db_and_tables, engine
-from .debug import DebugMiddleware, recent_requests
+from .debug import DebugMiddleware, recent_cli_calls, recent_requests
 from .jobs import close_queue, get_queue, reconcile_runs
 from .log_setup import configure_logging
 from .provenance import ProvenanceMiddleware
@@ -210,6 +210,16 @@ app.add_middleware(DebugMiddleware)
 @app.get("/api/debug/requests")
 def debug_requests() -> list[dict]:
     return recent_requests()
+
+
+@app.get("/api/debug/cli")
+@app.get("/api/debug/cli-calls")
+@app.get("/api/debug/cli_calls")
+@app.get("/api/debug/rpc")
+@app.get("/api/debug/rpc-calls")
+@app.get("/api/debug/rpc_calls")
+def debug_cli_calls() -> list[dict]:
+    return recent_cli_calls()
 
 
 for module in (

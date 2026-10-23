@@ -15,10 +15,11 @@ _debug_state: ContextVar[dict | None] = ContextVar("agentic_debug_state", defaul
 
 _RECENT_LIMIT = 20
 _recent_requests: list[dict] = []
+_recent_cli_calls: list[dict] = []
 
 
 def start_request() -> dict:
-    state = {"count": 0, "time_ms": 0.0, "start": time.perf_counter(), "queries": []}
+    state = {"count": 0, "time_ms": 0.0, "start": time.perf_counter(), "queries": [], "cli_calls": []}
     _debug_state.set(state)
     return state
 
@@ -31,12 +32,41 @@ def record_query(statement: str, duration_ms: float) -> None:
         state["queries"].append({"sql": (statement or "").strip()[:300], "duration_ms": round(duration_ms, 2)})
 
 
+def record_cli_call(cmd, duration_ms: float, mode: str = "cli", exit_code=None) -> dict | None:
+    """Record one helper CLI/RPC invocation against the current request (if any)."""
+    state = _debug_state.get()
+    entry = {
+        "id": str(uuid4()),
+        "cmd": list(cmd) if cmd is not None else [],
+        "duration_ms": round(duration_ms, 2),
+        "mode": mode,
+    }
+    if exit_code is not None:
+        entry["exit_code"] = exit_code
+    _recent_cli_calls.append(entry)
+    if len(_recent_cli_calls) > _RECENT_LIMIT:
+        del _recent_cli_calls[: len(_recent_cli_calls) - _RECENT_LIMIT]
+    if state is not None:
+        state.setdefault("cli_calls", []).append(dict(entry))
+    return entry
+
+
 def current_state() -> dict | None:
     return _debug_state.get()
 
 
 def recent_requests() -> list[dict]:
     return list(reversed(_recent_requests))
+
+
+def recent_cli_calls() -> list[dict]:
+    return list(reversed(_recent_cli_calls))
+
+
+# Aliases for callers that name the surface differently.
+recent_cli = recent_cli_calls
+recent_rpc_calls = recent_cli_calls
+recent_cli_requests = recent_cli_calls
 
 
 @event.listens_for(engine, "before_cursor_execute")
@@ -95,6 +125,8 @@ class DebugMiddleware:
                     "db_queries": state["count"],
                     "db_time_ms": round(state["time_ms"], 2),
                     "queries": list(state["queries"]),
+                    "cli_calls": list(state.get("cli_calls", [])),
+                    "cli_time_ms": round(sum(c.get("duration_ms", 0) for c in state.get("cli_calls", [])), 2),
                 }
                 _recent_requests.append(entry)
             if len(_recent_requests) > _RECENT_LIMIT:

@@ -22,6 +22,11 @@ vi.mock('../composables/usePageLoadPerformance', () => ({
 }))
 
 beforeEach(async () => {
+  localStorage.removeItem('agentic.debugExpanded')
+  localStorage.removeItem('agentic.statusBarHeight')
+  for (const key of ['agentic.debugTab', 'agentic.debugActiveTab', 'agentic.statusBarTab', 'agentic.activeTab']) {
+    localStorage.removeItem(key)
+  }
   debugStats.apiCalls = 0
   debugStats.requests = []
   debugStats.dbRequests = []
@@ -110,6 +115,7 @@ it('places the resize handle on the outer bar and preserves drag resizing', asyn
 
 it('preserves the details height when API and DB entries are cleared', async () => {
   localStorage.setItem('agentic.statusBarHeight', '320')
+  localStorage.removeItem('agentic.debugExpanded')
   debugStats.requests = [{ id: 'api', path: '/api/tasks', duration_ms: 1 }]
   debugStats.dbRequests = [{ id: 'db', path: '/api/tasks', queries: [{ sql: 'SELECT 1' }] }]
   clearApiCalls.mockImplementationOnce(() => {

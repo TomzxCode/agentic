@@ -99,6 +99,9 @@
   .status-bar {
     left: 0;
   }
+  .app.sidebar-open .status-bar {
+    display: none;
+  }
 }
 .sidebar-backdrop {
   display: none;

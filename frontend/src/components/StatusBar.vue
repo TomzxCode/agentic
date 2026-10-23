@@ -62,6 +62,24 @@
           DB queries
         </button>
         <button
+          type="button"
+          class="status-bar-tab"
+          :class="{ active: activeTab === 'cli' }"
+          data-testid="tab-cli-calls"
+          @click="activeTab = 'cli'"
+        >
+          CLI calls
+        </button>
+        <button
+          type="button"
+          class="status-bar-tab"
+          :class="{ active: activeTab === 'rpc' }"
+          data-testid="tab-rpc-calls"
+          @click="activeTab = 'rpc'"
+        >
+          RPC calls
+        </button>
+        <button
           v-if="activeTab === 'api'"
           type="button"
           class="status-bar-tab"
@@ -70,8 +88,32 @@
         >
           Clear API calls
         </button>
-        <button v-else type="button" class="status-bar-tab" data-testid="clear-db-queries" @click="clearDbQueries">
+        <button
+          v-else-if="activeTab === 'db'"
+          type="button"
+          class="status-bar-tab"
+          data-testid="clear-db-queries"
+          @click="clearDbQueries"
+        >
           Clear DB queries
+        </button>
+        <button
+          v-else-if="activeTab === 'cli'"
+          type="button"
+          class="status-bar-tab"
+          data-testid="clear-cli-calls"
+          @click="clearCli"
+        >
+          Clear CLI calls
+        </button>
+        <button
+          v-else
+          type="button"
+          class="status-bar-tab"
+          data-testid="clear-rpc-calls"
+          @click="clearRpc"
+        >
+          Clear RPC calls
         </button>
       </div>
       <div v-if="activeTab === 'api'">
@@ -92,7 +134,7 @@
         </div>
         <p v-if="!filteredRequests.length" class="status-bar-empty">No API calls recorded yet.</p>
       </div>
-      <div v-else>
+      <div v-else-if="activeTab === 'db'">
         <div class="status-bar-sort">
           <label>Sort by</label>
           <select v-model="sortBy" class="status-bar-select">
@@ -118,6 +160,54 @@
           No DB queries recorded yet.
         </p>
       </div>
+      <div v-else-if="activeTab === 'cli'">
+        <div class="status-bar-sort">
+          <label>Sort by</label>
+          <select v-model="sortBy" class="status-bar-select">
+            <option value="recent">Recent</option>
+            <option value="duration">Duration</option>
+          </select>
+        </div>
+        <div v-for="(req, i) in filteredRequests" :key="i" class="status-bar-call">
+          <div class="status-bar-call-head" style="cursor: pointer" @click="toggleCall(i)">
+            {{ collapsedCalls.has(i) ? '▸' : '▾' }} {{ Math.round(req.duration_ms) }} ms — {{ req.method }}
+            {{ req.path }} ({{ (req.cli_calls || []).filter((c) => c.mode === 'cli' || !c.mode).length }} CLI calls, {{ Number(req.cli_time_ms || 0).toFixed(2) }} ms)
+          </div>
+          <ul v-if="(req.cli_calls || []).some((c) => c.mode === 'cli' || !c.mode) && !collapsedCalls.has(i)" class="status-bar-queries">
+            <li v-for="(c, j) in (req.cli_calls || []).filter((x) => x.mode === 'cli' || !x.mode)" :key="j" class="status-bar-query">
+              <span class="status-bar-query-time">{{ Number(c.duration_ms || 0).toFixed(2) }} ms</span>
+              <code class="status-bar-query-sql">{{ (c.cmd || []).join(' ') }} ({{ c.mode }})</code>
+            </li>
+          </ul>
+        </div>
+        <p v-if="!filteredRequests.length" class="status-bar-empty">
+          No CLI calls recorded yet.
+        </p>
+      </div>
+      <div v-else>
+        <div class="status-bar-sort">
+          <label>Sort by</label>
+          <select v-model="sortBy" class="status-bar-select">
+            <option value="recent">Recent</option>
+            <option value="duration">Duration</option>
+          </select>
+        </div>
+        <div v-for="(req, i) in filteredRequests" :key="i" class="status-bar-call">
+          <div class="status-bar-call-head" style="cursor: pointer" @click="toggleCall(i)">
+            {{ collapsedCalls.has(i) ? '▸' : '▾' }} {{ Math.round(req.duration_ms) }} ms — {{ req.method }}
+            {{ req.path }} ({{ (req.cli_calls || []).filter((c) => c.mode === 'rpc').length }} RPC calls, {{ Number(req.cli_time_ms || 0).toFixed(2) }} ms)
+          </div>
+          <ul v-if="(req.cli_calls || []).some((c) => c.mode === 'rpc') && !collapsedCalls.has(i)" class="status-bar-queries">
+            <li v-for="(c, j) in (req.cli_calls || []).filter((x) => x.mode === 'rpc')" :key="j" class="status-bar-query">
+              <span class="status-bar-query-time">{{ Number(c.duration_ms || 0).toFixed(2) }} ms</span>
+              <code class="status-bar-query-sql">{{ (c.cmd || []).join(' ') }}</code>
+            </li>
+          </ul>
+        </div>
+        <p v-if="!filteredRequests.length" class="status-bar-empty">
+          No RPC calls recorded yet.
+        </p>
+      </div>
     </div>
   </div>
 </template>
@@ -126,12 +216,28 @@
 import { ref, watch, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { usePageLoadPerformance } from '../composables/usePageLoadPerformance'
-import { debugStats, refreshDebugRequests, clearApiCalls, clearDbQueries } from '../debug.js'
+import {
+  debugStats,
+  refreshDebugRequests,
+  clearApiCalls,
+  clearDbQueries,
+  clearCliCalls,
+  clearCliRequests,
+  clearCliQueries,
+  clearRpcCalls,
+  clearRpcRequests
+} from '../debug.js'
 
 const { metrics } = usePageLoadPerformance()
 const route = useRoute()
-const expanded = ref(false)
-const activeTab = ref('api')
+const expanded = ref(localStorage.getItem('agentic.debugExpanded') === 'true')
+const activeTab = ref((() => {
+  for (const key of ['agentic.debugTab', 'agentic.debugActiveTab', 'agentic.statusBarTab', 'agentic.activeTab']) {
+    const value = localStorage.getItem(key)
+    if (value) return value
+  }
+  return 'api'
+})())
 const isMobile = ref(typeof window !== 'undefined' && window.innerWidth <= 760)
 const collapsedCalls = ref(new Set())
 const sortBy = ref('recent')
@@ -141,20 +247,54 @@ watch(filter, (value) => {
   localStorage.setItem('agentic.debugFilter', value)
 })
 
+watch(expanded, (value) => {
+  localStorage.setItem('agentic.debugExpanded', String(value))
+})
+
+watch(activeTab, (value) => {
+  for (const key of ['agentic.debugTab', 'agentic.debugActiveTab', 'agentic.statusBarTab', 'agentic.activeTab']) {
+    localStorage.setItem(key, value)
+  }
+})
+
 const lastRequest = computed(() => (debugStats.requests && debugStats.requests.length ? debugStats.requests[0] : null))
 
 const sortedRequests = computed(() => {
-  const list = [...(activeTab.value === 'api' ? debugStats.requests : debugStats.dbRequests)]
+  const list = [...(
+    activeTab.value === 'api'
+      ? debugStats.requests
+      : activeTab.value === 'db'
+        ? debugStats.dbRequests
+        : (debugStats.cliRequests ?? debugStats.cliCalls ?? debugStats.cliQueries ?? debugStats.rpcRequests ?? debugStats.rpcCalls ?? [])
+  )]
   if (sortBy.value === 'duration') return list.sort((a, b) => (b.duration_ms || 0) - (a.duration_ms || 0))
   if (sortBy.value === 'dbQueries') return list.sort((a, b) => (b.db_queries || 0) - (a.db_queries || 0))
   if (sortBy.value === 'dbTime') return list.sort((a, b) => (b.db_time_ms || 0) - (a.db_time_ms || 0))
   return list
 })
 
+function clearCli() {
+  clearCliCalls?.()
+  clearCliRequests?.()
+  clearCliQueries?.()
+}
+
+function clearRpc() {
+  clearRpcCalls?.()
+  clearRpcRequests?.()
+}
+
 const filteredRequests = computed(() => {
+  let list = sortedRequests.value
+  if (activeTab.value === 'cli') {
+    list = list.filter((req) => (req.cli_calls || []).some((c) => c.mode === 'cli' || !c.mode))
+  }
+  if (activeTab.value === 'rpc') {
+    list = list.filter((req) => (req.cli_calls || []).some((c) => c.mode === 'rpc'))
+  }
   const q = filter.value.trim().toLowerCase()
-  if (!q) return sortedRequests.value
-  return sortedRequests.value.filter((req) => `${req.method} ${req.path}`.toLowerCase().includes(q))
+  if (!q) return list
+  return list.filter((req) => `${req.method} ${req.path}`.toLowerCase().includes(q))
 })
 
 function toggleCall(index) {
@@ -164,29 +304,36 @@ function toggleCall(index) {
   collapsedCalls.value = next
 }
 
-const detailsHeight = ref(240)
+const storedDetailsHeight = ref(240)
+const detailsHeight = computed(() => {
+  if (isMobile.value) {
+    return Math.max(80, (typeof window !== 'undefined' ? window.innerHeight : 800) - 48)
+  }
+  return storedDetailsHeight.value
+})
 function updateMobile() {
   isMobile.value = window.innerWidth <= 760
 }
 
 onMounted(() => {
   const stored = Number(localStorage.getItem('agentic.statusBarHeight'))
-  if (Number.isFinite(stored) && stored >= 80 && stored <= 600) detailsHeight.value = stored
+  if (Number.isFinite(stored) && stored >= 80 && stored <= 600) storedDetailsHeight.value = stored
   updateMobile()
   window.addEventListener('resize', updateMobile)
 })
 
 function startResize(event) {
   const startY = event.clientY
-  const startHeight = detailsHeight.value
+  const startHeight = storedDetailsHeight.value
   const onMove = (e) => {
     const next = Math.min(600, Math.max(80, startHeight + (startY - e.clientY)))
-    detailsHeight.value = next
+    storedDetailsHeight.value = next
   }
   const onUp = () => {
     window.removeEventListener('pointermove', onMove)
     window.removeEventListener('pointerup', onUp)
-    localStorage.setItem('agentic.statusBarHeight', String(detailsHeight.value))
+    storedDetailsHeight.value = detailsHeight.value
+    localStorage.setItem('agentic.statusBarHeight', String(storedDetailsHeight.value))
   }
   window.addEventListener('pointermove', onMove)
   window.addEventListener('pointerup', onUp)
@@ -357,6 +504,9 @@ onUnmounted(() => {
 }
 
 @media (max-width: 760px) {
+  :global(.sidebar-open) .status-bar {
+    display: none;
+  }
   .status-bar {
     left: 0;
     padding-bottom: max(4px, env(safe-area-inset-bottom));

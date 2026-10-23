@@ -12,7 +12,12 @@ export const debugStats = reactive({
   lastDbTime: 0,
   calls: [],
   requests: [],
-  dbRequests: []
+  dbRequests: [],
+  cliRequests: [],
+  cliCalls: [],
+  cliQueries: [],
+  rpcRequests: [],
+  rpcCalls: []
 })
 
 export function recordApiCall({
@@ -46,6 +51,11 @@ export function resetDebugStats() {
   debugStats.calls = []
   debugStats.requests = []
   debugStats.dbRequests = []
+  debugStats.cliRequests = []
+  debugStats.cliCalls = debugStats.cliRequests
+  debugStats.cliQueries = debugStats.cliRequests
+  debugStats.rpcRequests = debugStats.cliRequests
+  debugStats.rpcCalls = debugStats.cliRequests
 }
 
 export function clearApiCalls() {
@@ -54,6 +64,34 @@ export function clearApiCalls() {
 
 export function clearDbQueries() {
   debugStats.dbRequests = []
+}
+
+function clearCliLists() {
+  debugStats.cliRequests = []
+  debugStats.cliCalls = debugStats.cliRequests
+  debugStats.cliQueries = debugStats.cliRequests
+  debugStats.rpcRequests = debugStats.cliRequests
+  debugStats.rpcCalls = debugStats.cliRequests
+}
+
+export function clearCliCalls() {
+  clearCliLists()
+}
+
+export function clearCliRequests() {
+  clearCliLists()
+}
+
+export function clearCliQueries() {
+  clearCliLists()
+}
+
+export function clearRpcCalls() {
+  clearCliLists()
+}
+
+export function clearRpcRequests() {
+  clearCliLists()
 }
 
 export async function refreshDebugRequests() {
@@ -66,12 +104,22 @@ export async function refreshDebugRequests() {
     if (data.some((request) => !request.id)) {
       debugStats.requests = data
       debugStats.dbRequests = data
+      debugStats.cliRequests = data
+      debugStats.cliCalls = debugStats.cliRequests
+      debugStats.cliQueries = debugStats.cliRequests
+      debugStats.rpcRequests = debugStats.cliRequests
+      debugStats.rpcCalls = debugStats.cliRequests
       return
     }
     const incoming = data.filter((request) => !seenRequestIds.has(request.id))
     incoming.forEach((request) => seenRequestIds.add(request.id))
     debugStats.requests = [...incoming, ...debugStats.requests]
     debugStats.dbRequests = [...incoming, ...debugStats.dbRequests]
+    debugStats.cliRequests = [...incoming, ...debugStats.cliRequests]
+    debugStats.cliCalls = debugStats.cliRequests
+    debugStats.cliQueries = debugStats.cliRequests
+    debugStats.rpcRequests = debugStats.cliRequests
+    debugStats.rpcCalls = debugStats.cliRequests
   } catch {
     // ignore
   }
