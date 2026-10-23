@@ -53,14 +53,31 @@ def settings_set(
     terminal_url_template: str | None = None,
     slack_refresh_policy: str | None = None,
     github_refresh_policy: str | None = None,
+    ghx_backend: str | None = None,
+    ghx_rpc_url: str | None = None,
+    ghx_rpc_token: str | None = None,
+    slackx_backend: str | None = None,
+    slackx_rpc_url: str | None = None,
+    slackx_rpc_token: str | None = None,
 ) -> str:
-    """Override settings (empty disables a link or a source's refresh; policies look like 1d=1h,7d=6h,30d=1d,*=7d)."""
+    """Override settings (empty disables a link or a source's refresh; policies look like 1d=1h,7d=6h,30d=1d,*=7d).
+
+    The ghx and slackx backends decide how the server runs those tools: "cli"
+    spawns the binary per call, "rpc" calls its JSON-RPC server instead (URL is
+    the server's base; the endpoint is <url>/rpc).
+    """
     values: dict[str, Any] = {
         "openchamber_url": openchamber_url,
         "openchamber_session_path": openchamber_session_path,
         "terminal_url_template": terminal_url_template,
         "slack_refresh_policy": slack_refresh_policy,
         "github_refresh_policy": github_refresh_policy,
+        "ghx_backend": ghx_backend,
+        "ghx_rpc_url": ghx_rpc_url,
+        "ghx_rpc_token": ghx_rpc_token,
+        "slackx_backend": slackx_backend,
+        "slackx_rpc_url": slackx_rpc_url,
+        "slackx_rpc_token": slackx_rpc_token,
     }
     with runtime._client() as client:
         settings = client.update_settings(**values)

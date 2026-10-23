@@ -106,11 +106,11 @@ def test_failed_slack_fetch_keeps_a_resolved_channel_name(monkeypatch):
 
 
 def test_fetch_slack_resolves_an_uncached_channel_name(monkeypatch):
-    # The thread payload carries no channel_name; `channels list` resolves it.
+    # The thread payload carries no channel_name; `channels get` resolves it.
     def fake(cmd, timeout=60):
         if cmd[1:3] == ["conversations", "show"]:
             return '{"messages": []}' if "--json" in cmd else "transcript"
-        if cmd[1:3] == ["channels", "list"]:
+        if cmd[1:3] == ["channels", "get"]:
             return '{"channel_count": 1, "channels": [{"id": "C1", "name": "test"}]}'
         return None
 

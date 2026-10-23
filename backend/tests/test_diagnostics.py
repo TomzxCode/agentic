@@ -33,6 +33,21 @@ def test_probe_reports_a_missing_command(monkeypatch):
     assert report.required is False
 
 
+def test_probe_reports_an_rpc_served_command_as_present(monkeypatch):
+    from agentic.config import settings
+
+    monkeypatch.setattr(diagnostics.shutil, "which", lambda name: None)
+    monkeypatch.setattr(settings, "ghx_backend", "rpc")
+
+    report = diagnostics.probe(_spec())
+
+    # The server answers in ghx's place, so the tool is present without a
+    # local binary; its path and version are only known for a local install.
+    assert report.present is True
+    assert report.path is None
+    assert report.version is None
+
+
 def test_probe_reads_the_first_version_line(monkeypatch):
     monkeypatch.setattr(diagnostics.shutil, "which", lambda name: "/usr/bin/ghx")
     monkeypatch.setattr(

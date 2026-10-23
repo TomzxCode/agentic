@@ -30,6 +30,7 @@ from .schemas.settings import (
     GhxHitRateRead,
     SlackxCacheRead,
 )
+from .services import shell
 from .services.shell import run_cli_raw
 
 # A version probe should never hold the Settings page open. A harness that
@@ -117,9 +118,15 @@ def _read_version(path: str, args: tuple[str, ...]) -> tuple[str | None, str | N
 
 
 def probe(spec: DependencySpec) -> DependencyRead:
-    """Whether one command is on PATH, where it is, and what it reports."""
+    """Whether one command can run, where it is, and what it reports.
+
+    A helper in rpc mode needs no local binary (``services.shell`` answers for
+    it), so "present" means on PATH or served by a configured rpc server; the
+    server itself is not probed here (a downed one shows up in the cache
+    listings below), and path and version are only known for a local install.
+    """
     path = shutil.which(spec.command)
-    if path is None:
+    if path is None and not shell._cli_available(spec.command):
         return DependencyRead(
             id=spec.id,
             name=spec.name,
@@ -129,7 +136,9 @@ def probe(spec: DependencySpec) -> DependencyRead:
             purpose=spec.purpose,
             present=False,
         )
-    version, error = _read_version(path, spec.version_args)
+    version, error = (None, None)
+    if path is not None:
+        version, error = _read_version(path, spec.version_args)
     return DependencyRead(
         id=spec.id,
         name=spec.name,
@@ -255,7 +264,12 @@ def parse_ghx_repositories(text: str) -> list[CachedRepositoryRead]:
 
 
 def ghx_cache() -> GhxCacheRead:
-    """The repositories in ghx's local cache, from ``ghx repo list``."""
+    """The repositories in ghx's local cache, from ``ghx repo list``.
+
+    Deliberately not the typed repo.list: only the table carries the
+    per-retrieval hit rates (and a ghx whose rpc server runs with exec
+    disabled), so the one spawn this manual page makes buys the full picture.
+    """
     result = run_cli_raw(["ghx", "repo", "list"], timeout=CACHE_TIMEOUT)
     if result is None:
         return GhxCacheRead(available=False, error="`ghx` not found on PATH")

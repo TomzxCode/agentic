@@ -35,6 +35,52 @@ def test_settings_read_and_patch_round_trip():
         client.patch("/api/settings", json={"ghx_url": "", "slackx_url": ""})
 
 
+def test_transport_setting_validates_and_applies():
+    from sqlmodel import Session
+
+    from agentic.db import engine
+    from agentic.models.system import Setting
+
+    keys = (
+        "ghx_backend",
+        "ghx_rpc_url",
+        "ghx_rpc_token",
+        "slackx_backend",
+        "slackx_rpc_url",
+        "slackx_rpc_token",
+    )
+
+    def clear_rows():
+        with Session(engine) as session:
+            for key in keys:
+                row = session.get(Setting, key)
+                if row is not None:
+                    session.delete(row)
+            session.commit()
+
+    try:
+        with TestClient(app) as client:
+            initial = client.get("/api/settings").json()
+            assert set(keys) <= set(initial["effective"])
+
+            rejected = client.patch("/api/settings", json={"ghx_backend": "jsonrpc"})
+            assert rejected.status_code == 422
+            rejected = client.patch("/api/settings", json={"ghx_rpc_url": "127.0.0.1:8090"})
+            assert rejected.status_code == 422
+
+            saved = client.patch(
+                "/api/settings",
+                json={"ghx_backend": "rpc", "ghx_rpc_url": "http://127.0.0.1:18090", "ghx_rpc_token": "t0ken"},
+            ).json()
+            assert saved["effective"]["ghx_backend"] == "rpc"
+            assert saved["overrides"]["ghx_rpc_url"] == "http://127.0.0.1:18090"
+            assert saved["effective"]["ghx_rpc_token"] == "t0ken"
+    finally:
+        # Stored rows would leak into this worker's other tests, which expect
+        # the environment-driven transport.
+        clear_rows()
+
+
 def test_refresh_policy_setting_validates_and_previews():
     with TestClient(app) as client:
         initial = client.get("/api/settings").json()
