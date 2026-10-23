@@ -5,6 +5,7 @@ import subprocess
 
 import httpx
 import pytest
+import structlog
 
 from agentic.config import settings
 from agentic.services import github, shell, slack
@@ -67,6 +68,23 @@ def test_cli_mode_spawns_the_binary_per_call(monkeypatch):
     monkeypatch.setattr(shell, "subprocess", fake)
     assert shell._run_cli(["ghx", "issue", "list", "--repo", "o/r"]) == "out"
     assert fake.calls == [["ghx", "issue", "list", "--repo", "o/r"]]
+
+
+def test_the_log_event_names_the_transport(monkeypatch):
+    """A ghx call logs its transport, so an rpc call does not read as a spawn."""
+    monkeypatch.setattr(settings, "ghx_backend", "cli")
+    monkeypatch.setattr(shell.shutil, "which", lambda name: "/usr/bin/" + name)
+    monkeypatch.setattr(shell, "subprocess", _FakeSubprocess())
+    with structlog.testing.capture_logs() as logs:
+        shell._run_cli(["ghx", "issue", "list", "--repo", "o/r"])
+    assert [(entry["event"], entry["mode"]) for entry in logs] == [("tool call", "cli")]
+
+    monkeypatch.setattr(settings, "ghx_backend", "rpc")
+    monkeypatch.setattr(settings, "ghx_rpc_url", "http://127.0.0.1:8090")
+    monkeypatch.setattr(shell.httpx, "post", lambda url, **kwargs: _rpc_result(stdout="out\n"))
+    with structlog.testing.capture_logs() as logs:
+        shell._run_cli(["ghx", "issue", "list", "--repo", "o/r"])
+    assert [(entry["event"], entry["mode"]) for entry in logs] == [("tool call", "rpc")]
 
 
 def test_gh_calls_stay_local_even_in_rpc_mode(monkeypatch):

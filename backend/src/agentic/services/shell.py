@@ -42,10 +42,15 @@ _RPC_SETTING_KEYS = {
 _rpc_ids = itertools.count(1)
 
 
-def _log_cli_call(cmd: list[str]) -> None:
-    """Log an invocation of a tracked helper CLI (ghx, slackx) at info level."""
+def _log_tool_call(cmd: list[str], mode: str) -> None:
+    """Log an invocation of a tracked helper CLI (ghx, slackx) at info level.
+
+    The transport is part of the event: the same argv runs as a local spawn in
+    ``cli`` mode and as a call to the tool's own server in ``rpc``/``managed``
+    mode, so a log line without it reads as a local process either way.
+    """
     if cmd and cmd[0] in _LOGGED_CLIS:
-        log.info("cli call", cmd=cmd)
+        log.info("tool call", cmd=cmd, mode=mode)
 
 
 def _stored_overrides(keys: tuple[str, ...]) -> dict[str, str]:
@@ -314,8 +319,8 @@ def _cli_run(cmd: list[str], timeout: int) -> tuple[int, str, str] | None:
     endpoint = _rpc_endpoint(cmd[0])
     if endpoint is None and shutil.which(cmd[0]) is None:
         return None
-    _log_cli_call(cmd)
     mode = "rpc" if endpoint is not None else "cli"
+    _log_tool_call(cmd, mode)
     try:
         if endpoint is not None:
             typed = _typed_dispatch(cmd, endpoint, timeout)
