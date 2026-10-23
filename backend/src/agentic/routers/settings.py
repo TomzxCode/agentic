@@ -64,7 +64,7 @@ def patch_settings(payload: SettingsUpdate, session: Session = Depends(get_sessi
         raise HTTPException(status_code=422, detail="review_scan_default: must be include or exclude")
     for key in ("ghx_backend", "slackx_backend"):
         backend = values.get(key)
-        if backend is not None and backend not in ("cli", "rpc"):
+        if backend is not None and backend not in ("cli", "rpc", "serve", "managed", "managed-serve", "managed_serve"):
             raise HTTPException(status_code=422, detail=f"{key}: must be cli or rpc")
     for key in ("ghx_rpc_url", "slackx_rpc_url"):
         url = values.get(key)

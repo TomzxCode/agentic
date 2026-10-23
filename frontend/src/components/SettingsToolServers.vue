@@ -80,6 +80,7 @@ async function saveField(key) {
       <select v-model="form.ghx_backend" class="select" @change="saveField('ghx_backend')">
         <option value="cli">cli: run the ghx binary per call</option>
         <option value="rpc">rpc: ask a running ghx JSON-RPC server</option>
+        <option value="serve">serve: run ghx serve managed by this server</option>
       </select>
     </div>
     <div class="field">
@@ -125,6 +126,7 @@ async function saveField(key) {
       <select v-model="form.slackx_backend" class="select" @change="saveField('slackx_backend')">
         <option value="cli">cli: run the slackx binary per call</option>
         <option value="rpc">rpc: ask a running slackx JSON-RPC server</option>
+        <option value="serve">serve: run slackx serve managed by this server</option>
       </select>
     </div>
     <div class="field">
