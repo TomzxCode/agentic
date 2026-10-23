@@ -71,8 +71,12 @@ class Settings(BaseSettings):
     slack_cookie: str = Field(default="", validation_alias=AliasChoices("AGENTIC_SLACK_COOKIE", "SLACK_COOKIE"))
     # A bot token (xoxb-) used to post notifications as a bot rather than as
     # you. Empty falls back to SLACK_TOKEN.
-    slack_bot_token: str = Field(default="", validation_alias=AliasChoices("AGENTIC_SLACK_BOT_TOKEN", "SLACK_BOT_TOKEN"))
-    slack_bot_cookie: str = Field(default="", validation_alias=AliasChoices("AGENTIC_SLACK_BOT_COOKIE", "SLACK_BOT_COOKIE"))
+    slack_bot_token: str = Field(
+        default="", validation_alias=AliasChoices("AGENTIC_SLACK_BOT_TOKEN", "SLACK_BOT_TOKEN")
+    )
+    slack_bot_cookie: str = Field(
+        default="", validation_alias=AliasChoices("AGENTIC_SLACK_BOT_COOKIE", "SLACK_BOT_COOKIE")
+    )
     slack_api_base_url: str = Field(
         default="https://slack.com/api",
         validation_alias=AliasChoices("AGENTIC_SLACK_API_BASE_URL", "SLACK_API_BASE_URL"),
@@ -80,10 +84,21 @@ class Settings(BaseSettings):
 
     # The Slack user or channel that receives events sent through Slack. Empty
     # disables sending unless a recipient is given on the call.
-    slack_user_id: str = Field(default="", validation_alias=AliasChoices("AGENTIC_SLACK_USER_ID", "SLACK_USER_ID", "AGENTIC_SLACK_EVENTS_USER_ID", "SLACK_EVENTS_USER_ID"))
-    slack_events_user_id: str = Field(default="", validation_alias=AliasChoices("AGENTIC_SLACK_EVENTS_USER_ID", "SLACK_EVENTS_USER_ID"))
-    slack_events_channel: str = Field(default="", validation_alias=AliasChoices("AGENTIC_SLACK_EVENTS_CHANNEL", "SLACK_EVENTS_CHANNEL"))
-    slack_notify_user_id: str = Field(default="", validation_alias=AliasChoices("AGENTIC_SLACK_NOTIFY_USER_ID", "SLACK_NOTIFY_USER_ID"))
+    slack_user_id: str = Field(
+        default="",
+        validation_alias=AliasChoices(
+            "AGENTIC_SLACK_USER_ID", "SLACK_USER_ID", "AGENTIC_SLACK_EVENTS_USER_ID", "SLACK_EVENTS_USER_ID"
+        ),
+    )
+    slack_events_user_id: str = Field(
+        default="", validation_alias=AliasChoices("AGENTIC_SLACK_EVENTS_USER_ID", "SLACK_EVENTS_USER_ID")
+    )
+    slack_events_channel: str = Field(
+        default="", validation_alias=AliasChoices("AGENTIC_SLACK_EVENTS_CHANNEL", "SLACK_EVENTS_CHANNEL")
+    )
+    slack_notify_user_id: str = Field(
+        default="", validation_alias=AliasChoices("AGENTIC_SLACK_NOTIFY_USER_ID", "SLACK_NOTIFY_USER_ID")
+    )
 
     # How the server runs the ghx and slackx helper CLIs: "cli" spawns the
     # binary per call, "rpc" sends the same command lines to the tool's own
@@ -157,6 +172,20 @@ class Settings(BaseSettings):
     review_scan_limit: int = 100
     # Comma-separated logins left out of the scan, e.g. a dependency-bump bot.
     review_scan_exclude_authors: str = "dependabot[bot]"
+
+    # Where application logs are written. Empty uses <data_dir>/logs/agentic.log.
+    # Set to a path to override, or to "none"/"off" to disable file logging.
+    log_file: str = Field(default="", validation_alias=AliasChoices("AGENTIC_LOG_FILE"))
+
+    @property
+    def log_path(self) -> Path | None:
+        value = (self.log_file or "").strip().lower()
+        if value in {"none", "off", "false", "0", ""}:
+            # empty means default, not disabled; handle empty separately
+            if value == "":
+                return self.data_dir / "agentic.log"
+            return None
+        return Path(self.log_file)
 
     @property
     def db_path(self) -> Path:
