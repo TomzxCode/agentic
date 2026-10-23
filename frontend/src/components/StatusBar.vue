@@ -1,34 +1,40 @@
 <template>
   <div
     class="status-bar statusbar page-load-status performance-status-bar"
+    :class="{ mobile: isMobile }"
     data-testid="status-bar"
     role="status"
     aria-live="polite"
+    :style="isMobile ? { left: '0px' } : {}"
   >
     <div v-if="expanded" class="status-bar-resizer" data-testid="status-bar-resizer" @pointerdown="startResize"></div>
-    <button class="status-bar-toggle" data-testid="status-bar-toggle" type="button" @click="expanded = !expanded">
-      {{ expanded ? 'Hide' : 'Show' }} details
-    </button>
-    <span class="status-bar-item" data-testid="page-load-time"> Page loaded in {{ metrics.loadTime }} ms </span>
-    <span class="status-bar-item" data-testid="dom-content-loaded">
-      DOMContentLoaded: {{ metrics.domContentLoaded }} ms
-    </span>
-    <span class="status-bar-item" data-testid="ttfb"> TTFB: {{ metrics.ttfb }} ms </span>
-    <span v-if="metrics.firstPaint !== null" class="status-bar-item" data-testid="first-paint">
-      First paint: {{ metrics.firstPaint }} ms
-    </span>
-    <span class="status-bar-item" data-testid="api-calls">
-      API: {{ debugStats.requests.length }} calls,
-      {{ debugStats.requests.reduce((s, r) => s + (r.duration_ms || 0), 0).toFixed(2) }} ms
-    </span>
-    <span class="status-bar-item" data-testid="db-queries">
-      DB: {{ debugStats.dbRequests.reduce((s, r) => s + (r.db_queries || 0), 0) }} queries,
-      {{ debugStats.dbRequests.reduce((s, r) => s + (r.db_time_ms || 0), 0).toFixed(2) }} ms
-    </span>
-    <span v-if="lastRequest" class="status-bar-item" data-testid="last-api-call">
-      Last: {{ Number(lastRequest.duration_ms || 0).toFixed(2) }} ms ({{ lastRequest.db_queries || 0 }} queries,
-      {{ Number(lastRequest.db_time_ms || 0).toFixed(2) }} ms)
-    </span>
+    <div class="status-bar-summary">
+      <button class="status-bar-toggle" data-testid="status-bar-toggle" type="button" @click="expanded = !expanded">
+        {{ expanded ? 'Hide' : 'Show' }} details
+      </button>
+      <template v-if="!isMobile">
+        <span class="status-bar-item" data-testid="page-load-time"> Page loaded in {{ metrics.loadTime }} ms </span>
+        <span class="status-bar-item" data-testid="dom-content-loaded">
+          DOMContentLoaded: {{ metrics.domContentLoaded }} ms
+        </span>
+        <span class="status-bar-item" data-testid="ttfb"> TTFB: {{ metrics.ttfb }} ms </span>
+        <span v-if="metrics.firstPaint !== null" class="status-bar-item" data-testid="first-paint">
+          First paint: {{ metrics.firstPaint }} ms
+        </span>
+        <span class="status-bar-item" data-testid="api-calls">
+          API: {{ debugStats.requests.length }} calls,
+          {{ debugStats.requests.reduce((s, r) => s + (r.duration_ms || 0), 0).toFixed(2) }} ms
+        </span>
+        <span class="status-bar-item" data-testid="db-queries">
+          DB: {{ debugStats.dbRequests.reduce((s, r) => s + (r.db_queries || 0), 0) }} queries,
+          {{ debugStats.dbRequests.reduce((s, r) => s + (r.db_time_ms || 0), 0).toFixed(2) }} ms
+        </span>
+      </template>
+      <span v-if="lastRequest" class="status-bar-item" data-testid="last-api-call">
+        Last: {{ Number(lastRequest.duration_ms || 0).toFixed(2) }} ms ({{ lastRequest.db_queries || 0 }} queries,
+        {{ Number(lastRequest.db_time_ms || 0).toFixed(2) }} ms)
+      </span>
+    </div>
     <div
       v-if="expanded"
       class="status-bar-details"
@@ -126,6 +132,7 @@ const { metrics } = usePageLoadPerformance()
 const route = useRoute()
 const expanded = ref(false)
 const activeTab = ref('api')
+const isMobile = ref(typeof window !== 'undefined' && window.innerWidth <= 760)
 const collapsedCalls = ref(new Set())
 const sortBy = ref('recent')
 const filter = ref(localStorage.getItem('agentic.debugFilter') || '')
@@ -158,9 +165,15 @@ function toggleCall(index) {
 }
 
 const detailsHeight = ref(240)
+function updateMobile() {
+  isMobile.value = window.innerWidth <= 760
+}
+
 onMounted(() => {
   const stored = Number(localStorage.getItem('agentic.statusBarHeight'))
   if (Number.isFinite(stored) && stored >= 80 && stored <= 600) detailsHeight.value = stored
+  updateMobile()
+  window.addEventListener('resize', updateMobile)
 })
 
 function startResize(event) {
@@ -199,7 +212,10 @@ onMounted(() => {
   refreshDebugRequests()
 })
 
-onUnmounted(() => clearTimeout(refreshTimer))
+onUnmounted(() => {
+  clearTimeout(refreshTimer)
+  window.removeEventListener('resize', updateMobile)
+})
 </script>
 
 <style scoped>
@@ -222,6 +238,14 @@ onUnmounted(() => clearTimeout(refreshTimer))
 }
 .status-bar-item {
   white-space: nowrap;
+}
+.status-bar-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  flex: 1 1 auto;
+  min-width: 0;
 }
 .status-bar-toggle {
   background: transparent;
@@ -330,5 +354,23 @@ onUnmounted(() => clearTimeout(refreshTimer))
 .status-bar-empty {
   margin: 4px 0 0;
   color: var(--faint, #666);
+}
+
+@media (max-width: 760px) {
+  .status-bar {
+    left: 0;
+    padding-bottom: max(4px, env(safe-area-inset-bottom));
+  }
+  .status-bar-summary {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .status-bar-tabs {
+    flex-wrap: wrap;
+  }
+  .status-bar-resizer {
+    display: none;
+  }
 }
 </style>
