@@ -31,6 +31,8 @@ const paletteOpen = ref(false)
 // trimmed nav never flashes the default order.
 loadSidebarNav()
 const {
+  SIDEBAR_MIN_PX,
+  SIDEBAR_MAX_PX,
   sidebarWidth,
   sidebarResizing,
   sidebarHidden,

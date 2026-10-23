@@ -245,6 +245,8 @@ export function useSidebar({ sidebarOpen, showNew, paletteOpen }) {
   })
 
   return {
+    SIDEBAR_MIN_PX,
+    SIDEBAR_MAX_PX,
     sidebarWidth,
     sidebarResizing,
     sidebarHidden,
