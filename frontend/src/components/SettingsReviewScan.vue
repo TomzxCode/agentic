@@ -21,7 +21,7 @@ const POLICIES = [
   { value: 'exclude', label: 'Exclude' }
 ]
 
-const form = reactive({ review_scan_interval: '', review_scan_default: 'include' })
+const form = reactive({ review_scan_interval: '', review_scan_default: 'include', review_slo: '' })
 const status = ref(null)
 const loading = ref(false)
 const saving = ref('')
@@ -113,6 +113,7 @@ watch(
   (overrides) => {
     form.review_scan_interval = overrides.review_scan_interval ?? ''
     form.review_scan_default = overrides.review_scan_default ?? 'include'
+    form.review_slo = overrides.review_slo ?? ''
   },
   { immediate: true }
 )
@@ -169,6 +170,25 @@ onMounted(load)
         <span v-else-if="status?.stored"> · {{ status.stored }} in the queue</span>
       </p>
       <p v-if="status?.error" style="margin: 4px 0 0; color: var(--danger)">{{ status.error }}</p>
+    </div>
+
+    <div class="field">
+      <label>
+        Review SLO
+        <span v-if="saving === 'review_slo'" class="faint">saving…</span>
+        <span v-else-if="saved === 'review_slo'" class="faint">saved</span>
+      </label>
+      <input
+        v-model="form.review_slo"
+        class="input mono"
+        :placeholder="defaults.review_slo || '1d'"
+        @blur="save('review_slo')"
+      />
+      <p class="faint" style="margin: 4px 0 0">
+        How long a pull request may await your review before the inbox flags it, such as <code>8h</code> or
+        <code>1d</code>. The wait starts when the scan first sees the pull request waiting. Leave it blank to turn the
+        SLO off.
+      </p>
     </div>
 
     <div class="field">

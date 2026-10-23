@@ -1,8 +1,9 @@
 """Inbox: suggestions of things to do, derived from the current state.
 
 The inbox stores nothing. Every suggestion is recomputed from the tasks, the
-items they link, the changes recorded against them, and their worktrees, so
-acting on one changes that state and the suggestion disappears on the next read.
+items they link, the changes recorded against them, their worktrees, and the
+pull requests the review scan found awaiting the user's review, so acting on one
+changes that state and the suggestion disappears on the next read.
 
 Each function here is pure and database-free, taking already-loaded rows, so the
 rules can be tested in isolation the way ``metrics.py`` is.
@@ -12,26 +13,30 @@ from __future__ import annotations
 
 import re
 from collections.abc import Sequence
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from .models.base import TaskStatus, WorktreeStatus
 from .models.changes import Change
 from .models.items import SourceItem
 from .models.repositories import Worktree
+from .models.reviews import ReviewRequest, ReviewScanSource
 from .models.tasks import Task
 from .services.parsing import parse_github
 
-# Suggestion kinds. The rank drives the display order, so a finished task is
-# offered for closing before its bookkeeping (a change record) or its cleanup
-# (a leftover worktree).
+# Suggestion kinds. The rank drives the display order, so a review that is past
+# its SLO leads, then a finished task is offered for closing before its
+# bookkeeping (a change record) or its cleanup (a leftover worktree).
+REVIEW_PR_PAST_SLO = "review_pr_past_slo"
 CLOSE_TASK_FINISHED_ITEMS = "close_task_finished_items"
 RECORD_CHANGE_MERGED_PR = "record_change_merged_pr"
 REMOVE_WORKTREE_DONE_TASK = "remove_worktree_done_task"
 
 KIND_RANK = {
-    CLOSE_TASK_FINISHED_ITEMS: 0,
-    RECORD_CHANGE_MERGED_PR: 1,
-    REMOVE_WORKTREE_DONE_TASK: 2,
+    REVIEW_PR_PAST_SLO: 0,
+    CLOSE_TASK_FINISHED_ITEMS: 1,
+    RECORD_CHANGE_MERGED_PR: 2,
+    REMOVE_WORKTREE_DONE_TASK: 3,
 }
 
 # A task is closed when its status leaves it out of the in-flight set.
@@ -201,6 +206,79 @@ def _remove_worktree_suggestion(task: Task, worktree: Worktree) -> dict[str, Any
     )
 
 
+def _as_utc(value: datetime) -> datetime:
+    """A stored timestamp as an aware UTC datetime (SQLite drops the zone)."""
+    return value if value.tzinfo is not None else value.replace(tzinfo=UTC)
+
+
+def _format_duration(value: timedelta) -> str:
+    """A duration as the compact text the inbox reason reads, e.g. ``1d 4h``."""
+    seconds = max(int(value.total_seconds()), 0)
+    days, seconds = divmod(seconds, 86400)
+    hours, seconds = divmod(seconds, 3600)
+    minutes = seconds // 60
+    if days:
+        return f"{days}d {hours}h" if hours else f"{days}d"
+    if hours:
+        return f"{hours}h {minutes}m" if minutes else f"{hours}h"
+    return f"{minutes}m" if minutes else "less than a minute"
+
+
+def _review_suggestion(request: ReviewRequest, waited: timedelta, slo: timedelta) -> dict[str, Any]:
+    label = f"PR {request.repository}#{request.number}"
+    url = request.url or f"https://github.com/{request.repository}/pull/{request.number}"
+    return {
+        "id": f"{REVIEW_PR_PAST_SLO}:{request.repository.lower()}:{request.number}",
+        "kind": REVIEW_PR_PAST_SLO,
+        "reason": f"Has awaited your review for {_format_duration(waited)}; the SLO is {_format_duration(slo)}.",
+        "task_id": None,
+        "task_title": "",
+        "task_status": "",
+        "repository": request.repository,
+        "number": request.number,
+        "title": request.title or label,
+        "url": url,
+        "actions": [
+            {
+                "id": f"open:{request.repository.lower()}:{request.number}",
+                "kind": "open_url",
+                "label": "Review PR",
+                "url": url,
+            }
+        ],
+    }
+
+
+def build_review_suggestions(
+    requests: Sequence[ReviewRequest],
+    slo: timedelta | None,
+    now: datetime,
+) -> list[dict[str, Any]]:
+    """Pull requests that have awaited the user's review past its SLO.
+
+    Only a review the scan found requested from the user counts: a pull request
+    they already reviewed is not waiting on them, and one that is a draft or no
+    longer open is not ready. The wait runs from ``first_seen_at``, the moment
+    the scan first saw the pull request awaiting a review, so a pull request the
+    app has just found is not immediately overdue. With no SLO configured, every
+    pull request is left alone.
+    """
+    if slo is None:
+        return []
+    reference = _as_utc(now)
+    suggestions: list[dict[str, Any]] = []
+    for request in requests:
+        if request.source != ReviewScanSource.requested.value:
+            continue
+        if request.draft or str(request.state or "").upper() not in ("", "OPEN"):
+            continue
+        waited = reference - _as_utc(request.first_seen_at)
+        if waited <= slo:
+            continue
+        suggestions.append(_review_suggestion(request, waited, slo))
+    return suggestions
+
+
 def build_suggestions(
     tasks: Sequence[Task],
     items_by_id: dict[str, SourceItem],
@@ -257,6 +335,8 @@ __all__ = [
     "KIND_RANK",
     "RECORD_CHANGE_MERGED_PR",
     "REMOVE_WORKTREE_DONE_TASK",
+    "REVIEW_PR_PAST_SLO",
+    "build_review_suggestions",
     "build_suggestions",
     "change_references",
     "is_authored_by",

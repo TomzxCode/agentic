@@ -42,6 +42,7 @@ OVERRIDABLE_KEYS = (
     "github_refresh_policy",
     "review_scan_interval",
     "review_scan_default",
+    "review_slo",
     "agent_prompts",
 )
 
@@ -101,6 +102,7 @@ def env_defaults() -> dict[str, str]:
         "github_refresh_policy": settings.github_refresh_policy,
         "review_scan_interval": settings.review_scan_interval,
         "review_scan_default": settings.review_scan_default,
+        "review_slo": settings.review_slo,
         "agent_prompts": json.dumps(DEFAULT_AGENT_PROMPTS),
     }
 

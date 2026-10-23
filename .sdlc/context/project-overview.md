@@ -34,6 +34,7 @@ It solves the problem of scattered context: the threads, issues, and checkouts r
 - Source items and many-to-many associations, with source inference and on-demand fetch.
 - A resources list of every item across sources, with search, refresh, and delete.
 - PR reviewer-feedback triage: the per-comment analysis files the feedback skills write, read as a queue with implement / decline / defer decisions.
+- A review SLO that flags pull requests past their review deadline in the inbox.
 - A people directory, with people linked to tasks and to items.
 - GitHub issue/PR import (paste a URL or pick from a repository) via `ghx`.
 - Local repository registration, repository groups, and a server-side directory picker.

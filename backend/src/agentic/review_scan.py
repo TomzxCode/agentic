@@ -64,6 +64,11 @@ def scan_interval(value: str | None) -> timedelta | None:
     return parse_duration(text)
 
 
+def configured_review_slo(session: Session) -> timedelta | None:
+    """The review SLO: how long a review may wait, or None when it is off."""
+    return scan_interval(get_settings(session).get("review_slo", ""))
+
+
 def scan_due(last_run_at: datetime | None, interval: timedelta | None, now: datetime) -> bool:
     """Whether a scan is due: never run yet, or the cadence has elapsed."""
     if interval is None:

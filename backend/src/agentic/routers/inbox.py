@@ -12,12 +12,13 @@ from fastapi import APIRouter, Depends
 from sqlmodel import Session, col, select
 
 from ..db import get_session
-from ..inbox import build_suggestions
+from ..inbox import KIND_RANK, build_review_suggestions, build_suggestions
 from ..models.base import utcnow
 from ..models.changes import Change
 from ..models.items import Association, SourceItem
 from ..models.repositories import Worktree
 from ..models.tasks import Task
+from ..review_scan import configured_review_slo, stored_review_requests
 from ..schemas.inbox import InboxReport
 from ..settings_store import resolve_github_login
 
@@ -50,6 +51,12 @@ def get_inbox(session: Session = Depends(get_session)) -> InboxReport:
         task_changes,
         viewer_login=resolve_github_login(session),
     )
+    suggestions += build_review_suggestions(
+        stored_review_requests(session),
+        configured_review_slo(session),
+        utcnow(),
+    )
+    suggestions.sort(key=lambda suggestion: KIND_RANK.get(suggestion["kind"], 99))
     return InboxReport(generated_at=utcnow(), count=len(suggestions), suggestions=suggestions)
 
 

@@ -17,11 +17,17 @@ const busy = ref('')
 // The section each suggestion kind belongs to, in the order they are shown. The
 // API returns them already ordered by kind, so a stable grouping keeps that.
 const SECTIONS = {
+  review_pr_past_slo: 'Reviews past SLO',
   close_task_finished_items: 'Close finished tasks',
   record_change_merged_pr: 'Record changes',
   remove_worktree_done_task: 'Clean up worktrees'
 }
-const SECTION_ORDER = ['close_task_finished_items', 'record_change_merged_pr', 'remove_worktree_done_task']
+const SECTION_ORDER = [
+  'review_pr_past_slo',
+  'close_task_finished_items',
+  'record_change_merged_pr',
+  'remove_worktree_done_task'
+]
 
 const suggestions = computed(() => store.inbox)
 
@@ -140,20 +146,33 @@ onMounted(load)
         <div v-for="suggestion in section.items" :key="suggestion.id" class="panel inbox-item">
           <div class="row" style="justify-content: space-between; gap: 10px; align-items: flex-start; flex-wrap: wrap">
             <div style="min-width: 0; flex: 1 1 220px">
-              <TaskLink :task="taskFor(suggestion)" />
+              <TaskLink v-if="suggestion.task_id" :task="taskFor(suggestion)" />
+              <template v-else>
+                <a :href="suggestion.url" target="_blank" rel="noopener">
+                  {{ suggestion.title || `${suggestion.repository}#${suggestion.number}` }}
+                </a>
+                <span v-if="suggestion.title && suggestion.repository" class="faint mono" style="margin-left: 6px">
+                  {{ suggestion.repository }}#{{ suggestion.number }}
+                </span>
+              </template>
               <p class="faint" style="margin: 6px 0 0">{{ suggestion.reason }}</p>
             </div>
             <span class="row" style="gap: 6px; flex-wrap: wrap">
-              <button
-                v-for="action in suggestion.actions"
-                :key="action.id"
-                class="btn sm primary"
-                :disabled="!!busy"
-                @click="runAction(suggestion, action)"
-              >
-                <span v-if="busy === action.id" class="spinner" aria-hidden="true"></span>
-                {{ action.label }}
-              </button>
+              <template v-for="action in suggestion.actions" :key="action.id">
+                <a
+                  v-if="action.kind === 'open_url'"
+                  class="btn sm primary"
+                  :href="action.url"
+                  target="_blank"
+                  rel="noopener"
+                >
+                  {{ action.label }}
+                </a>
+                <button v-else class="btn sm primary" :disabled="!!busy" @click="runAction(suggestion, action)">
+                  <span v-if="busy === action.id" class="spinner" aria-hidden="true"></span>
+                  {{ action.label }}
+                </button>
+              </template>
             </span>
           </div>
         </div>

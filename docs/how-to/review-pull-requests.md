@@ -61,6 +61,7 @@ Discovery runs through `gh`, and a pull request the scan finds joins the queue e
 Configure the scan under **Settings → Review requests**:
 
 - **How often to scan** is a duration such as `30m`, `1h`, or `1d`; leave it blank to stop scanning.
+- **Review SLO** is a duration such as `8h` or `1d`: a pull request the scan has seen awaiting your review longer than that appears in the inbox. The wait starts when the scan first sees it waiting, and leaving the field blank turns the SLO off.
 - **Repositories with no policy of their own** is what a repository that has no policy of its own does: **Include** (scan every repository except the excluded ones) or **Exclude** (scan only the repositories marked include).
 - Each repository can be left on **Default** to follow that choice, or set to **Include** or **Exclude** on its own.
 - **Scan now** runs one pass immediately.

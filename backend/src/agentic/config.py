@@ -172,6 +172,10 @@ class Settings(BaseSettings):
     review_scan_limit: int = 100
     # Comma-separated logins left out of the scan, e.g. a dependency-bump bot.
     review_scan_exclude_authors: str = "dependabot[bot]"
+    # The review SLO: how long a pull request may await the user's review before
+    # the inbox flags it. A duration such as "1d" or "8h"; empty disables it.
+    # The wait is measured from when the scan first saw the pull request waiting.
+    review_slo: str = ""
 
     # Where application logs are written. Empty uses <data_dir>/logs/agentic.log.
     # Set to a path to override, or to "none"/"off" to disable file logging.

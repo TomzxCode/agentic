@@ -56,6 +56,7 @@ The Slack credentials keep the names `slackx` uses (`SLACK_TOKEN`, `SLACK_COOKIE
 | `AGENTIC_REVIEW_SCAN_DEFAULT` | `include` | What a repository with no review-scan policy of its own does: `include` (scan every repository except the excluded ones) or `exclude` (scan only the repositories marked include). |
 | `AGENTIC_REVIEW_SCAN_LIMIT` | `100` | How many results each of the review scan's two searches returns. |
 | `AGENTIC_REVIEW_SCAN_EXCLUDE_AUTHORS` | `dependabot[bot]` | Comma-separated logins the review scan leaves out of its results. |
+| `AGENTIC_REVIEW_SLO` | (empty) | How long a pull request may await your review before the inbox flags it. A duration such as `8h` or `1d`; empty disables it. Measured from when the scan first saw the pull request waiting. |
 | `AGENTIC_SCHEDULED_TASK_TICK` | `30` | Seconds between checks for scheduled shell tasks that are due. `0` disables the loop. |
 | `AGENTIC_SCHEDULED_TASK_TIMEOUT` | `3600` | Seconds a scheduled shell task may run before it is stopped and marked failed. |
 
@@ -79,7 +80,7 @@ The GitHub login is editable under **Settings → Identity**; leave it blank to 
 
 The refresh policies are editable under **Settings → Refresh**.
 
-The review scan is editable under **Settings → Review requests**: how often it runs (`review_scan_interval`), and what a repository with no policy of its own does (`review_scan_default`).
+The review scan is editable under **Settings → Review requests**: how often it runs (`review_scan_interval`), the review SLO (`review_slo`), and what a repository with no policy of its own does (`review_scan_default`).
 Each registered repository can also be set to include or exclude on its own.
 See [How to read the review queue](../how-to/review-pull-requests.md).
 

@@ -273,10 +273,12 @@ remembering to log it. You can still record, edit, or revert a change by hand.
 The **Inbox** page (`/inbox`, the envelope icon in the sidebar, with a count
 badge) suggests things to do, derived from the current state rather than stored:
 it recomputes on every read, so acting on a suggestion makes it disappear. It
-groups suggestions by intent: close a task whose linked GitHub issues and pull
-requests are all wrapped up (every issue closed, every pull request closed or
-merged), record a change for a merged PR that has none, and remove a worktree
-left behind by a closed task. A task with no linked issue or PR is left alone.
+groups suggestions by intent: review a pull request the scan has seen awaiting
+your review longer than the SLO set in Settings → Review requests, close a task
+whose linked GitHub issues and pull requests are all wrapped up (every issue
+closed, every pull request closed or merged), record a change for a merged PR
+that has none, and remove a worktree left behind by a closed task. A task with no
+linked issue or PR is left alone.
 A merged PR is only offered a change record when you authored it (the login in
 Settings → Identity, else the authenticated `gh` account); a PR someone else
 wrote is not your change to record. A merged PR you authored and a task links is
@@ -315,10 +317,11 @@ requested from you and for open ones you have already reviewed, and lists them
 even before any review report exists. A **📨** or **👀** mark beside the number says
 which search found it (a review is requested from you, or you already reviewed it
 and it is still open). **Settings → Review requests** sets how
-often the scan runs (a duration such as `1h`; blank stops it), whether a
-repository with no policy of its own is included or excluded, and each
-registered repository's own Include / Exclude / Default choice; **Scan now** runs
-it immediately.
+often the scan runs (a duration such as `1h`; blank stops it), the **Review
+SLO** (a duration such as `1d`; blank turns it off, and a pull request past it
+is flagged in the inbox), whether a repository with no policy of its own is
+included or excluded, and each registered repository's own Include / Exclude /
+Default choice; **Scan now** runs it immediately.
 
 The **My PRs** page (`/my-pulls`, the pull-request icon) lists the open pull
 requests the GitHub login in Settings → Identity authored, one row per PR, and
@@ -515,6 +518,7 @@ Environment variables (prefix `AGENTIC_`; the Slack credentials keep slackx's na
 | `AGENTIC_REVIEW_SCAN_DEFAULT` | `include` | What a repository with no review-scan policy of its own does: `include` or `exclude`. |
 | `AGENTIC_REVIEW_SCAN_LIMIT` | `100` | Results each review-scan search returns. |
 | `AGENTIC_REVIEW_SCAN_EXCLUDE_AUTHORS` | `dependabot[bot]` | Comma-separated logins the review scan leaves out. |
+| `AGENTIC_REVIEW_SLO` | (empty) | How long a pull request may await your review before the inbox flags it (a duration such as `8h` or `1d`; empty disables it). Measured from when the scan first saw it waiting. |
 | `AGENTIC_SCHEDULED_TASK_TICK` | `30` | Seconds between checks for scheduled shell tasks that are due (0 disables the loop). |
 | `AGENTIC_SCHEDULED_TASK_TIMEOUT` | `3600` | Seconds a scheduled shell task may run before it is stopped and marked failed. |
 | `AGENTIC_QUEUE_URL` | `sqlite:///<data_dir>/queue.db` | Agent-run queue. Use a `redis://` or `postgres://` URL to share the queue. |

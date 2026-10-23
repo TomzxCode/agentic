@@ -28,6 +28,7 @@
 | Repository | A local git checkout registered with the app, from which worktrees are created. |
 | Repository group | A named set of repositories that tells a task's agent which checkouts may be relevant. |
 | Requester | A person recorded as having asked for a task, a link set separate from the people the task involves. |
+| Review SLO | A duration a pull request may await the user's review before the inbox flags it, measured from when the review scan first saw it waiting. |
 | Session link | A way to reopen an agent session: an OpenChamber URL, a terminal URL, or a copyable resume command. |
 | Snooze | A date and time a task is parked until, without changing its status or marking it done. |
 | Source | The origin kind of an item: `slack`, `github`, `gdrive`, `url`, `note`, `commit`, or `file` (a local file or directory path). |

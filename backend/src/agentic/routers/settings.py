@@ -70,6 +70,12 @@ def patch_settings(payload: SettingsUpdate, session: Session = Depends(get_sessi
         url = values.get(key)
         if url and not url.startswith(("http://", "https://")):
             raise HTTPException(status_code=422, detail=f"{key}: must be an http(s) URL")
+    slo = values.get("review_slo")
+    if slo is not None and slo.strip() and scan_interval(slo) is None:
+        raise HTTPException(
+            status_code=422,
+            detail="review_slo: use a duration such as 8h or 1d, or leave it blank to turn it off",
+        )
     prompts = values.get("agent_prompts")
     if prompts is not None:
         try:

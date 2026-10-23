@@ -80,6 +80,44 @@ describe('InboxView', () => {
     expect(wrapper.text()).toContain('Inbox zero')
   })
 
+  it('flags a pull request past the review SLO with a link', async () => {
+    mocks.inboxGet.mockResolvedValue([
+      {
+        id: 'review_pr_past_slo:o/r:7',
+        kind: 'review_pr_past_slo',
+        reason: 'Has awaited your review for 2d 3h; the SLO is 1d.',
+        task_id: null,
+        task_title: '',
+        task_status: '',
+        repository: 'o/r',
+        number: 7,
+        title: 'Fix the thing',
+        url: 'https://github.com/o/r/pull/7',
+        actions: [
+          {
+            id: 'open:o/r:7',
+            kind: 'open_url',
+            label: 'Review PR',
+            url: 'https://github.com/o/r/pull/7'
+          }
+        ]
+      }
+    ])
+
+    const wrapper = mount(InboxView, stub)
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Reviews past SLO')
+    expect(wrapper.text()).toContain('Fix the thing')
+    expect(wrapper.text()).toContain('Has awaited your review for 2d 3h; the SLO is 1d.')
+    const links = wrapper.findAll('.inbox-item a')
+    expect(links.map((link) => link.attributes('href'))).toEqual([
+      'https://github.com/o/r/pull/7',
+      'https://github.com/o/r/pull/7'
+    ])
+    expect(links[1].text()).toBe('Review PR')
+  })
+
   it('renders a suggestion and closes the task through its action', async () => {
     mocks.inboxGet.mockResolvedValueOnce([closeSuggestion()]).mockResolvedValue([])
     mocks.tasksUpdate.mockResolvedValue({})

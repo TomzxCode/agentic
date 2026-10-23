@@ -44,6 +44,9 @@ class SettingsUpdate(BaseModel):
     # repository with no policy of its own does (include or exclude).
     review_scan_interval: str | None = None
     review_scan_default: str | None = None
+    # How long a pull request may await a review before the inbox flags it
+    # ("1d", "8h"; empty disables it).
+    review_slo: str | None = None
     # A JSON list of user-defined agent prompts (kind, label, template).
     agent_prompts: str | None = None
 

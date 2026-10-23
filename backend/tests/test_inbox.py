@@ -1,9 +1,15 @@
-from fastapi.testclient import TestClient
+from datetime import UTC, datetime, timedelta
 
+from fastapi.testclient import TestClient
+from sqlmodel import Session, select
+
+from agentic.db import engine
 from agentic.inbox import (
     CLOSE_TASK_FINISHED_ITEMS,
     RECORD_CHANGE_MERGED_PR,
     REMOVE_WORKTREE_DONE_TASK,
+    REVIEW_PR_PAST_SLO,
+    build_review_suggestions,
     build_suggestions,
     is_finished_item,
     is_issue,
@@ -15,9 +21,11 @@ from agentic.models.base import TaskStatus, WorktreeStatus
 from agentic.models.changes import Change
 from agentic.models.items import SourceItem
 from agentic.models.repositories import Worktree
+from agentic.models.reviews import ReviewRequest, ReviewScanSource
 from agentic.models.tasks import Task
 
 MERGED_AT = "2026-01-01T00:00:00+00:00"
+NOW = datetime(2026, 10, 22, 12, 0, tzinfo=UTC)
 
 
 def _task(task_id: str, status: TaskStatus = TaskStatus.open) -> Task:
@@ -287,3 +295,93 @@ def test_inbox_endpoint_hides_a_change_for_a_pr_the_viewer_did_not_author():
             client.delete(f"/api/items/{theirs['id']}")
         finally:
             client.patch("/api/settings", json={"github_login": ""})
+
+
+def _review_request(
+    number: int,
+    *,
+    source: ReviewScanSource = ReviewScanSource.requested,
+    first_seen_at: datetime = NOW,
+    draft: bool = False,
+    state: str = "OPEN",
+    title: str = "",
+) -> ReviewRequest:
+    return ReviewRequest(
+        repository="o/r",
+        number=number,
+        source=source.value,
+        title=title,
+        url=f"https://github.com/o/r/pull/{number}",
+        author="alice",
+        state=state,
+        draft=draft,
+        first_seen_at=first_seen_at,
+    )
+
+
+def test_a_pull_request_past_the_review_slo_is_suggested():
+    requests = [_review_request(5, title="Fix the thing", first_seen_at=NOW - timedelta(days=2, hours=3))]
+    suggestions = build_review_suggestions(requests, timedelta(days=1), NOW)
+
+    assert [s["kind"] for s in suggestions] == [REVIEW_PR_PAST_SLO]
+    suggestion = suggestions[0]
+    assert suggestion["task_id"] is None
+    assert suggestion["repository"] == "o/r"
+    assert suggestion["number"] == 5
+    assert suggestion["title"] == "Fix the thing"
+    assert suggestion["url"] == "https://github.com/o/r/pull/5"
+    assert suggestion["reason"] == "Has awaited your review for 2d 3h; the SLO is 1d."
+    action = suggestion["actions"][0]
+    assert action["kind"] == "open_url"
+    assert action["url"] == "https://github.com/o/r/pull/5"
+
+
+def test_a_pull_request_within_the_review_slo_is_left_alone():
+    requests = [_review_request(6, first_seen_at=NOW - timedelta(hours=2))]
+    assert build_review_suggestions(requests, timedelta(days=1), NOW) == []
+
+
+def test_the_review_slo_is_off_when_unset():
+    requests = [_review_request(7, first_seen_at=NOW - timedelta(days=30))]
+    assert build_review_suggestions(requests, None, NOW) == []
+
+
+def test_only_pull_requests_awaiting_a_review_count():
+    requests = [
+        _review_request(8, source=ReviewScanSource.reviewed, first_seen_at=NOW - timedelta(days=3)),
+        _review_request(9, draft=True, first_seen_at=NOW - timedelta(days=3)),
+        _review_request(10, state="MERGED", first_seen_at=NOW - timedelta(days=3)),
+    ]
+    assert build_review_suggestions(requests, timedelta(days=1), NOW) == []
+
+
+def test_a_naive_first_seen_time_is_read_as_utc():
+    # SQLite drops the timezone, so a stored timestamp can come back naive.
+    naive = (NOW - timedelta(days=2)).replace(tzinfo=None)
+    suggestions = build_review_suggestions([_review_request(11, first_seen_at=naive)], timedelta(days=1), NOW)
+    assert [s["number"] for s in suggestions] == [11]
+
+
+def test_inbox_endpoint_flags_a_pull_request_past_the_review_slo():
+    with TestClient(app) as client:
+        request = _review_request(993, title="SLO PR", first_seen_at=NOW - timedelta(days=3))
+        request.repository = "inbox-slo/repo"
+        request.url = "https://github.com/inbox-slo/repo/pull/993"
+        with Session(engine) as session:
+            session.add(request)
+            session.commit()
+        client.patch("/api/settings", json={"review_slo": "1d"})
+        try:
+            report = client.get("/api/inbox").json()
+            mine = [s for s in report["suggestions"] if s["repository"] == "inbox-slo/repo"]
+            assert [s["kind"] for s in mine] == [REVIEW_PR_PAST_SLO]
+            assert mine[0]["task_id"] is None
+            assert mine[0]["title"] == "SLO PR"
+            assert report["count"] == len(report["suggestions"])
+        finally:
+            client.patch("/api/settings", json={"review_slo": ""})
+            with Session(engine) as session:
+                row = session.exec(select(ReviewRequest).where(ReviewRequest.number == 993)).first()
+                if row is not None:
+                    session.delete(row)
+                    session.commit()
