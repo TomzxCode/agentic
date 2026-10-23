@@ -219,6 +219,13 @@ export function buildPaletteItems({ route, router, showNew, sidebarHidden, toggl
       icon: 'feedback',
       run: () => router.push('/feedback')
     },
+    {
+      id: 'go-decisions',
+      label: 'Go to colleague decisions',
+      group: 'Navigation',
+      icon: 'decisions',
+      run: () => router.push('/decisions')
+    },
     { id: 'go-stack', label: 'Go to stack', group: 'Navigation', icon: 'stack', run: () => router.push('/stack') },
     { id: 'go-gantt', label: 'Go to gantt', group: 'Navigation', icon: 'gantt', run: () => router.push('/gantt') },
     { id: 'go-graph', label: 'Go to graph', group: 'Navigation', icon: 'graph', run: () => router.push('/graph') },
