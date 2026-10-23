@@ -81,6 +81,43 @@ def test_transport_setting_validates_and_applies():
         clear_rows()
 
 
+def test_managed_transport_syncs_the_tool_servers(monkeypatch):
+    from sqlmodel import Session
+
+    from agentic.db import engine
+    from agentic.models.system import Setting
+    from agentic.routers import settings as settings_router
+
+    synced = []
+    monkeypatch.setattr(settings_router.managed_tools, "sync", lambda: synced.append(True))
+
+    try:
+        with TestClient(app) as client:
+            # The lifespan syncs once at startup; only the patches matter here.
+            synced.clear()
+            saved = client.patch("/api/settings", json={"slackx_backend": "managed"}).json()
+            assert saved["effective"]["slackx_backend"] == "managed"
+            # A switch to managed starts the tool's serve process right away.
+            assert synced == [True]
+
+            # The old "serve" spelling is gone, and a refused value changes nothing.
+            rejected = client.patch("/api/settings", json={"slackx_backend": "serve"})
+            assert rejected.status_code == 422
+            assert synced == [True]
+
+            # A change that is not a transport leaves the running tools alone.
+            client.patch("/api/settings", json={"ghx_url": ""})
+            assert synced == [True]
+    finally:
+        # Stored rows would leak into this worker's other tests, which expect
+        # the environment-driven transport.
+        with Session(engine) as session:
+            row = session.get(Setting, "slackx_backend")
+            if row is not None:
+                session.delete(row)
+                session.commit()
+
+
 def test_refresh_policy_setting_validates_and_previews():
     with TestClient(app) as client:
         initial = client.get("/api/settings").json()

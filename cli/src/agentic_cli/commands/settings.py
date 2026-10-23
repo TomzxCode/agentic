@@ -64,7 +64,8 @@ def settings_set(
 
     The ghx and slackx backends decide how the server runs those tools: "cli"
     spawns the binary per call, "rpc" calls its JSON-RPC server instead (URL is
-    the server's base; the endpoint is <url>/rpc).
+    the server's base; the endpoint is <url>/rpc), and "managed" starts the
+    tool's serve process with the server and calls it, so no URL is needed.
     """
     values: dict[str, Any] = {
         "openchamber_url": openchamber_url,

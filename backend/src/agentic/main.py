@@ -17,8 +17,6 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 
 from .agents.harnesses import seed_harnesses
 from .agents.pool import pool
-from .services.managed_tools import managed_tools as _managed_tools
-from .services.managed_tools import *
 from .config import settings
 from .db import create_db_and_tables, engine
 from .debug import DebugMiddleware, recent_cli_calls, recent_requests
@@ -60,12 +58,9 @@ from .routers import (
 from .routers import settings as settings_router
 from .routers import tags as tags_router
 from .schedules import reconcile_scheduled_runs, scheduler_loop
+from .services.managed_tools import managed_tools
 
 log = structlog.get_logger(__name__)
-managed_tools = _managed_tools
-managed_tool_servers = _managed_tools
-tool_servers = _managed_tools
-managed_serve = _managed_tools
 configure_logging()
 configure_request_logging()
 
@@ -171,12 +166,12 @@ async def lifespan(app: FastAPI):
     if settings.warm_harness_session:
         pool.start()
     # Start managed ghx/slackx serve-mode processes tied to this server.
-    _managed_tools.start()
+    managed_tools.start()
     log.info("agentic ready", data_dir=str(settings.data_dir))
     yield
     if settings.warm_harness_session:
         await pool.stop()
-    _managed_tools.stop()
+    managed_tools.stop()
     refresh_task.cancel()
     scan_task.cancel()
     schedule_task.cancel()

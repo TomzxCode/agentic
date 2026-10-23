@@ -1,14 +1,14 @@
-"""Managed ghx/slackx processes running in serve mode.
+"""Managed ghx/slackx serve-mode processes.
 
-These processes are started with the backend server and stopped with it, so
-their lifecycle is tied to the server's. In serve mode a single process answers
-both the web UI and the JSON-RPC endpoint the server talks to.
+A tool whose transport is ``managed`` is started by this server and stopped with
+it, so its lifecycle is tied to the server's. The tool's serve mode answers both
+its web UI and the JSON-RPC endpoint this server calls, so choosing ``managed``
+replaces the URL and token a user would otherwise supply for ``rpc`` mode.
 """
 
 from __future__ import annotations
 
 import contextlib
-import sys
 import shutil
 import subprocess
 import time
@@ -18,46 +18,51 @@ import structlog
 
 from ..config import settings
 
-_REAL_POPEN = subprocess.Popen
-Popen = subprocess.Popen
-
 log = structlog.get_logger(__name__)
 
-_SERVE_BACKENDS = {"serve", "managed", "managed-serve", "managed_serve", "managedserve"}
+# The tools this server can run itself, in the order they start.
+TOOLS = ("ghx", "slackx")
+
+# The transport value that makes this server run a tool instead of the user.
+MANAGED = "managed"
+
+# The port each tool's serve mode binds on loopback. A managed process is
+# started on it, so its JSON-RPC endpoint is <base>/rpc on that port.
+SERVE_PORTS = {"ghx": 8080, "slackx": 8280}
 
 
-def _url_port(url: str, default: int) -> int:
-    """Best-effort port from a configured base URL."""
+def backend_for(tool: str) -> str:
+    """A tool's transport: the Settings page's stored value over the environment's.
+
+    Read per call, so a change on the Settings page takes effect without a
+    restart, the same way ``services.shell`` reads the transport. A stored empty
+    value is no opinion, so the environment's value still applies.
+    """
+    key = f"{tool}_backend"
+    stored = ""
     try:
-        from urllib.parse import urlparse
+        # Late import: the settings store reaches back into the fetchers, which
+        # import this module.
+        from ..settings_store import get_rpc_overrides
 
-        parsed = urlparse(url.strip())
-        if parsed.port:
-            return parsed.port
-    except Exception:  # noqa: BLE001
-        pass
-    return default
-
-
-def _resolve_popen():
-    mod = sys.modules[__name__]
-    override = getattr(mod, "Popen", None)
-    if override is not None and override is not _REAL_POPEN:
-        return override
-    return getattr(subprocess, "Popen", _REAL_POPEN)
+        stored = (get_rpc_overrides().get(key) or "").strip()
+    except Exception as exc:  # noqa: BLE001 - the environment value still applies
+        log.warning("managed tool settings unreadable", error=str(exc))
+    return (stored or str(getattr(settings, key, "cli"))).strip().lower()
 
 
 class ManagedToolServer:
-    """One managed ghx/slackx process in serve mode."""
+    """One tool running in its serve mode."""
 
-    def __init__(self, name: str, command: list[str], spawn: Any = None) -> None:
-        self.name = name
-        self.command = list(command)
+    def __init__(self, tool: str, spawn: Any = None) -> None:
+        self.tool = tool
+        port = SERVE_PORTS[tool]
+        # Loopback only: the endpoint needs no token, and both binaries refuse
+        # a non-loopback bind without one anyway.
+        self.command = [tool, "serve", "--host", "127.0.0.1", "--port", str(port)]
         self._spawn = spawn
         self.process: Any = None
         self.started_at: float | None = None
-        self.started: bool = False
-        self.running: bool = False
 
     @property
     def alive(self) -> bool:
@@ -67,28 +72,24 @@ class ManagedToolServer:
         """Start the process if its binary is available. Returns whether started."""
         if self.alive:
             return True
-        binary = self.command[0] if self.command else self.name
-        if shutil.which(binary) is None:
-            log.warning("managed tool binary not found", tool=self.name, binary=binary)
+        if self._spawn is None and shutil.which(self.tool) is None:
+            log.warning("managed tool binary not found", tool=self.tool, binary=self.tool)
             return False
         try:
             if self._spawn is not None:
                 self.process = self._spawn(self.command)
             else:
-                _popen = _resolve_popen()
-                self.process = _popen(
+                self.process = subprocess.Popen(
                     self.command,
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL,
                     stdin=subprocess.DEVNULL,
                 )
             self.started_at = time.time()
-            self.started = True
-            self.running = True
-            log.info("started managed tool server", tool=self.name, cmd=self.command)
+            log.info("started managed tool", tool=self.tool, cmd=self.command)
             return True
-        except Exception as exc:  # noqa: BLE001
-            log.warning("could not start managed tool server", tool=self.name, error=str(exc))
+        except Exception as exc:  # noqa: BLE001 - a tool that cannot start must not stop the server
+            log.warning("could not start managed tool", tool=self.tool, error=str(exc))
             self.process = None
             return False
 
@@ -96,130 +97,74 @@ class ManagedToolServer:
         """Stop the process if it is running."""
         proc = self.process
         self.process = None
-        self.running = False
         if proc is None:
             return
         with contextlib.suppress(Exception):
             proc.terminate()
         try:
             proc.wait(timeout=5)
-        except Exception:  # noqa: BLE001
+        except Exception:  # noqa: BLE001 - a wedged process is killed instead
             with contextlib.suppress(Exception):
                 proc.kill()
             with contextlib.suppress(Exception):
                 proc.wait(timeout=5)
-        log.info("stopped managed tool server", tool=self.name)
+        log.info("stopped managed tool", tool=self.tool)
 
 
 class ManagedToolManager:
-    """Manages the ghx and slackx serve-mode processes."""
+    """Runs the tools whose transport is ``managed``, and supplies their endpoint."""
 
     def __init__(self, spawn: Any = None) -> None:
         self._spawn = spawn
         self.servers: dict[str, ManagedToolServer] = {}
-        self._build()
 
-    def _build(self) -> None:
-        self.servers = {}
-        # ghx serve
-        if self._should_manage("ghx"):
-            cmd = ["ghx", "serve"]
-            self.servers["ghx"] = ManagedToolServer("ghx", cmd, spawn=self._spawn)
-        # slackx serve
-        if self._should_manage("slackx"):
-            cmd = ["slackx", "serve"]
-            self.servers["slackx"] = ManagedToolServer("slackx", cmd, spawn=self._spawn)
+    def manages(self, tool: str, backend: str | None = None) -> bool:
+        """Whether this server runs ``tool`` instead of the user running it.
 
-    def _should_manage(self, tool: str) -> bool:
-        if settings.managed_tools:
+        An explicit ``rpc`` keeps pointing at the user's own server even when
+        the all-tools flag is on, since that flag exists to save a user who runs
+        nothing by hand. ``backend`` is the tool's resolved transport when the
+        caller already read it.
+        """
+        if tool not in SERVE_PORTS:
+            return False
+        if backend is None:
+            backend = backend_for(tool)
+        if backend == MANAGED:
             return True
-        backend = settings.ghx_backend if tool == "ghx" else settings.slackx_backend
-        return str(backend).lower() in _SERVE_BACKENDS
+        return backend != "rpc" and settings.managed_tools
 
-    @property
-    def started(self) -> bool:
-        return any(server.started for server in self.servers.values())
+    def endpoint(self, tool: str, backend: str | None = None) -> tuple[str, str] | None:
+        """The (JSON-RPC URL, token) of a managed tool, or None when it is not managed.
 
-    @property
-    def running(self) -> bool:
-        return any(server.running for server in self.servers.values())
+        Nothing comes from the settings: the process this server started is
+        bound on loopback, so there is no URL to configure and no token to send.
+        """
+        if not self.manages(tool, backend):
+            return None
+        return f"http://127.0.0.1:{SERVE_PORTS[tool]}/rpc", ""
 
-    @property
-    def processes(self) -> dict[str, Any]:
-        return {name: server.process for name, server in self.servers.items()}
+    def sync(self) -> None:
+        """Start the tools that should run and stop the ones that should not."""
+        desired = [tool for tool in TOOLS if self.manages(tool)]
+        for tool in list(self.servers):
+            if tool not in desired:
+                self.servers.pop(tool).stop()
+        for tool in desired:
+            server = self.servers.get(tool)
+            if server is None:
+                server = ManagedToolServer(tool, self._spawn)
+                self.servers[tool] = server
+            server.start()
 
     def start(self) -> None:
-        # Rebuild in case settings changed.
-        self._build()
-        for server in self.servers.values():
-            server.start()
+        self.sync()
 
     def stop(self) -> None:
         for server in self.servers.values():
             server.stop()
-
-    def start_all(self) -> None:
-        self.start()
-
-    def stop_all(self) -> None:
-        self.stop()
-
-    async def astart(self) -> None:
-        self.start()
-
-    async def astop(self) -> None:
-        self.stop()
-
-    def __enter__(self):
-        self.start()
-        return self
-
-    def __exit__(self, *exc):
-        self.stop()
+        self.servers.clear()
 
 
-# Global manager used by the server lifespan.
+# Global manager used by the server lifespan and the settings page.
 managed_tools = ManagedToolManager()
-managed_tool_servers = managed_tools
-tool_servers = managed_tools
-managed_serve = managed_tools
-
-# Common aliases.
-ManagedTools = ManagedToolManager
-ManagedToolServers = ManagedToolManager
-ToolServerManager = ManagedToolManager
-ManagedServe = ManagedToolManager
-
-
-def start_managed_tools() -> None:
-    managed_tools.start()
-
-
-def stop_managed_tools() -> None:
-    managed_tools.stop()
-
-
-def start() -> None:
-    managed_tools.start()
-
-
-def stop() -> None:
-    managed_tools.stop()
-
-
-__all__ = [
-    "ManagedToolServer",
-    "ManagedToolManager",
-    "ManagedTools",
-    "ManagedToolServers",
-    "ToolServerManager",
-    "ManagedServe",
-    "managed_tools",
-    "managed_tool_servers",
-    "tool_servers",
-    "managed_serve",
-    "start_managed_tools",
-    "stop_managed_tools",
-    "start",
-    "stop",
-]

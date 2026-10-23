@@ -24,9 +24,11 @@ class SettingsUpdate(BaseModel):
     slackx_url: str | None = None
     # How the server runs the ghx and slackx helper CLIs: "cli" spawns the
     # binary per call, "rpc" sends the same command lines to the tool's own
-    # JSON-RPC server (`ghx rpc serve`, `slackx rpc serve`). The URL is the
-    # server's base (the endpoint is <url>/rpc); a token is only needed when a
-    # server is bound beyond loopback.
+    # JSON-RPC server (`ghx rpc serve`, `slackx rpc serve`), and "managed"
+    # starts that serve process from this server, which then supplies the
+    # endpoint. For "rpc" the URL is the server's base (the endpoint is
+    # <url>/rpc); a token is only needed when a server is bound beyond
+    # loopback. Neither applies to "managed".
     ghx_backend: str | None = None
     ghx_rpc_url: str | None = None
     ghx_rpc_token: str | None = None

@@ -103,13 +103,15 @@ class Settings(BaseSettings):
     # How the server runs the ghx and slackx helper CLIs: "cli" spawns the
     # binary per call, "rpc" sends the same command lines to the tool's own
     # JSON-RPC server instead (`ghx rpc serve`, `slackx rpc serve`), so one warm
-    # process serves every read. The URL is the server's base URL; the
-    # JSON-RPC endpoint lives at <url>/rpc. A token is only needed when a
-    # server is bound beyond loopback.
-    ghx_backend: Literal["cli", "rpc", "serve", "managed", "managed-serve", "managed_serve"] = "cli"
+    # process serves every read, and "managed" starts the tool's serve process
+    # with this server and calls the endpoint that same process exposes, so
+    # there is nothing to configure. A server's URL is its base URL and its
+    # JSON-RPC endpoint lives at <url>/rpc; a token is only needed when it is
+    # bound beyond loopback.
+    ghx_backend: Literal["cli", "rpc", "managed"] = "cli"
     ghx_rpc_url: str = "http://127.0.0.1:8090"
     ghx_rpc_token: str = ""
-    slackx_backend: Literal["cli", "rpc", "serve", "managed", "managed-serve", "managed_serve"] = "cli"
+    slackx_backend: Literal["cli", "rpc", "managed"] = "cli"
     slackx_rpc_url: str = "http://127.0.0.1:8280"
     slackx_rpc_token: str = ""
 
@@ -155,7 +157,7 @@ class Settings(BaseSettings):
     # Start ghx and slackx as managed processes in serve mode alongside the
     # backend server, so their lifecycle is tied to it (they start when it
     # starts and stop when it stops). Enabled automatically when either tool's
-    # backend is set to a managed serve mode; this flag forces it on for both.
+    # backend is "managed"; this flag forces it on for both.
     managed_tools: bool = Field(
         default=False,
         validation_alias=AliasChoices(

@@ -179,7 +179,7 @@ describe('SettingsView', () => {
     await flushPromises()
     expect(mocks.settingsUpdate).toHaveBeenCalledWith({ slackx_url: 'http://localhost:8280' })
 
-    const ghxTransport = wrapper.findAll('select').find((s) => s.text().includes('ghx JSON-RPC server'))
+    const ghxTransport = wrapper.findAll('select').find((s) => s.text().includes('ghx server you run'))
     await ghxTransport.setValue('rpc')
     await flushPromises()
     expect(mocks.settingsUpdate).toHaveBeenCalledWith({ ghx_backend: 'rpc' })
@@ -195,6 +195,30 @@ describe('SettingsView', () => {
     await ghxRpcToken.trigger('blur')
     await flushPromises()
     expect(mocks.settingsUpdate).toHaveBeenCalledWith({ ghx_rpc_token: 't0ken' })
+  })
+
+  it('hides the rpc server fields for the managed transport', async () => {
+    mocks.settingsUpdate.mockResolvedValue({})
+    const wrapper = mountView()
+    await flushPromises()
+
+    const nav = wrapper.findAll('.settings-nav-item').find((b) => b.text() === 'Local tools')
+    await nav.trigger('click')
+    await flushPromises()
+
+    const ghxTransport = wrapper.findAll('select').find((s) => s.text().includes('ghx server you run'))
+    expect(wrapper.find('input[placeholder="http://127.0.0.1:8090"]').exists()).toBe(false)
+
+    await ghxTransport.setValue('rpc')
+    await flushPromises()
+    expect(wrapper.find('input[placeholder="http://127.0.0.1:8090"]').exists()).toBe(true)
+
+    await ghxTransport.setValue('managed')
+    await flushPromises()
+    // The server starts the tool itself, so there is nothing to configure.
+    expect(mocks.settingsUpdate).toHaveBeenCalledWith({ ghx_backend: 'managed' })
+    expect(wrapper.find('input[placeholder="http://127.0.0.1:8090"]').exists()).toBe(false)
+    expect(wrapper.find('input[placeholder="only when the server is bound beyond loopback"]').exists()).toBe(false)
   })
 
   it('previews and saves each source refresh policy', async () => {

@@ -4,6 +4,8 @@ They live in one module so there is a single place to stub a subprocess in tests
 The ghx and slackx calls can also run against the tool's own JSON-RPC server
 (``ghx rpc serve``, ``slackx rpc serve``) instead of a local spawn; the
 ``AGENTIC_GHX_BACKEND`` and ``AGENTIC_SLACKX_BACKEND`` settings pick the mode.
+The ``managed`` mode runs the tool's serve process from this server, so it
+supplies the endpoint itself and needs no URL or token.
 """
 
 from __future__ import annotations
@@ -18,8 +20,9 @@ from typing import Any
 import httpx
 import structlog
 
-from ..config import settings
 from .. import debug as _debug
+from ..config import settings
+from .managed_tools import managed_tools
 
 log = structlog.get_logger(__name__)
 
@@ -79,15 +82,22 @@ def _rpc_config(cli: str) -> tuple[str, str, str] | None:
 
 
 def _rpc_endpoint(cli: str) -> tuple[str, str] | None:
-    """The (JSON-RPC URL, bearer token) for a helper CLI, when rpc mode is on.
+    """The (JSON-RPC URL, bearer token) for a helper CLI, when it has a server.
 
-    The configured URL is the server's base; the JSON-RPC endpoint lives at
+    A managed tool needs no configuration: this server starts it and supplies
+    its endpoint, so the URL and token settings do not apply. Otherwise the
+    configured URL is the server's base and the JSON-RPC endpoint lives at
     ``/rpc`` under it (a URL that already names ``/rpc`` also works). None when
-    the CLI has no rpc server configured, which includes every other command
+    the CLI has no rpc server for this call, which includes every other command
     this module runs (``git``, ``gh``).
     """
     config = _rpc_config(cli)
-    if config is None or config[0] != "rpc":
+    if config is None:
+        return None
+    managed = managed_tools.endpoint(cli, config[0])
+    if managed is not None:
+        return managed
+    if config[0] != "rpc":
         return None
     base = config[1].strip().rstrip("/")
     if base.endswith("/rpc"):
@@ -337,9 +347,11 @@ def _cli_available(name: str) -> bool:
     """Whether a helper CLI (ghx, slackx) can run: on PATH, or served over rpc.
 
     In rpc mode the binary is not needed on this machine, so the configured
-    server stands in for it; an unreachable server fails the call itself.
+    server stands in for it; an unreachable server fails the call itself. A
+    managed tool still needs its binary: this server runs it.
     """
-    if _rpc_endpoint(name) is not None:
+    config = _rpc_config(name)
+    if config is not None and config[0] == "rpc":
         return True
     return shutil.which(name) is not None
 

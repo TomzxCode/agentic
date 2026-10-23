@@ -212,6 +212,46 @@ def test_rpc_mode_answers_available_without_the_local_binary(monkeypatch):
     assert shell._cli_available("slackx") is False
 
 
+def test_managed_mode_calls_the_endpoint_the_server_supplies(monkeypatch):
+    monkeypatch.setattr(settings, "ghx_backend", "managed")
+    # The rpc settings do not apply: the server starts the tool on loopback, so
+    # there is no URL to configure and no token to send.
+    monkeypatch.setattr(settings, "ghx_rpc_url", "http://127.0.0.1:9999")
+    monkeypatch.setattr(settings, "ghx_rpc_token", "configured-but-unused")
+    calls = {}
+
+    def fake_post(url, **kwargs):
+        calls.update(url=url, headers=kwargs.get("headers"))
+        return _rpc_result(stdout="out\n")
+
+    monkeypatch.setattr(shell.httpx, "post", fake_post)
+    assert shell._run_cli(["ghx", "repo", "list"]) == "out"
+    assert calls["url"] == "http://127.0.0.1:8080/rpc"
+    assert calls["headers"] == {}
+
+
+def test_managed_mode_still_needs_the_local_binary(monkeypatch):
+    monkeypatch.setattr(shell.shutil, "which", lambda name: None)
+    monkeypatch.setattr(settings, "slackx_backend", "managed")
+    # Unlike rpc mode, this server has to run the tool, so a missing binary is
+    # reported as unavailable instead of silently standing in for it.
+    assert shell._cli_available("slackx") is False
+    # The transport is per tool: ghx without its own setting stays local.
+    assert shell._cli_available("ghx") is False
+
+
+def test_managed_mode_sends_typed_methods_like_rpc_mode(monkeypatch):
+    monkeypatch.setattr(settings, "slackx_backend", "managed")
+
+    def fake_post(url, **kwargs):
+        assert url == "http://127.0.0.1:8280/rpc"
+        assert kwargs["json"]["method"] == "users.list"
+        return _rpc_typed({"user_count": 1, "users": [{"id": "U0123ABCDEF", "real_name": "Tom"}]})
+
+    monkeypatch.setattr(shell.httpx, "post", fake_post)
+    assert slack.slack_user_names() == {"U0123ABCDEF": "Tom"}
+
+
 def test_list_github_issues_runs_over_the_typed_method(monkeypatch):
     monkeypatch.setattr(settings, "ghx_backend", "rpc")
     payload = [

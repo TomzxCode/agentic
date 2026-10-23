@@ -501,8 +501,8 @@ Environment variables (prefix `AGENTIC_`; the Slack credentials keep slackx's na
 | `AGENTIC_GITHUB_LOGIN` | (empty) | The GitHub login that counts as you, for change-record suggestions. Empty auto-detects the authenticated `gh` account. |
 | `SLACK_TOKEN` | (empty) | Slack token the item view's poke action sends with (also `AGENTIC_SLACK_TOKEN`). A `xoxc-` web token needs `SLACK_COOKIE`; empty disables poking. |
 | `SLACK_COOKIE` | (empty) | The `xoxd-` cookie for a `xoxc-` token (also `AGENTIC_SLACK_COOKIE`). |
-| `AGENTIC_GHX_BACKEND` | `cli` | How the server runs `ghx`: `cli` spawns the binary per call, `rpc` sends the same command lines to its JSON-RPC server (`ghx rpc serve`, base URL `AGENTIC_GHX_RPC_URL`, token `AGENTIC_GHX_RPC_TOKEN`). Also on **Settings → Local tools**. |
-| `AGENTIC_SLACKX_BACKEND` | `cli` | How the server runs `slackx`: `cli` spawns the binary per call, `rpc` sends the same command lines to its JSON-RPC server (`slackx rpc serve`, base URL `AGENTIC_SLACKX_RPC_URL`, token `AGENTIC_SLACKX_RPC_TOKEN`). Also on **Settings → Local tools**. |
+| `AGENTIC_GHX_BACKEND` | `cli` | How the server runs `ghx`: `cli` spawns the binary per call, `rpc` sends the same command lines to a server you run (`ghx rpc serve`, base URL `AGENTIC_GHX_RPC_URL`, token `AGENTIC_GHX_RPC_TOKEN`), `managed` starts `ghx serve` with the server and calls it (no URL or token). Also on **Settings → Local tools**. |
+| `AGENTIC_SLACKX_BACKEND` | `cli` | How the server runs `slackx`: `cli` spawns the binary per call, `rpc` sends the same command lines to a server you run (`slackx rpc serve`, base URL `AGENTIC_SLACKX_RPC_URL`, token `AGENTIC_SLACKX_RPC_TOKEN`), `managed` starts `slackx serve` with the server and calls it (no URL or token). Also on **Settings → Local tools**. |
 | `AGENTIC_AUTO_APPROVE_PERMISSIONS` | `true` | Auto-approve ACP permission requests. |
 | `AGENTIC_OPENCHAMBER_URL` | (unset) | Base URL for "Open in OpenChamber" links. |
 | `AGENTIC_OPENCHAMBER_SESSION_PATH` | `/?session={session}` | Path appended to the base. |

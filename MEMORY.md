@@ -1,5 +1,10 @@
 # Memory
 
+## 2026-10-23: the managed transport starts the tools' serve mode, not `rpc serve`
+
+- A ghx/slackx transport is one of `cli`, `rpc`, `managed`. `managed` means this server runs the tool: it starts `<tool> serve` bound to loopback on the tool's own default UI port (ghx 8080, slackx 8280) from the API lifespan and stops it with the API, and calls `<port>/rpc` on that same process. Both tools' serve modes answer the web UI and JSON-RPC on one port, which is why managed does not use `ghx rpc serve` (8090, no UI). The port is the serve default on purpose; there is nothing to configure, so the Settings page hides the rpc URL and token unless the transport is `rpc`.
+- `rpc` stays for a server the user runs themselves, and `AGENTIC_MANAGED_TOOLS=1` starts both tools for a machine that configures nothing; an explicit `rpc` is never taken over by that flag. Patching a transport on the Settings page calls `managed_tools.sync()` so the processes start or stop without a restart.
+
 ## 2026-10-21: ghx and slackx web links use their own settings, not the RPC URLs
 
 - `ghx_url` and `slackx_url` are the base URLs of the tools' **web** UIs (`ghx serve`, `slackx serve`), editable under Settings → Local tools. They are deliberately separate from `AGENTIC_GHX_RPC_URL` / `AGENTIC_SLACKX_RPC_URL`: `ghx serve` defaults to :8080 while `ghx rpc serve` defaults to :8090, and `ghx rpc serve` has no web UI at all. slackx happens to serve both on :8280.

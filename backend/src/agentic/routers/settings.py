@@ -17,6 +17,7 @@ from ..schemas.settings import (
     SettingsRead,
     SettingsUpdate,
 )
+from ..services.managed_tools import managed_tools
 from ..settings_store import (
     env_defaults,
     get_overrides,
@@ -64,8 +65,8 @@ def patch_settings(payload: SettingsUpdate, session: Session = Depends(get_sessi
         raise HTTPException(status_code=422, detail="review_scan_default: must be include or exclude")
     for key in ("ghx_backend", "slackx_backend"):
         backend = values.get(key)
-        if backend is not None and backend not in ("cli", "rpc", "serve", "managed", "managed-serve", "managed_serve"):
-            raise HTTPException(status_code=422, detail=f"{key}: must be cli or rpc")
+        if backend is not None and backend not in ("cli", "rpc", "managed"):
+            raise HTTPException(status_code=422, detail=f"{key}: must be cli, rpc or managed")
     for key in ("ghx_rpc_url", "slackx_rpc_url"):
         url = values.get(key)
         if url and not url.startswith(("http://", "https://")):
@@ -83,6 +84,10 @@ def patch_settings(payload: SettingsUpdate, session: Session = Depends(get_sessi
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=f"agent_prompts: {exc}") from exc
     update_settings(session, values)
+    if any(key in values for key in ("ghx_backend", "slackx_backend")):
+        # A switch to or from managed starts or stops the tool's serve process,
+        # so the change applies without a restart.
+        managed_tools.sync()
     return _read(session)
 
 

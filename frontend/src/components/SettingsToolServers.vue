@@ -6,10 +6,12 @@ import { store } from '../store'
 // The "Local tools" settings section: how the server runs the ghx and slackx
 // helper CLIs, and the base URLs of their web UIs. When a URL is set, GitHub
 // and Slack items link into that UI from the item detail page and the item
-// lists. The transport decides whether each command line spawns the binary or
-// goes to the tool's JSON-RPC server; it is read per call, so a change applies
-// without a restart. Like the other sections, the page shell owns the single
-// settings read and this component saves each field on blur.
+// lists. The transport decides whether each command line spawns the binary,
+// goes to a server you run, or goes to the serve process this server starts and
+// manages; it is read per call, so a change applies without a restart. The
+// server URL and token only apply to rpc, so they are hidden for the other
+// transports. Like the other sections, the page shell owns the single settings
+// read and this component saves each field on blur.
 const props = defineProps({
   overrides: { type: Object, default: () => ({}) },
   defaults: { type: Object, default: () => ({}) }
@@ -79,11 +81,15 @@ async function saveField(key) {
       <label>Transport</label>
       <select v-model="form.ghx_backend" class="select" @change="saveField('ghx_backend')">
         <option value="cli">cli: run the ghx binary per call</option>
-        <option value="rpc">rpc: ask a running ghx JSON-RPC server</option>
-        <option value="serve">serve: run ghx serve managed by this server</option>
+        <option value="rpc">rpc: ask a ghx server you run yourself</option>
+        <option value="managed">managed: this server runs ghx serve and calls it</option>
       </select>
     </div>
-    <div class="field">
+    <p v-if="form.ghx_backend === 'managed'" class="faint" style="margin: 4px 0 0">
+      The server starts <code>ghx serve</code> on <code>127.0.0.1:8080</code> and stops it when it stops, so there is no
+      server URL or token to set.
+    </p>
+    <div v-if="form.ghx_backend === 'rpc'" class="field">
       <label>ghx rpc server URL</label>
       <input
         v-model="form.ghx_rpc_url"
@@ -96,7 +102,7 @@ async function saveField(key) {
         only when the transport is rpc, and read per call, so changes apply at once.
       </p>
     </div>
-    <div class="field">
+    <div v-if="form.ghx_backend === 'rpc'" class="field">
       <label>ghx rpc token</label>
       <input
         v-model="form.ghx_rpc_token"
@@ -125,11 +131,15 @@ async function saveField(key) {
       <label>Transport</label>
       <select v-model="form.slackx_backend" class="select" @change="saveField('slackx_backend')">
         <option value="cli">cli: run the slackx binary per call</option>
-        <option value="rpc">rpc: ask a running slackx JSON-RPC server</option>
-        <option value="serve">serve: run slackx serve managed by this server</option>
+        <option value="rpc">rpc: ask a slackx server you run yourself</option>
+        <option value="managed">managed: this server runs slackx serve and calls it</option>
       </select>
     </div>
-    <div class="field">
+    <p v-if="form.slackx_backend === 'managed'" class="faint" style="margin: 4px 0 0">
+      The server starts <code>slackx serve</code> on <code>127.0.0.1:8280</code> and stops it when it stops, so there is
+      no server URL or token to set.
+    </p>
+    <div v-if="form.slackx_backend === 'rpc'" class="field">
       <label>slackx rpc server URL</label>
       <input
         v-model="form.slackx_rpc_url"
@@ -142,7 +152,7 @@ async function saveField(key) {
         Used only when the transport is rpc, and read per call, so changes apply at once.
       </p>
     </div>
-    <div class="field">
+    <div v-if="form.slackx_backend === 'rpc'" class="field">
       <label>slackx rpc token</label>
       <input
         v-model="form.slackx_rpc_token"
