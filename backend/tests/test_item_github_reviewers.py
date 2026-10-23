@@ -116,8 +116,8 @@ def test_github_reviewers_endpoint_reports_a_failed_read(monkeypatch):
 def test_poke_sends_the_review_request_to_the_mapped_slack_user(monkeypatch):
     sent: dict = {}
 
-    def fake_send(user_id, text):
-        sent.update(user_id=user_id, text=text)
+    def fake_send(user_id, text, **kwargs):
+        sent.update(user_id=user_id, text=text, **kwargs)
         return {"ok": True, "ts": "1700000000.000000"}
 
     monkeypatch.setattr(items_router, "slack_send_dm", fake_send)
@@ -135,6 +135,8 @@ def test_poke_sends_the_review_request_to_the_mapped_slack_user(monkeypatch):
             "ts": "1700000000.000000",
         }
         assert sent["user_id"] == "U0123ABCDEF"
+        # The PR link is the message, so Slack is told not to expand it.
+        assert sent["unfurl"] is False
         assert sent["text"] == (
             ":wave::robot_face: I would love your review on this PR: "
             "<https://github.com/acme/api/pull/42|Fix the parser>"
@@ -149,7 +151,7 @@ def test_poke_resolves_a_slack_handle_alias(monkeypatch):
         "_run_cli",
         lambda cmd, timeout=60: json.dumps({"users": [{"id": "U0HANDLE1", "name": "alice-slack-handle"}]}),
     )
-    monkeypatch.setattr(items_router, "slack_send_dm", lambda user_id, text: {"ok": True, "ts": "1.0"})
+    monkeypatch.setattr(items_router, "slack_send_dm", lambda user_id, text, **kwargs: {"ok": True, "ts": "1.0"})
     with TestClient(app) as client:
         item = _pr(client)
         person = client.post(
@@ -191,7 +193,9 @@ def test_poke_reports_slack_refusing_the_message(monkeypatch):
     monkeypatch.setattr(
         items_router,
         "slack_send_dm",
-        lambda user_id, text: (_ for _ in ()).throw(slack.SlackError("Slack refused the message: channel_not_found")),
+        lambda user_id, text, **kwargs: (_ for _ in ()).throw(
+            slack.SlackError("Slack refused the message: channel_not_found")
+        ),
     )
     with TestClient(app) as client:
         item = _pr(client)

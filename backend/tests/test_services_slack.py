@@ -279,8 +279,35 @@ def test_slack_send_dm_posts_to_the_user_with_the_configured_token(monkeypatch):
 
     assert slack.slack_send_dm("U0123ABCDEF", "hi") == {"ok": True, "ts": "1.2"}
     assert calls["url"] == "https://slack.example/api/chat.postMessage"
-    assert calls["data"] == {"channel": "U0123ABCDEF", "text": "hi"}
+    assert calls["data"] == {
+        "channel": "U0123ABCDEF",
+        "text": "hi",
+        "unfurl_links": "true",
+        "unfurl_media": "true",
+    }
     assert calls["headers"] == {"Authorization": "Bearer xoxb-1"}
+
+
+def test_slack_send_dm_can_turn_link_previews_off(monkeypatch):
+    from agentic.config import settings
+
+    calls = {}
+
+    def fake_post(url, data=None, headers=None, timeout=None):
+        calls.update(data=data)
+        return _SlackResponse({"ok": True, "ts": "1.2"})
+
+    monkeypatch.setattr(settings, "slack_token", "xoxb-1")
+    monkeypatch.setattr(settings, "slack_cookie", "")
+    monkeypatch.setattr(slack.httpx, "post", fake_post)
+
+    slack.slack_send_dm("U0123ABCDEF", "hi", unfurl=False)
+    assert calls["data"] == {
+        "channel": "U0123ABCDEF",
+        "text": "hi",
+        "unfurl_links": "false",
+        "unfurl_media": "false",
+    }
 
 
 def test_slack_send_dm_carries_the_cookie_for_a_web_token(monkeypatch):

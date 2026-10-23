@@ -209,12 +209,15 @@ def resolve_slack_user_id(values: Iterable[str]) -> str | None:
     return None
 
 
-def slack_send_dm(user_id: str, text: str) -> dict[str, Any]:
+def slack_send_dm(user_id: str, text: str, *, unfurl: bool = True) -> dict[str, Any]:
     """Send a direct message to a Slack user, opening the DM if needed.
 
     ``chat.postMessage`` takes a user id as its channel. Slack's own error is
     raised as :class:`SlackError`, so a caller can show it instead of reporting
     a silent success.
+
+    ``unfurl`` asks Slack to expand the links in the message. A message whose
+    link is the point (a PR to review) turns it off so the DM stays one line.
     """
     token = (settings.slack_token or "").strip()
     if not token:
@@ -227,10 +230,16 @@ def slack_send_dm(user_id: str, text: str) -> dict[str, Any]:
         headers["Cookie"] = f"d={cookie}"
     base_url = (settings.slack_api_base_url or 'https://slack.com/api').rstrip('/')
     url = f"{base_url}/chat.postMessage"
+    payload = {
+        "channel": user_id,
+        "text": text,
+        "unfurl_links": "true" if unfurl else "false",
+        "unfurl_media": "true" if unfurl else "false",
+    }
 
     def _post(target: str):
         try:
-            response = httpx.post(url, data={"channel": target, "text": text}, headers=headers, timeout=30)
+            response = httpx.post(url, data={**payload, "channel": target}, headers=headers, timeout=30)
         except httpx.HTTPError as exc:
             raise SlackError(f"Slack request failed: {exc}") from exc
         try:

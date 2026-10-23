@@ -62,6 +62,7 @@ Under that come two panels for pull requests:
 - Review reports live under `AGENTIC_SDLC_DIR`, at `{owner}/{repository}/pull-requests/{number}/`.
 - A reviewer read failure shows GitHub's error instead of an empty list.
 - The poke needs `SLACK_TOKEN`, plus `SLACK_COOKIE` for an `xoxc-` web token, or it reports that Slack is not configured.
+- A poke turns off Slack's link previews (`unfurl_links` and `unfurl_media` are false), so the DM stays one line instead of expanding the pull request.
 
 ## CLI and agent interface
 

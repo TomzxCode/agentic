@@ -410,7 +410,8 @@ def poke_reviewer(item_id: str, payload: ItemPokeRequest, session: Session = Dep
             ),
         )
     try:
-        sent = slack_send_dm(slack_user_id, _slack_pr_message(item))
+        # The PR link is the whole message, so no preview: the DM stays one line.
+        sent = slack_send_dm(slack_user_id, _slack_pr_message(item), unfurl=False)
     except SlackError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     return ItemPoke(
