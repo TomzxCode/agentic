@@ -18,6 +18,17 @@
   min-width: 0;
   max-width: 420px;
 }
+/* The repository multi-select beside the search: the same searchable dropdown
+   as the review queue's, sized to sit in this row. */
+.my-pulls-repository-select {
+  flex: 0 1 auto;
+  min-width: 160px;
+  max-width: 280px;
+  /* The SearchSelect's `field` variant also carries the shared `.field` class,
+     whose bottom margin makes this control's margin box taller than the search
+     box beside it; drop that margin in the filter row. */
+  margin-bottom: 0;
+}
 /* The "Group by" control beside the search: a label with a compact select, like
    the tasks page's. */
 .my-pulls-group-by {

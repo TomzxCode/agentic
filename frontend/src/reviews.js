@@ -307,10 +307,11 @@ export function matchesAuthorFilter(pr, value) {
   return wanted.includes(author)
 }
 
-// The distinct repositories in the queue, each with the number of rows it
-// carries, ordered by name case-insensitively. Rows with no repository are left
-// out of the list: they match only the unfiltered queue.
-export function queueRepositories(prs) {
+// The distinct repositories in a row list (the review queue or My PRs), each
+// with the number of rows it carries, ordered by name case-insensitively. Rows
+// with no repository are left out of the list: they match only the unfiltered
+// list.
+export function repositoriesWithCounts(prs) {
   const counts = new Map()
   for (const pr of prs || []) {
     const repository = String(pr?.repository || '').trim()

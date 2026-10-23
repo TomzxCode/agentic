@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
 import { api } from '../api'
+import SearchSelect from '../components/SearchSelect.vue'
 import {
   ciLabel,
   ciTone,
@@ -21,6 +22,7 @@ import {
   THREAD_FILTERS
 } from '../myPulls'
 import { parseRemote, personLink } from '../repositories/parse'
+import { matchesRepositoryFilter, repositoriesWithCounts } from '../reviews'
 import { formatDateTime, store, timeAgo } from '../store'
 
 // My PRs: the open pull requests the GitHub login in Settings authored, read
@@ -33,12 +35,14 @@ const loading = ref(true)
 const error = ref(false)
 const search = ref('')
 
-// The filters: one active value per facet, each an empty string for "Any". They
-// are per-visit like the search box, since they narrow what the loaded list
-// shows rather than change how the page is laid out.
+// The filters: one active value per facet, each an empty string for "Any", plus
+// the repository multi-select (an empty list means every repository). They are
+// per-visit like the search box, since they narrow what the loaded list shows
+// rather than change how the page is laid out.
 const ciFilter = ref('')
 const reviewFilter = ref('')
 const threadFilter = ref('')
+const repositoryFilter = ref([])
 
 // How the rows are split into sections. It is a per-device view preference,
 // remembered in localStorage like the feedback page's grouping, so leaving the
@@ -74,6 +78,7 @@ const filtered = computed(() =>
   pulls.value.filter(
     (pull) =>
       matchesPullSearch(pull, search.value) &&
+      matchesRepositoryFilter(pull, repositoryFilter.value) &&
       matchesCiFilter(pull, ciFilter.value) &&
       matchesReviewFilter(pull, reviewFilter.value) &&
       matchesThreadFilter(pull, threadFilter.value)
@@ -85,6 +90,16 @@ const counts = computed(() => pullCounts(pulls.value))
 // How many pull requests each filter option would show, over the whole list, so
 // a chip states what it is worth rather than what the other filters left.
 const filterCounts = computed(() => pullFilterCounts(pulls.value))
+// The repositories to offer, with their row counts, over the whole list. This is
+// the same multi-select the review queue uses, so it reads its options the same
+// way.
+const repositories = computed(() => repositoriesWithCounts(pulls.value))
+const repositoryOptions = computed(() =>
+  repositories.value.map((repository) => ({
+    value: repository.value,
+    label: `${repository.value} (${repository.count})`
+  }))
+)
 
 function filterCount(facet, value) {
   if (!value) return pulls.value.length
@@ -93,21 +108,29 @@ function filterCount(facet, value) {
 
 // Whether anything narrows the list, so the empty state can offer one button
 // that clears it all instead of naming each control.
-const filtering = computed(() => Boolean(search.value || ciFilter.value || reviewFilter.value || threadFilter.value))
+const filtering = computed(() =>
+  Boolean(search.value || repositoryFilter.value.length || ciFilter.value || reviewFilter.value || threadFilter.value)
+)
 
 function clearFilters() {
   search.value = ''
+  repositoryFilter.value = []
   ciFilter.value = ''
   reviewFilter.value = ''
   threadFilter.value = ''
 }
 
-// What the empty state says: the search text, the filters, or both.
+// What the empty state says: the search text, the repositories, the filters, or
+// a combination of them.
 const emptyMessage = computed(() => {
-  if (search.value && (ciFilter.value || reviewFilter.value || threadFilter.value)) {
+  const narrowed = Boolean(ciFilter.value || reviewFilter.value || threadFilter.value)
+  if (search.value && (narrowed || repositoryFilter.value.length)) {
     return `No pull requests match “${search.value}” with the selected filters.`
   }
   if (search.value) return `No pull requests match “${search.value}”.`
+  if (repositoryFilter.value.length) {
+    return `No pull requests in ${repositoryFilter.value.join(', ')}.`
+  }
   return 'No pull requests match the selected filters.'
 })
 
@@ -172,6 +195,10 @@ async function load(refresh = false) {
     await store.loadPeople().catch(() => {})
     await store.loadRepositories().catch(() => {})
     report.value = await api.myPulls.list({ refresh })
+    // Drop any selected repository the refreshed list no longer carries, so the
+    // control never filters on something it cannot show as selected.
+    const known = new Set(repositories.value.map((repository) => repository.value.toLowerCase()))
+    repositoryFilter.value = repositoryFilter.value.filter((value) => known.has(String(value).toLowerCase()))
   } catch (e) {
     error.value = true
     store.notify(e.message, true)
@@ -230,6 +257,16 @@ onMounted(load)
           type="search"
           placeholder="Search repository, number, title, or approver…"
           aria-label="Search my pull requests"
+        />
+        <SearchSelect
+          v-model="repositoryFilter"
+          class="my-pulls-repository-select"
+          multiple
+          bulk-actions
+          :sort="false"
+          :options="repositoryOptions"
+          placeholder="All repositories"
+          title="Filter by one or more repositories"
         />
         <label class="faint my-pulls-group-by">
           Group by

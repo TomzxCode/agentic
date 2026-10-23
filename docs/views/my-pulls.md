@@ -37,6 +37,7 @@ A row that needs attention is styled as such.
 | Control | Options |
 | --- | --- |
 | Search | Matches repository, number, `#number`, title, and approver. |
+| `All repositories` | The review queue's multi-select with a `Filter…` box and `Select all` / `Deselect all`. Nothing chosen means every repository, and each option carries how many pull requests it would show. |
 | `Group by` | `None` (default), `Repository`, `CI status`, `Review status`. |
 | `CI` chips | `Any`, `Failing`, `Running`, `Passing`, `No checks`. |
 | `Review` chips | `Any`, `Changes requested`, `Review required`, `Approved`, `No review`. |
@@ -46,7 +47,7 @@ One chip per facet is active at a time, and `Any` is the empty value.
 Chip counts cover the whole list, not the filtered result, so a count tells you what is there rather than what is shown.
 
 `Group by` is remembered on this device under `agentic.myPullsGroupBy`.
-The search and the chips are not.
+The search, the chips, and the repository selection are not.
 
 Within a group, rows sort by attention first and newest update second.
 There is no sort control.

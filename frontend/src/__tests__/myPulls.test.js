@@ -362,6 +362,43 @@ describe('MyPullsView', () => {
     expect(numbers()).toEqual(['#7'])
   })
 
+  it('filters by repository picked from the searchable dropdown', async () => {
+    mocks.list.mockResolvedValue(
+      report([
+        pull({ number: 42, repository: 'TomzxCode/agentic' }),
+        pull({ number: 7, repository: 'acme/api' }),
+        pull({ number: 9, repository: 'acme/api' })
+      ])
+    )
+    const wrapper = mount(MyPullsView, { global: { stubs: { RouterLink: RouterLinkStub } } })
+    await flushPromises()
+
+    const numbers = () => wrapper.findAll('.my-pulls-link').map((link) => link.text())
+    expect(numbers()).toEqual(['#42', '#7', '#9'])
+
+    // Each option carries how many pull requests it would show.
+    await wrapper.get('.my-pulls-repository-select .ss-trigger').trigger('click')
+    const options = wrapper.findAll('.ss-option')
+    expect(options.map((option) => option.text())).toEqual(['acme/api (2)', 'TomzxCode/agentic (1)'])
+
+    await options[0].trigger('click')
+    await flushPromises()
+    expect(wrapper.get('.my-pulls-repository-select .ss-label').text()).toBe('acme/api (2)')
+    expect(numbers()).toEqual(['#7', '#9'])
+
+    // A second choice narrows to both, and the empty state clears them all.
+    const remaining = wrapper.findAll('.ss-option').find((option) => option.text().includes('TomzxCode/agentic'))
+    await remaining.trigger('click')
+    await flushPromises()
+    expect(numbers()).toEqual(['#42', '#7', '#9'])
+
+    await wrapper.find('.my-pulls-search').setValue('nothing matches')
+    expect(wrapper.text()).toContain('with the selected filters')
+    await wrapper.find('.empty button').trigger('click')
+    expect(numbers()).toEqual(['#42', '#7', '#9'])
+    expect(wrapper.get('.my-pulls-repository-select .ss-label').text()).toBe('All repositories')
+  })
+
   it('refreshes with the refresh flag and filters by search', async () => {
     mocks.list.mockResolvedValue(report([pull(), pull({ number: 7, title: 'Other work' })], { login: 'tomzx' }))
     const wrapper = mount(MyPullsView, { global: { stubs: { RouterLink: RouterLinkStub } } })

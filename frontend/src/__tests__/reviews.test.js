@@ -21,10 +21,10 @@ import {
   PR_STATE_FILTERS,
   prStateGroup,
   queueAuthors,
-  queueRepositories,
   queueRowFor,
   reviewLabel,
   reviewedFilterCount,
+  repositoriesWithCounts,
   riskTone,
   shortCommit,
   stateFilterCounts,
@@ -313,12 +313,17 @@ describe('repository filter', () => {
   const pr = (repository) => ({ repository })
 
   it('lists distinct repositories with their counts, ordered by name', () => {
-    const repositories = queueRepositories([pr('TomzxCode/agentic'), pr('acme/api'), pr('TomzxCode/agentic'), pr('')])
+    const repositories = repositoriesWithCounts([
+      pr('TomzxCode/agentic'),
+      pr('acme/api'),
+      pr('TomzxCode/agentic'),
+      pr('')
+    ])
     expect(repositories).toEqual([
       { value: 'acme/api', count: 1 },
       { value: 'TomzxCode/agentic', count: 2 }
     ])
-    expect(queueRepositories(undefined)).toEqual([])
+    expect(repositoriesWithCounts(undefined)).toEqual([])
   })
 
   it('matches a row against one or more repositories, case-insensitively', () => {

@@ -22,7 +22,7 @@ import {
   PR_STATE_FILTERS,
   QUEUE_STEPS,
   queueAuthors,
-  queueRepositories,
+  repositoriesWithCounts,
   READINESS_LIGHTS,
   READINESS_TITLES,
   REQUEST_SOURCE_BADGES,
@@ -252,7 +252,7 @@ const hiddenReviewed = computed(() =>
       )
 )
 // The repositories to offer, with their row counts, over the whole queue.
-const repositories = computed(() => queueRepositories(queue.value.prs))
+const repositories = computed(() => repositoriesWithCounts(queue.value.prs))
 // The repository dropdown's options, each carrying its row count.
 const repositoryOptions = computed(() =>
   repositories.value.map((repository) => ({
