@@ -31,6 +31,14 @@ MANAGED = "managed"
 SERVE_PORTS = {"ghx": 8080, "slackx": 8280}
 
 
+def serve_url(tool: str) -> str:
+    """The base URL a managed tool's serve process answers on.
+
+    Its web UI is there and so is its JSON-RPC endpoint, at ``<url>/rpc``.
+    """
+    return f"http://127.0.0.1:{SERVE_PORTS[tool]}"
+
+
 def backend_for(tool: str) -> str:
     """A tool's transport: the Settings page's stored value over the environment's.
 
@@ -142,7 +150,23 @@ class ManagedToolManager:
         """
         if not self.manages(tool, backend):
             return None
-        return f"http://127.0.0.1:{SERVE_PORTS[tool]}/rpc", ""
+        return f"{serve_url(tool)}/rpc", ""
+
+    def restart(self, tool: str) -> bool | None:
+        """Stop and start a managed tool's serve process.
+
+        Returns whether it came back up, or None when this server does not run
+        the tool. A process this server never started is started here, so the
+        button works even after a failed start.
+        """
+        if not self.manages(tool):
+            return None
+        server = self.servers.get(tool)
+        if server is None:
+            server = ManagedToolServer(tool, self._spawn)
+            self.servers[tool] = server
+        server.stop()
+        return server.start()
 
     def sync(self) -> None:
         """Start the tools that should run and stop the ones that should not."""

@@ -16,8 +16,9 @@ from ..schemas.settings import (
     RefreshStatusRead,
     SettingsRead,
     SettingsUpdate,
+    ToolRestartRead,
 )
-from ..services.managed_tools import managed_tools
+from ..services.managed_tools import SERVE_PORTS, managed_tools
 from ..settings_store import (
     env_defaults,
     get_overrides,
@@ -89,6 +90,17 @@ def patch_settings(payload: SettingsUpdate, session: Session = Depends(get_sessi
         # so the change applies without a restart.
         managed_tools.sync()
     return _read(session)
+
+
+@router.post("/tools/{tool}/restart", response_model=ToolRestartRead)
+def restart_tool(tool: str) -> ToolRestartRead:
+    """Restart a tool's serve process, picking up a new binary or its config."""
+    if tool not in SERVE_PORTS:
+        raise HTTPException(status_code=404, detail=f"{tool}: no such tool")
+    running = managed_tools.restart(tool)
+    if running is None:
+        raise HTTPException(status_code=409, detail=f"{tool}: not managed by this server")
+    return ToolRestartRead(tool=tool, running=running)
 
 
 @router.post("/refresh-policy/preview", response_model=RefreshPolicyPreview)

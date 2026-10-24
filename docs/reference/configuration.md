@@ -46,8 +46,8 @@ The Slack credentials keep the names `slackx` uses (`SLACK_TOKEN`, `SLACK_COOKIE
 | `AGENTIC_OPENCHAMBER_SESSION_PATH` | `/?session={session}` | Path appended to the OpenChamber base. |
 | `AGENTIC_TERMINAL_URL_TEMPLATE` | (unset) | URL template for **Open in terminal** links. |
 | `AGENTIC_EDITOR_URL_TEMPLATE` | (unset) | URL template for the worktree **Open in editor** button. |
-| `AGENTIC_GHX_URL` | (unset) | Base URL of the ghx web UI (`ghx serve`, default port 8080). When set, GitHub items link into it. |
-| `AGENTIC_SLACKX_URL` | (unset) | Base URL of the slackx web UI (`slackx serve`, default port 8280). When set, Slack items link into it. |
+| `AGENTIC_GHX_URL` | (unset) | Base URL of the ghx web UI (`ghx serve`, default port 8080). When set, GitHub items link into it. A `managed` transport supplies it, since the server runs the UI itself. |
+| `AGENTIC_SLACKX_URL` | (unset) | Base URL of the slackx web UI (`slackx serve`, default port 8280). When set, Slack items link into it. A `managed` transport supplies it, since the server runs the UI itself. |
 | `AGENTIC_SLACK_REFRESH_POLICY` | (empty) | When to re-fetch Slack threads, for example `1d=1h,7d=6h,30d=1d,*=7d`. Empty disables it. |
 | `AGENTIC_GITHUB_REFRESH_POLICY` | (empty) | When to re-fetch GitHub issues and pull requests, in the same format. Empty disables it. |
 | `AGENTIC_ITEM_REFRESH_TICK` | `300` | Seconds between checks for items that are due. `0` disables the loop. |
@@ -73,6 +73,7 @@ Template placeholders:
 
 The session-link settings (OpenChamber URL and path, terminal URL template, and editor URL template) can also be set on the **Settings** page.
 The ghx and slackx settings are under **Settings → Local tools**: the web UI base URLs, and how the server runs each tool (`cli` spawns the binary per call, `rpc` asks the tool's JSON-RPC server instead, started with `ghx rpc serve` or `slackx rpc serve`; reads go through the server's typed methods, so they answer in-process instead of spawning a child per call).
+`managed` starts the tool's serve process from this server instead, so its web UI URL is shown as a link to open rather than as a field, and it fills in that tool's web UI URL for item links.
 The transport is read per call, so a change there applies without a restart, also for the worker that runs agents.
 A stored override wins over the matching environment variable.
 

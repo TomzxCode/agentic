@@ -387,7 +387,8 @@ export const api = {
     update: (body) => request('/settings', { method: 'PATCH', body }),
     previewRefreshPolicy: (value) => request('/settings/refresh-policy/preview', { method: 'POST', body: { value } }),
     refreshStatus: () => request('/settings/refresh-status'),
-    diagnostics: () => request('/settings/diagnostics')
+    diagnostics: () => request('/settings/diagnostics'),
+    restartTool: (tool) => request(`/settings/tools/${tool}/restart`, { method: 'POST' })
   },
 
   worktrees: {

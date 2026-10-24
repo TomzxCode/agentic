@@ -120,6 +120,43 @@ def test_switching_away_from_managed_stops_the_process(monkeypatch):
     assert manager.servers == {}
 
 
+def test_restart_replaces_the_running_process(monkeypatch):
+    monkeypatch.setattr(settings, "ghx_backend", "managed")
+    spawn = _Spawn()
+    manager = managed_tools.ManagedToolManager(spawn=spawn)
+    manager.start()
+
+    assert manager.restart("ghx") is True
+
+    # The old process is stopped and the same command is started again, so a
+    # new binary or the tool's own config is picked up.
+    assert spawn.processes[0].terminated is True
+    assert spawn.commands == [
+        ["ghx", "serve", "--host", "127.0.0.1", "--port", "8080"],
+        ["ghx", "serve", "--host", "127.0.0.1", "--port", "8080"],
+    ]
+    assert manager.servers["ghx"].alive
+
+
+def test_restart_starts_a_tool_that_never_came_up(monkeypatch):
+    monkeypatch.setattr(settings, "ghx_backend", "managed")
+    spawn = _Spawn()
+    manager = managed_tools.ManagedToolManager(spawn=spawn)
+
+    # Nothing was started yet, so there is no process to stop first.
+    assert manager.restart("ghx") is True
+    assert len(spawn.commands) == 1
+
+
+def test_restart_leaves_a_tool_this_server_does_not_run(monkeypatch):
+    monkeypatch.setattr(settings, "ghx_backend", "cli")
+    spawn = _Spawn()
+    manager = managed_tools.ManagedToolManager(spawn=spawn)
+
+    assert manager.restart("ghx") is None
+    assert spawn.commands == []
+
+
 def test_the_all_tools_flag_manages_both(monkeypatch):
     monkeypatch.setattr(settings, "managed_tools", True)
     spawn = _Spawn()

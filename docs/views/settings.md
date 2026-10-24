@@ -44,6 +44,8 @@ Fields save when they lose focus, and the panel shows `saving…` then `saved`.
 When one is set, GitHub and Slack items gain an **Open in ghx** or **Open in slackx** link.
 Leaving a field blank hides that link.
 
+A tool on the `managed` transport has no URL field: the server starts that tool's serve process itself, so the page shows the URL it answers on as a link to open, and uses it for the item links.
+
 ### Identity
 
 `Your GitHub login` is who counts as you: a merged pull request this login authored and a task links becomes a change, and the inbox and repository views only offer to record changes for its pull requests.

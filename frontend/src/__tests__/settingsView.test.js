@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   harnessesUpdate: vi.fn(),
   settingsGet: vi.fn(),
   settingsUpdate: vi.fn(),
+  settingsRestartTool: vi.fn(),
   settingsPreviewPolicy: vi.fn(),
   settingsRefreshStatus: vi.fn(),
   settingsDiagnostics: vi.fn(),
@@ -52,6 +53,7 @@ vi.mock('../api', () => ({
     settings: {
       get: mocks.settingsGet,
       update: mocks.settingsUpdate,
+      restartTool: mocks.settingsRestartTool,
       previewRefreshPolicy: mocks.settingsPreviewPolicy,
       refreshStatus: mocks.settingsRefreshStatus,
       diagnostics: mocks.settingsDiagnostics
@@ -197,7 +199,7 @@ describe('SettingsView', () => {
     expect(mocks.settingsUpdate).toHaveBeenCalledWith({ ghx_rpc_token: 't0ken' })
   })
 
-  it('hides the rpc server fields for the managed transport', async () => {
+  it('hides the rpc and web UI fields for the managed transport, and shows its URL', async () => {
     mocks.settingsUpdate.mockResolvedValue({})
     const wrapper = mountView()
     await flushPromises()
@@ -208,6 +210,7 @@ describe('SettingsView', () => {
 
     const ghxTransport = wrapper.findAll('select').find((s) => s.text().includes('ghx server you run'))
     expect(wrapper.find('input[placeholder="http://127.0.0.1:8090"]').exists()).toBe(false)
+    expect(wrapper.find('input[placeholder="http://localhost:8080"]').exists()).toBe(true)
 
     await ghxTransport.setValue('rpc')
     await flushPromises()
@@ -215,10 +218,68 @@ describe('SettingsView', () => {
 
     await ghxTransport.setValue('managed')
     await flushPromises()
-    // The server starts the tool itself, so there is nothing to configure.
+    // The server starts the tool itself, so there is nothing to configure, but
+    // its web UI URL is still shown to open.
     expect(mocks.settingsUpdate).toHaveBeenCalledWith({ ghx_backend: 'managed' })
     expect(wrapper.find('input[placeholder="http://127.0.0.1:8090"]').exists()).toBe(false)
     expect(wrapper.find('input[placeholder="only when the server is bound beyond loopback"]').exists()).toBe(false)
+    expect(wrapper.find('input[placeholder="http://localhost:8080"]').exists()).toBe(false)
+    const managedLink = wrapper.get('a[href="http://127.0.0.1:8080"]')
+    expect(managedLink.text()).toBe('http://127.0.0.1:8080')
+
+    const slackxTransport = wrapper.findAll('select').find((s) => s.text().includes('slackx server you run'))
+    await slackxTransport.setValue('managed')
+    await flushPromises()
+    expect(wrapper.find('input[placeholder="http://localhost:8280"]').exists()).toBe(false)
+    expect(wrapper.get('a[href="http://127.0.0.1:8280"]').text()).toBe('http://127.0.0.1:8280')
+  })
+
+  it('restarts a managed tool from its section', async () => {
+    mocks.settingsUpdate.mockResolvedValue({})
+    mocks.settingsRestartTool.mockResolvedValue({ tool: 'ghx', running: true })
+    const notify = vi.spyOn(store, 'notify').mockImplementation(() => {})
+    const wrapper = mountView()
+    await flushPromises()
+
+    const nav = wrapper.findAll('.settings-nav-item').find((b) => b.text() === 'Local tools')
+    await nav.trigger('click')
+    await flushPromises()
+
+    // Only a tool this server runs has a process to restart.
+    const restartButtons = () => wrapper.findAll('button').filter((b) => b.text().startsWith('Restart'))
+    expect(restartButtons()).toHaveLength(0)
+
+    const ghxTransport = wrapper.findAll('select').find((s) => s.text().includes('ghx server you run'))
+    await ghxTransport.setValue('managed')
+    await flushPromises()
+    expect(restartButtons().map((b) => b.text())).toEqual(['Restart ghx serve'])
+
+    await restartButtons()[0].trigger('click')
+    await flushPromises()
+    expect(mocks.settingsRestartTool).toHaveBeenCalledWith('ghx')
+    expect(notify).toHaveBeenCalledWith('ghx restarted', false)
+  })
+
+  it('reports a managed tool that fails to restart', async () => {
+    mocks.settingsUpdate.mockResolvedValue({})
+    mocks.settingsRestartTool.mockResolvedValue({ tool: 'ghx', running: false })
+    const notify = vi.spyOn(store, 'notify').mockImplementation(() => {})
+    const wrapper = mountView()
+    await flushPromises()
+
+    const nav = wrapper.findAll('.settings-nav-item').find((b) => b.text() === 'Local tools')
+    await nav.trigger('click')
+    await flushPromises()
+
+    const ghxTransport = wrapper.findAll('select').find((s) => s.text().includes('ghx server you run'))
+    await ghxTransport.setValue('managed')
+    await flushPromises()
+    await wrapper
+      .findAll('button')
+      .find((b) => b.text() === 'Restart ghx serve')
+      .trigger('click')
+    await flushPromises()
+    expect(notify).toHaveBeenCalledWith('ghx did not start: check that its binary is installed', true)
   })
 
   it('previews and saves each source refresh policy', async () => {

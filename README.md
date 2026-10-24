@@ -508,8 +508,8 @@ Environment variables (prefix `AGENTIC_`; the Slack credentials keep slackx's na
 | `AGENTIC_OPENCHAMBER_SESSION_PATH` | `/?session={session}` | Path appended to the base. |
 | `AGENTIC_TERMINAL_URL_TEMPLATE` | (unset) | URL template for "Open in terminal" links. |
 | `AGENTIC_EDITOR_URL_TEMPLATE` | (unset) | URL template for the worktree "Open in editor" button. |
-| `AGENTIC_GHX_URL` | (unset) | Base URL of the ghx web UI (`ghx serve`), so GitHub items link into it. |
-| `AGENTIC_SLACKX_URL` | (unset) | Base URL of the slackx web UI (`slackx serve`), so Slack items link into it. |
+| `AGENTIC_GHX_URL` | (unset) | Base URL of the ghx web UI (`ghx serve`), so GitHub items link into it. A `managed` transport supplies it. |
+| `AGENTIC_SLACKX_URL` | (unset) | Base URL of the slackx web UI (`slackx serve`), so Slack items link into it. A `managed` transport supplies it. |
 | `AGENTIC_SLACK_REFRESH_POLICY` | (empty) | When to re-fetch Slack threads, e.g. `1d=1h,7d=6h,30d=1d,*=7d`. Empty disables it. |
 | `AGENTIC_GITHUB_REFRESH_POLICY` | (empty) | When to re-fetch GitHub issues/PRs, same format. Empty disables it. |
 | `AGENTIC_ITEM_REFRESH_TICK` | `300` | Seconds between checks for due items (0 disables the loop). |

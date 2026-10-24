@@ -10,12 +10,27 @@ import { store } from '../store'
 // goes to a server you run, or goes to the serve process this server starts and
 // manages; it is read per call, so a change applies without a restart. The
 // server URL and token only apply to rpc, so they are hidden for the other
-// transports. Like the other sections, the page shell owns the single settings
-// read and this component saves each field on blur.
+// transports. A managed tool's web UI runs on a port this server picks, so its
+// URL is shown as a link to open rather than offered as a field. Like the other
+// sections, the page shell owns the single settings read and this component
+// saves each field on blur.
 const props = defineProps({
   overrides: { type: Object, default: () => ({}) },
   defaults: { type: Object, default: () => ({}) }
 })
+
+// Where a managed tool's serve process answers its web UI, matching the ports
+// the server binds it on (services/managed_tools.py). There is nothing for the
+// user to configure, since the server owns the process.
+const MANAGED_WEB_URLS = { ghx: 'http://127.0.0.1:8080', slackx: 'http://127.0.0.1:8280' }
+
+// The URL a managed tool is reachable at: the one item links use (a stored or
+// environment value, which the server keeps) or, when none is set, the one its
+// own serve process answers on.
+function webUrl(tool) {
+  const key = `${tool}_url`
+  return props.overrides[key]?.trim() || props.defaults[key]?.trim() || MANAGED_WEB_URLS[tool]
+}
 
 const form = reactive({
   ghx_backend: 'cli',
@@ -62,6 +77,26 @@ async function saveField(key) {
     saving.value = false
   }
 }
+
+// A managed tool's process is this server's, so restarting it is an action
+// rather than a field: it picks up a new binary or the tool's own config
+// without restarting Agentic.
+const restarting = reactive({ ghx: false, slackx: false })
+
+async function restart(tool) {
+  restarting[tool] = true
+  try {
+    const result = await api.settings.restartTool(tool)
+    store.notify(
+      result.running ? `${tool} restarted` : `${tool} did not start: check that its binary is installed`,
+      !result.running
+    )
+  } catch (e) {
+    store.notify(e.message, true)
+  } finally {
+    restarting[tool] = false
+  }
+}
 </script>
 
 <template>
@@ -73,7 +108,8 @@ async function saveField(key) {
     </div>
     <p class="faint" style="margin-top: 0">
       How the server runs ghx and slackx, and the base URLs of their web UIs. A URL makes GitHub and Slack items show a
-      link that opens them there; leave it blank to hide that link.
+      link that opens them there; leave it blank to hide that link. A managed tool supplies its own URL, shown as a link
+      to open.
     </p>
 
     <h3 style="margin: 14px 0 6px">ghx (GitHub)</h3>
@@ -87,8 +123,16 @@ async function saveField(key) {
     </div>
     <p v-if="form.ghx_backend === 'managed'" class="faint" style="margin: 4px 0 0">
       The server starts <code>ghx serve</code> on <code>127.0.0.1:8080</code> and stops it when it stops, so there is no
-      server URL or token to set.
+      server URL or token to set. Its web UI is at
+      <a :href="webUrl('ghx')" target="_blank" rel="noopener">{{ webUrl('ghx') }}</a> while the server runs. Restart it
+      to pick up a new binary or its own configuration.
     </p>
+    <div v-if="form.ghx_backend === 'managed'" style="margin: 8px 0 0">
+      <button class="btn sm ghost" :disabled="restarting.ghx" @click="restart('ghx')">
+        <span v-if="restarting.ghx" class="spinner" aria-hidden="true"></span>
+        Restart ghx serve
+      </button>
+    </div>
     <div v-if="form.ghx_backend === 'rpc'" class="field">
       <label>ghx rpc server URL</label>
       <input
@@ -112,7 +156,7 @@ async function saveField(key) {
         @blur="saveField('ghx_rpc_token')"
       />
     </div>
-    <div class="field">
+    <div v-if="form.ghx_backend !== 'managed'" class="field">
       <label>ghx server URL (web UI)</label>
       <input
         v-model="form.ghx_url"
@@ -137,8 +181,16 @@ async function saveField(key) {
     </div>
     <p v-if="form.slackx_backend === 'managed'" class="faint" style="margin: 4px 0 0">
       The server starts <code>slackx serve</code> on <code>127.0.0.1:8280</code> and stops it when it stops, so there is
-      no server URL or token to set.
+      no server URL or token to set. Its web UI is at
+      <a :href="webUrl('slackx')" target="_blank" rel="noopener">{{ webUrl('slackx') }}</a> while the server runs.
+      Restart it to pick up a new binary or its own configuration.
     </p>
+    <div v-if="form.slackx_backend === 'managed'" style="margin: 8px 0 0">
+      <button class="btn sm ghost" :disabled="restarting.slackx" @click="restart('slackx')">
+        <span v-if="restarting.slackx" class="spinner" aria-hidden="true"></span>
+        Restart slackx serve
+      </button>
+    </div>
     <div v-if="form.slackx_backend === 'rpc'" class="field">
       <label>slackx rpc server URL</label>
       <input
@@ -162,7 +214,7 @@ async function saveField(key) {
         @blur="saveField('slackx_rpc_token')"
       />
     </div>
-    <div class="field">
+    <div v-if="form.slackx_backend !== 'managed'" class="field">
       <label>slackx server URL (web UI)</label>
       <input
         v-model="form.slackx_url"

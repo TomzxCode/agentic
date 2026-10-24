@@ -118,6 +118,58 @@ def test_managed_transport_syncs_the_tool_servers(monkeypatch):
                 session.commit()
 
 
+def test_managed_transport_supplies_the_web_ui_url(monkeypatch):
+    from sqlmodel import Session
+
+    from agentic.db import engine
+    from agentic.models.system import Setting
+    from agentic.routers import settings as settings_router
+
+    # Never start a real serve process from a test.
+    monkeypatch.setattr(settings_router.managed_tools, "sync", lambda: None)
+
+    try:
+        with TestClient(app) as client:
+            client.patch("/api/settings", json={"ghx_url": "", "slackx_url": "", "slackx_backend": "cli"})
+            saved = client.patch("/api/settings", json={"ghx_backend": "managed"}).json()
+            # The server runs ghx itself, so the URL it answers on stands in for
+            # the one a user would type, and items link into it.
+            assert saved["effective"]["ghx_url"] == "http://127.0.0.1:8080"
+            # The transport is per tool: slackx is still the CLI's business.
+            assert saved["effective"]["slackx_url"] == ""
+
+            # An explicit URL still wins over the managed one.
+            explicit = client.patch("/api/settings", json={"ghx_url": "http://ghx.local:8080"}).json()
+            assert explicit["effective"]["ghx_url"] == "http://ghx.local:8080"
+    finally:
+        with Session(engine) as session:
+            for key in ("ghx_backend", "ghx_url", "slackx_backend", "slackx_url"):
+                row = session.get(Setting, key)
+                if row is not None:
+                    session.delete(row)
+            session.commit()
+
+
+def test_restart_tool_route(monkeypatch):
+    from agentic.routers import settings as settings_router
+
+    restarted = []
+    monkeypatch.setattr(settings_router.managed_tools, "restart", lambda tool: restarted.append(tool) or True)
+
+    with TestClient(app) as client:
+        started = client.post("/api/settings/tools/ghx/restart")
+        assert started.status_code == 200
+        assert started.json() == {"tool": "ghx", "running": True}
+        assert restarted == ["ghx"]
+
+        # A tool this server does not know, and one it does not run, are
+        # different refusals.
+        assert client.post("/api/settings/tools/nope/restart").status_code == 404
+
+        monkeypatch.setattr(settings_router.managed_tools, "restart", lambda tool: None)
+        assert client.post("/api/settings/tools/slackx/restart").status_code == 409
+
+
 def test_refresh_policy_setting_validates_and_previews():
     with TestClient(app) as client:
         initial = client.get("/api/settings").json()

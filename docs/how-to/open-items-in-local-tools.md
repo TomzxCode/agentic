@@ -26,6 +26,9 @@ The Repositories list does the same for each registered repository, from the **g
 Leave a field blank to hide that link.
 A stored setting on this page wins over `AGENTIC_GHX_URL` or `AGENTIC_SLACKX_URL`.
 
+A tool on the `managed` transport needs no URL here: the server starts `ghx serve` or `slackx serve` itself, and the page shows the URL it answers on as a link.
+That URL also stands in for a blank field, so the link appears without setting one.
+
 ## Verification
 
 Open a GitHub issue and confirm **Open in ghx** lands on that issue in the ghx UI.

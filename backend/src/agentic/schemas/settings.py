@@ -58,6 +58,13 @@ class SettingsUpdate(BaseModel):
     on_call_config: str | None = None
 
 
+class ToolRestartRead(BaseModel):
+    """The outcome of restarting a managed tool's serve process."""
+
+    tool: str
+    running: bool
+
+
 class RefreshTierRead(BaseModel):
     """One band of a refresh policy: an age bound and its refresh interval."""
 
