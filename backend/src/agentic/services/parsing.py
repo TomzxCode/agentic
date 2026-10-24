@@ -10,6 +10,23 @@ GITHUB_RE = re.compile(r"github\.com/(?P<owner>[^/]+)/(?P<repo>[^/]+)/(?P<kind>i
 
 SLACK_RE = re.compile(r"https://(?P<workspace>[^./]+)\.slack\.com/archives/(?P<channel>[^/]+)/p(?P<ts>\d+)")
 
+# A Slack channel, group, or direct message id.
+SLACK_CHANNEL_ID_RE = re.compile(r"^[CDG][A-Z0-9]{5,}$", re.IGNORECASE)
+
+
+def looks_like_slack_channel_id(value: str | None) -> bool:
+    """True for a Slack channel id (``C``, ``D``, or ``G`` plus alphanumerics)."""
+    return bool(SLACK_CHANNEL_ID_RE.match((value or "").strip()))
+
+
+def slack_external_id(channel: str, ts: str) -> str:
+    """A Slack thread's dedup key: its channel and its dotless timestamp.
+
+    Both ``1700000000.123456`` and the ``1700000000123456`` in a permalink
+    become ``C123:1700000000123456``.
+    """
+    return f"{channel}:{ts.replace('.', '')}"
+
 
 def parse_github(url: str) -> dict[str, str] | None:
     match = GITHUB_RE.search(url or "")
@@ -34,7 +51,7 @@ def parse_slack(url: str) -> dict[str, str] | None:
         "channel": match.group("channel"),
         "ts": f"{ts[:10]}.{ts[10:]}",
         "workspace": match.group("workspace"),
-        "external_id": f"{match.group('channel')}:{ts}",
+        "external_id": slack_external_id(match.group("channel"), ts),
     }
 
 

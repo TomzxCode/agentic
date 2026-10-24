@@ -17,9 +17,57 @@ from ..models.items import Association, SourceItem
 from ..models.system import Setting
 from ..services import shell
 from ..services import slack as slack_service
+from ..services.parsing import parse_slack, slack_external_id
 from ..settings_store import get_settings
 
 router = APIRouter(prefix="/api/on-call", tags=["on-call"])
+
+
+def _find_thread_item(
+    session: Session,
+    channel: str,
+    thread_ts: str,
+    slack_url: str,
+    legacy_external_ids: tuple[str, ...] = (),
+) -> SourceItem | None:
+    """The item stored for a Slack thread, healing an older external id.
+
+    Items are deduped by ``<channel id>:<dotless ts>``. Earlier versions stored
+    the bare dotted ``thread_ts``, or the channel exactly as configured (a
+    ``#name``), so those forms still match and are rewritten to the canonical
+    id unless another item already holds it.
+    """
+    external_id = slack_external_id(channel, thread_ts)
+    item = session.exec(select(SourceItem).where(SourceItem.url == slack_url)).first()
+    if item is None:
+        item = session.exec(
+            select(SourceItem).where(SourceItem.source == "slack", SourceItem.external_id == external_id)
+        ).first()
+    for legacy_id in legacy_external_ids:
+        if item is not None:
+            break
+        item = session.exec(
+            select(SourceItem).where(SourceItem.source == "slack", SourceItem.external_id == legacy_id)
+        ).first()
+    if item is not None:
+        healed = False
+        if item.external_id != external_id:
+            holder = session.exec(
+                select(SourceItem).where(SourceItem.source == "slack", SourceItem.external_id == external_id)
+            ).first()
+            if holder is None:
+                item.external_id = external_id
+                healed = True
+        if parse_slack(item.url or "") is None:
+            # A URL built from a channel name ("...#help-ml-infrastructure/...")
+            # is not a permalink; the canonical one replaces it.
+            item.url = slack_url
+            healed = True
+        if healed:
+            session.add(item)
+            session.commit()
+            session.refresh(item)
+    return item
 
 
 def _load_resolved(session: Session) -> dict[str, str]:
@@ -43,6 +91,14 @@ def _save_resolved(session: Session, data: dict[str, str]) -> None:
         row.updated_at = __import__("datetime").datetime.now(__import__("datetime").timezone.utc)
     session.add(row)
     session.commit()
+
+
+def _legacy_thread_external_ids(raw_channel: str, channel: str, thread_ts: str) -> tuple[str, ...]:
+    """The ids earlier versions stored for a thread besides the canonical one."""
+    ids = [thread_ts]
+    if raw_channel != channel:
+        ids.append(slack_external_id(raw_channel, thread_ts))
+    return tuple(ids)
 
 
 class OnCallScanRequest(BaseModel):
@@ -209,14 +265,15 @@ def scan_channel(payload: OnCallScanRequest) -> dict[str, Any]:
         root["reply_count"] = len(reply_items)
         threads.append(root)
 
+    # Slack permalinks and item ids are keyed by the channel id, which the
+    # slackx response carries; the configured value may be a "#name".
+    thread_channel = str(data.get("channel") or slack_service.resolve_slack_channel_id(channel) or channel)
     for thread in threads:
         ts = str(thread.get("ts") or "")
-        slack_url = f"{workspace_url.rstrip('/')}/archives/{data.get('channel') or channel}/p{ts.replace('.', '')}"
+        slack_url = f"{workspace_url.rstrip('/')}/archives/{thread_channel}/p{ts.replace('.', '')}"
         thread["slack_url"] = slack_url
         if slackx_base:
-            thread["slackx_url"] = (
-                f"{slackx_base.rstrip('/')}/archives/{data.get('channel') or channel}/p{ts.replace('.', '')}"
-            )
+            thread["slackx_url"] = f"{slackx_base.rstrip('/')}/archives/{thread_channel}/p{ts.replace('.', '')}"
         reply_ts_list = [str(r.get("ts") or "") for r in (thread.get("replies") or [])]
         latest_ts = max([ts] + reply_ts_list)
         # Look up an existing item/task for this thread and its resolved state.
@@ -225,11 +282,13 @@ def scan_channel(payload: OnCallScanRequest) -> dict[str, Any]:
         resolved_through = None
         try:
             with Session(engine) as session:
-                item = session.exec(select(SourceItem).where(SourceItem.url == slack_url)).first()
-                if item is None:
-                    item = session.exec(
-                        select(SourceItem).where(SourceItem.external_id == ts, SourceItem.source == "slack")
-                    ).first()
+                item = _find_thread_item(
+                    session,
+                    thread_channel,
+                    ts,
+                    slack_url,
+                    _legacy_thread_external_ids(channel, thread_channel, ts),
+                )
                 if item is not None:
                     resolved = item.done_at is not None
                     resolved_through = item.done_message_ts
@@ -305,20 +364,31 @@ def reply_to_thread(payload: OnCallReplyRequest) -> dict[str, Any]:
 
 @router.post("/resolve")
 def resolve_thread(payload: OnCallResolveRequest) -> dict[str, Any]:
-    channel = (payload.channel or "").strip()
+    raw_channel = (payload.channel or "").strip()
     thread_ts = (payload.thread_ts or "").strip()
-    if not channel or not thread_ts:
+    if not raw_channel or not thread_ts:
         raise HTTPException(status_code=400, detail="channel and thread_ts are required")
+    # The on-call config may name a channel (#help); permalinks and item ids are
+    # keyed by its id, so resolve it before storing the item.
+    channel = slack_service.resolve_slack_channel_id(raw_channel) or raw_channel
     workspace_url = slack_service.slack_workspace_url() or "https://slack.com/"
     slack_url = f"{workspace_url.rstrip('/')}/archives/{channel}/p{thread_ts.replace('.', '')}"
     with Session(engine) as session:
-        item = session.exec(select(SourceItem).where(SourceItem.url == slack_url)).first()
+        item = _find_thread_item(
+            session,
+            channel,
+            thread_ts,
+            slack_url,
+            _legacy_thread_external_ids(raw_channel, channel, thread_ts),
+        )
         if item is None:
-            item = session.exec(
-                select(SourceItem).where(SourceItem.external_id == thread_ts, SourceItem.source == "slack")
-            ).first()
-        if item is None:
-            item = SourceItem(source="slack", kind="thread", url=slack_url, external_id=thread_ts, title="Slack thread")
+            item = SourceItem(
+                source="slack",
+                kind="thread",
+                url=slack_url,
+                external_id=slack_external_id(channel, thread_ts),
+                title="Slack thread",
+            )
             session.add(item)
             session.commit()
             session.refresh(item)

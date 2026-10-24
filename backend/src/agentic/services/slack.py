@@ -16,7 +16,7 @@ from ..config import settings
 from ..parallel import run_parallel
 from . import shell
 from .github import dedupe_people
-from .parsing import parse_slack
+from .parsing import looks_like_slack_channel_id, parse_slack
 
 log = structlog.get_logger(__name__)
 
@@ -553,6 +553,33 @@ def resolve_slack_channel_name(channel: str) -> str | None:
     for entry in channels or []:
         if isinstance(entry, dict) and entry.get("name"):
             return str(entry["name"])
+    return None
+
+
+def resolve_slack_channel_id(channel: str) -> str | None:
+    """A channel's id from its id, bare name, or ``#name``, through slackx.
+
+    Slack permalinks and item ids are keyed by the channel id, so a channel
+    named in settings (``#help``) must be looked up before storing an item for
+    one of its threads. An id is returned as is; None when slackx is missing or
+    cannot resolve the name.
+    """
+    value = (channel or "").strip()
+    if not value:
+        return None
+    if looks_like_slack_channel_id(value):
+        return value
+    raw = shell._run_cli(["slackx", "channels", "get", value, "--json", "--fields", "id"], timeout=30)
+    if not raw:
+        return None
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError:
+        return None
+    channels = data.get("channels") if isinstance(data, dict) else None
+    for entry in channels or []:
+        if isinstance(entry, dict) and entry.get("id"):
+            return str(entry["id"])
     return None
 
 

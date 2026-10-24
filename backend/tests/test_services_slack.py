@@ -121,6 +121,31 @@ def test_fetch_slack_resolves_an_uncached_channel_name(monkeypatch):
     assert result["title"] == f"acme - #test - {slack.slack_item_datetime('1700000000.000000')}"
 
 
+def test_resolve_slack_channel_id_takes_an_id_or_resolves_a_name(monkeypatch):
+    calls: list = []
+
+    def fake(cmd, timeout=60):
+        calls.append(cmd)
+        return '{"channel_count": 1, "channels": [{"id": "C0893LXNXMJ"}]}'
+
+    monkeypatch.setattr(shell, "_run_cli", fake)
+    # An id is already the key: no slackx round trip.
+    assert slack.resolve_slack_channel_id("C0893LXNXMJ") == "C0893LXNXMJ"
+    assert calls == []
+    # A configured "#name" or bare name is resolved through slackx.
+    assert slack.resolve_slack_channel_id("#help-ml-infrastructure") == "C0893LXNXMJ"
+    assert calls[0][:3] == ["slackx", "channels", "get"]
+    assert slack.resolve_slack_channel_id("help-ml-infrastructure") == "C0893LXNXMJ"
+    assert slack.resolve_slack_channel_id("  ") is None
+
+
+def test_resolve_slack_channel_id_reports_an_unreadable_answer(monkeypatch):
+    monkeypatch.setattr(shell, "_run_cli", lambda cmd, timeout=60: "not json")
+    assert slack.resolve_slack_channel_id("#general") is None
+    monkeypatch.setattr(shell, "_run_cli", lambda cmd, timeout=60: None)
+    assert slack.resolve_slack_channel_id("#general") is None
+
+
 def test_slack_naming_helpers():
     assert slack.slack_item_datetime("1700000000.000000", tz=UTC) == "2023-11-14 22:13"
     # A bad timestamp falls back to the raw value rather than raising.

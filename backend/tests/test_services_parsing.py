@@ -23,6 +23,20 @@ def test_parse_github_and_slack():
     assert parsing.parse_slack("nope") is None
 
 
+def test_slack_external_id_normalizes_the_timestamp():
+    # A thread's dotted ts and the dotless form in its permalink share one id.
+    assert parsing.slack_external_id("C1", "1700000000.123456") == "C1:1700000000123456"
+    assert parsing.slack_external_id("C1", "1700000000123456") == "C1:1700000000123456"
+
+
+def test_looks_like_slack_channel_id():
+    assert parsing.looks_like_slack_channel_id("C0893LXNXMJ") is True
+    assert parsing.looks_like_slack_channel_id("D0123456789") is True
+    assert parsing.looks_like_slack_channel_id("#help-ml-infrastructure") is False
+    assert parsing.looks_like_slack_channel_id("help-ml-infrastructure") is False
+    assert parsing.looks_like_slack_channel_id(None) is False
+
+
 def test_worktree_path_slugifies_the_branch():
     path = names.worktree_path("task1", "agentic/Silly Goose")
     assert path.endswith("task1/agentic-silly-goose")
