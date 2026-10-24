@@ -3,21 +3,21 @@
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime
 from typing import Any
 
 import httpx
-import json
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from sqlmodel import Session
+from sqlmodel import Session, select
 
 from ..config import settings
 from ..db import engine
 from ..models.items import Association, SourceItem
 from ..models.system import Setting
-from ..services import shell, slack as slack_service
+from ..services import shell
+from ..services import slack as slack_service
 from ..settings_store import get_settings
-from sqlmodel import select
 
 router = APIRouter(prefix="/api/on-call", tags=["on-call"])
 
@@ -48,7 +48,45 @@ def _save_resolved(session: Session, data: dict[str, str]) -> None:
 class OnCallScanRequest(BaseModel):
     channel: str
     frequency_minutes: int | None = None
+    rotation_starts_at: str | None = None
     rotation_ends_at: str | None = None
+
+
+def _parse_when(value: str | None) -> datetime | None:
+    """Parse a browser datetime-local value or an ISO 8601 timestamp."""
+    text = (value or "").strip()
+    if not text:
+        return None
+    try:
+        parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        # datetime-local has no zone; the browser means local time.
+        parsed = parsed.astimezone()
+    return parsed
+
+
+def _scan_lookback(rotation_starts_at: str | None) -> tuple[str, bool]:
+    """The slackx --last value for the rotation window, and whether it has started.
+
+    The window kept fresh is rotation start to now. Without a configured start,
+    fall back to the previous one-day lookback.
+    """
+    start = _parse_when(rotation_starts_at)
+    if start is None:
+        return "1d", True
+    now = datetime.now(UTC)
+    if start > now:
+        return "1m", False
+    total_minutes = max(int((now - start).total_seconds() // 60), 1)
+    days, rest = divmod(total_minutes, 24 * 60)
+    hours, minutes = divmod(rest, 60)
+    return "".join(
+        part
+        for part in (f"{days}d" if days else "", f"{hours}h" if hours else "", f"{minutes}m" if minutes else "")
+        if part
+    ), True
 
 
 class OnCallReplyRequest(BaseModel):
@@ -70,7 +108,22 @@ def scan_channel(payload: OnCallScanRequest) -> dict[str, Any]:
     if not channel:
         raise HTTPException(status_code=400, detail="channel is required")
 
-    cmd = ["slackx", "conversations", "get", channel, "--json", "--last", "1d", "--with-thread-message", "--fetch"]
+    lookback, started = _scan_lookback(payload.rotation_starts_at)
+    if not started:
+        # The rotation has not started: there is no fresh window yet.
+        return {"threads": [], "channel": channel, "channel_name": None, "message_count": 0, "inactive": True}
+
+    cmd = [
+        "slackx",
+        "conversations",
+        "get",
+        channel,
+        "--json",
+        "--last",
+        lookback,
+        "--with-thread-message",
+        "--fetch",
+    ]
     outcome = shell._cli_run(cmd, timeout=60)
     if outcome is None:
         raise HTTPException(status_code=502, detail="slackx is not available")
@@ -97,7 +150,7 @@ def scan_channel(payload: OnCallScanRequest) -> dict[str, Any]:
     def _slackx_url(ts: str) -> str | None:
         if not slackx_base:
             return None
-        return f"{slackx_base.rstrip('/')}/archives/{data.get('channel') or channel}/p{ts}"
+        return f"{slackx_base.rstrip('/')}/archives/{data.get('channel') or channel}/p{ts.replace('.', '')}"
 
     # Group replies under their thread root.
     roots: dict[str, dict[str, Any]] = {}
@@ -143,11 +196,13 @@ def scan_channel(payload: OnCallScanRequest) -> dict[str, Any]:
         context_lines = [f"{root['user']}: {root['text']}"]
         reply_items = []
         for reply in replies:
-            reply_items.append({
-                "ts": reply.get("ts"),
-                "user": reply.get("user_name") or reply.get("user"),
-                "text": reply.get("text", ""),
-            })
+            reply_items.append(
+                {
+                    "ts": reply.get("ts"),
+                    "user": reply.get("user_name") or reply.get("user"),
+                    "text": reply.get("text", ""),
+                }
+            )
             context_lines.append(f"{reply.get('user_name') or reply.get('user')}: {reply.get('text', '')}")
         root["replies"] = reply_items
         root["context"] = "\n".join(context_lines)
@@ -159,7 +214,9 @@ def scan_channel(payload: OnCallScanRequest) -> dict[str, Any]:
         slack_url = f"{workspace_url.rstrip('/')}/archives/{data.get('channel') or channel}/p{ts.replace('.', '')}"
         thread["slack_url"] = slack_url
         if slackx_base:
-            thread["slackx_url"] = f"{slackx_base.rstrip('/')}/archives/{data.get('channel') or channel}/p{ts}"
+            thread["slackx_url"] = (
+                f"{slackx_base.rstrip('/')}/archives/{data.get('channel') or channel}/p{ts.replace('.', '')}"
+            )
         reply_ts_list = [str(r.get("ts") or "") for r in (thread.get("replies") or [])]
         latest_ts = max([ts] + reply_ts_list)
         # Look up an existing item/task for this thread and its resolved state.
@@ -170,7 +227,9 @@ def scan_channel(payload: OnCallScanRequest) -> dict[str, Any]:
             with Session(engine) as session:
                 item = session.exec(select(SourceItem).where(SourceItem.url == slack_url)).first()
                 if item is None:
-                    item = session.exec(select(SourceItem).where(SourceItem.external_id == ts, SourceItem.source == "slack")).first()
+                    item = session.exec(
+                        select(SourceItem).where(SourceItem.external_id == ts, SourceItem.source == "slack")
+                    ).first()
                 if item is not None:
                     resolved = item.done_at is not None
                     resolved_through = item.done_message_ts
@@ -197,6 +256,7 @@ def scan_channel(payload: OnCallScanRequest) -> dict[str, Any]:
         "channel": data.get("channel"),
         "channel_name": data.get("channel_name"),
         "message_count": data.get("message_count"),
+        "lookback": lookback,
     }
 
 
@@ -254,7 +314,9 @@ def resolve_thread(payload: OnCallResolveRequest) -> dict[str, Any]:
     with Session(engine) as session:
         item = session.exec(select(SourceItem).where(SourceItem.url == slack_url)).first()
         if item is None:
-            item = session.exec(select(SourceItem).where(SourceItem.external_id == thread_ts, SourceItem.source == "slack")).first()
+            item = session.exec(
+                select(SourceItem).where(SourceItem.external_id == thread_ts, SourceItem.source == "slack")
+            ).first()
         if item is None:
             item = SourceItem(source="slack", kind="thread", url=slack_url, external_id=thread_ts, title="Slack thread")
             session.add(item)

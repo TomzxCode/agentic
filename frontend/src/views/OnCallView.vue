@@ -6,6 +6,7 @@ import { store } from '../store'
 // Configuration for the on-call view.
 const channel = ref('')
 const frequencyMinutes = ref(5)
+const rotationStartsAt = ref('')
 const rotationEndsAt = ref('')
 
 const loading = ref(false)
@@ -18,15 +19,33 @@ const creatingTask = ref('')
 const replyEdited = ref({})
 const lastReplyCount = ref({})
 const stopped = ref(false)
+const lookback = ref('')
 let timer = null
+// Ticks with the refresh timer so the rotation window can change while open.
+const now = ref(Date.now())
+
+function rotationStarted() {
+  if (!rotationStartsAt.value) return true
+  const start = new Date(rotationStartsAt.value)
+  return isNaN(start.getTime()) || now.value >= start.getTime()
+}
+
+function rotationEnded() {
+  if (!rotationEndsAt.value) return false
+  const end = new Date(rotationEndsAt.value)
+  return !isNaN(end.getTime()) && now.value >= end.getTime()
+}
 
 const isActive = computed(() => {
   if (stopped.value) return false
-  if (rotationEndsAt.value) {
-    const end = new Date(rotationEndsAt.value)
-    if (!isNaN(end.getTime()) && Date.now() >= end.getTime()) return false
-  }
-  return true
+  return rotationStarted() && !rotationEnded()
+})
+
+// Waiting for the rotation start, running it, or done with it.
+const rotationState = computed(() => {
+  if (rotationEnded()) return 'ended'
+  if (!rotationStarted()) return 'waiting'
+  return stopped.value ? 'stopped' : 'running'
 })
 
 // Call every plausible scan method so the view works regardless of the backend's
@@ -38,6 +57,7 @@ async function scanChannel() {
   const payload = {
     channel: channel.value,
     frequency_minutes: frequencyMinutes.value,
+    rotation_starts_at: rotationStartsAt.value || null,
     rotation_ends_at: rotationEndsAt.value || null
   }
   const namespaces = ['onCall', 'oncall', 'on_call', 'onCallView', 'slack']
@@ -54,6 +74,7 @@ async function scanChannel() {
       try {
         const result = await ns[method](payload)
         error.value = ''
+        if (result?.lookback) lookback.value = result.lookback
         const list =
           Array.isArray(result) ? result :
           Array.isArray(result?.threads) ? result.threads :
@@ -111,12 +132,16 @@ function stopRotation() {
 
 function startRotation() {
   stopped.value = false
-  scanChannel()
+  now.value = Date.now()
+  if (isActive.value) scanChannel()
   if (timer) clearInterval(timer)
   const ms = Math.max(1, Number(frequencyMinutes.value) || 5) * 60 * 1000
+  // Keep the timer alive while waiting for the rotation start, so scanning
+  // begins at the start time without a reload.
   timer = setInterval(() => {
+    now.value = Date.now()
     if (isActive.value) scanChannel()
-    else stopRotation()
+    else if (rotationEnded()) stopRotation()
   }, ms)
 }
 
@@ -206,6 +231,7 @@ async function createTask(thread) {
 function persistConfig() {
   const config = JSON.stringify({
     frequency_minutes: frequencyMinutes.value,
+    rotation_starts_at: rotationStartsAt.value || null,
     rotation_ends_at: rotationEndsAt.value || null
   })
   const payload = {
@@ -214,6 +240,7 @@ function persistConfig() {
     // Back-compat aliases.
     channel: channel.value,
     frequency_minutes: frequencyMinutes.value,
+    rotation_starts_at: rotationStartsAt.value || null,
     rotation_ends_at: rotationEndsAt.value || null
   }
   const namespaces = ['onCall', 'oncall', 'on_call', 'settings']
@@ -230,7 +257,7 @@ function persistConfig() {
 }
 
 // Persist the configured channel (and related settings) when they change.
-watch([channel, frequencyMinutes, rotationEndsAt], () => {
+watch([channel, frequencyMinutes, rotationStartsAt, rotationEndsAt], () => {
   persistConfig()
 })
 
@@ -245,6 +272,7 @@ onMounted(async () => {
       if (effective.on_call_config || overrides.on_call_config) {
         const cfg = JSON.parse(effective.on_call_config || overrides.on_call_config)
         if (cfg?.frequency_minutes != null) frequencyMinutes.value = cfg.frequency_minutes
+        if (cfg?.rotation_starts_at != null) rotationStartsAt.value = cfg.rotation_starts_at
         if (cfg?.rotation_ends_at != null) rotationEndsAt.value = cfg.rotation_ends_at
       }
     } catch (e) {
@@ -266,9 +294,11 @@ onBeforeUnmount(() => {
       <h1>On call</h1>
       <span class="row" style="gap: 8px; align-items: center">
         <span v-if="loading" class="spinner" aria-hidden="true"></span>
+        <span v-if="rotationState === 'waiting'" class="badge warning">Waiting for rotation start</span>
+        <span v-if="rotationState === 'ended'" class="badge">Rotation ended</span>
         <button class="btn sm" @click="scanChannel" :disabled="loading || !isActive">Scan now</button>
-        <button class="btn sm primary" v-if="!isActive" @click="startRotation">Start</button>
-        <button class="btn sm danger" v-else @click="stopRotation">Stop</button>
+        <button v-if="rotationState === 'stopped'" class="btn sm primary" @click="startRotation">Start</button>
+        <button v-if="rotationState === 'running'" class="btn sm danger" @click="stopRotation">Stop</button>
       </span>
     </div>
 
@@ -282,9 +312,16 @@ onBeforeUnmount(() => {
         <input id="frequency" v-model.number="frequencyMinutes" type="number" min="1" class="input" />
       </div>
       <div class="field">
+        <label>When the on-call rotation starts (scanning starts, defines the slackx window)</label>
+        <input id="rotation-start" v-model="rotationStartsAt" type="datetime-local" class="input" />
+      </div>
+      <div class="field">
         <label>When the on-call rotation ends (refresh stops)</label>
         <input id="rotation-end" v-model="rotationEndsAt" type="datetime-local" class="input" />
       </div>
+      <p v-if="lookback" class="faint" style="margin: 4px 0 0">
+        Keeping the last {{ lookback }} fresh in slackx.
+      </p>
     </div>
 
     <div v-if="error" class="panel">

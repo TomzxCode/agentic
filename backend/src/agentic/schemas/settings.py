@@ -54,7 +54,7 @@ class SettingsUpdate(BaseModel):
     # The Slack channel the on-call view scans.
     on_call_channel: str | None = None
     # JSON blob of the on-call view's remaining configuration (frequency,
-    # rotation end, created-task mapping).
+    # rotation start and end, created-task mapping).
     on_call_config: str | None = None
 
 
