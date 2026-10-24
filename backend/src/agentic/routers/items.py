@@ -300,6 +300,15 @@ def update_item(item_id: str, payload: ItemUpdate, session: Session = Depends(ge
 @router.post("/{item_id}/refresh", response_model=ItemRead)
 def refresh_item(item_id: str, session: Session = Depends(get_session)) -> ItemRead:
     item = get_or_404(session, SourceItem, item_id, "Item not found")
+    if item.source == "slack" and item.url and item.url.startswith("https://slack.com/archives/"):
+        from ..services.slack import slack_workspace_url
+
+        workspace_url = slack_workspace_url()
+        if workspace_url:
+            item.url = item.url.replace("https://slack.com/archives/", f"{workspace_url.rstrip('/')}/archives/", 1)
+            session.add(item)
+            session.commit()
+            session.refresh(item)
     fetched = (
         fetch_source(item.source, item.url, item.external_id, item.title, path=_item_path(item))
         if item.source == "file"

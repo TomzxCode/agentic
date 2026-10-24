@@ -346,6 +346,20 @@ export const api = {
     }
   },
 
+  onCall: {
+    scan: (body = {}) => request('/on-call/scan', { method: 'POST', body }),
+    list: () => request('/on-call'),
+    get: (id) => request(`/on-call/${id}`),
+    start: (body = {}) => request('/on-call/start', { method: 'POST', body }),
+    stop: (body = {}) => request('/on-call/stop', { method: 'POST', body }),
+    threads: (body = {}) => request('/on-call/threads', { method: 'POST', body }),
+    replies: (body = {}) => request('/on-call/replies', { method: 'POST', body }),
+    reply: (body = {}) => request('/on-call/reply', { method: 'POST', body }),
+    send: (body = {}) => request('/on-call/reply', { method: 'POST', body }),
+    submit: (body = {}) => request('/on-call/reply', { method: 'POST', body }),
+    resolve: (body = {}) => request('/on-call/resolve', { method: 'POST', body })
+  },
+  oncall: null,
   slack: {
     // Name the Slack user ids given, so a handle like U0123ABCD reads as a name.
     users: (ids = []) => {

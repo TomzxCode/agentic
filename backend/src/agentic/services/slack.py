@@ -73,6 +73,40 @@ def slack_latest_message_ts(payload: str) -> str | None:
     return max(stamps)[1] if stamps else None
 
 
+def slack_workspace_url() -> str | None:
+    """The Slack workspace URL (e.g. https://tomzx.slack.com/) from auth.test."""
+    token = (settings.slack_token or "").strip()
+    cookie = (settings.slack_cookie or "").strip()
+    if not token:
+        try:
+            from sqlmodel import Session
+
+            from ..db import engine
+            from ..settings_store import get_settings
+
+            with Session(engine) as session:
+                effective = get_settings(session)
+                token = (effective.get("slack_bot_token") or effective.get("slack_token") or "").strip()
+        except Exception:  # noqa: BLE001
+            token = ""
+    if not token:
+        return None
+    base_url = (settings.slack_api_base_url or "https://slack.com/api").rstrip("/")
+    url = f"{base_url}/auth.test"
+    headers = {"Authorization": f"Bearer {token}"}
+    if cookie:
+        headers["Cookie"] = f"d={cookie}"
+    try:
+        response = httpx.get(url, headers=headers, timeout=15)
+        data = response.json()
+    except Exception:  # noqa: BLE001
+        return None
+    if not isinstance(data, dict) or not data.get("ok"):
+        return None
+    team_url = data.get("url")
+    return str(team_url).rstrip("/") + "/" if team_url else None
+
+
 def slack_channel_label(channel_id: str, channel_name: str) -> str:
     """A channel as ``#name``; a direct message (id ``D...``) keeps its bare name."""
     name = (channel_name or "").strip()
@@ -523,6 +557,10 @@ def resolve_slack_channel_name(channel: str) -> str | None:
 
 
 def _fetch_slack(url: str, result: dict[str, Any]) -> None:
+    if url and url.startswith("https://slack.com/archives/"):
+        workspace_url = slack_workspace_url()
+        if workspace_url:
+            url = url.replace("https://slack.com/archives/", f"{workspace_url.rstrip('/')}/archives/", 1)
     parsed = parse_slack(url)
     if parsed:
         result["metadata"] = parsed

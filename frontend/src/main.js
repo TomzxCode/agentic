@@ -20,6 +20,7 @@ import FeedbackView from './views/FeedbackView.vue'
 import MyPullsView from './views/MyPullsView.vue'
 import DecisionsView from './views/DecisionsView.vue'
 import SchedulesView from './views/SchedulesView.vue'
+import OnCallView from './views/OnCallView.vue'
 import StackView from './views/StackView.vue'
 import SettingsView from './views/SettingsView.vue'
 import './styles/base.css'
@@ -53,6 +54,8 @@ const router = createRouter({
     { path: '/events', name: 'events', component: EventsView },
     { path: '/metrics', name: 'metrics', component: MetricsView },
     { path: '/schedules', name: 'schedules', component: SchedulesView },
+    { path: '/on-call', name: 'on-call', component: OnCallView },
+    { path: '/oncall', name: 'oncall', component: OnCallView },
     { path: '/items', name: 'items', component: ItemsView },
     { path: '/items/:id', name: 'item', component: ItemDetailView, props: true },
     { path: '/people', name: 'people', component: PeopleView },

@@ -51,6 +51,11 @@ class SettingsUpdate(BaseModel):
     review_slo: str | None = None
     # A JSON list of user-defined agent prompts (kind, label, template).
     agent_prompts: str | None = None
+    # The Slack channel the on-call view scans.
+    on_call_channel: str | None = None
+    # JSON blob of the on-call view's remaining configuration (frequency,
+    # rotation end, created-task mapping).
+    on_call_config: str | None = None
 
 
 class RefreshTierRead(BaseModel):

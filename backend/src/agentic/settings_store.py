@@ -44,6 +44,8 @@ OVERRIDABLE_KEYS = (
     "review_scan_default",
     "review_slo",
     "agent_prompts",
+    "on_call_channel",
+    "on_call_config",
 )
 
 # The item kinds a user-defined agent prompt can target. A prompt appears in the
