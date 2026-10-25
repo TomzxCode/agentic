@@ -207,4 +207,40 @@ describe('RepositoriesView', () => {
     expect(wrapper.text()).not.toContain('/src/api')
     expect(wrapper.text()).toContain('1 of 2 repositories')
   })
+  
+  it('shows a Refresh button that re-reads the tracked repositories', async () => {
+    const wrapper = await mountView()
+    const button = wrapper.get('button[aria-label="Refresh the tracked repositories"]')
+    expect(button.exists()).toBe(true)
+    expect(button.attributes('disabled')).toBeUndefined()
+  })
+
+  it('disables Refresh when there are no repositories', async () => {
+    store.repositories = []
+    const wrapper = await mountView()
+    const button = wrapper.get('button[aria-label="Refresh the tracked repositories"]')
+    expect(button.attributes('disabled')).toBeDefined()
+  })
+
+  it('reports how many repositories changed on Refresh', async () => {
+    const wrapper = await mountView()
+    store.loadRepositories.mockImplementation(async () => {
+      store.repositories = [{ ...repository, name: 'acme/api', remote_url: 'https://github.com/acme/api.git' }]
+    })
+    await wrapper.get('button[aria-label="Refresh the tracked repositories"]').trigger('click')
+    await settle()
+    expect(store.toast).not.toBeNull()
+    expect(store.toast.message).toBe('Updated 1 repository')
+  })
+
+  it('reports when nothing changed on Refresh', async () => {
+    const wrapper = await mountView()
+    store.loadRepositories.mockImplementation(async () => {
+      // The list is unchanged, so the refresh is a no-op.
+    })
+    await wrapper.get('button[aria-label="Refresh the tracked repositories"]').trigger('click')
+    await settle()
+    expect(store.toast).not.toBeNull()
+    expect(store.toast.message).toBe('All repositories up to date')
+  })
 })

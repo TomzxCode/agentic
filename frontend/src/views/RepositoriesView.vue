@@ -14,6 +14,8 @@ const path = ref('')
 const showPicker = ref(false)
 // How many rows the grid currently shows (its filters may hide some).
 const shown = ref(null)
+// A repository refresh is in flight, so its button shows a spinner.
+const refreshing = ref(false)
 // The grid's api, once it reports ready, so the column chooser can read the
 // columns and show or hide them.
 const gridApi = shallowRef(null)
@@ -94,6 +96,28 @@ async function addRepositories(paths) {
   }
 }
 
+// Re-read every tracked checkout's `origin`. The server syncs a changed remote
+// (and a name derived from it) on each listing, so fetching the list again does
+// the work; the before/after comparison only exists to say what changed.
+async function refreshRepositories() {
+  if (refreshing.value || !store.repositories.length) return
+  refreshing.value = true
+  const before = new Map(store.repositories.map((repo) => [repo.id, repo]))
+  try {
+    await store.loadRepositories()
+    const changed = store.repositories.filter((repo) => {
+      const previous = before.get(repo.id)
+      return !previous || previous.remote_url !== repo.remote_url || previous.name !== repo.name
+    })
+    if (changed.length) store.notify(`Updated ${changed.length} repositor${changed.length === 1 ? 'y' : 'ies'}`)
+    else store.notify('All repositories up to date')
+  } catch (e) {
+    store.notify(e.message, true)
+  } finally {
+    refreshing.value = false
+  }
+}
+
 async function removeRepository(repository) {
   if (!confirm(`Remove ${repository.name} from Agentic? (No files are deleted.)`)) return
   try {
@@ -116,6 +140,17 @@ onMounted(load)
           {{ shown ?? totals.all }} of {{ totals.all }} repositories · {{ totals.issues }} issues ·
           {{ totals.pulls }} PRs
         </span>
+        <button
+          class="btn sm"
+          :disabled="refreshing || loading || !totals.all"
+          aria-label="Refresh the tracked repositories"
+          title="Re-read each checkout's origin and update a changed remote or name"
+          @click="refreshRepositories"
+        >
+          <span v-if="refreshing" class="spinner" aria-hidden="true"></span>
+          <span v-else>↻</span>
+          {{ refreshing ? 'Refreshing…' : 'Refresh' }}
+        </button>
         <GridColumnChooser :api="gridApi" storage-key="repositories" />
       </span>
     </div>

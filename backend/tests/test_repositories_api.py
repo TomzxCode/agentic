@@ -1,5 +1,7 @@
 """Repository endpoints: validation, metadata detection, and cascading delete."""
 
+import subprocess
+
 from fastapi.testclient import TestClient
 
 from agentic.main import app
@@ -11,6 +13,15 @@ def _git_dir(tmp_path, name: str):
     path = tmp_path / name
     (path / ".git").mkdir(parents=True)
     return path
+
+
+def _git(path, *args: str) -> None:
+    subprocess.run(["git", *args], cwd=path, check=True, capture_output=True, text=True)
+
+
+def _listed(client, repository_id: str) -> dict:
+    """The repository's row in the listing, which syncs it with its checkout."""
+    return next(row for row in client.get("/api/repositories").json() if row["id"] == repository_id)
 
 
 def test_create_repository_validates_and_reads_back(tmp_path):
@@ -48,6 +59,93 @@ def test_create_repository_detects_remote_and_branch(monkeypatch, tmp_path):
         assert repo["remote_url"] == "git@github.com:o/r.git"
         assert repo["default_branch"] == "develop"
         assert repo["name"] == "o/r"
+        client.delete(f"/api/repositories/{repo['id']}")
+
+
+def test_listing_adopts_a_changed_origin(monkeypatch, tmp_path):
+    monkeypatch.setattr(repositories_router, "detect_remote_url", lambda path: "git@github.com:o/r.git")
+    with TestClient(app) as client:
+        repo = client.post("/api/repositories", json={"path": str(_git_dir(tmp_path, "repo"))}).json()
+        assert repo["name"] == "o/r"
+
+        # The remote was retargeted after registration: both the URL and the
+        # name derived from it follow on the next listing.
+        monkeypatch.setattr(repositories_router, "detect_remote_url", lambda path: "git@github.com:new/r2.git")
+        row = _listed(client, repo["id"])
+        assert row["remote_url"] == "git@github.com:new/r2.git"
+        assert row["name"] == "new/r2"
+        client.delete(f"/api/repositories/{repo['id']}")
+
+
+def test_listing_names_a_repository_once_its_origin_appears(monkeypatch, tmp_path):
+    monkeypatch.setattr(repositories_router, "detect_remote_url", lambda path: None)
+    with TestClient(app) as client:
+        repo = client.post("/api/repositories", json={"path": str(_git_dir(tmp_path, "repo"))}).json()
+        assert repo["name"] == "repo"
+        assert repo["remote_url"] is None
+
+        monkeypatch.setattr(repositories_router, "detect_remote_url", lambda path: "https://github.com/acme/api")
+        row = _listed(client, repo["id"])
+        assert row["remote_url"] == "https://github.com/acme/api"
+        assert row["name"] == "acme/api"
+        client.delete(f"/api/repositories/{repo['id']}")
+
+
+def test_listing_keeps_a_hand_set_name_when_the_origin_changes(monkeypatch, tmp_path):
+    monkeypatch.setattr(repositories_router, "detect_remote_url", lambda path: "git@github.com:o/r.git")
+    with TestClient(app) as client:
+        repo = client.post(
+            "/api/repositories",
+            json={"path": str(_git_dir(tmp_path, "repo")), "name": "Custom"},
+        ).json()
+
+        monkeypatch.setattr(repositories_router, "detect_remote_url", lambda path: "git@github.com:new/r2.git")
+        row = _listed(client, repo["id"])
+        assert row["remote_url"] == "git@github.com:new/r2.git"
+        assert row["name"] == "Custom"
+        client.delete(f"/api/repositories/{repo['id']}")
+
+
+def test_listing_repairs_a_folder_name_when_the_remote_is_github(monkeypatch, tmp_path):
+    monkeypatch.setattr(repositories_router, "detect_remote_url", lambda path: "git@github.com:o/r.git")
+    with TestClient(app) as client:
+        repo = client.post(
+            "/api/repositories",
+            json={"path": str(_git_dir(tmp_path, "repo")), "name": "repo", "remote_url": "git@github.com:o/r.git"},
+        ).json()
+        assert repo["name"] == "repo"
+
+        row = _listed(client, repo["id"])
+        assert row["name"] == "o/r"
+        client.delete(f"/api/repositories/{repo['id']}")
+
+
+def test_listing_ignores_a_checkout_that_was_removed(monkeypatch, tmp_path):
+    with TestClient(app) as client:
+        repo_path = _git_dir(tmp_path, "repo")
+        repo = client.post("/api/repositories", json={"path": str(repo_path)}).json()
+        repo_path.rename(tmp_path / "gone")
+
+        row = _listed(client, repo["id"])
+        assert row["remote_url"] is None
+        assert row["name"] == "repo"
+        client.delete(f"/api/repositories/{repo['id']}")
+
+
+def test_listing_follows_a_real_origin_change(tmp_path):
+    repo_path = tmp_path / "checkout"
+    repo_path.mkdir()
+    _git(repo_path, "init", "-q")
+    _git(repo_path, "remote", "add", "origin", "git@github.com:o/r.git")
+
+    with TestClient(app) as client:
+        repo = client.post("/api/repositories", json={"path": str(repo_path)}).json()
+        assert repo["name"] == "o/r"
+
+        _git(repo_path, "remote", "set-url", "origin", "git@github.com:new/r2.git")
+        row = _listed(client, repo["id"])
+        assert row["remote_url"] == "git@github.com:new/r2.git"
+        assert row["name"] == "new/r2"
         client.delete(f"/api/repositories/{repo['id']}")
 
 

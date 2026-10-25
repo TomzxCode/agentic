@@ -78,7 +78,7 @@ The task representation returns those fields plus `waiting_on_name`.
 | `GET` | `/api/items/{id}/reviews/{name}` | Read one review report. |
 | `GET` | `/api/items/{id}/reviewers` | The PR's reviewers and pending review requests, one row each, read live from GitHub through `gh`. |
 | `POST` | `/api/items/{id}/poke` | Send a reviewer a Slack DM asking for their review. The body is `{"login": "<github login>"}`. |
-| `GET` / `POST` | `/api/repositories` | List and create registered repositories. |
+| `GET` / `POST` | `/api/repositories` | List and create registered repositories. The listing re-reads each checkout's `origin` and adopts a changed remote and derived name. |
 | `POST` | `/api/repositories/bulk` | Add several repositories at once. |
 | `GET` / `PATCH` / `DELETE` | `/api/repositories/{id}` | Read, update (its review-scan policy), and remove a repository. |
 | `GET` / `POST` | `/api/groups` | List and create repository groups. |

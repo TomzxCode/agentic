@@ -13,11 +13,11 @@ Registering a checkout tells Agentic where a task's worktree comes from, and the
 
 ### The list (`/repositories`)
 
-The header counts repositories, issues, and pull requests (`N of M repositories · X issues · Y PRs`), and `Columns` opens the column chooser, remembered on this device under `agentic.gridColumns.repositories`.
+The header counts repositories, issues, and pull requests (`N of M repositories · X issues · Y PRs`), and `Refresh` re-reads each checkout's `origin` and updates any changed remote or derived name; `Columns` opens the column chooser, remembered on this device under `agentic.gridColumns.repositories`.
 
 | Column | What it shows |
 | --- | --- |
-| `Name` | A link to the repository page, plus a `ghx` link when the ghx URL is configured. |
+| `Name` | A link to the repository page, plus a `ghx` link when the ghx URL is configured. It is `owner/repo` when `origin` is a GitHub remote, and the folder name otherwise. |
 | `Path` | The checkout on disk. |
 | `Branch` | The repository's default branch, with a multi-select filter. |
 | `Issues`, `PRs` | Counts, with number filters. |
@@ -68,6 +68,7 @@ Row actions:
 ### Good to know
 
 - Rows arrive newest number first, and every column header sorts and filters.
+- Loading the list (or pressing `Refresh`) re-reads each checkout's `origin` and takes a changed URL, so a checkout that gained or retargeted its remote reads correctly without being removed and re-added. A name that came from the old remote, or a folder name left on a checkout whose GitHub remote is known, is repaired to `owner/repo`; a name set by hand stays. A checkout that was deleted, or whose `origin` is gone, keeps the values already stored.
 - ghx's own cache serves repeat visits until you press `Refresh all`.
 - A GitHub read failure keeps the items already linked to tasks and shows a banner saying so.
 - The review-scan policy per repository is not edited here; it is a select in **Settings → Review requests**.
