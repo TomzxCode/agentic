@@ -2,6 +2,7 @@
   "name": "agentic-frontend",
   "private": true,
   "version": "0.1.0",
+  "packageManager": "pnpm@12.15.0",
   "type": "module",
   "engines": {
     "node": ">=22.12.0"
@@ -19,6 +20,7 @@
     "format:check": "prettier --check ."
   },
   "dependencies": {
+    "ag-grid-community": "^36.2.0",
     "ag-grid-vue3": "^36.2.0",
     "croner": "^10.0.1",
     "dompurify": "^3.4.17",

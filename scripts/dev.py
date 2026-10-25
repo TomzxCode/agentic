@@ -105,7 +105,7 @@ def build_services(args: argparse.Namespace, api_port: int, frontend_port: int) 
     # the frontend URL handed to the tray is always the one actually served.
     frontend = Service(
         name="frontend",
-        cmd=["npm", "run", "dev", "--", "--port", str(frontend_port), "--strictPort"],
+        cmd=["pnpm", "run", "dev", "--port", str(frontend_port), "--strictPort"],
         cwd=FRONTEND_DIR,
         # The dev server proxies /api, /docs, /saq and /openapi.json to the API.
         env={**os.environ, "AGENTIC_API": f"http://127.0.0.1:{api_port}"},
@@ -151,7 +151,7 @@ def run(services: list[Service]) -> int:
     try:
         for service in services:
             # A new session puts each service (and whatever it spawns, like the
-            # Vite child of npm or the reloader child of uvicorn) in its own
+            # Vite child of pnpm or the reloader child of uvicorn) in its own
             # process group, so one signal tears the whole tree down.
             processes.append(
                 (service, subprocess.Popen(service.cmd, cwd=service.cwd, env=service.env, start_new_session=True))

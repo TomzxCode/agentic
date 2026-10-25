@@ -35,7 +35,7 @@ uv sync
 
 ```bash
 cd frontend
-npm install
+pnpm install
 cd ..
 ```
 
@@ -67,7 +67,7 @@ Open a third terminal in the repository root and run:
 
 ```bash
 cd frontend
-npm run dev
+pnpm run dev
 ```
 
 The Vite dev server proxies `/api` to the API on port 8600.

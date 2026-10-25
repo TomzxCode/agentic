@@ -53,27 +53,32 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      - name: Install pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          cache: true
+          package_json_file: frontend/package.json
+          cache_dependency_path: frontend/pnpm-lock.yaml
+
       - uses: actions/setup-node@v7
         with:
           node-version: 22
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
 
       - name: Install dependencies
         working-directory: frontend
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       - name: Lint
         working-directory: frontend
-        run: npm run lint
+        run: pnpm run lint
 
       - name: Format check
         working-directory: frontend
-        run: npm run format:check
+        run: pnpm run format:check
 
       - name: Test
         working-directory: frontend
-        run: npm run coverage
+        run: pnpm run coverage
 
       - name: Upload frontend coverage
         if: always()
@@ -85,4 +90,4 @@ jobs:
 
       - name: Build
         working-directory: frontend
-        run: npm run build
+        run: pnpm run build

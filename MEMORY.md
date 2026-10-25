@@ -1,5 +1,12 @@
 # Memory
 
+## 2026-10-25: the frontend uses pnpm, and pnpm 12 locks itself into the lockfile
+
+- `frontend/` is a pnpm project: `frontend/pnpm-lock.yaml` plus `"packageManager"` in `frontend/package.json`, which `pnpm/action-setup` reads through `package_json_file` in CI. There is no `package-lock.json`.
+- `pnpm self-update` also rewrites that `packageManager` field, so upgrade pnpm that way rather than editing the field by hand.
+- A pnpm 12 lockfile is a two-document YAML stream: the first document pins pnpm itself (`packageManagerDependencies`), the second holds the project importers. Two `importers:` keys are expected, not corruption.
+- pnpm's isolated `node_modules` exposes real phantom dependencies: `ag-grid-community` is imported directly by `frontend/src/components/gridSetup.js`, so it must stay a direct dependency alongside `ag-grid-vue3` (npm's flat layout hid this).
+
 ## 2026-10-23: the managed transport starts the tools' serve mode, not `rpc serve`
 
 - A ghx/slackx transport is one of `cli`, `rpc`, `managed`. `managed` means this server runs the tool: it starts `<tool> serve` bound to loopback on the tool's own default UI port (ghx 8080, slackx 8280) from the API lifespan and stops it with the API, and calls `<port>/rpc` on that same process. Both tools' serve modes answer the web UI and JSON-RPC on one port, which is why managed does not use `ghx rpc serve` (8090, no UI). The port is the serve default on purpose; there is nothing to configure, so the Settings page hides the rpc URL and token unless the transport is `rpc`. That same URL also stands in for a blank web UI URL (`get_settings`), so item links into the tool work with nothing set, and the Settings page shows it as a link instead of the URL field.
@@ -32,7 +39,7 @@
 
 - `frontend/vitest.config.js` sets `pool: 'vmThreads'`. The default pool builds a fresh jsdom environment for each of the 50 test files (about half the suite's time); reusing one environment per worker roughly halves the run (~31s to ~12s).
 - Under `vmThreads` the VM realm makes `globalThis.location` non-configurable, so `vi.stubGlobal('location', ...)` throws `Cannot redefine property: location`. Do not stub `location`; `taskView.test.js` relies on jsdom's no-op `location.reload()` and jsdom prints one `Not implemented: navigation to another Document` line.
-- `make test-frontend` runs `npm test` (Vitest, no coverage); `make coverage-frontend` / CI run `npm run coverage`.
+- `make test-frontend` runs `pnpm run test` (Vitest, no coverage); `make coverage-frontend` / CI run `pnpm run coverage`.
 
 ## 2026-10-18: the suite runs under pytest-xdist
 
@@ -122,7 +129,7 @@
 
 ## 2026-10-11: the frontend dev toolchain upgrades as a set
 
-- vue-router 5 needs vite `^7.3 || ^8`, vite 8 needs `@vitejs/plugin-vue` 6, and vitest 5 must move with `@vitest/coverage-v8` 5. Dependabot's per-package PRs fail `npm ci` on their own because of these peer constraints; bump the set together (done in PR #7).
+- vue-router 5 needs vite `^7.3 || ^8`, vite 8 needs `@vitejs/plugin-vue` 6, and vitest 5 must move with `@vitest/coverage-v8` 5. Dependabot's per-package PRs fail `pnpm install --frozen-lockfile` on their own because of these peer constraints; bump the set together (done in PR #7).
 
 ## 2026-10-10: the domain entity is Task (renamed from Problem)
 

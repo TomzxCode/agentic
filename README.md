@@ -109,8 +109,9 @@ harness's own model.
 
 ## Quickstart
 
-Prerequisites: Python 3.12+, [uv](https://docs.astral.sh/uv/), Node 20+, and at
-least one harness on your `PATH` (`opencode`/`opencode2` and/or `pi-acp`).
+Prerequisites: Python 3.12+, [uv](https://docs.astral.sh/uv/), Node 22.12+,
+[pnpm](https://pnpm.io/), and at least one harness on your `PATH`
+(`opencode`/`opencode2` and/or `pi-acp`).
 
 ```bash
 # 1. Backend + CLI (API on :8600), from the repository root
@@ -122,8 +123,8 @@ uv run agentic-server worker
 
 # 3. Frontend (dev server on :5173, proxies /api to :8600)
 cd frontend
-npm install
-npm run dev
+pnpm install
+pnpm run dev
 ```
 
 Open http://localhost:5173.
@@ -134,7 +135,7 @@ Open http://localhost:5173.
 Build the SPA into `backend/static` and let FastAPI serve everything:
 
 ```bash
-cd frontend && npm run build      # writes ../backend/static
+cd frontend && pnpm run build      # writes ../backend/static
 uv run agentic-server serve --host 0.0.0.0 --port 8600   # from the repo root
 uv run agentic-server worker                             # in another shell
 ```

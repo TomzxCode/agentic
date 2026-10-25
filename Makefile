@@ -30,7 +30,7 @@ help:
 
 install:
 	uv sync
-	cd frontend && npm install
+	cd frontend && pnpm install
 
 dev-backend:
 	uv run agentic-server serve --host 0.0.0.0 --port 8600 --reload
@@ -39,7 +39,7 @@ dev-worker:
 	uv run agentic-server worker
 
 dev-frontend:
-	cd frontend && npm run dev
+	cd frontend && pnpm run dev
 
 dev-tray:
 	AGENTIC_STACK_URL=http://localhost:5173/stack uv run agentic-stack
@@ -50,25 +50,25 @@ test-backend:
 	uv run pytest -q -n auto $(COV)
 
 test-frontend:
-	cd frontend && npm test
+	cd frontend && pnpm run test
 
 coverage-backend:
 	uv run pytest -q -n auto --cov=agentic --cov=agentic_cli --cov-report=term-missing --cov-report=xml:coverage.xml
 
 coverage-frontend:
-	cd frontend && npm run coverage
+	cd frontend && pnpm run coverage
 
 lint:
 	uv run ruff format . && uv run ruff check --fix .
 
 lint-frontend:
-	cd frontend && npm run lint && npm run format:check
+	cd frontend && pnpm run lint && pnpm run format:check
 
 typecheck:
 	uv run ty check
 
 build:
-	cd frontend && npm run build
+	cd frontend && pnpm run build
 
 docs:
 	uv run zensical build --clean
