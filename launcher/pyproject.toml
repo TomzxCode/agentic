@@ -8,7 +8,7 @@ dependencies = [
     "httpx>=0.27",
     "pystray>=0.19",
     "pynput>=1.7",
-    "pillow>=10.0",
+    "pillow>=13.0.0",
 ]
 
 [project.scripts]
