@@ -20,6 +20,7 @@ export const SIDEBAR_NAV_ITEMS = [
   { id: 'graph', label: 'Graph', to: '/graph', icon: 'graph', routeNames: ['graph'] },
   { id: 'events', label: 'Events', to: '/events', icon: 'events', routeNames: ['events'] },
   { id: 'metrics', label: 'Metrics', to: '/metrics', icon: 'metrics', routeNames: ['metrics'] },
+  { id: 'process', label: 'Process', to: '/process', icon: 'process', routeNames: ['process'] },
   { id: 'items', label: 'Items', to: '/items', icon: 'items', routeNames: ['items'] },
   { id: 'people', label: 'People', to: '/people', icon: 'people', routeNames: ['people', 'person', 'person-new'] },
   {

@@ -93,6 +93,14 @@ const ICONS = {
     ['path', { d: 'M10.4 6.3h5.2a2 2 0 0 1 2 2v6.6' }],
     ['path', { d: 'M15.2 12.5l2.4 2.6 2.4-2.6' }]
   ],
+  // Process: three stations in a line with an arrow flowing through them.
+  process: [
+    ['rect', { x: 2.5, y: 8.75, width: 5.2, height: 6.5, rx: 1.2 }],
+    ['rect', { x: 9.4, y: 8.75, width: 5.2, height: 6.5, rx: 1.2 }],
+    ['path', { d: 'M7.7 12h1.7' }],
+    ['path', { d: 'M14.6 12h4.2' }],
+    ['path', { d: 'M16.6 9.6 19.2 12l-2.6 2.4' }]
+  ],
   slack: [
     [
       'path',

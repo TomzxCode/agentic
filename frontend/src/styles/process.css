@@ -1,0 +1,204 @@
+/* The Process page: a production-line drawing plus the distribution charts
+   under it. The station colors reuse the status colors the Gantt bars and the
+   dependency-graph nodes already use. */
+
+.process-scroll {
+  overflow-x: auto;
+}
+.process-svg {
+  display: block;
+  width: 100%;
+  min-width: 680px;
+  height: auto;
+}
+.process-svg .station-rect {
+  fill: var(--bg-2);
+  stroke-width: 1.5;
+}
+.process-svg .station-rect.st-backlog {
+  stroke: var(--muted);
+}
+.process-svg .station-rect.st-in_progress {
+  stroke: var(--accent-2);
+}
+.process-svg .station-rect.st-blocked {
+  stroke: var(--warn);
+}
+.process-svg .station-rect.st-done {
+  stroke: var(--ok);
+}
+.process-svg .station-rect.st-archived {
+  stroke: var(--faint);
+}
+.process-svg .station-label {
+  fill: var(--muted);
+  font-size: 12px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.process-svg .station-count {
+  fill: var(--text);
+  font-size: 26px;
+  font-weight: 600;
+}
+.process-svg .station-sub {
+  fill: var(--muted);
+  font-size: 12px;
+}
+.process-svg .flow-edge {
+  stroke: var(--muted);
+  stroke-width: 1.5;
+}
+.process-svg .arrow-fill {
+  fill: var(--muted);
+}
+.process-svg .flow-count {
+  fill: var(--accent);
+  font-size: 12px;
+  font-weight: 600;
+}
+.other-flows {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+
+/* Cycle-time histogram, modelled on the cycle trend's bars but with one label
+   under each bucket, since the buckets are durations rather than dates. */
+.process-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 96px;
+  margin-top: 14px;
+  padding-top: 4px;
+  border-bottom: 1px solid var(--border);
+}
+.process-bar {
+  flex: 1;
+  min-width: 2px;
+  border-radius: 2px 2px 0 0;
+  background: var(--accent-2);
+}
+.process-bar-empty {
+  height: 2px !important;
+  background: var(--border);
+}
+.process-bar-labels {
+  display: flex;
+  gap: 3px;
+  margin-top: 4px;
+}
+.process-bar-labels span {
+  flex: 1;
+  min-width: 2px;
+  text-align: center;
+  font-size: 10px;
+  color: var(--faint);
+}
+.process-span {
+  margin: 6px 0 0;
+  font-size: 11px;
+}
+
+/* Weekly arrivals vs completions: two thin bars share each week column. */
+.flow-legend {
+  display: flex;
+  gap: 16px;
+  margin-top: 12px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.flow-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.flow-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+}
+.flow-dot.arrival {
+  background: var(--muted);
+}
+.flow-dot.completed {
+  background: var(--accent-2);
+}
+.flow-chart {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 88px;
+  margin-top: 6px;
+  border-bottom: 1px solid var(--border);
+}
+.flow-week {
+  flex: 1;
+  min-width: 2px;
+}
+.flow-col {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 2px;
+  height: 100%;
+}
+.flow-bar {
+  width: 42%;
+  min-width: 2px;
+  border-radius: 2px 2px 0 0;
+}
+.flow-bar.arrival {
+  background: var(--muted);
+}
+.flow-bar.completed {
+  background: var(--accent-2);
+}
+
+/* Station-wait rows: label, bar, then the numbers. */
+.dwell-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+}
+.dwell-row:last-child {
+  border-bottom: none;
+}
+.dwell-label {
+  flex: 0 0 90px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.dwell-bar-track {
+  flex: 1;
+  min-width: 40px;
+  height: 10px;
+  background: var(--bg-2);
+  border-radius: 5px;
+  overflow: hidden;
+}
+.dwell-bar {
+  display: block;
+  height: 100%;
+  background: var(--accent-2);
+  border-radius: 5px;
+}
+.dwell-num {
+  flex: 0 0 auto;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 760px) {
+  .dwell-label {
+    flex-basis: 70px;
+  }
+  .dwell-num:last-of-type {
+    display: none;
+  }
+}

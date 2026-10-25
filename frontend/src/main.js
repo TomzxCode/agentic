@@ -16,6 +16,7 @@ import GanttView from './views/GanttView.vue'
 import DependencyGraphView from './views/DependencyGraphView.vue'
 import EventsView from './views/EventsView.vue'
 import MetricsView from './views/MetricsView.vue'
+import ProcessView from './views/ProcessView.vue'
 import InboxView from './views/InboxView.vue'
 import ReviewsView from './views/ReviewsView.vue'
 import FeedbackView from './views/FeedbackView.vue'
@@ -38,6 +39,7 @@ import './styles/decisions.css'
 import './styles/tasks.css'
 import './styles/overlays.css'
 import './styles/charts.css'
+import './styles/process.css'
 import './styles/events.css'
 import './styles/responsive.css'
 
@@ -58,6 +60,7 @@ const router = createRouter({
     { path: '/graph', name: 'graph', component: DependencyGraphView },
     { path: '/events', name: 'events', component: EventsView },
     { path: '/metrics', name: 'metrics', component: MetricsView },
+    { path: '/process', name: 'process', component: ProcessView },
     { path: '/schedules', name: 'schedules', component: SchedulesView },
     { path: '/graphs', name: 'graphs', component: ExecutionGraphsView },
     { path: '/on-call', name: 'on-call', component: OnCallView },

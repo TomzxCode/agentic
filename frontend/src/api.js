@@ -286,6 +286,16 @@ export const api = {
     }
   },
 
+  process: {
+    // The production-line report: station inventory, flows, and cycle times.
+    get: ({ days } = {}) => {
+      const qs = new URLSearchParams()
+      if (days) qs.set('days', String(days))
+      const query = qs.toString()
+      return request(`/process${query ? `?${query}` : ''}`)
+    }
+  },
+
   items: {
     list: ({ source, q } = {}) => {
       const qs = new URLSearchParams()
