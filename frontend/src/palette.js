@@ -260,6 +260,13 @@ export function buildPaletteItems({ route, router, showNew, sidebarHidden, toggl
       run: () => router.push('/schedules')
     },
     {
+      id: 'go-graphs',
+      label: 'Go to execution graphs',
+      group: 'Navigation',
+      icon: 'graphs',
+      run: () => router.push('/graphs')
+    },
+    {
       id: 'go-settings',
       label: 'Go to settings',
       group: 'Navigation',

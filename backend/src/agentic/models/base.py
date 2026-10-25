@@ -89,3 +89,12 @@ class ScheduledRunStatus(StrEnum):
     running = "running"
     succeeded = "succeeded"
     failed = "failed"
+
+
+class GraphExecutionStatus(StrEnum):
+    """The state of one run of an execution graph."""
+
+    running = "running"
+    succeeded = "succeeded"
+    failed = "failed"
+    cancelled = "cancelled"

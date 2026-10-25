@@ -273,6 +273,48 @@ def _schedule_run_text(run: dict) -> str:
     return "\n".join(lines)
 
 
+def _execution_graph_line(graph: dict) -> str:
+    state = "on " if graph.get("enabled") else "off"
+    schedule = graph.get("schedule") or "-"
+    nxt = _format_in_zone(graph.get("next_run_at"), graph.get("timezone"))
+    running = "RUNNING" if graph.get("running_execution_id") else "-"
+    return f"{graph['id']}  {state}  {schedule:<15} next {nxt:<16} {running:<7} {graph['name']}"
+
+
+def _execution_graph_text(graph: dict) -> str:
+    lines = [_execution_graph_line(graph)]
+    if graph.get("description"):
+        lines.append(f"  description: {graph['description']}")
+    nodes = (graph.get("definition") or {}).get("nodes") or []
+    lines.append(f"  nodes: {len(nodes)}, connections: {len((graph.get('definition') or {}).get('edges') or [])}")
+    return "\n".join(lines)
+
+
+def _graph_execution_line(execution: dict) -> str:
+    started = str(execution.get("started_at") or "")[:19].replace("T", " ")
+    trigger = execution.get("trigger") or "-"
+    return f"{started}  {execution['status']:<9} {trigger:<8} {execution['id']}  {execution.get('graph_name', '')}"
+
+
+def _graph_execution_text(execution: dict) -> str:
+    lines = [_graph_execution_line(execution)]
+    if execution.get("error"):
+        lines.append(f"  error: {execution['error']}")
+    if execution.get("task_id"):
+        lines.append(f"  task: {execution['task_id']}")
+    for node in execution.get("nodes") or []:
+        marker = {"done": "*", "failed": "!", "running": ">", "waiting": "?"}.get(node["status"], " ")
+        line = f"  {marker} {node['title']}"
+        if node.get("run_id"):
+            line += f"  (run {node['run_id']})"
+        if node.get("error"):
+            line += f"  {node['error']}"
+        lines.append(line)
+        if node.get("output"):
+            lines.append("    " + node["output"].strip().replace("\n", "\n    "))
+    return "\n".join(lines)
+
+
 def _operation_line(operation: dict) -> str:
     when = str(operation.get("created_at") or "")[:19]
     return (

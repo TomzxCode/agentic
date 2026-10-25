@@ -183,6 +183,21 @@ export const api = {
     }
   },
 
+  graphs: {
+    list: () => request('/graphs'),
+    get: (id) => request(`/graphs/${id}`),
+    create: (body) => request('/graphs', { method: 'POST', body }),
+    update: (id, body) => request(`/graphs/${id}`, { method: 'PATCH', body }),
+    remove: (id) => request(`/graphs/${id}`, { method: 'DELETE' }),
+    run: (id) => request(`/graphs/${id}/run`, { method: 'POST' }),
+    validate: (body) => request('/graphs/validate', { method: 'POST', body }),
+    executions: (limit = 100) => request(`/graphs/executions?limit=${limit}`),
+    execution: (id) => request(`/graphs/executions/${id}`),
+    cancelExecution: (id) => request(`/graphs/executions/${id}/cancel`, { method: 'POST' }),
+    submitForm: (executionId, nodeId, body) =>
+      request(`/graphs/executions/${executionId}/forms/${nodeId}`, { method: 'POST', body })
+  },
+
   reviews: {
     // Every PR with review reports in the user-global store, with its step state.
     // refresh re-reads each PR's GitHub fields instead of the short ghx cache.

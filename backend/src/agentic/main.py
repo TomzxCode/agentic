@@ -20,6 +20,9 @@ from .agents.pool import pool
 from .config import settings
 from .db import create_db_and_tables, engine
 from .debug import DebugMiddleware, recent_cli_calls, recent_requests
+from .graphs import reconcile_graph_executions
+from .graphs import scheduler_loop as graph_scheduler_loop
+from .graphs import shutdown as graphs_shutdown
 from .jobs import close_queue, get_queue, reconcile_runs
 from .log_setup import configure_logging
 from .provenance import ProvenanceMiddleware
@@ -55,6 +58,9 @@ from .routers import (
     task_writes,
     tasks,
     worktrees,
+)
+from .routers import (
+    graphs as graphs_router,
 )
 from .routers import settings as settings_router
 from .routers import tags as tags_router
@@ -150,6 +156,8 @@ async def lifespan(app: FastAPI):
     # A scheduled run executes in this process, so any left running by a
     # previous process is gone.
     reconcile_scheduled_runs()
+    # The graph executor walks its DAG in this process too.
+    reconcile_graph_executions()
     # Record the merged pull requests already on file, so the metrics do not
     # wait for each item's next refresh.
     recorded = await asyncio.to_thread(_auto_record_changes_once)
@@ -161,6 +169,8 @@ async def lifespan(app: FastAPI):
     scan_task = asyncio.create_task(_review_scan_forever())
     # Fire the user-defined scheduled tasks whose time has come.
     schedule_task = asyncio.create_task(scheduler_loop())
+    # Fire the execution graphs whose cron time has come.
+    graph_schedule_task = asyncio.create_task(graph_scheduler_loop())
     # Hold an ACP session for the default harness so the task view can list its
     # model choices without spawning it. Best effort: an unavailable harness
     # retries in the background and never delays startup.
@@ -173,15 +183,19 @@ async def lifespan(app: FastAPI):
     if settings.warm_harness_session:
         await pool.stop()
     managed_tools.stop()
+    graphs_shutdown()
     refresh_task.cancel()
     scan_task.cancel()
     schedule_task.cancel()
+    graph_schedule_task.cancel()
     with suppress(asyncio.CancelledError):
         await refresh_task
     with suppress(asyncio.CancelledError):
         await scan_task
     with suppress(asyncio.CancelledError):
         await schedule_task
+    with suppress(asyncio.CancelledError):
+        await graph_schedule_task
     await close_queue()
 
 
@@ -263,6 +277,7 @@ for module in (
     feedback,
     decisions,
     schedules,
+    graphs_router,
 ):
     app.include_router(module.router)
 

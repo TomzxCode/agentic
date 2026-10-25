@@ -38,6 +38,7 @@ def create_db_and_tables() -> None:
         agents,
         base,
         changes,
+        graphs,
         items,
         repositories,
         reviews,
@@ -149,6 +150,13 @@ def _ensure_columns() -> None:
         if "model_name" not in run_columns:
             with engine.begin() as connection:
                 connection.execute(text("ALTER TABLE agentrun ADD COLUMN model_name VARCHAR"))
+        if "graph_execution_id" not in run_columns:
+            with engine.begin() as connection:
+                connection.execute(text("ALTER TABLE agentrun ADD COLUMN graph_execution_id VARCHAR"))
+                connection.execute(text("CREATE INDEX ix_agentrun_graph_execution_id ON agentrun (graph_execution_id)"))
+        if "graph_node_id" not in run_columns:
+            with engine.begin() as connection:
+                connection.execute(text("ALTER TABLE agentrun ADD COLUMN graph_node_id VARCHAR"))
     if "task" in inspector.get_table_names():
         task_columns = {column["name"] for column in inspector.get_columns("task")}
         if "group_id" not in task_columns:

@@ -22,6 +22,7 @@ from .client import DEFAULT_API_URL
 from .commands import (
     changes,
     events,
+    graphs,
     harnesses,
     health,
     items,
@@ -89,6 +90,7 @@ _COMMAND_MODULES = (
     repositories,
     runs,
     harnesses,
+    graphs,
     settings,
     stack,
     schedules,

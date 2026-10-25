@@ -515,6 +515,55 @@ class AgenticClient:
         """Every scheduled task's runs, newest first."""
         return self._request("GET", "/api/schedules/runs", params={"limit": limit})
 
+    # --- execution graphs ---------------------------------------------------
+    def list_graphs(self) -> list[dict]:
+        return self._request("GET", "/api/graphs")
+
+    def get_execution_graph(self, graph_id: str) -> dict:
+        return self._request("GET", f"/api/graphs/{graph_id}")
+
+    def create_graph(
+        self,
+        name: str,
+        *,
+        description: str | None = None,
+        schedule: str | None = None,
+        timezone: str | None = None,
+        enabled: bool | None = None,
+        definition: dict | None = None,
+    ) -> dict:
+        return self._request(
+            "POST",
+            "/api/graphs",
+            json=_compact(
+                {
+                    "name": name,
+                    "description": description,
+                    "schedule": schedule,
+                    "timezone": timezone,
+                    "enabled": enabled,
+                    "definition": definition,
+                }
+            ),
+        )
+
+    def update_graph(self, graph_id: str, **fields: Any) -> dict:
+        return self._request("PATCH", f"/api/graphs/{graph_id}", json=_compact(fields))
+
+    def delete_graph(self, graph_id: str) -> None:
+        self._request("DELETE", f"/api/graphs/{graph_id}")
+
+    def run_graph(self, graph_id: str) -> dict:
+        """Start an execution now; returns the execution row (initially running)."""
+        return self._request("POST", f"/api/graphs/{graph_id}/run")
+
+    def graph_executions(self, limit: int = 100) -> list[dict]:
+        """Every graph's executions, newest first."""
+        return self._request("GET", "/api/graphs/executions", params={"limit": limit})
+
+    def get_graph_execution(self, execution_id: str) -> dict:
+        return self._request("GET", f"/api/graphs/executions/{execution_id}")
+
     # --- operations (provenance audit log) --------------------------------
     def list_operations(
         self,

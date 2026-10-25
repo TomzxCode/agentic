@@ -30,6 +30,7 @@ export const SIDEBAR_NAV_ITEMS = [
     routeNames: ['repositories', 'repository']
   },
   { id: 'schedules', label: 'Scheduled tasks', to: '/schedules', icon: 'schedule', routeNames: ['schedules'] },
+  { id: 'graphs', label: 'Execution graphs', to: '/graphs', icon: 'graphs', routeNames: ['graphs'] },
   { id: 'on-call', label: 'On call', to: '/on-call', icon: 'slack', routeNames: ['on-call', 'oncall'] },
   { id: 'settings', label: 'Settings', to: '/settings', icon: 'settings', routeNames: ['settings'] }
 ]

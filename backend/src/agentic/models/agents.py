@@ -59,6 +59,11 @@ class AgentRun(SQLModel, table=True):
     # over the harness's own configured model for this run only. Empty means the
     # harness decides.
     requested_model: str | None = None
+    # Set when the run belongs to an execution graph. Plain ids, not foreign
+    # keys: deleting a graph keeps its past runs (they belong to the execution's
+    # task), so nothing may block on these references.
+    graph_execution_id: str | None = Field(default=None, index=True)
+    graph_node_id: str | None = None
     stop_reason: str | None = None
     error: str | None = None
     created_at: datetime = Field(default_factory=utcnow)
