@@ -161,6 +161,126 @@
   font-size: 12px;
 }
 
+/* Cumulative flow diagram: stacked per-station inventory bands with the
+   finished-goods total on top, reusing the station colors. */
+.cfd {
+  margin-top: 6px;
+}
+.cfd-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.cfd-band {
+  stroke: none;
+}
+.cfd-band.band-backlog {
+  fill: var(--muted);
+  opacity: 0.55;
+}
+.cfd-band.band-in_progress {
+  fill: var(--accent-2);
+  opacity: 0.8;
+}
+.cfd-band.band-blocked {
+  fill: var(--warn);
+  opacity: 0.8;
+}
+.cfd-band.band-completed {
+  fill: var(--ok);
+  opacity: 0.8;
+}
+.cfd-baseline {
+  stroke: var(--border);
+  stroke-width: 1;
+}
+.cfd-column {
+  fill: transparent;
+}
+.cfd-column:hover {
+  fill: var(--bg-3);
+  opacity: 0.5;
+}
+.cfd-axis {
+  position: relative;
+  height: 16px;
+  margin-top: 2px;
+}
+.cfd-tick {
+  position: absolute;
+  transform: translateX(-50%);
+  font-size: 10px;
+  color: var(--faint);
+  white-space: nowrap;
+}
+.cfd-tick:first-child {
+  transform: none;
+}
+.cfd-tick:last-child {
+  transform: translateX(-100%);
+}
+.cfd-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-top: 10px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* Aging work in progress: one row per item on the line. */
+.wip-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+}
+.wip-row:last-child {
+  border-bottom: none;
+}
+.wip-title {
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1 1 30%;
+}
+.wip-bar-track {
+  flex: 2 1 40%;
+  min-width: 60px;
+  height: 10px;
+  background: var(--bg-2);
+  border-radius: 5px;
+  overflow: hidden;
+}
+.wip-bar {
+  display: block;
+  height: 100%;
+  border-radius: 5px;
+}
+.wip-bar.st-backlog {
+  background: var(--muted);
+}
+.wip-bar.st-in_progress {
+  background: var(--accent-2);
+}
+.wip-bar.st-blocked {
+  background: var(--warn);
+}
+.wip-age {
+  flex: 0 0 auto;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.outcome-block {
+  margin-top: 16px;
+}
+.outcome-label {
+  margin: 0 0 6px;
+  font-size: 12px;
+}
+
 /* Cycle-time histogram, modelled on the cycle trend's bars but with one label
    under each bucket, since the buckets are durations rather than dates. */
 .process-bars {

@@ -1,7 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
+import { config, enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
 
 enableAutoUnmount(afterEach)
+
+// The aging list links each item to its task page.
+config.global.stubs = { RouterLink: { props: ['to'], template: '<a :href="to"><slot /></a>' } }
 
 const mocks = vi.hoisted(() => ({
   processGet: vi.fn()
@@ -96,7 +99,27 @@ const report = {
       trend: 'steady',
       weekly_wip: [0, 0, 0, 0]
     }
-  ]
+  ],
+  flow_samples: [
+    { at: '2026-10-01T12:00:00Z', backlog: 1, in_progress: 0, blocked: 0, completed: 0 },
+    { at: '2026-10-02T12:00:00Z', backlog: 2, in_progress: 1, blocked: 0, completed: 0 },
+    { at: '2026-10-03T12:00:00Z', backlog: 2, in_progress: 1, blocked: 1, completed: 1 }
+  ],
+  wip_items: [
+    { id: 't9', title: 'Blocked thing', stage: 'blocked', entered_at: '2026-10-08T12:00:00Z', age_hours: 408 },
+    { id: 't2', title: 'Old backlog item', stage: 'backlog', entered_at: '2026-10-20T12:00:00Z', age_hours: 120 }
+  ],
+  touch: { completions: 2, covered: 1, touch_hours: 96, cycle_hours: 240, efficiency: 0.4, mean_touch_hours: 48 },
+  forecast: {
+    items: 3,
+    sims: 500,
+    weeks_observed: 13,
+    p50_weeks: 4,
+    p85_weeks: 7,
+    p50_date: '2026-11-22T12:00:00Z',
+    p85_date: '2026-12-13T12:00:00Z'
+  },
+  outcomes: { created: 5, done: 2, archived: 1, active: 2 }
 }
 
 async function mountView() {
@@ -166,7 +189,7 @@ describe('ProcessView', () => {
     expect(takeaway).toContain('5.0d')
     expect(takeaway).toContain('60%')
     expect(takeaway).toContain('In progress')
-    const segments = wrapper.findAll('.share-segment')
+    const segments = wrapper.findAll('.bottleneck-bar .share-segment')
     expect(segments).toHaveLength(2)
     expect(segments[0].attributes('style')).toContain('width: 40%')
     expect(segments[1].attributes('style')).toContain('width: 60%')
@@ -179,6 +202,45 @@ describe('ProcessView', () => {
     expect(rows[0].get('.badge').text()).toBe('Filling')
     expect(rows[1].get('.badge').text()).toBe('Steady')
     expect(rows[0].findAll('.spark-bar')).toHaveLength(4)
+  })
+
+  it('draws the cumulative flow diagram', async () => {
+    const wrapper = await mountView()
+    const bands = wrapper.findAll('.cfd-band')
+    expect(bands).toHaveLength(4)
+    const legend = wrapper.get('.cfd-legend').text()
+    expect(legend).toContain('Backlog')
+    expect(legend).toContain('Completed')
+    expect(wrapper.findAll('.cfd-column')).toHaveLength(3)
+  })
+
+  it('lists the items on the line, longest wait first', async () => {
+    const wrapper = await mountView()
+    const rows = wrapper.findAll('.wip-row')
+    expect(rows).toHaveLength(2)
+    expect(rows[0].text()).toContain('Blocked thing')
+    expect(rows[0].text()).toContain('17.0d')
+    expect(rows[0].get('a').attributes('href')).toBe('/task/t9')
+  })
+
+  it('shows flow efficiency', async () => {
+    const wrapper = await mountView()
+    const text = wrapper.text()
+    expect(text).toContain('Flow efficiency')
+    expect(text).toContain('40%')
+    expect(text).toContain('2.0d per item')
+  })
+
+  it('forecasts the backlog clear date and splits outcomes', async () => {
+    const wrapper = await mountView()
+    const text = wrapper.text()
+    expect(text).toContain('Backlog forecast')
+    expect(text).toContain('P85')
+    expect(text).toContain('clearing 3 items from 13 weeks of history')
+    const outcomeLegend = wrapper.get('.outcome-block .share-legend').text()
+    expect(outcomeLegend).toContain('Done 2')
+    expect(outcomeLegend).toContain('On the line 2')
+    expect(outcomeLegend).toContain('Archived 1')
   })
 
   it('reloads when the window changes', async () => {

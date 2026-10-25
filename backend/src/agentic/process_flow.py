@@ -23,6 +23,7 @@ router) plus the reporting window, and returns the manufacturing metrics:
 from __future__ import annotations
 
 import math
+import random
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
@@ -84,6 +85,7 @@ class TaskRecord:
     id: str
     created_at: datetime
     status: str
+    title: str = ""
 
 
 @dataclass(frozen=True)
@@ -197,6 +199,86 @@ class FlowWeek:
 
 
 @dataclass(frozen=True)
+class FlowSample:
+    """One instant's snapshot of the line, for the cumulative flow diagram.
+
+    ``completed`` counts every task that had reached done by ``at`` (including
+    archived ones), so it only ever grows; the three station counts are the
+    inventory at that instant. Sampled once a day.
+    """
+
+    at: datetime
+    backlog: int = 0
+    in_progress: int = 0
+    blocked: int = 0
+    completed: int = 0
+
+
+@dataclass(frozen=True)
+class WipItem:
+    """One item currently on the line, for the aging work-in-progress list."""
+
+    id: str
+    title: str
+    stage: str
+    entered_at: datetime
+    age_hours: float
+
+
+@dataclass(frozen=True)
+class TouchRecord:
+    """One focus-stack session: a stretch of time a task was the current task."""
+
+    task_id: str
+    started_at: datetime
+    ended_at: datetime | None
+
+
+@dataclass(frozen=True)
+class TouchStats:
+    """How much of completed items' cycle time was actual work.
+
+    Touch time comes from focus-stack sessions clipped to the trip, so an item
+    nobody focused while on the line reads as zero touched, not as missing.
+    """
+
+    completions: int = 0
+    covered: int = 0
+    touch_hours: float = 0.0
+    cycle_hours: float = 0.0
+    efficiency: float | None = None
+    mean_touch_hours: float | None = None
+
+
+@dataclass(frozen=True)
+class Forecast:
+    """Monte Carlo projection for clearing the items currently on the line.
+
+    Each simulation draws one week's completions from the observed weekly
+    history until the active count is exhausted. ``p50``/``p85`` are the
+    quantiles of that distribution, as weeks and as dates.
+    """
+
+    items: int = 0
+    sims: int = 0
+    weeks_observed: int = 0
+    p50_weeks: float | None = None
+    p85_weeks: float | None = None
+    p50_date: datetime | None = None
+    p85_date: datetime | None = None
+
+
+@dataclass(frozen=True)
+class Outcomes:
+    """Where the window's arrivals stand now: shipped, done, or still on the line."""
+
+    created: int = 0
+    done: int = 0
+    archived: int = 0
+    active: int = 0
+
+
+@dataclass(frozen=True)
 class LittlesLaw:
     """Average work in process, throughput, and the implied cycle time."""
 
@@ -222,6 +304,11 @@ class ProcessReport:
     littles: LittlesLaw = LittlesLaw()
     wait_shares: list[StageWaitShare] = field(default_factory=list)
     queue_pressure: list[QueuePressure] = field(default_factory=list)
+    flow_samples: list[FlowSample] = field(default_factory=list)
+    wip_items: list[WipItem] = field(default_factory=list)
+    touch: TouchStats = TouchStats()
+    forecast: Forecast = Forecast()
+    outcomes: Outcomes = Outcomes()
 
 
 def hours_between(start: datetime, end: datetime) -> float:
@@ -505,6 +592,171 @@ def queue_pressure(
     return pressure
 
 
+def flow_samples(
+    tasks: Sequence[TaskRecord], transitions: Sequence[Transition], start: datetime, end: datetime
+) -> list[FlowSample]:
+    """Daily snapshots of every station's inventory plus cumulative completions.
+
+    This is the raw material of the cumulative flow diagram: plotted as stacked
+    bands, a widening band is a queue forming, and the top edge is the line's
+    total output to date.
+    """
+    timelines = {task.id: stage_timeline(task, transitions) for task in tasks}
+    done_at = {
+        task.id: min((entered_at for entered_at, stage in timelines[task.id] if stage == DONE), default=None)
+        for task in tasks
+    }
+    samples: list[FlowSample] = []
+    day = start
+    while day <= end:
+        counts = dict.fromkeys((BACKLOG, IN_PROGRESS, BLOCKED), 0)
+        completed = 0
+        for task in tasks:
+            stage = _stage_at(timelines[task.id], day)
+            if stage in counts:
+                counts[stage] += 1
+            finished = done_at[task.id]
+            if finished is not None and finished <= day:
+                completed += 1
+        samples.append(
+            FlowSample(
+                at=day,
+                backlog=counts[BACKLOG],
+                in_progress=counts[IN_PROGRESS],
+                blocked=counts[BLOCKED],
+                completed=completed,
+            )
+        )
+        day += timedelta(days=1)
+    return samples
+
+
+def wip_items(tasks: Sequence[TaskRecord], transitions: Sequence[Transition], now: datetime) -> list[WipItem]:
+    """Everything currently on the line, longest wait first.
+
+    This is the aging report: inventory counts say how many items wait, this
+    says which ones, since when, and in which station.
+    """
+    items: list[WipItem] = []
+    for task in tasks:
+        if stage_of(task) not in ACTIVE_STAGES:
+            continue
+        entered_at = stage_timeline(task, transitions)[-1][0]
+        items.append(
+            WipItem(
+                id=task.id,
+                title=task.title,
+                stage=stage_of(task),
+                entered_at=entered_at,
+                age_hours=hours_between(entered_at, now),
+            )
+        )
+    return sorted(items, key=lambda item: item.age_hours, reverse=True)
+
+
+def touch_stats(
+    sessions: Sequence[TouchRecord], completions: Sequence[tuple[TaskRecord, datetime]], now: datetime
+) -> TouchStats:
+    """How much of the completed items' time on the line was actual work.
+
+    A session counts toward a trip when it overlaps the span between creation
+    and completion; the rest of the trip was waiting.
+    """
+    if not completions:
+        return TouchStats()
+    by_task: dict[str, list[TouchRecord]] = {}
+    for record in sessions:
+        by_task.setdefault(record.task_id, []).append(record)
+    touch_total = 0.0
+    cycle_total = 0.0
+    covered = 0
+    for task, completed_at in completions:
+        cycle_total += hours_between(task.created_at, completed_at)
+        touched = 0.0
+        for record in by_task.get(task.id, ()):
+            started = max(record.started_at, task.created_at)
+            ended = min(record.ended_at or now, completed_at)
+            if ended > started:
+                touched += hours_between(started, ended)
+        if touched > 0:
+            covered += 1
+        touch_total += touched
+    return TouchStats(
+        completions=len(completions),
+        covered=covered,
+        touch_hours=touch_total,
+        cycle_hours=cycle_total,
+        efficiency=touch_total / cycle_total if cycle_total > 0 else None,
+        mean_touch_hours=touch_total / len(completions),
+    )
+
+
+def forecast_backlog(
+    active_count: int, weekly_completions: Sequence[int], now: datetime, sims: int = 500, seed: int = 0
+) -> Forecast:
+    """Project when the items currently on the line will be finished.
+
+    Each simulation resamples the window's weekly completion counts (with
+    replacement) until it has covered ``active_count`` items, then reports the
+    P50 and P85 of the simulated durations. A window with no completions at
+    all supports no forecast, so the quantiles stay None.
+    """
+    history = list(weekly_completions)
+    forecast = Forecast(items=active_count, sims=sims, weeks_observed=len(history))
+    if active_count <= 0:
+        return Forecast(
+            items=0,
+            sims=sims,
+            weeks_observed=len(history),
+            p50_weeks=0.0,
+            p85_weeks=0.0,
+            p50_date=now,
+            p85_date=now,
+        )
+    if not history or sum(history) == 0:
+        return forecast
+    rng = random.Random(seed)
+    durations: list[int] = []
+    for _ in range(sims):
+        remaining = active_count
+        weeks = 0
+        while remaining > 0 and weeks < 520:
+            weeks += 1
+            remaining -= history[rng.randrange(len(history))]
+        durations.append(weeks)
+    median_weeks = quantile(durations, 0.5)
+    slow_weeks = quantile(durations, 0.85)
+    assert median_weeks is not None and slow_weeks is not None
+    p50_weeks = float(median_weeks)
+    p85_weeks = float(slow_weeks)
+    return Forecast(
+        items=active_count,
+        sims=sims,
+        weeks_observed=len(history),
+        p50_weeks=p50_weeks,
+        p85_weeks=p85_weeks,
+        p50_date=now + timedelta(weeks=p50_weeks),
+        p85_date=now + timedelta(weeks=p85_weeks),
+    )
+
+
+def outcomes(tasks: Sequence[TaskRecord], start: datetime, end: datetime) -> Outcomes:
+    """Where the window's arrivals stand now, by current disposition."""
+    created = done = archived = active = 0
+    for task in tasks:
+        if not start <= task.created_at <= end:
+            continue
+        created += 1
+        stage = stage_of(task)
+        if stage == DONE:
+            done += 1
+        elif stage == ARCHIVED:
+            archived += 1
+        else:
+            active += 1
+    return Outcomes(created=created, done=done, archived=archived, active=active)
+
+
 def weekly_flow(
     tasks: Sequence[TaskRecord],
     completions: Sequence[tuple[TaskRecord, datetime]],
@@ -564,6 +816,7 @@ def build_report(
     transitions: Sequence[Transition],
     now: datetime,
     window_days: int = DEFAULT_WINDOW_DAYS,
+    sessions: Sequence[TouchRecord] = (),
 ) -> ProcessReport:
     """Compute the whole production-line report for the window ending at ``now``."""
     start = now - timedelta(days=window_days)
@@ -571,6 +824,8 @@ def build_report(
     transitions = [transition for transition in transitions if transition.task_id in known]
     completions = _completion_transitions(tasks, transitions, start, now)
     distribution = cycle_time_distribution(completions)
+    weekly = weekly_flow(tasks, completions, start, now)
+    active_count = sum(1 for task in tasks if stage_of(task) in ACTIVE_STAGES)
     return ProcessReport(
         generated_at=now,
         window_days=window_days,
@@ -581,10 +836,15 @@ def build_report(
         cycle_time=distribution,
         histogram=histogram_for([hours_between(task.created_at, at) for task, at in completions]),
         dwell=stage_dwell(tasks, transitions, completions),
-        weekly=weekly_flow(tasks, completions, start, now),
+        weekly=weekly,
         littles=littles_law(tasks, transitions, completions, start, now),
         wait_shares=stage_wait_shares(tasks, transitions, completions),
         queue_pressure=queue_pressure(tasks, transitions, start, now),
+        flow_samples=flow_samples(tasks, transitions, start, now),
+        wip_items=wip_items(tasks, transitions, now),
+        touch=touch_stats(sessions, completions, now),
+        forecast=forecast_backlog(active_count, [week.completed for week in weekly], now),
+        outcomes=outcomes(tasks, start, now),
     )
 
 
@@ -604,9 +864,12 @@ __all__ = [
     "STATUS_TO_STAGE",
     "STEADY",
     "Distribution",
+    "FlowSample",
     "FlowWeek",
+    "Forecast",
     "HistogramBucket",
     "LittlesLaw",
+    "Outcomes",
     "ProcessReport",
     "QueuePressure",
     "StageDwell",
@@ -614,12 +877,18 @@ __all__ = [
     "StageStat",
     "StageWaitShare",
     "TaskRecord",
+    "TouchRecord",
+    "TouchStats",
     "Transition",
+    "WipItem",
     "build_report",
     "cycle_time_distribution",
+    "flow_samples",
+    "forecast_backlog",
     "histogram_for",
     "hours_between",
     "littles_law",
+    "outcomes",
     "quantile",
     "queue_pressure",
     "stage_dwell",
@@ -629,6 +898,8 @@ __all__ = [
     "stage_timeline",
     "stage_wait_shares",
     "summarize_durations",
+    "touch_stats",
     "week_boundaries",
     "weekly_flow",
+    "wip_items",
 ]

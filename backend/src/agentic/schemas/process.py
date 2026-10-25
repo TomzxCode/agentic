@@ -71,6 +71,58 @@ class QueuePressure(BaseModel):
     weekly_wip: list[int] = []
 
 
+class FlowSample(BaseModel):
+    """One day's snapshot of the line, for the cumulative flow diagram."""
+
+    at: datetime
+    backlog: int = 0
+    in_progress: int = 0
+    blocked: int = 0
+    completed: int = 0
+
+
+class WipItem(BaseModel):
+    """One item currently on the line, for the aging work-in-progress list."""
+
+    id: str
+    title: str
+    stage: str
+    entered_at: datetime
+    age_hours: float
+
+
+class TouchStats(BaseModel):
+    """How much of completed items' cycle time was actual work."""
+
+    completions: int = 0
+    covered: int = 0
+    touch_hours: float = 0.0
+    cycle_hours: float = 0.0
+    efficiency: float | None = None
+    mean_touch_hours: float | None = None
+
+
+class Forecast(BaseModel):
+    """Monte Carlo projection for clearing the items currently on the line."""
+
+    items: int = 0
+    sims: int = 0
+    weeks_observed: int = 0
+    p50_weeks: float | None = None
+    p85_weeks: float | None = None
+    p50_date: datetime | None = None
+    p85_date: datetime | None = None
+
+
+class Outcomes(BaseModel):
+    """Where the window's arrivals stand now."""
+
+    created: int = 0
+    done: int = 0
+    archived: int = 0
+    active: int = 0
+
+
 class FlowWeek(BaseModel):
     start: datetime
     end: datetime
@@ -98,3 +150,8 @@ class ProcessReport(BaseModel):
     littles: LittlesLaw = LittlesLaw()
     wait_shares: list[StageWaitShare] = []
     queue_pressure: list[QueuePressure] = []
+    flow_samples: list[FlowSample] = []
+    wip_items: list[WipItem] = []
+    touch: TouchStats = TouchStats()
+    forecast: Forecast = Forecast()
+    outcomes: Outcomes = Outcomes()

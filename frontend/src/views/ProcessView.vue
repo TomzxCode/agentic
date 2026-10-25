@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { api } from '../api'
+import CumulativeFlow from '../components/CumulativeFlow.vue'
 import { formatCycleHours } from '../cycleTime'
 import { store } from '../store'
 
@@ -114,6 +115,32 @@ function sparkHeights(row) {
   return row.weekly_wip.map((value) => (value ? Math.max(15, (value / max) * 100) : 4))
 }
 
+// Cumulative flow: one snapshot a day of every station's inventory.
+const flowSamples = computed(() => report.value?.flow_samples || [])
+
+// Aging work in progress: what is on the line right now, longest wait first.
+const wip = computed(() => report.value?.wip_items || [])
+const wipMax = computed(() => Math.max(1, ...wip.value.map((item) => item.age_hours)))
+
+// Flow efficiency: how much of a completed trip was touched work. Touch time
+// comes from the focus-stack sessions the backend clips to each trip.
+const touch = computed(() => report.value?.touch || {})
+
+// Backlog forecast and outcome breakdown for the window's arrivals.
+const forecast = computed(() => report.value?.forecast || {})
+const outcomes = computed(() => report.value?.outcomes || { created: 0, done: 0, archived: 0, active: 0 })
+const outcomeParts = computed(() =>
+  [
+    { key: 'done', label: 'Done', count: outcomes.value.done },
+    { key: 'backlog', label: 'On the line', count: outcomes.value.active },
+    { key: 'archived', label: 'Archived', count: outcomes.value.archived }
+  ].filter((part) => part.count > 0)
+)
+function shortDate(iso) {
+  const date = new Date(iso)
+  return Number.isNaN(date.getTime()) ? '' : date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+}
+
 // Weekly arrivals vs completions: two bars per week against one shared scale.
 const weekly = computed(() => report.value?.weekly || [])
 const weeklyMax = computed(() => Math.max(1, ...weekly.value.flatMap((week) => [week.created, week.completed])))
@@ -225,6 +252,15 @@ function countLabel(n) {
 
       <section class="panel" style="margin-top: 16px">
         <div class="panel-head">
+          <h2>Cumulative flow</h2>
+          <span class="faint">inventory per day; a widening band is a queue forming</span>
+        </div>
+        <CumulativeFlow v-if="flowSamples.length" :samples="flowSamples" />
+        <div v-else class="empty">No flow in this window.</div>
+      </section>
+
+      <section class="panel" style="margin-top: 16px">
+        <div class="panel-head">
           <h2>Bottlenecks</h2>
           <span class="faint">where an average trip's time goes, and which queues grow</span>
         </div>
@@ -238,7 +274,7 @@ function countLabel(n) {
             <strong>{{ sharePercent(topShare) }}</strong> of its time in <strong>{{ topShare.label }}</strong
             >.
           </p>
-          <div class="share-bar" role="img" aria-label="Share of cycle time per station">
+          <div class="share-bar bottleneck-bar" role="img" aria-label="Share of cycle time per station">
             <span
               v-for="entry in waitShares"
               :key="entry.stage"
@@ -276,6 +312,27 @@ function countLabel(n) {
 
       <section class="panel" style="margin-top: 16px">
         <div class="panel-head">
+          <h2>On the line now</h2>
+          <span class="faint">{{ wip.length }} items, longest wait first</span>
+        </div>
+        <div v-if="!wip.length" class="empty">Nothing is on the line right now.</div>
+        <div v-for="item in wip" :key="item.id" class="wip-row">
+          <span class="share-dot" :class="`st-${item.stage}`"></span>
+          <router-link :to="`/task/${item.id}`" class="wip-title grow">{{ item.title || item.id }}</router-link>
+          <span class="wip-bar-track">
+            <span
+              class="wip-bar"
+              :class="`st-${item.stage}`"
+              :style="{ width: `${(item.age_hours / wipMax) * 100}%` }"
+              :title="`In ${item.stage.replace('_', ' ')} since ${shortDate(item.entered_at)}`"
+            ></span>
+          </span>
+          <span class="wip-age">{{ formatCycleHours(item.age_hours) }}</span>
+        </div>
+      </section>
+
+      <section class="panel" style="margin-top: 16px">
+        <div class="panel-head">
           <h2>Cycle time</h2>
           <span class="faint">creation → done, items completed in the window</span>
         </div>
@@ -304,6 +361,15 @@ function countLabel(n) {
               <h2>Completed</h2>
               <p class="metric-value">{{ cycle.count }}</p>
               <p class="faint">{{ countLabel(report.completions) }} in {{ report.window_days }} days</p>
+            </article>
+            <article class="metric-card">
+              <h2>Flow efficiency</h2>
+              <p class="metric-value">
+                {{ touch.efficiency == null ? 'n/a' : `${Math.round(touch.efficiency * 100)}%` }}
+              </p>
+              <p class="faint">
+                of an average trip was touched work · {{ formatCycleHours(touch.mean_touch_hours) }} per item
+              </p>
             </article>
           </div>
           <div class="process-bars" role="img" aria-label="Cycle time distribution">
@@ -348,6 +414,20 @@ function countLabel(n) {
             <p class="metric-value">{{ formatCycleHours(littles.projected_cycle_hours) }}</p>
             <p class="faint">Little's law: WIP ÷ throughput, vs {{ formatCycleHours(cycle.median_hours) }} observed</p>
           </article>
+          <article class="metric-card">
+            <h2>Backlog forecast</h2>
+            <p class="metric-value">
+              {{ forecast.p50_date == null ? 'n/a' : shortDate(forecast.p50_date) }}
+            </p>
+            <p class="faint">
+              <template v-if="forecast.items === 0">the line is clear</template>
+              <template v-else-if="forecast.p85_date != null">
+                P85 {{ shortDate(forecast.p85_date) }} · clearing {{ forecast.items }} items from
+                {{ forecast.weeks_observed }} weeks of history
+              </template>
+              <template v-else>no completion history in this window to forecast from</template>
+            </p>
+          </article>
         </div>
         <div v-if="!weekly.length" class="empty">No flow in this window.</div>
         <template v-else>
@@ -364,6 +444,25 @@ function countLabel(n) {
             </div>
           </div>
         </template>
+        <div v-if="outcomes.created" class="outcome-block">
+          <p class="faint outcome-label">Where the window's {{ outcomes.created }} arrivals stand now</p>
+          <div class="share-bar">
+            <span
+              v-for="part in outcomeParts"
+              :key="part.key"
+              class="share-segment"
+              :class="`st-${part.key}`"
+              :style="{ width: `${(part.count / outcomes.created) * 100}%` }"
+              :title="`${part.label}: ${part.count}`"
+            ></span>
+          </div>
+          <div class="share-legend">
+            <span v-for="part in outcomeParts" :key="part.key" class="share-legend-item">
+              <span class="share-dot" :class="`st-${part.key}`"></span>
+              {{ part.label }} {{ part.count }}
+            </span>
+          </div>
+        </div>
       </section>
 
       <section class="panel" style="margin-top: 16px">

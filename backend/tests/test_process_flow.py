@@ -10,10 +10,14 @@ from agentic.process_flow import (
     DONE,
     IN_PROGRESS,
     TaskRecord,
+    TouchRecord,
     Transition,
     build_report,
+    flow_samples,
+    forecast_backlog,
     histogram_for,
     littles_law,
+    outcomes,
     quantile,
     queue_pressure,
     stage_dwell,
@@ -21,13 +25,15 @@ from agentic.process_flow import (
     stage_inventory,
     stage_timeline,
     stage_wait_shares,
+    touch_stats,
+    wip_items,
 )
 
 NOW = datetime(2026, 10, 25, 12, 0, 0, tzinfo=UTC)
 
 
-def task(id, created, status):
-    return TaskRecord(id=id, created_at=created, status=status)
+def task(id, created, status, title=""):
+    return TaskRecord(id=id, created_at=created, status=status, title=title)
 
 
 def transition(task_id, at, from_stage, to_stage):
@@ -218,6 +224,97 @@ def test_littles_law_integrates_work_in_process():
     assert law.projected_cycle_hours == pytest.approx(expected_wip * 90 * 24)
 
 
+def test_flow_samples_snapshot_every_day():
+    samples = flow_samples(scenario_tasks(), scenario_transitions(), NOW - timedelta(days=90), NOW)
+    # One sample per day, inclusive of both ends.
+    assert len(samples) == 91
+    # Cumulative completions only grow: a finished on Sep 10, nothing before.
+    completed = [sample.completed for sample in samples]
+    assert completed == sorted(completed)
+    assert completed[0] == 0
+    assert completed[-1] == 1
+    # The final sample matches the current inventory: b, d on the line.
+    last = samples[-1]
+    assert (last.backlog, last.in_progress, last.blocked) == (1, 1, 1)
+
+
+def test_wip_items_sort_longest_wait_first():
+    items = wip_items(scenario_tasks(), scenario_transitions(), NOW)
+    assert [(item.id, item.stage) for item in items] == [
+        ("c", BLOCKED),
+        ("d", IN_PROGRESS),
+        ("b", BACKLOG),
+    ]
+    # c entered blocked on Oct 8: seventeen days before now.
+    assert items[0].age_hours == pytest.approx(17 * 24)
+    # Done and archived tasks are not on the line any more.
+    assert all(item.id != "a" for item in items)
+
+
+def test_touch_stats_counts_only_sessions_inside_the_trip():
+    completions = [(task("a", datetime(2026, 9, 1, 12, tzinfo=UTC), "done"), datetime(2026, 9, 10, 12, tzinfo=UTC))]
+    sessions = [
+        TouchRecord(
+            task_id="a",
+            started_at=datetime(2026, 9, 5, 12, tzinfo=UTC),
+            ended_at=datetime(2026, 9, 8, 12, tzinfo=UTC),
+        ),
+        # An open session is clipped to the completion moment.
+        TouchRecord(task_id="a", started_at=datetime(2026, 9, 9, 12, tzinfo=UTC), ended_at=None),
+        # This one starts after the trip ended, so it does not count.
+        TouchRecord(
+            task_id="a",
+            started_at=datetime(2026, 9, 12, 12, tzinfo=UTC),
+            ended_at=datetime(2026, 9, 13, 12, tzinfo=UTC),
+        ),
+    ]
+    stats = touch_stats(sessions, completions, NOW)
+    assert stats.completions == 1
+    assert stats.covered == 1
+    assert stats.touch_hours == pytest.approx(3 * 24 + 24)
+    assert stats.cycle_hours == pytest.approx(9 * 24)
+    assert stats.efficiency == pytest.approx((3 * 24 + 24) / (9 * 24))
+    assert stats.mean_touch_hours == pytest.approx(96.0)
+
+    # No sessions at all: zero touch, not missing data.
+    bare = touch_stats([], completions, NOW)
+    assert bare.efficiency == 0.0
+    assert bare.covered == 0
+
+    # Nothing completed: no efficiency to compute.
+    assert touch_stats(sessions, [], NOW).efficiency is None
+
+
+def test_forecast_backlog_resamples_weekly_history():
+    done = forecast_backlog(2, [1, 1, 1, 1], NOW, seed=0)
+    # One completion every week: two items take exactly two weeks, every sim.
+    assert done.p50_weeks == 2.0
+    assert done.p85_weeks == 2.0
+    assert done.p50_date == NOW + timedelta(weeks=2)
+    assert done.weeks_observed == 4
+
+    # No completion history supports no forecast.
+    empty = forecast_backlog(2, [0, 0, 0], NOW)
+    assert empty.p50_weeks is None
+    assert empty.p85_weeks is None
+
+    # Nothing on the line finishes now.
+    clear = forecast_backlog(0, [1, 2], NOW)
+    assert clear.p50_weeks == 0.0
+    assert clear.p50_date == NOW
+
+
+def test_outcomes_split_window_arrivals_by_disposition():
+    counts = outcomes(scenario_tasks(), NOW - timedelta(days=90), NOW)
+    assert counts.created == 4
+    assert counts.done == 1
+    assert counts.archived == 0
+    assert counts.active == 3
+    # Arrivals older than the window do not count.
+    narrow = outcomes(scenario_tasks(), datetime(2026, 10, 1, 12, tzinfo=UTC), NOW)
+    assert narrow.created == 3
+
+
 def test_build_report_end_to_end():
     report = build_report(scenario_tasks(), scenario_transitions(), NOW, window_days=90)
     assert report.arrivals == 4
@@ -237,6 +334,21 @@ def test_build_report_end_to_end():
     # The bottleneck sections: shares sum to one, pressure covers the active stations.
     assert sum(share.share for share in report.wait_shares) == pytest.approx(1.0)
     assert {pressure.stage for pressure in report.queue_pressure} == {BACKLOG, IN_PROGRESS, BLOCKED}
+    # The new sections: daily samples, the aging list, touch, forecast, outcomes.
+    assert len(report.flow_samples) == 91
+    assert [item.id for item in report.wip_items] == ["c", "d", "b"]
+    titled = build_report(
+        [task("w", datetime(2026, 10, 20, 12, tzinfo=UTC), "open", title="Titled item")],
+        [],
+        NOW,
+        window_days=90,
+    )
+    assert titled.wip_items[0].title == "Titled item"
+    assert report.touch.completions == 1
+    assert report.touch.efficiency == 0.0  # no sessions recorded in this scenario
+    assert report.forecast.items == 3
+    assert report.forecast.p50_weeks is not None
+    assert report.outcomes.created == 4
 
 
 def test_process_router_computes_from_recorded_status_changes():
@@ -268,6 +380,12 @@ def test_process_router_computes_from_recorded_status_changes():
         assert pressure["in_progress"]["trend"] == "steady"
         # Two tasks were created and only one left the backlog.
         assert pressure["backlog"]["trend"] == "filling"
+        assert len(report["flow_samples"]) == 31
+        assert all("age_hours" in item for item in report["wip_items"])
+        assert report["touch"]["completions"] == 1
+        assert report["forecast"]["items"] == 1
+        assert report["forecast"]["p50_weeks"] is not None
+        assert report["outcomes"] == {"created": 2, "done": 1, "archived": 0, "active": 1}
         assert all(len(row["weekly_wip"]) > 0 for row in pressure.values())
 
         client.delete(f"/api/tasks/{first['id']}")

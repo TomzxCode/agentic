@@ -13,18 +13,23 @@ from sqlmodel import Session, col, select
 from .. import process_flow
 from ..db import get_session
 from ..models.base import utcnow
-from ..models.tasks import Task, TimelineEvent
+from ..models.tasks import StackEntry, Task, TaskSession, TimelineEvent
 from ..schemas.process import (
     CycleHistogramBucket,
     CycleTimeSummary,
+    FlowSample,
     FlowWeek,
+    Forecast,
     LittlesLaw,
+    Outcomes,
     ProcessReport,
     QueuePressure,
     StageDwell,
     StageFlow,
     StageInventory,
     StageWaitShare,
+    TouchStats,
+    WipItem,
 )
 
 router = APIRouter(prefix="/api/process", tags=["process"])
@@ -57,6 +62,21 @@ def _transitions_from_timeline(session: Session) -> list[process_flow.Transition
     return transitions
 
 
+def _touch_records(session: Session) -> list[process_flow.TouchRecord]:
+    """Every focus-stack session, attached back to its task.
+
+    Sessions hang off stack entries, so the entry id is resolved through the
+    entry table; a session whose entry is gone is skipped.
+    """
+    task_of_entry = {entry.id: entry.task_id for entry in session.exec(select(StackEntry)).all()}
+    records: list[process_flow.TouchRecord] = []
+    for row in session.exec(select(TaskSession)).all():
+        task_id = task_of_entry.get(row.stack_entry_id)
+        if task_id is not None:
+            records.append(process_flow.TouchRecord(task_id=task_id, started_at=row.started_at, ended_at=row.ended_at))
+    return records
+
+
 @router.get("", response_model=ProcessReport)
 def get_process(
     days: int = Query(default=process_flow.DEFAULT_WINDOW_DAYS, ge=1, le=730),
@@ -65,10 +85,13 @@ def get_process(
     """The production-line report: station inventory, flows, and cycle times."""
     now = utcnow()
     tasks = [
-        process_flow.TaskRecord(id=task.id, created_at=task.created_at, status=str(task.status))
+        process_flow.TaskRecord(id=task.id, created_at=task.created_at, status=str(task.status), title=task.title)
         for task in session.exec(select(Task)).all()
     ]
-    report = process_flow.build_report(tasks, _transitions_from_timeline(session), now, window_days=days)
+    sessions = _touch_records(session)
+    report = process_flow.build_report(
+        tasks, _transitions_from_timeline(session), now, window_days=days, sessions=sessions
+    )
     return ProcessReport(
         generated_at=report.generated_at,
         window_days=report.window_days,
@@ -146,6 +169,49 @@ def get_process(
             )
             for pressure in report.queue_pressure
         ],
+        flow_samples=[
+            FlowSample(
+                at=sample.at,
+                backlog=sample.backlog,
+                in_progress=sample.in_progress,
+                blocked=sample.blocked,
+                completed=sample.completed,
+            )
+            for sample in report.flow_samples
+        ],
+        wip_items=[
+            WipItem(
+                id=item.id,
+                title=item.title,
+                stage=item.stage,
+                entered_at=item.entered_at,
+                age_hours=item.age_hours,
+            )
+            for item in report.wip_items
+        ],
+        touch=TouchStats(
+            completions=report.touch.completions,
+            covered=report.touch.covered,
+            touch_hours=report.touch.touch_hours,
+            cycle_hours=report.touch.cycle_hours,
+            efficiency=report.touch.efficiency,
+            mean_touch_hours=report.touch.mean_touch_hours,
+        ),
+        forecast=Forecast(
+            items=report.forecast.items,
+            sims=report.forecast.sims,
+            weeks_observed=report.forecast.weeks_observed,
+            p50_weeks=report.forecast.p50_weeks,
+            p85_weeks=report.forecast.p85_weeks,
+            p50_date=report.forecast.p50_date,
+            p85_date=report.forecast.p85_date,
+        ),
+        outcomes=Outcomes(
+            created=report.outcomes.created,
+            done=report.outcomes.done,
+            archived=report.outcomes.archived,
+            active=report.outcomes.active,
+        ),
     )
 
 
