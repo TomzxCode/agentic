@@ -31,6 +31,7 @@ from .commands import (
     operations,
     people,
     repositories,
+    rpc,
     runs,
     schedules,
     settings,
@@ -95,6 +96,7 @@ _COMMAND_MODULES = (
     stack,
     schedules,
     operations,
+    rpc,
 )
 
 for _module in _COMMAND_MODULES:

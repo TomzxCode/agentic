@@ -115,6 +115,12 @@ class Settings(BaseSettings):
     slackx_rpc_url: str = "http://127.0.0.1:8280"
     slackx_rpc_token: str = ""
 
+    # JSON-RPC server exposed by this server at POST /rpc (mirroring ghx/slackx).
+    # Binding beyond loopback requires a token, because clients can run CLI
+    # commands and mutate state through cli.run.
+    rpc_token: str = ""
+    rpc_allow_exec: bool = True
+
     # Base URLs of the tools' own web UIs (`ghx serve`, `slackx serve`). When
     # set, GitHub and Slack items link into those UIs, so an item opens in the
     # local copy instead of the hosted one.

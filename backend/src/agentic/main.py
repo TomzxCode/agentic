@@ -66,6 +66,7 @@ from .routers import settings as settings_router
 from .routers import tags as tags_router
 from .schedules import reconcile_scheduled_runs, scheduler_loop
 from .services.managed_tools import managed_tools
+from .rpc.server import add_rpc_routes
 
 log = structlog.get_logger(__name__)
 configure_logging()
@@ -284,6 +285,14 @@ for module in (
 # The task- and item-side people links are mounted at their natural paths.
 app.include_router(people.link_router)
 
+
+# JSON-RPC 2.0 endpoint (mirrors ghx/slackx): POST /rpc.
+add_rpc_routes(
+    app,
+    api_base_url=None,
+    token=settings.rpc_token or None,
+    allow_exec=settings.rpc_allow_exec,
+)
 
 @app.get("/api/health")
 def health() -> dict[str, str]:

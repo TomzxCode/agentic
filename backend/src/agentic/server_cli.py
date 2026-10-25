@@ -20,10 +20,16 @@ from .db import create_db_and_tables, engine
 from .models.agents import Harness
 
 
-def serve(host: str = "127.0.0.1", port: int = 8600, reload: bool = False) -> None:
+def serve(host: str = "127.0.0.1", port: int = 8600, reload: bool = False, api_url: str | None = None) -> None:
     """Run the Agentic API server (and serve the built SPA if present)."""
+    import os
+
     import uvicorn
 
+    if api_url:
+        os.environ["AGENTIC_API_URL"] = api_url
+    elif "AGENTIC_API_URL" not in os.environ:
+        os.environ["AGENTIC_API_URL"] = f"http://{host if host != '0.0.0.0' else '127.0.0.1'}:{port}"
     uvicorn.run("agentic.main:app", host=host, port=port, reload=reload)
 
 
@@ -72,6 +78,12 @@ app.command(serve, name="serve")
 app.command(worker, name="worker")
 app.command(info, name="info")
 app.default(serve)
+
+# `rpc serve` mirrors slackx: the JSON-RPC endpoint is already served by
+# `serve` at POST /rpc, so this just delegates.
+rpc_app = App(name="rpc", help="Serve or inspect the JSON-RPC endpoint.")
+rpc_app.command(serve, name="serve")
+app.command(rpc_app)
 
 
 def main() -> None:

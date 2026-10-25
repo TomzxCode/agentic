@@ -34,6 +34,8 @@ The Slack credentials keep the names `slackx` uses (`SLACK_TOKEN`, `SLACK_COOKIE
 | `AGENTIC_SLACKX_BACKEND` | `cli` | How the server runs `slackx`: `cli` spawns the binary per call, `rpc` calls its JSON-RPC server (start one with `slackx rpc serve`), using the typed methods for reads and `cli.run` for the rest. Also on **Settings → Local tools**, where a change applies without a restart. |
 | `AGENTIC_SLACKX_RPC_URL` | `http://127.0.0.1:8280` | `slackx rpc serve` base URL when the transport is rpc (the JSON-RPC endpoint is `<url>/rpc`). Also on **Settings → Local tools**. |
 | `AGENTIC_SLACKX_RPC_TOKEN` | (empty) | Bearer token sent to the `slackx rpc serve` server. Only needed when it is bound beyond loopback. Also on **Settings → Local tools**. |
+| `AGENTIC_RPC_TOKEN` | (empty) | Bearer token required by this server's own JSON-RPC endpoint (`POST /rpc`) when it is bound beyond loopback. Clients send it as `Authorization: Bearer <token>`. |
+| `AGENTIC_RPC_ALLOW_EXEC` | `true` | Allow the `cli.run` JSON-RPC method, which runs the `agentic` CLI on the server. |
 | `AGENTIC_AUTO_APPROVE_PERMISSIONS` | `true` | Auto-approve ACP permission requests. |
 | `AGENTIC_WARM_HARNESS_SESSION` | `true` | Hold an ACP session open for the default harness from API startup, so the task view lists its model choices without spawning it. Runs still spawn their own session. |
 | `AGENTIC_QUEUE_URL` | `sqlite:///<data_dir>/queue.db` | Agent-run queue. Use a `redis://` or `postgres://` URL to share the queue across machines. |
