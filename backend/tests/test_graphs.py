@@ -275,17 +275,34 @@ def test_graph_crud_api():
         assert graph["next_run_at"] is not None
         assert graph["definition"]["nodes"][0]["promptTemplate"] == "Do things"
 
-        # A graph with a broken definition or schedule is rejected with the reasons.
-        broken = client.post("/api/graphs", json={"name": "bad", "definition": _definition([], [])})
-        assert broken.status_code == 400
-        assert "at least one node" in broken.json()["detail"]
-        assert client.post("/api/graphs", json={"name": " ", "definition": definition}).status_code == 400
-        assert (
-            client.post(
-                "/api/graphs", json={"name": "bad-cron", "schedule": "nope", "definition": definition}
-            ).status_code
-            == 400
+        # An empty definition is fine at create time (that is the "new graph"
+        # flow: create a shell, then build it in the editor), but running one
+        # fails with the reasons.
+        created_empty = client.post("/api/graphs", json={"name": "shell", "definition": _definition([], [])})
+        assert created_empty.status_code == 201
+        refused = client.post(f"/api/graphs/{created_empty.json()['id']}/run")
+        assert refused.status_code == 400
+        assert "at least one node" in refused.json()["detail"]
+        client.delete(f"/api/graphs/{created_empty.json()['id']}")
+
+        # A definition with problems can be stored (work in progress) and is
+        # still reported by validate and by run.
+        broken = _definition(
+            [run_node("a", "x"), run_node("b", "{{v}}", ["v"])],
+            [edge("a", "b", target_input="v"), edge("b", "a")],
         )
+        stored = client.post("/api/graphs", json={"name": "wip", "definition": broken})
+        assert stored.status_code == 201
+        wip_id = stored.json()["id"]
+        assert client.post(f"/api/graphs/{wip_id}/run").status_code == 400
+        checked = client.post("/api/graphs/validate", json={"name": "wip", "definition": broken})
+        assert any("circular" in issue for issue in checked.json()["issues"])
+        client.delete(f"/api/graphs/{wip_id}")
+
+        # Blank names and bad schedules are still rejected.
+        assert client.post("/api/graphs", json={"name": " ", "definition": definition}).status_code == 400
+        bad_cron = client.post("/api/graphs", json={"name": "bad-cron", "schedule": "nope", "definition": definition})
+        assert bad_cron.status_code == 400
 
         # The editor's validate action reports issues without saving.
         checked = client.post("/api/graphs/validate", json={"name": "v", "definition": _definition([], [])})
@@ -318,8 +335,11 @@ def test_two_node_graph_renders_downstream_prompt(monkeypatch):
         [run_node("a", "First"), run_node("b", "Second: {{draft}}", ["draft"])],
         [edge("a", "b", target_input="draft")],
     )
-    graph_id = _make_graph(definition, name="chain")
+    # The view's flow: create a shell, save the definition from the editor,
+    # then run.
+    graph_id = _make_graph(_definition([], []), name="chain")
     with TestClient(app) as client:
+        assert client.patch(f"/api/graphs/{graph_id}", json={"definition": definition}).status_code == 200
         started = client.post(f"/api/graphs/{graph_id}/run")
         assert started.status_code == 201
         execution_id = started.json()["id"]

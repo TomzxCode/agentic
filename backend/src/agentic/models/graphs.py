@@ -26,7 +26,7 @@ class ExecutionGraph(SQLModel, table=True):
 
     ``definition`` holds ``{"nodes": [...], "edges": [...]}`` in the shape
     ``agentic.graphs.normalize_definition`` produces; it is stored as the user
-    arranged it in the editor, and validated before a run or a save.
+    arranged it in the editor, and validated before a run.
     """
 
     id: str = Field(default_factory=new_id, primary_key=True)

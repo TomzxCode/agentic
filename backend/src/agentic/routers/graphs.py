@@ -57,13 +57,10 @@ def _read(session: Session, graph: ExecutionGraph) -> ExecutionGraphRead:
     )
 
 
-def _validate_fields(name: str, definition: dict, schedule: str | None) -> tuple[str, str | None]:
+def _validate_fields(name: str, schedule: str | None) -> tuple[str, str | None]:
     name = (name or "").strip()
     if not name:
         raise HTTPException(status_code=400, detail="Name is required")
-    issues = graphs.validate_definition(definition)
-    if issues:
-        raise HTTPException(status_code=400, detail="; ".join(issues))
     if schedule and not _cron(schedule):
         raise HTTPException(status_code=400, detail="The schedule is not a valid cron expression")
     return name, schedule
@@ -104,8 +101,14 @@ def list_graphs(session: Session = Depends(get_session)) -> list[ExecutionGraphR
 
 @router.post("", response_model=ExecutionGraphRead, status_code=201)
 def create_graph(payload: ExecutionGraphCreate, session: Session = Depends(get_session)) -> ExecutionGraphRead:
+    """Create a graph from its settings and whatever definition it carries.
+
+    A new graph usually starts empty and is built in the editor, so the
+    definition is only normalized here, never rejected; running it is where a
+    broken definition fails with reasons.
+    """
     definition = _definition(payload.definition)
-    name, schedule = _validate_fields(payload.name, definition, payload.schedule)
+    name, schedule = _validate_fields(payload.name, payload.schedule)
     graph = ExecutionGraph(
         name=name,
         description=(payload.description or "").strip(),
@@ -306,11 +309,9 @@ def update_graph(
         graph.timezone = _timezone_or_none(data["timezone"])
         schedule_changed = True
     if payload.definition is not None:
-        definition = _definition(payload.definition)
-        issues = graphs.validate_definition(definition)
-        if issues:
-            raise HTTPException(status_code=400, detail="; ".join(issues))
-        graph.definition = definition
+        # Stored as given (normalized); the editor flags problems live, and a
+        # run refuses to start while anything is wrong.
+        graph.definition = _definition(payload.definition)
     # Recompute the next occurrence only when it is actually affected, so
     # renaming a graph does not push a pending run further out.
     if not graph.enabled:
