@@ -46,6 +46,8 @@ class GraphNode(BaseModel):
     cwd: str = ""
     promptTemplate: str = ""
     inputs: list[GraphNodeInput] = []
+    # Cli nodes (the command line after `agentic`, with {{name}} placeholders)
+    command: str = ""
     # Form nodes
     fields: list[GraphFormField] = []
 

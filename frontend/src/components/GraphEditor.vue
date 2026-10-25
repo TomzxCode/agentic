@@ -6,6 +6,7 @@ import {
   ROW_HEIGHT,
   FIELD_TYPES,
   autoLayout,
+  blankCliNode,
   blankField,
   blankFormNode,
   blankInput,
@@ -60,7 +61,7 @@ function nodeById(id) {
 }
 
 function addNode(kind) {
-  const node = kind === 'form' ? blankFormNode() : blankRunNode()
+  const node = kind === 'form' ? blankFormNode() : kind === 'cli' ? blankCliNode() : blankRunNode()
   // Drop new nodes where the canvas is scrolled to, stepping each one down so
   // consecutive additions do not stack on top of each other.
   const box = content.value?.parentElement
@@ -253,6 +254,7 @@ onBeforeUnmount(() => {
       <h2>{{ graph.name }}</h2>
       <span class="row" style="gap: 6px; flex-wrap: wrap">
         <button class="btn sm" @click="addNode('run')">+ Run step</button>
+        <button class="btn sm" @click="addNode('cli')">+ Command step</button>
         <button class="btn sm" @click="addNode('form')">+ Form step</button>
         <button class="btn sm" @click="validate">Check</button>
         <button class="btn sm primary" :disabled="saving || issueSet.size > 0" @click="save">Save</button>
@@ -298,7 +300,7 @@ onBeforeUnmount(() => {
             @pointerdown="startDrag($event, node)"
           >
             <div class="editor-node-head" :style="{ height: `${HEADER_HEIGHT}px` }">
-              <span class="editor-node-kind">{{ node.kind === 'run' ? 'run' : 'form' }}</span>
+              <span class="editor-node-kind">{{ node.kind }}</span>
               <span class="editor-node-title">{{ node.title || node.id }}</span>
             </div>
             <div
@@ -321,7 +323,9 @@ onBeforeUnmount(() => {
 
       <aside v-if="selectedNode" class="editor-inspector">
         <div class="row" style="justify-content: space-between">
-          <h3 style="margin: 0">{{ selectedNode.kind === 'run' ? 'Run step' : 'Form step' }}</h3>
+          <h3 style="margin: 0">
+            {{ selectedNode.kind === 'run' ? 'Run step' : selectedNode.kind === 'cli' ? 'Command step' : 'Form step' }}
+          </h3>
           <button class="btn sm ghost" @click="deleteSelected">Delete</button>
         </div>
         <div class="field">
@@ -343,17 +347,43 @@ onBeforeUnmount(() => {
             <label for="node-model">Model override (optional)</label>
             <input id="node-model" v-model="selectedNode.model" class="input" placeholder="provider/model" />
           </div>
+        </template>
+
+        <template v-if="selectedNode.kind !== 'form'">
           <div class="field">
             <label for="node-cwd">Working directory (optional)</label>
-            <input id="node-cwd" v-model="selectedNode.cwd" class="input" placeholder="Defaults to the run's task" />
+            <input
+              id="node-cwd"
+              v-model="selectedNode.cwd"
+              class="input"
+              :placeholder="
+                selectedNode.kind === 'cli' ? 'Defaults to the server\'s own directory' : 'Defaults to the run\'s task'
+              "
+            />
           </div>
-          <div class="field">
+          <div v-if="selectedNode.kind === 'run'" class="field">
             <label for="node-prompt">Prompt</label>
             <textarea id="node-prompt" v-model="selectedNode.promptTemplate" class="textarea" rows="6"></textarea>
             <p class="faint" style="margin: 4px 0 0">
               Reference an input as <code v-pre>{{ name }}</code
               >, one value as <code v-pre>{{ name[0] }}</code
               >, or a joined list as <code v-pre>{{ name.join(', ') }}</code
+              >.
+            </p>
+          </div>
+          <div v-else class="field">
+            <label for="node-command">Command (after `agentic`)</label>
+            <textarea
+              id="node-command"
+              v-model="selectedNode.command"
+              class="textarea"
+              rows="4"
+              :style="{ fontFamily: 'var(--mono)' }"
+              placeholder='task create --title "Fix {{ name }}"'
+            ></textarea>
+            <p class="faint" style="margin: 4px 0 0">
+              Runs <code>agentic --format json</code> plus this command line against this server; its stdout feeds
+              downstream inputs. Reference an input as <code v-pre>{{ name }}</code
               >.
             </p>
           </div>

@@ -61,6 +61,18 @@ def run_node(node_id: str, prompt: str, inputs: list[str] | None = None, **extra
     }
 
 
+def cli_node(node_id: str, command: str, inputs: list[str] | None = None, **extra) -> dict:
+    return {
+        "id": node_id,
+        "kind": "cli",
+        "title": node_id,
+        "position": {"x": 0, "y": 0},
+        "command": command,
+        "inputs": [{"id": name, "name": name} for name in inputs or []],
+        **extra,
+    }
+
+
 def form_node(node_id: str, fields: list[dict], **extra) -> dict:
     return {
         "id": node_id,
@@ -205,6 +217,7 @@ def test_validate_definition_reports_problems():
                 run_node("a", ""),  # no prompt
                 run_node("b", "{{nope}}", ["other"]),  # unknown placeholder
                 run_node("b", "dup"),  # duplicate id
+                {"id": "c", "kind": "cli", "title": "C", "position": {"x": 0, "y": 0}, "command": "", "inputs": []},
                 form_node("f", [field("f1", "Pick", "select")]),  # select without options
                 form_node("g", []),  # no fields
             ],
@@ -212,11 +225,13 @@ def test_validate_definition_reports_problems():
                 edge("a", "b", target_input="missing"),  # no such input
                 edge("a", "missing"),  # dangling target
                 {"id": "e", "source": "f", "sourceFieldId": "wat", "target": "g", "targetFieldId": "f1"},
+                edge("a", "c", target_field="nope"),  # a cli node takes inputs, not field defaults
             ],
         )
     )
     joined = "\n".join(issues)
     assert "needs a prompt" in joined
+    assert "needs a command" in joined
     assert "no input named 'nope'" in joined
     assert "Duplicate node id 'b'" in joined
     assert "needs options" in joined
@@ -524,6 +539,93 @@ def test_cancel_execution_aborts(monkeypatch):
 
 
 # --- cron scheduling and reconciliation --------------------------------------
+def test_cli_node_runs_command_and_feeds_output_downstream(monkeypatch):
+    """run -> cli -> run: the command renders upstream output into its args."""
+    create_db_and_tables()
+    _clear()
+    _harness()
+    _no_enqueue(monkeypatch)
+    monkeypatch.setattr(graphs, "POLL_SECONDS", POLL)
+    calls: list[list[str]] = []
+
+    async def fake_run_cli(argv, cwd, env):
+        calls.append(argv)
+        assert cwd == "/tmp"  # the node's own working directory
+        return 0, "created task T-42\n"
+
+    monkeypatch.setattr(graphs, "_run_cli", fake_run_cli)
+    definition = _definition(
+        [
+            run_node("a", "First"),
+            cli_node("c", 'task create --title "Fix {{draft}}" --format json', ["draft"], cwd="/tmp"),
+            run_node("b", "Created: {{ticket}}", ["ticket"]),
+        ],
+        [
+            edge("a", "c", target_input="draft"),
+            edge("c", "b", target_input="ticket"),
+        ],
+    )
+    graph_id = _make_graph(definition, name="with-cli")
+    with TestClient(app) as client:
+        execution_id = client.post(f"/api/graphs/{graph_id}/run").json()["id"]
+        first = _wait_for(_running_run, message="first run never started")
+        _settle_run(first.id, "the login bug")
+
+        cli_argv = _wait_for(lambda: calls[0] if calls else None, message="cli command never ran")
+        # The binary prefix and the flags we add, then the rendered command.
+        assert cli_argv[-1] == "json"
+        assert "task" in cli_argv and "create" in cli_argv
+        assert "--title" in cli_argv and "Fix the login bug" in cli_argv
+        assert "--api-url" in cli_argv
+
+        second = _wait_for(
+            lambda: (run := _running_run()) and run.id != first.id and run,
+            message="second run never started",
+        )
+        assert second.prompt == "Created: created task T-42\n"
+        _settle_run(second.id, "done")
+        row = _wait_for(
+            lambda: _execution(execution_id).status.value == "succeeded" and _execution(execution_id),
+            message="execution never succeeded",
+        )
+        assert row.state["outputs"]["c"] == "created task T-42\n"
+        detail = client.get(f"/api/graphs/executions/{execution_id}").json()
+        cli_state = next(node for node in detail["nodes"] if node["node_id"] == "c")
+        assert cli_state["status"] == "done"
+        assert cli_state["run_id"] is None  # not an agent run; no transcript row
+    _clear()
+
+
+def test_cli_node_failure_skips_downstream(monkeypatch):
+    create_db_and_tables()
+    _clear()
+    _harness()
+    _no_enqueue(monkeypatch)
+    monkeypatch.setattr(graphs, "POLL_SECONDS", POLL)
+
+    async def failing_cli(argv, cwd, env):
+        return 1, "Error: no such task\n"
+
+    monkeypatch.setattr(graphs, "_run_cli", failing_cli)
+    definition = _definition(
+        [cli_node("c", "task close T-99"), run_node("b", "After: {{v}}", ["v"])],
+        [edge("c", "b", target_input="v")],
+    )
+    graph_id = _make_graph(definition, name="cli-fail")
+    with TestClient(app) as client:
+        execution_id = client.post(f"/api/graphs/{graph_id}/run").json()["id"]
+        row = _wait_for(
+            lambda: _execution(execution_id).status.value == "failed" and _execution(execution_id),
+            message="execution never failed",
+        )
+        statuses = {node_id: entry["status"] for node_id, entry in row.state["nodes"].items()}
+        assert statuses == {"c": "failed", "b": "skipped"}
+        assert "exit 1" in row.state["nodes"]["c"]["error"]
+        detail = client.get(f"/api/graphs/executions/{execution_id}").json()
+        assert detail["nodes"][0]["error"].startswith("exit 1")
+    _clear()
+
+
 @pytest.mark.asyncio
 async def test_scheduler_fires_due_graph_once(monkeypatch):
     create_db_and_tables()

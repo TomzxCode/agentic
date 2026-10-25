@@ -9,6 +9,7 @@ import {
   editorIssues,
   nodeHeight,
   nodeRows,
+  normalizeDefinition,
   portPoint,
   removeField,
   removeInput,
@@ -26,6 +27,16 @@ const runNode = (id, prompt = '', inputs = []) => ({
   model: '',
   cwd: '',
   promptTemplate: prompt,
+  inputs: inputs.map((name) => ({ id: name, name }))
+})
+
+const cliNode = (id, command = '', inputs = []) => ({
+  id,
+  kind: 'cli',
+  title: id,
+  position: { x: 0, y: 0 },
+  cwd: '',
+  command,
   inputs: inputs.map((name) => ({ id: name, name }))
 })
 
@@ -217,5 +228,77 @@ describe('blankRunNode', () => {
     expect(one.id).not.toBe(two.id)
     expect(one.kind).toBe('run')
     expect(one.inputs).toEqual([])
+  })
+})
+
+describe('cli nodes', () => {
+  it('connect like run nodes: outputs into inputs, forms into their defaults', () => {
+    const definition = {
+      nodes: [runNode('a', 'go'), cliNode('c', 'task create --title {{v}}', ['v']), formNode('f', ['f1'])],
+      edges: []
+    }
+    expect(canConnect(definition, 'a', '', 'c', { kind: 'input', id: 'v' })).toBe(true)
+    expect(canConnect(definition, 'c', '', 'f', { kind: 'field', id: 'f1' })).toBe(true)
+    expect(canConnect(definition, 'f', 'f1', 'c', { kind: 'input', id: 'v' })).toBe(true)
+    expect(canConnect(definition, 'c', '', 'a', { kind: 'field', id: 'nope' })).toBe(false)
+    const wired = connect(connect(definition, 'a', '', 'c', { kind: 'input', id: 'v' }), 'f', 'f1', 'c', {
+      kind: 'input',
+      id: 'v'
+    })
+    expect(wired.edges).toHaveLength(2)
+  })
+
+  it('report a missing command and unconnected placeholders', () => {
+    const issues = editorIssues({
+      nodes: [cliNode('c', ''), cliNode('d', 'task close {{t}}', ['t'])],
+      edges: []
+    })
+    expect(issues.some((issue) => issue.includes('needs a command'))).toBe(true)
+    expect(issues.some((issue) => issue.includes('nothing feeds'))).toBe(true)
+  })
+
+  it('stay quiet when wired', () => {
+    const definition = {
+      nodes: [runNode('a', 'go'), cliNode('c', 'task create --title {{v}}', ['v'])],
+      edges: [edge('a', 'c', { targetInputId: 'v' })]
+    }
+    expect(editorIssues(definition)).toEqual([])
+  })
+
+  it('have inputs and a stdout row, dropping edges when the command node goes', () => {
+    const node = { ...cliNode('c', 'x', ['v', 'w']), position: { x: 0, y: 0 } }
+    const rows = nodeRows(node)
+    expect(rows.map((row) => row.label)).toEqual(['v', 'w', 'stdout'])
+    expect(nodeRows(runNode('a'))[runNode('a').inputs.length + 0].label).toBe('answer')
+    expect(nodeHeight(node)).toBeGreaterThan(3 * 26)
+    const definition = {
+      nodes: [runNode('a', 'go'), node, cliNode('d', 'task list', [])],
+      edges: [edge('a', 'c', { targetInputId: 'v' })]
+    }
+    const next = dropDanglingEdges(removeNode(definition, 'c'))
+    expect(next.edges).toEqual([])
+  })
+
+  it('survive normalization with their command', () => {
+    const definition = normalizeDefinition({
+      nodes: [{ id: 'c', kind: 'cli', title: 'C', position: { x: 1, y: 2 }, command: 'task list', junk: true }],
+      edges: []
+    })
+    expect(definition.nodes[0].kind).toBe('cli')
+    expect(definition.nodes[0].command).toBe('task list')
+    expect(definition.nodes[0].promptTemplate).toBeUndefined()
+  })
+
+  it('resolve their stdout port on the right edge', () => {
+    const node = { ...cliNode('c', 'x'), position: { x: 100, y: 50 } }
+    const stdout = portPoint(node, { kind: 'output', id: '' })
+    expect(stdout.x).toBe(100 + 208)
+    const definition = {
+      nodes: [node, runNode('b', '', [])],
+      edges: [edge('c', 'b', { targetInputId: 'v' })]
+    }
+    definition.nodes[1].position = { x: 400, y: 50 }
+    const points = edgeEndpoints(definition, definition.edges[0])
+    expect(points.from.x).toBe(308)
   })
 })

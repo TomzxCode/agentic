@@ -1,10 +1,12 @@
-"""Execution graphs: DAGs of agent runs and input forms, fired on demand or cron.
+"""Execution graphs: DAGs of agent runs, CLI commands, and forms, fired on demand or cron.
 
 A graph definition is ``{"nodes": [...], "edges": [...]}``. A run node holds a
-prompt template whose ``{{name}}`` placeholders read named inputs; an edge
-feeds one upstream output (an agent run's final answer, or a form field value)
-into one downstream input. A form node pauses the execution until someone
-answers it in the web UI, and its answers flow downstream like run outputs.
+prompt template whose ``{{name}}`` placeholders read named inputs; a cli node
+holds an agentic CLI command line whose placeholders fill its arguments; an
+edge feeds one upstream output (an agent run's final answer, a command's
+stdout, or a form field value) into one downstream input. A form node pauses
+the execution until someone answers it in the web UI, and its answers flow
+downstream like run outputs.
 
 The executor walks the DAG in the API process: it renders each ready run
 node's prompt, enqueues an agent run on the SAQ queue, and polls the run's row
@@ -22,7 +24,9 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import os
 import re
+import shlex
 from typing import Any
 
 import structlog
@@ -40,10 +44,13 @@ log = structlog.get_logger(__name__)
 
 # --- definition contract ---------------------------------------------------
 
-NODE_KINDS = ("run", "form")
+NODE_KINDS = ("run", "form", "cli")
 FIELD_TYPES = ("text", "textarea", "number", "date", "time", "select", "slider", "checkbox")
 # Field types whose value is a number bounded by min/max/step.
 NUMERIC_FIELD_TYPES = ("number", "slider")
+
+# Nodes with named inputs and one output (the node kinds an edge can feed).
+OUTPUT_NODE_KINDS = ("run", "cli")
 
 MAX_NODES = 32
 MAX_FIELDS = 20
@@ -103,6 +110,10 @@ def normalize_definition(raw: Any) -> dict[str, Any]:
             clean["model"] = str(node.get("model") or "").strip()
             clean["cwd"] = str(node.get("cwd") or "").strip()
             clean["promptTemplate"] = str(node.get("promptTemplate") or "")
+            clean["inputs"] = _inputs(node.get("inputs"))
+        elif kind == "cli":
+            clean["command"] = str(node.get("command") or "")
+            clean["cwd"] = str(node.get("cwd") or "").strip()
             clean["inputs"] = _inputs(node.get("inputs"))
         else:
             clean["fields"] = _fields(node.get("fields"))
@@ -200,10 +211,10 @@ def validate_definition(definition: dict[str, Any]) -> list[str]:
         title = node.get("title") or ""
         if not title:
             issues.append(f"Node '{node_id}' needs a title")
-        if node.get("kind") == "run":
-            issues.extend(_validate_run_node(node))
-        else:
+        if node.get("kind") == "form":
             issues.extend(_validate_form_node(node))
+        else:
+            issues.extend(_validate_output_node(node))
 
     titles = [node.get("title") for node in nodes if node.get("title")]
     for title in set(titles):
@@ -217,9 +228,10 @@ def validate_definition(definition: dict[str, Any]) -> list[str]:
     # A placeholder no connection feeds would fail the node at render time, so
     # catch it here.
     for node in by_id.values():
-        if node.get("kind") != "run":
+        if node.get("kind") not in OUTPUT_NODE_KINDS:
             continue
-        referenced = _template_names(node.get("promptTemplate") or "")
+        text_field = "command" if node["kind"] == "cli" else "promptTemplate"
+        referenced = _template_names(node.get(text_field) or "")
         for item in node.get("inputs") or []:
             name = item.get("name") or ""
             connected = any(
@@ -233,12 +245,17 @@ def validate_definition(definition: dict[str, Any]) -> list[str]:
     return issues
 
 
-def _validate_run_node(node: dict[str, Any]) -> list[str]:
+def _validate_output_node(node: dict[str, Any]) -> list[str]:
+    """A run or cli node: named inputs, template placeholders, and its text."""
     issues: list[str] = []
-    title = node.get("title") or node.get("id") or "run node"
-    template = node.get("promptTemplate") or ""
+    title = node.get("title") or node.get("id") or "node"
+    if node["kind"] == "cli":
+        text_field, label = "command", "command"
+    else:
+        text_field, label = "promptTemplate", "prompt"
+    template = node.get(text_field) or ""
     if not template.strip():
-        issues.append(f"'{title}' needs a prompt")
+        issues.append(f"'{title}' needs a {label}")
     names: list[str] = []
     for item in node.get("inputs") or []:
         name = item.get("name") or ""
@@ -301,12 +318,12 @@ def _validate_edge(edge: dict[str, Any], by_id: dict[str, dict[str, Any]], seen_
     if source is target:
         issues.append(f"'{source.get('title')}' cannot connect to itself")
         return issues
-    if source.get("kind") == "run":
+    if source.get("kind") in OUTPUT_NODE_KINDS:
         if edge.get("sourceFieldId"):
-            issues.append(f"'{source.get('title')}' is a run node and has no field outputs")
+            issues.append(f"'{source.get('title')}' has no field outputs")
     elif not any(field.get("id") == edge.get("sourceFieldId") for field in source.get("fields") or []):
         issues.append(f"'{source.get('title')}' has no field for one connection")
-    if target.get("kind") == "run":
+    if target.get("kind") in OUTPUT_NODE_KINDS:
         if edge.get("targetFieldId") or not any(
             item.get("id") == edge.get("targetInputId") for item in target.get("inputs") or []
         ):
@@ -567,6 +584,9 @@ async def _advance(
         elif node["kind"] == "run":
             await _start_run_node(execution_id, node, incoming, nodes, state)
             progressed = True
+        elif node["kind"] == "cli":
+            await _start_cli_node(execution_id, node, incoming, nodes, state)
+            progressed = True
         elif await _request_form(execution_id, node, incoming, nodes, edges, state):
             progressed = True
     return progressed
@@ -587,7 +607,7 @@ def _input_values(
         source = nodes.get(edge.get("source") or "")
         if source is None:
             continue
-        if source.get("kind") == "run":
+        if source.get("kind") in OUTPUT_NODE_KINDS:
             value = str(state.get("outputs", {}).get(source["id"], ""))
         else:
             field_values = state.get("formValues", {}).get(source["id"]) or {}
@@ -669,6 +689,94 @@ async def _start_run_node(
     _set_node(state, node["id"], status=NODE_RUNNING, run_id=run_id)
 
 
+def _cli_binary() -> str:
+    """The `agentic` console script: the venv's own first, then PATH."""
+    import shutil
+    import sys
+    from pathlib import Path
+
+    sibling = Path(sys.executable).with_name("agentic")
+    if sibling.is_file():
+        return str(sibling)
+    return shutil.which("agentic") or "agentic"
+
+
+async def _run_cli(argv: list[str], cwd: str, env: dict[str, str]) -> tuple[int | None, str]:
+    """Run one agentic CLI invocation to completion; (exit code, combined output).
+
+    The child is killed when the orchestrator task is cancelled, so stopping an
+    execution does not leave CLI processes behind.
+    """
+    proc = await asyncio.create_subprocess_exec(
+        *argv,
+        cwd=cwd or None,
+        env=env,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.STDOUT,
+    )
+    try:
+        stdout, _ = await asyncio.wait_for(proc.communicate(), settings.scheduled_task_timeout or None)
+    except TimeoutError:
+        proc.kill()
+        with contextlib.suppress(Exception):
+            await proc.wait()
+        return None, f"Timed out after {settings.scheduled_task_timeout}s"
+    except asyncio.CancelledError:
+        proc.kill()
+        with contextlib.suppress(Exception):
+            await proc.wait()
+        raise
+    return proc.returncode, stdout.decode("utf-8", "replace")
+
+
+async def _start_cli_node(
+    execution_id: str,
+    node: dict[str, Any],
+    incoming: list[dict[str, Any]],
+    nodes: dict[str, dict[str, Any]],
+    state: dict[str, Any],
+) -> None:
+    """Run one agentic CLI command with the rendered command line.
+
+    The node's output is the command's stdout (JSON with ``--format json``),
+    which downstream inputs consume like a run's answer. A non-zero exit, a
+    render error, or a timeout fails the node.
+    """
+    command, errors = render_template(node.get("command") or "", _input_values(node, incoming, nodes, state))
+    try:
+        tokens = shlex.split(command) if not errors else []
+    except ValueError as exc:
+        # An unbalanced quote in the rendered command line.
+        tokens, errors = [], [str(exc)]
+    if errors or not tokens:
+        detail = "; ".join(errors) or "The command is empty"
+        _set_node(state, node["id"], status=NODE_FAILED, error=detail)
+        return
+    argv = [_cli_binary(), "--api-url", _self_api_url(), "--format", "json", *tokens]
+    env = {**os.environ, "AGENTIC_API_URL": _self_api_url()}
+    _set_node(state, node["id"], status=NODE_RUNNING)
+    try:
+        exit_code, output = await _run_cli(argv, node.get("cwd") or "", env)
+    except asyncio.CancelledError:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        log.warning("cli node failed", execution_id=execution_id, node=node["id"], error=str(exc))
+        _set_node(state, node["id"], status=NODE_FAILED, error=str(exc))
+        return
+    output = output[:MAX_OUTPUT]
+    if exit_code == 0:
+        state.setdefault("outputs", {})[node["id"]] = output
+        _set_node(state, node["id"], status=NODE_DONE)
+    else:
+        detail = f"exit {exit_code}: {output[-400:]}" if output else f"exit {exit_code}"
+        _set_node(state, node["id"], status=NODE_FAILED, error=detail)
+
+
+def _self_api_url() -> str:
+    """The URL CLI nodes use to reach this very server."""
+    return os.environ.get("AGENTIC_API_URL") or "http://127.0.0.1:8600"
+
+
 def _run_consumers(
     node: dict[str, Any], edges: list[dict[str, Any]], nodes: dict[str, dict[str, Any]]
 ) -> list[dict[str, Any]]:
@@ -678,7 +786,7 @@ def _run_consumers(
         target = edge.get("target") or ""
         if edge.get("source") != node["id"] or target not in nodes:
             continue
-        if nodes[target]["kind"] == "run":
+        if nodes[target]["kind"] in OUTPUT_NODE_KINDS:
             consumers.append(nodes[target])
     return consumers
 

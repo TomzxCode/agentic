@@ -44,6 +44,18 @@ export function blankRunNode(position = { x: 40, y: 40 }) {
   }
 }
 
+export function blankCliNode(position = { x: 40, y: 40 }) {
+  return {
+    id: newId('n'),
+    kind: 'cli',
+    title: 'New command',
+    position,
+    cwd: '',
+    command: '',
+    inputs: []
+  }
+}
+
 export function blankFormNode(position = { x: 40, y: 40 }) {
   return {
     id: newId('n'),
@@ -83,7 +95,7 @@ export function normalizeDefinition(raw) {
 function normalizeNode(node) {
   const clean = {
     id: String(node?.id || ''),
-    kind: node?.kind === 'form' ? 'form' : 'run',
+    kind: node?.kind === 'form' ? 'form' : node?.kind === 'cli' ? 'cli' : 'run',
     title: String(node?.title || ''),
     position: {
       x: Number(node?.position?.x) || 0,
@@ -95,6 +107,12 @@ function normalizeNode(node) {
     clean.model = String(node?.model || '')
     clean.cwd = String(node?.cwd || '')
     clean.promptTemplate = String(node?.promptTemplate || '')
+    clean.inputs = Array.isArray(node?.inputs)
+      ? node.inputs.map((input) => ({ id: String(input?.id || ''), name: String(input?.name || '') }))
+      : []
+  } else if (clean.kind === 'cli') {
+    clean.command = String(node?.command || '')
+    clean.cwd = String(node?.cwd || '')
     clean.inputs = Array.isArray(node?.inputs)
       ? node.inputs.map((input) => ({ id: String(input?.id || ''), name: String(input?.name || '') }))
       : []
@@ -163,34 +181,38 @@ export function dropDanglingEdges(definition) {
     const source = byId.get(edge.source)
     const target = byId.get(edge.target)
     if (!source || !target) return false
-    if (source.kind === 'form' && !source.fields.some((field) => field.id === edge.sourceFieldId)) return false
-    if (source.kind === 'run' && edge.sourceFieldId) return false
-    if (target.kind === 'run') {
-      if (edge.targetFieldId) return false
-      return target.inputs.some((input) => input.id === edge.targetInputId)
+    if (source.kind === 'form') {
+      if (!source.fields.some((field) => field.id === edge.sourceFieldId)) return false
+    } else if (edge.sourceFieldId) {
+      return false
     }
-    if (edge.targetInputId) return false
-    return target.fields.some((field) => field.id === edge.targetFieldId)
+    if (target.kind === 'form') {
+      if (edge.targetInputId) return false
+      return target.fields.some((field) => field.id === edge.targetFieldId)
+    }
+    if (edge.targetFieldId) return false
+    return target.inputs.some((input) => input.id === edge.targetInputId)
   }
   return { ...definition, edges: definition.edges.filter(lives) }
 }
 
 // --- connecting ports -------------------------------------------------------
-// True when an output (a run node's answer, or a form field's value) may wire
-// into this target port (a run node's named input, or a form field's default).
+// True when an output (a run node's answer, a cli node's stdout, or a form
+// field's value) may wire into this target port (a named input of a run or
+// cli node, or a form field's default).
 export function canConnect(definition, sourceId, sourceFieldId, targetId, port) {
   if (sourceId === targetId) return false
   const source = definition.nodes.find((node) => node.id === sourceId)
   const target = definition.nodes.find((node) => node.id === targetId)
   if (!source || !target) return false
-  if (source.kind === 'run' && sourceFieldId) return false
+  if (source.kind !== 'form' && sourceFieldId) return false
   if (source.kind === 'form' && !source.fields.some((field) => field.id === sourceFieldId)) return false
-  if (target.kind === 'run') {
-    if (port.kind !== 'input') return false
-    return target.inputs.some((input) => input.id === port.id)
+  if (target.kind === 'form') {
+    if (port.kind !== 'field') return false
+    return target.fields.some((field) => field.id === port.id)
   }
-  if (port.kind !== 'field') return false
-  return target.fields.some((field) => field.id === port.id)
+  if (port.kind !== 'input') return false
+  return target.inputs.some((input) => input.id === port.id)
 }
 
 export function connect(definition, sourceId, sourceFieldId, targetId, port) {
@@ -228,8 +250,10 @@ export function editorIssues(definition) {
     if (!node.title) issues.push('Every node needs a title')
     if (titles.has(node.title)) issues.push(`Two nodes are titled '${node.title}'`)
     titles.set(node.title, node)
-    if (node.kind === 'run') {
-      if (!node.promptTemplate.trim()) issues.push(`'${node.title || node.id}' needs a prompt`)
+    if (node.kind !== 'form') {
+      const text = node.kind === 'cli' ? node.command : node.promptTemplate
+      const label = node.kind === 'cli' ? 'command' : 'prompt'
+      if (!text.trim()) issues.push(`'${node.title || node.id}' needs a ${label}`)
       const names = new Set()
       for (const input of node.inputs) {
         if (!input.name || INPUT_NAME_INVALID.test(input.name)) {
@@ -239,11 +263,11 @@ export function editorIssues(definition) {
         if (names.has(input.name)) issues.push(`'${node.title}' declares '${input.name}' twice`)
         names.add(input.name)
       }
-      for (const name of templateVars(node.promptTemplate)) {
+      for (const name of templateVars(text)) {
         if (!names.has(name)) issues.push(`'${node.title}' uses {{${name}}} but declares no input named '${name}'`)
       }
       // A placeholder no connection feeds would fail the node at render time.
-      for (const name of new Set(templateVars(node.promptTemplate))) {
+      for (const name of new Set(templateVars(text))) {
         const connected = definition.edges.some(
           (edge) =>
             edge.target === node.id &&
@@ -280,7 +304,7 @@ export function editorIssues(definition) {
       issues.push('A connection points at a missing node')
       continue
     }
-    if (target.kind === 'run' && !target.inputs.some((input) => input.id === edge.targetInputId)) {
+    if (target.kind !== 'form' && !target.inputs.some((input) => input.id === edge.targetInputId)) {
       issues.push(`'${target.title}' has no input for one incoming connection`)
     }
     if (target.kind === 'form' && !target.fields.some((field) => field.id === edge.targetFieldId)) {
@@ -341,10 +365,10 @@ export function autoLayout(definition) {
 
 // --- canvas geometry --------------------------------------------------------
 export function nodeRows(node) {
-  if (node.kind === 'run') {
+  if (node.kind !== 'form') {
     return [
       ...node.inputs.map((input) => ({ kind: 'input', id: input.id, label: input.name })),
-      { kind: 'output', id: '', label: 'answer' }
+      { kind: 'output', id: '', label: node.kind === 'cli' ? 'stdout' : 'answer' }
     ]
   }
   return node.fields.map((field) => ({ kind: 'field', id: field.id, label: field.title || 'field' }))
@@ -365,9 +389,9 @@ export function edgeEndpoints(definition, edge) {
   const source = definition.nodes.find((node) => node.id === edge.source)
   const target = definition.nodes.find((node) => node.id === edge.target)
   if (!source || !target) return null
-  const sourceRow = source.kind === 'run' ? { kind: 'output', id: '' } : { kind: 'field', id: edge.sourceFieldId }
+  const sourceRow = source.kind === 'form' ? { kind: 'field', id: edge.sourceFieldId } : { kind: 'output', id: '' }
   const targetRow =
-    target.kind === 'run' ? { kind: 'input', id: edge.targetInputId } : { kind: 'field', id: edge.targetFieldId }
+    target.kind === 'form' ? { kind: 'field', id: edge.targetFieldId } : { kind: 'input', id: edge.targetInputId }
   return { from: portPoint(source, sourceRow), to: portPoint(target, targetRow) }
 }
 
