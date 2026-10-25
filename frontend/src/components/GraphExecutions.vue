@@ -21,6 +21,10 @@ const detail = ref(null)
 const detailLoading = ref(false)
 // The form being answered: values collected per field id.
 const formValues = ref({})
+// Which pending request the collected values belong to (execution, node, when
+// it was asked), so a background refresh of the same request never wipes what
+// has been typed so far.
+let formKey = ''
 const submitting = ref(false)
 
 let fastPoller = null
@@ -62,23 +66,37 @@ async function toggle(id) {
     return
   }
   opened.value = id
+  // A newly opened execution starts with fresh values, seeded from the
+  // request's defaults.
+  formKey = ''
   await openDetail(id)
 }
 
 async function openDetail(id) {
   detailLoading.value = true
   try {
-    detail.value = await api.graphs.execution(id)
-    // Pre-fill from the request's defaults, which already carry both the
-    // injected values and the fields' own declared defaults.
-    const values = {}
-    for (const [fieldId, value] of Object.entries(detail.value.pending_form?.defaults || {})) {
-      values[fieldId] = value
+    const fresh = await api.graphs.execution(id)
+    const pending = fresh.pending_form
+    if (pending) {
+      const key = `${id}:${pending.node_id}:${pending.requested_at}`
+      if (key !== formKey) {
+        formKey = key
+        // Pre-fill from the request's defaults, which already carry both the
+        // injected values and the fields' own declared defaults. Only on the
+        // first look at this request: a refresh must keep what was typed.
+        const values = {}
+        for (const [fieldId, value] of Object.entries(pending.defaults || {})) {
+          values[fieldId] = value
+        }
+        for (const field of pending.fields || []) {
+          if (values[field.id] === undefined) values[field.id] = field.defaultValue || ''
+        }
+        formValues.value = values
+      }
+    } else {
+      formKey = ''
     }
-    for (const field of detail.value.pending_form?.fields || []) {
-      if (values[field.id] === undefined) values[field.id] = field.defaultValue || ''
-    }
-    formValues.value = values
+    detail.value = fresh
   } catch (e) {
     store.notify(e.message, true)
   } finally {
@@ -101,6 +119,7 @@ async function submitForm(cancel = false) {
       cancel
     })
     formValues.value = {}
+    formKey = ''
     await load({ silent: true })
   } catch (e) {
     store.notify(e.message, true)

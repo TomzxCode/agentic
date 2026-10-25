@@ -77,8 +77,10 @@ const executionRow = (id, extra = {}) => ({
 beforeEach(() => {
   vi.clearAllMocks()
   store.toast = null
-  mocks.graphsList.mockResolvedValue([graphRow('g1')])
-  mocks.graphsExecutions.mockResolvedValue([executionRow('x1')])
+  // Fresh arrays per call: the component's watchers key off the list
+  // reference, and the real API returns new JSON (so new objects) every poll.
+  mocks.graphsList.mockImplementation(async () => [graphRow('g1')])
+  mocks.graphsExecutions.mockImplementation(async () => [executionRow('x1')])
   mocks.graphsExecution.mockResolvedValue({
     id: 'x1',
     graph_id: 'g1',
@@ -166,7 +168,7 @@ describe('GraphsList', () => {
 
 describe('GraphExecutions', () => {
   it('expands an execution into its nodes and outputs', async () => {
-    const wrapper = mount(GraphExecutions, stub)
+    const wrapper = mount(GraphExecutions, { ...stub, props: { active: true } })
     await flushPromises()
     await wrapper.find('.graphs-exec-head').trigger('click')
     await flushPromises()
@@ -196,7 +198,7 @@ describe('GraphExecutions', () => {
       nodes: [],
       pending_form: null
     })
-    const wrapper = mount(GraphExecutions, stub)
+    const wrapper = mount(GraphExecutions, { ...stub, props: { active: true } })
     await flushPromises()
     await wrapper.find('.graphs-exec-head').trigger('click')
     await flushPromises()
@@ -208,6 +210,15 @@ describe('GraphExecutions', () => {
     const select = dialog.find('select')
     expect(select.element.value).toBe('yes')
     await select.setValue('no')
+
+    // A background refresh of the same pending request (the 2s poll) must
+    // keep what was typed instead of reseeding the defaults.
+    mocks.graphsExecution.mockClear()
+    await wrapper.setProps({ refreshToken: 1 })
+    await flushPromises()
+    expect(mocks.graphsExecution).toHaveBeenCalled()
+    expect(wrapper.find('.modal select').element.value).toBe('no')
+
     await dialog
       .findAll('button')
       .find((button) => button.text() === 'Submit')
@@ -231,7 +242,7 @@ describe('GraphExecutions', () => {
       }
     })
     mocks.graphsSubmitForm.mockResolvedValue({ id: 'x1', status: 'running', nodes: [], pending_form: null })
-    const wrapper = mount(GraphExecutions, stub)
+    const wrapper = mount(GraphExecutions, { ...stub, props: { active: true } })
     await flushPromises()
     await wrapper.find('.graphs-exec-head').trigger('click')
     await flushPromises()
