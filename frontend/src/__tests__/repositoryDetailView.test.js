@@ -468,8 +468,9 @@ describe('RepositoryDetailView', () => {
       'http://localhost:8080/#/acme/api'
     )
     const cell = wrapper.get('.repo-title-cell')
-    expect(cell.findAll('a').map((a) => a.text())).toEqual(['Open issue', 'ghx'])
-    const link = cell.get('a[title="Open in ghx"]')
+    expect(cell.findAll('a').map((a) => a.text())).toEqual(['Open issue'])
+    const linksCell = wrapper.get('.repo-links-cell')
+    const link = linksCell.get('a[title="Open in ghx"]')
     expect(link.text()).toBe('ghx')
     expect(link.attributes('href')).toBe('http://localhost:8080/#/acme/api/issues/1')
   })

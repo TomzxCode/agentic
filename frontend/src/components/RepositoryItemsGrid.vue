@@ -8,6 +8,7 @@ import {
   AuthorCell,
   ChangesCell,
   KindCell,
+  LinksCell,
   StateCell,
   TaskStatusCell,
   TasksCell,
@@ -35,6 +36,7 @@ const theme = gridTheme
 const components = {
   valuesFilter: ValuesFilter,
   kind: KindCell,
+  links: LinksCell,
   state: StateCell,
   title: TitleCell,
   author: AuthorCell,
@@ -94,6 +96,7 @@ const columnDefs = [
     filter: 'agNumberColumnFilter'
   },
   { headerName: 'Title', field: 'title', flex: 1, minWidth: 260, cellRenderer: 'title' },
+  { headerName: 'Links', width: 120, sortable: false, filter: false, cellRenderer: 'links' },
   {
     headerName: 'State',
     valueGetter: (p) => p.data.stateLabel,

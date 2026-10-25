@@ -2,6 +2,7 @@
 import { defineComponent, h } from 'vue'
 import { statusLabel, timeAgo } from '../store'
 import { changeStatusBadge } from '../changes'
+import { parseGithubUrl } from '../repositories/parse'
 import StatusIcon from './StatusIcon.vue'
 
 // The cell renderers for the repository issues and PRs grid. AG Grid renders
@@ -31,8 +32,7 @@ export const StateCell = defineComponent({
   }
 })
 
-// The title, linking to the item on GitHub, with the ghx link after it when a
-// local ghx server is configured, and the last-fetched time below it.
+// The title, linking to the item on GitHub, with the last-fetched time below it.
 export const TitleCell = defineComponent({
   props: { params },
   setup: (props) => () => {
@@ -41,19 +41,38 @@ export const TitleCell = defineComponent({
     const title = row.url
       ? h('a', { class: 'title', href: row.url, target: '_blank', rel: 'noopener' }, label)
       : h('span', { class: 'title' }, label)
-    const heading = row.ghxUrl
-      ? h('div', { class: 'repo-name-cell' }, [
-          title,
-          h(
-            'a',
-            { class: 'btn sm ghost', href: row.ghxUrl, target: '_blank', rel: 'noopener', title: 'Open in ghx' },
-            'ghx'
-          )
-        ])
-      : title
-    const children = [heading]
+    const children = [title]
     if (row.fetched) children.push(h('div', { class: 'faint' }, row.fetched))
     return h('div', { class: 'repo-title-cell' }, children)
+  }
+})
+
+// The app and ghx links for a row, in their own column: the app's issue/PR view
+// (when the row is a GitHub issue or pull request) and the ghx web UI (when a
+// local ghx server is configured).
+export const LinksCell = defineComponent({
+  props: { params },
+  setup: (props) => () => {
+    const row = props.params.data
+    const parsed = row.url ? parseGithubUrl(row.url) : null
+    const internalPath = parsed
+      ? parsed.kind === 'pr'
+        ? `/pr/${parsed.owner}/${parsed.repo}/${parsed.number}`
+        : `/issue/${parsed.owner}/${parsed.repo}/${parsed.number}`
+      : ''
+    const buttons = []
+    if (internalPath) {
+      buttons.push(
+        h(props.params.context.RouterLink, { to: internalPath, class: 'btn sm ghost', title: 'Open in app' }, () => 'View')
+      )
+    }
+    if (row.ghxUrl) {
+      buttons.push(
+        h('a', { class: 'btn sm ghost', href: row.ghxUrl, target: '_blank', rel: 'noopener', title: 'Open in ghx' }, 'ghx')
+      )
+    }
+    if (!buttons.length) return null
+    return h('div', { class: 'repo-links-cell' }, buttons)
   }
 })
 

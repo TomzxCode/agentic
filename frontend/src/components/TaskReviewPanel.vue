@@ -17,26 +17,110 @@ import {
   verdictTone
 } from '../reviews'
 import { store, timeAgo, formatDateTime } from '../store'
+import { parseGithubUrl } from '../repositories/parse'
 import AgentPanel from './AgentPanel.vue'
 import FindingsSelector from './FindingsSelector.vue'
 import GithubItemPanel from './GithubItemPanel.vue'
 
-// The task's pull-request mode: for each PR the task is linked to, the same
-// detail panel the issue mode shows for an issue (state, author, labels,
-// description, read from GitHub) with the review queue's row for that PR
-// below it (readiness, reviewed commit, per-step verdicts) read from the
-// user-global store the review skills write to. A PR the store has no reports
-// for still shows its detail and link, with a note instead of steps. The agent
-// panel below them works the pull requests through an agent.
+// The task's pull-request mode: for each PR the task is linked to (or a single
+// PR given by `url`), the same detail panel the issue mode shows for an issue
+// (state, author, labels, description, read from GitHub) with the review queue's
+// row for that PR below it (readiness, reviewed commit, per-step verdicts) read
+// from the user-global store the review skills write to. A PR the store has no
+// reports for still shows its detail and link, with a note instead of steps. The
+// agent panel below them works the pull requests through an agent. `task` is
+// optional: a standalone PR view has no task, and offers to create one so the
+// agent can run.
 
 const props = defineProps({
-  task: { type: Object, required: true },
-  harnesses: { type: Array, default: () => [] }
+  task: { type: Object, default: null },
+  harnesses: { type: Array, default: () => [] },
+  // A single pull request URL to render on its own, without a task association.
+  url: { type: String, default: '' }
 })
 const emit = defineEmits(['changed'])
 
-// The pull requests the task links, from its associated items.
-const linked = computed(() => taskPullRequests(props.task))
+const resolvedTask = ref(props.task)
+watch(
+  () => props.task,
+  (value) => {
+    resolvedTask.value = value
+  }
+)
+
+// Even without a linked task, the agent panel can offer its prompt buttons and
+// build context from the pull request's coordinates, creating a task on the
+// first run.
+const agentTask = computed(() => {
+  if (resolvedTask.value) return resolvedTask.value
+  const tracked = (store.items || []).find((item) => item.url === props.url)
+  const parsed = parseGithubUrl(props.url)
+  let item = tracked
+  if (!item) {
+    item = { source: 'github', kind: 'pull_request', url: props.url, title: '', metadata_json: {} }
+  }
+  const meta = { ...(item.metadata_json || {}) }
+  if (parsed && !meta.owner) {
+    meta.owner = parsed.owner
+    meta.repo = parsed.repo
+    meta.number = Number(parsed.number)
+    meta.kind = parsed.kind
+  }
+  item = { ...item, metadata_json: meta }
+  return { id: '', title: '', associations: [{ item }] }
+})
+
+// A standalone view may open a pull request that is already linked to a task:
+// adopt that task so the agent panel and task-scoped review rows work. The full
+// task detail (with its associations) is fetched so the agent's prompt buttons
+// and context resolve, the way they do in the task view.
+async function resolveLinkedTask() {
+  if (resolvedTask.value || !props.url) return
+  const tracked = (store.items || []).find((item) => item.url === props.url)
+  const taskId = tracked?.task_ids?.[0]
+  if (!taskId) return
+  try {
+    resolvedTask.value = await api.tasks.get(taskId)
+  } catch {
+    resolvedTask.value = (store.tasks || []).find((item) => item.id === taskId) || null
+  }
+}
+watch(() => [props.url, store.items, store.tasks], () => {
+  resolveLinkedTask()
+}, { immediate: true, deep: true })
+
+async function adoptTask(task) {
+  if (!task?.id) return
+  try {
+    resolvedTask.value = await api.tasks.get(task.id)
+  } catch {
+    resolvedTask.value = task
+  }
+}
+
+
+
+// The pull requests to render: the task's linked PRs, or the single PR named by
+// `url` when this panel is used as a standalone view.
+const linked = computed(() => {
+  if (props.url) {
+    const parsed = parseGithubUrl(props.url)
+    if (!parsed || parsed.kind !== 'pr') return []
+    const tracked = (store.items || []).find((item) => item.url === props.url)
+    return [
+      {
+        owner: parsed.owner,
+        repo: parsed.repo,
+        number: Number(parsed.number),
+        url: props.url,
+        item: tracked || null,
+        item_id: tracked?.id
+      }
+    ]
+  }
+  return props.task ? taskPullRequests(props.task) : []
+})
+
 // A signature of the linked PRs, so the panel refetches when the links change.
 const signature = computed(() => linked.value.map((pr) => `${pr.owner}/${pr.repo}#${pr.number}`).join('|'))
 
@@ -44,9 +128,9 @@ const queue = ref({ prs: [] })
 const loading = ref(true)
 const error = ref(false)
 
-// Each linked PR paired with its review-queue row, or null when the store has
-// no reports for it. The template renders this rather than looking the row up
-// again per field.
+// Each linked PR paired with its review-queue row, or null when the store has no
+// reports for it. The template renders this rather than looking the row up again
+// per field.
 const items = computed(() => linked.value.map((pr) => ({ pr, row: queueRowFor(queue.value.prs, pr) })))
 
 // The report open in the viewer: its PR row, its name, and content.
@@ -68,6 +152,14 @@ function onFindingsShared({ run }) {
   agentPanel.value?.adopt(run)
 }
 
+// After a findings import creates a task, adopt it so the agent panel appears.
+function onImported(task) {
+  if (task) {
+    store.loadTasks().catch(() => {})
+    adoptTask(task)
+  }
+}
+
 async function load(refresh = false) {
   loading.value = true
   error.value = false
@@ -80,7 +172,11 @@ async function load(refresh = false) {
   try {
     // The people directory resolves a GitHub login to a person page.
     await store.loadPeople().catch(() => {})
-    queue.value = await api.reviews.task(props.task.id, { refresh })
+    if (resolvedTask.value?.id) {
+      queue.value = await api.reviews.task(resolvedTask.value.id, { refresh })
+    } else {
+      queue.value = await api.reviews.queue({ refresh })
+    }
   } catch (e) {
     error.value = true
     store.notify(e.message, true)
@@ -239,10 +335,11 @@ watch(signature, () => load())
         <FindingsSelector
           :repository="row.repository"
           :number="row.number"
-          :url="row.url"
-          :task-id="task.id"
-          :task-label="task.title"
+          :url="pr.url"
+          :task-id="resolvedTask?.id || null"
+          :task-label="resolvedTask?.title || ''"
           @shared="onFindingsShared"
+          @imported="onImported"
         />
       </template>
 
@@ -255,10 +352,12 @@ watch(signature, () => load())
 
     <AgentPanel
       ref="agentPanel"
-      :task="task"
+      :task="agentTask"
+      :github-url="props.url"
       :harnesses="harnesses"
       context-kind="pull_request"
       @changed="emit('changed')"
+      @task-created="adoptTask"
     />
 
     <div v-if="openPr" class="modal-backdrop" @click.self="closeReport">

@@ -19,14 +19,17 @@ import SessionLinks from './SessionLinks.vue'
 import SearchSelect from './SearchSelect.vue'
 
 const props = defineProps({
-  task: { type: Object, required: true },
+  task: { type: Object, default: null },
+  // The GitHub issue/PR URL this panel works on, used to create a task lazily
+  // when an agent run is submitted before any task is linked.
+  githubUrl: { type: String, default: '' },
   harnesses: { type: Array, default: () => [] },
   // The linked items the panel's view is about: "issue" in the issue view,
   // "pull_request" in the PR view. Empty means the task's own view, where every
   // linked issue and pull request is relevant.
   contextKind: { type: String, default: '' }
 })
-const emit = defineEmits(['changed'])
+const emit = defineEmits(['changed', 'task-created'])
 
 const prompt = ref('')
 const promptEl = ref(null)
@@ -46,8 +49,9 @@ const attachContext = ref(true)
 let closeStream = null
 
 // The linked items the panel is about, and the single one that fills the item
-// variables when the task names exactly one of them.
-const contextItems = computed(() => linkedPromptItems(props.task, props.contextKind || null))
+// variables when the task names exactly one of them. Empty when there is no task
+// yet (the panel creates one on the first run).
+const contextItems = computed(() => (props.task ? linkedPromptItems(props.task, props.contextKind || null) : []))
 const contextItem = computed(() => (contextItems.value.length === 1 ? contextItems.value[0].item : null))
 // Each linked item gets a short identifier (li.a, li.b, ...), so a prompt can
 // name a specific one when the task links several.
@@ -63,13 +67,18 @@ const taskUrl = computed(() => {
 
 // The values the prompt's variables resolve to. Filled once and reused for the
 // prompt buttons and for a message typed into the box.
-const variables = computed(() => ({
-  ...taskVariables(props.task, contextItem.value, {
-    repositories: store.repositories,
-    taskUrl: taskUrl.value
-  }),
-  ...linked.value.variables
-}))
+const variables = computed(() => {
+  const base = props.task
+    ? taskVariables(props.task, contextItem.value, {
+        repositories: store.repositories,
+        taskUrl: taskUrl.value
+      })
+    : {}
+  return {
+    ...base,
+    ...linked.value.variables
+  }
+})
 
 // The variable palette: the fixed groups, plus one group per linked item when
 // the task links several. With a single linked item the unprefixed fields
@@ -102,9 +111,10 @@ const contextSummary = computed(() => {
 })
 
 const liveCwd = computed(() => {
-  const w = props.task.worktrees?.find((x) => x.id === worktreeId.value)
+  if (!props.task) return '(repository)'
+  const w = (props.task.worktrees || []).find((x) => x.id === worktreeId.value)
   if (w) return w.path
-  const active = props.task.worktrees?.find((x) => x.status === 'active')
+  const active = (props.task.worktrees || []).find((x) => x.status === 'active')
   return active?.path || '(task repository)'
 })
 
@@ -133,7 +143,7 @@ const harnessOptions = computed(() => [
 ])
 const worktreeOptions = computed(() => [
   { value: '', label: 'Auto working directory' },
-  ...(props.task.worktrees || []).filter((w) => w.status === 'active').map((w) => ({ value: w.id, label: w.branch }))
+  ...((props.task?.worktrees) || []).filter((w) => w.status === 'active').map((w) => ({ value: w.id, label: w.branch }))
 ])
 
 // The models the selected harness offers. They live on its ACP session and are
@@ -174,7 +184,7 @@ watch(effectiveHarnessId, () => loadModels(), { immediate: true })
 // User-defined prompts (Settings → Agent prompts) that apply here: each shows
 // only when the task has exactly one associated GitHub item of its kind.
 const promptButtons = computed(() =>
-  taskPrompts(props.task, parseAgentPrompts(store.settings.agent_prompts), variables.value)
+  props.task ? taskPrompts(props.task, parseAgentPrompts(store.settings.agent_prompts), variables.value) : []
 )
 
 // Insert a variable's token at the cursor, so a click adds it without losing
@@ -348,6 +358,10 @@ const blocks = computed(() => {
 })
 
 async function loadRuns() {
+  if (!props.task?.id) {
+    runs.value = []
+    return
+  }
   runs.value = await api.runs.list(props.task.id)
 }
 
@@ -373,13 +387,34 @@ function handleEvent(ev) {
 function composePrompt(text) {
   const resolved = resolvePromptTemplate(text, variables.value)
   if (!attachContext.value || isCommandPrompt(resolved)) return resolved
-  const context = buildPromptContext(props.task, contextItems.value, { repositories: store.repositories })
+  const context = props.task
+    ? buildPromptContext(props.task, contextItems.value, { repositories: store.repositories })
+    : ''
   return context ? `${resolved}\n\n---\n${context}` : resolved
 }
 
 async function start(text) {
   const raw = (typeof text === 'string' ? text : prompt.value).trim()
   if (!raw || running.value) return
+  // When no task is linked yet, create one from the GitHub URL first, so the
+  // run (and its worktree, context, and history) has a home.
+  let task = props.task
+  if (!task?.id) {
+    if (!props.githubUrl) {
+      store.notify('No task is linked to this item', true)
+      return
+    }
+    try {
+      const created = await api.tasks.create({ github_url: props.githubUrl })
+      await store.loadTasks().catch(() => {})
+      await store.loadItems().catch(() => {})
+      task = (store.tasks || []).find((item) => item.id === created.id) || created
+      emit('task-created', task)
+    } catch (e) {
+      store.notify(e.message, true)
+      return
+    }
+  }
   const value = composePrompt(raw)
   running.value = true
   events.value = []
@@ -388,7 +423,7 @@ async function start(text) {
     if (harnessId.value) body.harness_id = harnessId.value
     if (worktreeId.value) body.worktree_id = worktreeId.value
     if (modelId.value) body.model = modelId.value
-    const run = await api.runs.create(props.task.id, body)
+    const run = await api.runs.create(task.id, body)
     activeRun.value = run
     activeRunId.value = run.id
     prompt.value = ''
@@ -436,6 +471,9 @@ function adopt(run) {
 
 defineExpose({ adopt })
 
+watch(() => props.task?.id, () => {
+  loadRuns()
+})
 onMounted(() => {
   loadRuns()
 })

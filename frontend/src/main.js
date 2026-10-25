@@ -3,6 +3,8 @@ import { createRouter, createWebHistory } from 'vue-router'
 import App from './App.vue'
 import TasksView from './views/TasksView.vue'
 import TaskView from './views/TaskView.vue'
+import IssueView from './views/IssueView.vue'
+import PullRequestView from './views/PullRequestView.vue'
 import ItemsView from './views/ItemsView.vue'
 import ItemDetailView from './views/ItemDetailView.vue'
 import PeopleView from './views/PeopleView.vue'
@@ -49,6 +51,8 @@ const router = createRouter({
     { path: '/decisions', name: 'decisions', component: DecisionsView },
     { path: '/stack', name: 'stack', component: StackView },
     { path: '/task/:id', name: 'task', component: TaskView, props: true },
+    { path: '/issue/:owner/:repo/:number', name: 'issue', component: IssueView, props: true },
+    { path: '/pr/:owner/:repo/:number', name: 'pr', component: PullRequestView, props: true },
     { path: '/gantt', name: 'gantt', component: GanttView },
     { path: '/graph', name: 'graph', component: DependencyGraphView },
     { path: '/events', name: 'events', component: EventsView },
