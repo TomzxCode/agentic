@@ -138,6 +138,7 @@
 .flow-week {
   flex: 1;
   min-width: 2px;
+  height: 100%;
 }
 .flow-col {
   display: flex;

@@ -39,7 +39,7 @@ function flowCount(fromStage, toStage) {
 }
 
 // The five boxes of the line. Positions are SVG coordinates inside the
-// 760x330 viewBox; the diagram scrolls sideways on phones instead of scaling
+// 760x350 viewBox; the diagram scrolls sideways on phones instead of scaling
 // its text below readability.
 const BOX_W = 155
 const stations = computed(() => [
@@ -47,7 +47,7 @@ const stations = computed(() => [
   { ...stage('in_progress'), label: 'In progress', x: 205, y: 50, h: 92 },
   { ...stage('done'), label: 'Done', x: 395, y: 50, h: 92 },
   { ...stage('archived'), label: 'Archived', x: 585, y: 50, h: 92 },
-  { ...stage('blocked'), label: 'Blocked', x: 205, y: 230, h: 70 }
+  { ...stage('blocked'), label: 'Blocked', x: 205, y: 235, h: 92 }
 ])
 
 // The arrows of the line, with each end's move count for the window. An edge
@@ -64,8 +64,8 @@ const edges = computed(() => [
   { key: 'backlog>in_progress', x1: 170, y1: 96, x2: 205, y2: 96, lx: 187, ly: 84 },
   { key: 'in_progress>done', x1: 360, y1: 96, x2: 395, y2: 96, lx: 377, ly: 84 },
   { key: 'done>archived', x1: 550, y1: 96, x2: 585, y2: 96, lx: 567, ly: 84 },
-  { key: 'in_progress>blocked', x1: 255, y1: 142, x2: 255, y2: 230, lx: 263, ly: 190, anchor: 'start' },
-  { key: 'blocked>in_progress', x1: 310, y1: 230, x2: 310, y2: 142, lx: 302, ly: 190, anchor: 'end' }
+  { key: 'in_progress>blocked', x1: 255, y1: 142, x2: 255, y2: 235, lx: 263, ly: 192, anchor: 'start' },
+  { key: 'blocked>in_progress', x1: 310, y1: 235, x2: 310, y2: 142, lx: 302, ly: 192, anchor: 'end' }
 ])
 
 function edgeCount(edge) {
@@ -144,7 +144,7 @@ function countLabel(n) {
           is how many items took that move in the window; the number in a station is its current queue.
         </p>
         <div class="process-scroll">
-          <svg class="process-svg" viewBox="0 0 760 320" role="img" aria-label="SDLC process graph">
+          <svg class="process-svg" viewBox="0 0 760 350" role="img" aria-label="SDLC process graph">
             <defs>
               <marker
                 id="process-arrow"
