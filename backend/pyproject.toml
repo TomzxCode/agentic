@@ -5,7 +5,7 @@ description = "Track work as tasks and collaborate with LLM coding agents across
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-    "fastapi>=0.143.1",
+    "fastapi>=0.159.1",
     "uvicorn[standard]>=0.54.0",
     "sqlmodel>=0.0.22",
     "agent-client-protocol>=0.12",
