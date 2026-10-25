@@ -1,5 +1,15 @@
 # Memory
 
+## 2026-10-25: component test mocks must return fresh objects for ref-watching
+
+- A `watch(ref, ...)` in a component under test never fires on the second `mockResolvedValue(sameArray)`: the helper built the array once, every call resolved with the same reference, and Vue's setter skips notification when `Object.is(newValue, oldValue)`. Production code gets fresh JSON (new objects) every fetch, so the watcher fires there. Use `mockImplementation(async () => [makeRow()])` whenever a component watches a ref that a mocked fetch replaces.
+- Same-family trap found the week before: in-place mutation of a SQLModel JSON column is invisible to SQLAlchemy (no UPDATE), and in a Vue test a parent-owned draft replaced via `update:modelValue` keeps input state stable only when the parent stores the emitted object instead of mutating props.
+
+## 2026-10-25: in-place edits of a JSON column are invisible to SQLAlchemy
+
+- Graph execution state lives in a JSON column (`GraphExecution.state`), and the form-answer endpoint originally mutated that dict in place and called `session.add` + commit: no UPDATE was emitted (no attribute was reassigned), so the write silently vanished while the executor's stale copy kept winning. Any writer of a JSON column must assign a fresh (or copied) object back to the attribute (`execution.state = dict(state)` with new nested dicts for the parts it touches).
+- The graphs executor also showed why polling writers need a merge step: the orchestrator persists its working state every pass, so an endpoint writing the same row between passes must be folded back in (`_merged_state`), and a form whose future is gone but whose status is still `waiting` means a lost request, which the executor now fails loudly instead of spinning.
+
 ## 2026-10-25: the frontend uses pnpm, and pnpm 12 locks itself into the lockfile
 
 - `frontend/` is a pnpm project: `frontend/pnpm-lock.yaml` plus `"packageManager"` in `frontend/package.json`, which `pnpm/action-setup` reads through `package_json_file` in CI. There is no `package-lock.json`.
@@ -167,3 +177,10 @@
 - Linking an item to a task from the Items page reuses the task-side endpoint (`POST /api/tasks/{id}/items` with `item_id`) rather than adding an item-side endpoint; the picker is a `SearchSelect` of the tasks the item is not yet linked to.
 - Task creation can import a GitHub issue: `TaskCreate.github_url` makes `create_task` fetch the issue (via `ghx`), fill title/description, and link it as an item. The New task modal leads with a paste-the-URL field (`GET /api/github/issue?url=` gives a preview via `fetch_github_issue`) and keeps a filterable, number-descending issue list (`GET /api/github/issues`) under "or pick from a repository".
 - All GitHub access goes through **`ghx`** (`ghx issue list`, `ghx issue view`, `ghx pr view`), never `gh`. ghx's `--json` is a boolean that emits the whole object (no field list), and the repo selector is the global `-R/--repo`. Its JSON field names match gh's (`number`, `title`, `state`, `author.login`, `labels[].name`, `url`, `body`).
+
+## 2026-10-25: ty (the type checker) has three sqlmodel quirks
+
+- A model attribute with a bare annotation and no `Field()` (e.g. `Task.title: str`) resolves to plain `str` under ty, so `select(Task.title)` fails `no-matching-overload`; wrap it as `col(Task.title)` (same for `Task.summary`).
+- sqlmodel's generated `select` overloads stop at four positional entities. A five-or-more-column select cannot typecheck; add `# ty: ignore[no-matching-overload]` rather than splitting the query (agent_streams `_task_signature` deliberately keeps one cheap query for SSE polling).
+- `session.get(Model, id)` returns `Model | None` and ty flags every attribute access on it, including in tests. Assign to a variable and `assert x is not None` first; this is the repo's established pattern.
+- CI order matters: the Lint step runs first, so when it fails the format/type-check/test steps never run and their failures stay hidden. Run `ruff check`, `ruff format --check`, `ty check`, and prettier locally before pushing, not just pytest/eslint.
