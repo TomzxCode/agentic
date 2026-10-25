@@ -15,10 +15,12 @@ from agentic.process_flow import (
     histogram_for,
     littles_law,
     quantile,
+    queue_pressure,
     stage_dwell,
     stage_flows,
     stage_inventory,
     stage_timeline,
+    stage_wait_shares,
 )
 
 NOW = datetime(2026, 10, 25, 12, 0, 0, tzinfo=UTC)
@@ -140,6 +142,68 @@ def test_stage_dwell_accumulates_time_before_completion():
     assert dwell[BLOCKED].median_hours is None
 
 
+def test_wait_shares_split_cycle_time_between_stations():
+    completions = [(task("a", datetime(2026, 9, 1, 12, tzinfo=UTC), "done"), datetime(2026, 9, 10, 12, tzinfo=UTC))]
+    shares = {row.stage: row for row in stage_wait_shares(scenario_tasks(), scenario_transitions(), completions)}
+    # a's nine-day trip splits two days in the backlog and seven in progress.
+    assert shares[BACKLOG].share == pytest.approx(48.0 / 216.0)
+    assert shares[IN_PROGRESS].share == pytest.approx(168.0 / 216.0)
+    assert shares[BLOCKED].share == 0.0
+    assert sum(row.share for row in shares.values()) == pytest.approx(1.0)
+    # Only stations something actually waited in carry a mean and a count.
+    assert shares[BACKLOG].count == 1
+    assert shares[BLOCKED].count == 0
+    assert shares[BLOCKED].mean_hours is None
+
+
+def test_queue_pressure_reads_net_flow_and_weekly_inventory():
+    start = NOW - timedelta(days=90)
+    pressure = {row.stage: row for row in queue_pressure(scenario_tasks(), scenario_transitions(), start, NOW)}
+    # Backlog: four arrivals (every task was created in the window), three moves
+    # out (a, c, d), so the queue nets +1 and holds b.
+    assert pressure[BACKLOG].arrived == 4
+    assert pressure[BACKLOG].departed == 3
+    assert pressure[BACKLOG].count == 1
+    assert pressure[BACKLOG].trend == "filling"
+    # In progress: three in, two out (a to done, c to blocked); d is still there.
+    assert pressure[IN_PROGRESS].arrived == 3
+    assert pressure[IN_PROGRESS].departed == 2
+    assert pressure[IN_PROGRESS].count == 1
+    assert pressure[IN_PROGRESS].trend == "filling"
+    # Blocked: c went in and never came out.
+    assert pressure[BLOCKED].arrived == 1
+    assert pressure[BLOCKED].departed == 0
+    assert pressure[BLOCKED].count == 1
+    assert pressure[BLOCKED].trend == "filling"
+    # Thirteen weekly samples per station, ending at the current inventory.
+    for row in pressure.values():
+        assert len(row.weekly_wip) == 13
+        assert row.weekly_wip[-1] == row.count
+    # A station that loses items without new arrivals is draining; one that
+    # takes them in without passing them on is filling.
+    even = queue_pressure(
+        [
+            task("x", NOW - timedelta(days=10), "in_progress"),
+            task("y", NOW - timedelta(days=100), "in_progress"),
+        ],
+        [
+            transition("x", NOW - timedelta(days=5), BACKLOG, IN_PROGRESS),
+            transition("y", NOW - timedelta(days=5), BACKLOG, IN_PROGRESS),
+        ],
+        NOW - timedelta(days=90),
+        NOW,
+    )
+    pressure_by = {row.stage: row for row in even}
+    # x was created in the window (an arrival); y predates it, so its move out
+    # of the backlog has no matching arrival.
+    assert pressure_by[BACKLOG].arrived == 1
+    assert pressure_by[BACKLOG].departed == 2
+    assert pressure_by[BACKLOG].trend == "draining"
+    assert pressure_by[IN_PROGRESS].arrived == 2
+    assert pressure_by[IN_PROGRESS].departed == 0
+    assert pressure_by[IN_PROGRESS].trend == "filling"
+
+
 def test_littles_law_integrates_work_in_process():
     completions = [(task("a", datetime(2026, 9, 1, 12, tzinfo=UTC), "done"), datetime(2026, 9, 10, 12, tzinfo=UTC))]
     start = NOW - timedelta(days=90)
@@ -170,6 +234,9 @@ def test_build_report_end_to_end():
     # b's arrival lands in the week of Oct 19.
     assert any(week.created == 1 and week.completed == 0 for week in report.weekly)
     assert any(week.created == 0 and week.completed == 1 for week in report.weekly)
+    # The bottleneck sections: shares sum to one, pressure covers the active stations.
+    assert sum(share.share for share in report.wait_shares) == pytest.approx(1.0)
+    assert {pressure.stage for pressure in report.queue_pressure} == {BACKLOG, IN_PROGRESS, BLOCKED}
 
 
 def test_process_router_computes_from_recorded_status_changes():
@@ -193,6 +260,15 @@ def test_process_router_computes_from_recorded_status_changes():
         assert sum(bucket["count"] for bucket in report["histogram"]) == 1
         assert report["littles"]["throughput_per_day"] > 0
         assert len(report["weekly"]) > 0
+        shares = {share["stage"]: share["share"] for share in report["wait_shares"]}
+        assert sum(shares.values()) == pytest.approx(1.0)
+        pressure = {row["stage"]: row for row in report["queue_pressure"]}
+        assert pressure["in_progress"]["arrived"] == 1
+        assert pressure["in_progress"]["departed"] == 1
+        assert pressure["in_progress"]["trend"] == "steady"
+        # Two tasks were created and only one left the backlog.
+        assert pressure["backlog"]["trend"] == "filling"
+        assert all(len(row["weekly_wip"]) > 0 for row in pressure.values())
 
         client.delete(f"/api/tasks/{first['id']}")
         client.delete(f"/api/tasks/{second['id']}")

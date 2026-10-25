@@ -65,6 +65,102 @@
   margin-top: 10px;
 }
 
+/* Bottlenecks: the stacked share bar reuses the station colors, and each
+   active station gets a row with a tiny inventory sparkline. */
+.bottleneck-takeaway {
+  margin: 4px 0 12px;
+}
+.share-bar {
+  display: flex;
+  height: 18px;
+  border-radius: 9px;
+  overflow: hidden;
+  background: var(--bg-2);
+}
+.share-segment {
+  height: 100%;
+}
+.share-segment.st-backlog {
+  background: var(--muted);
+}
+.share-segment.st-in_progress {
+  background: var(--accent-2);
+}
+.share-segment.st-blocked {
+  background: var(--warn);
+}
+.share-segment.st-done {
+  background: var(--ok);
+}
+.share-segment.st-archived {
+  background: var(--faint);
+}
+.share-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.share-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.share-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+}
+.share-dot.st-backlog {
+  background: var(--muted);
+}
+.share-dot.st-in_progress {
+  background: var(--accent-2);
+}
+.share-dot.st-blocked {
+  background: var(--warn);
+}
+.share-dot.st-done {
+  background: var(--ok);
+}
+.share-dot.st-archived {
+  background: var(--faint);
+}
+.pressure-rows {
+  margin-top: 14px;
+}
+.pressure-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+}
+.pressure-row:last-child {
+  border-bottom: none;
+}
+.spark {
+  flex: 1;
+  min-width: 60px;
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 24px;
+}
+.spark-bar {
+  flex: 1;
+  min-width: 2px;
+  background: var(--muted);
+  opacity: 0.55;
+  border-radius: 1px 1px 0 0;
+}
+.pressure-nums {
+  flex: 0 0 auto;
+  font-size: 12px;
+}
+
 /* Cycle-time histogram, modelled on the cycle trend's bars but with one label
    under each bucket, since the buckets are durations rather than dates. */
 .process-bars {
@@ -199,7 +295,8 @@
   .dwell-label {
     flex-basis: 70px;
   }
-  .dwell-num:last-of-type {
+  .dwell-num:last-of-type,
+  .pressure-nums {
     display: none;
   }
 }

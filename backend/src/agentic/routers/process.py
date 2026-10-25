@@ -20,9 +20,11 @@ from ..schemas.process import (
     FlowWeek,
     LittlesLaw,
     ProcessReport,
+    QueuePressure,
     StageDwell,
     StageFlow,
     StageInventory,
+    StageWaitShare,
 )
 
 router = APIRouter(prefix="/api/process", tags=["process"])
@@ -120,6 +122,30 @@ def get_process(
             throughput_per_day=report.littles.throughput_per_day,
             projected_cycle_hours=report.littles.projected_cycle_hours,
         ),
+        wait_shares=[
+            StageWaitShare(
+                stage=share.stage,
+                label=share.label,
+                count=share.count,
+                mean_hours=share.mean_hours,
+                total_hours=share.total_hours,
+                share=share.share,
+            )
+            for share in report.wait_shares
+        ],
+        queue_pressure=[
+            QueuePressure(
+                stage=pressure.stage,
+                label=pressure.label,
+                count=pressure.count,
+                arrived=pressure.arrived,
+                departed=pressure.departed,
+                net=pressure.net,
+                trend=pressure.trend,
+                weekly_wip=pressure.weekly_wip,
+            )
+            for pressure in report.queue_pressure
+        ],
     )
 
 

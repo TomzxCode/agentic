@@ -57,6 +57,11 @@ STATUS_TO_STAGE: dict[str, str] = {
 #: The stations that hold unfinished work, the queues Little's law is about.
 ACTIVE_STAGES: tuple[str, ...] = (BACKLOG, IN_PROGRESS, BLOCKED)
 
+#: Queue-trend verdicts for a station's net flow.
+FILLING = "filling"
+DRAINING = "draining"
+STEADY = "steady"
+
 DEFAULT_WINDOW_DAYS = 90
 
 #: Cycle-time histogram buckets in hours, open-ended at the top.
@@ -147,6 +152,41 @@ class StageDwell:
 
 
 @dataclass(frozen=True)
+class StageWaitShare:
+    """One station's slice of an average completed trip.
+
+    ``share`` compares the station's total wait across all completed items
+    with their total cycle time, so the shares of every station sum to one.
+    """
+
+    stage: str
+    label: str
+    count: int = 0
+    mean_hours: float | None = None
+    total_hours: float = 0.0
+    share: float = 0.0
+
+
+@dataclass(frozen=True)
+class QueuePressure:
+    """Whether a station's queue is growing, shrinking, or holding steady.
+
+    A queue that fills over the window marks the constraint: items arrive at
+    the station faster than it can pass them on. ``weekly_wip`` samples the
+    inventory at each week's end, oldest first, ending at the current count.
+    """
+
+    stage: str
+    label: str
+    count: int = 0
+    arrived: int = 0
+    departed: int = 0
+    net: int = 0
+    trend: str = STEADY
+    weekly_wip: list[int] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
 class FlowWeek:
     """One week of the window: arrivals and completions."""
 
@@ -180,6 +220,8 @@ class ProcessReport:
     dwell: list[StageDwell] = field(default_factory=list)
     weekly: list[FlowWeek] = field(default_factory=list)
     littles: LittlesLaw = LittlesLaw()
+    wait_shares: list[StageWaitShare] = field(default_factory=list)
+    queue_pressure: list[QueuePressure] = field(default_factory=list)
 
 
 def hours_between(start: datetime, end: datetime) -> float:
@@ -311,19 +353,14 @@ def cycle_time_distribution(
     return summarize_durations([hours_between(task.created_at, at) for task, at in completions])
 
 
-def stage_dwell(
-    tasks: Sequence[TaskRecord],
-    transitions: Sequence[Transition],
-    completions: Sequence[tuple[TaskRecord, datetime]],
-) -> list[StageDwell]:
-    """Where the completed items' cycle time went, per station.
+def _stage_waits(
+    timelines: dict[str, list[tuple[datetime, str]]], completions: Sequence[tuple[TaskRecord, datetime]]
+) -> dict[str, list[float]]:
+    """Time each completed item spent per station, clamped at its completion.
 
-    For each completed item, its time in each station is accumulated up to the
-    completion moment. A station's numbers cover only the items that actually
-    waited there (``count`` is how many did), so a median over the blocked
-    station answers "when an item got stuck, how long was it stuck".
+    The segments of a completed item's timeline cover its whole trip, so the
+    sums over stations add up to the item's cycle time.
     """
-    timelines = {task.id: stage_timeline(task, transitions) for task, _ in completions}
     waits: dict[str, list[float]] = {}
     for task, completed_at in completions:
         timeline = timelines[task.id]
@@ -334,6 +371,22 @@ def stage_dwell(
             if left_at <= entered_at:
                 continue
             waits.setdefault(stage, []).append(hours_between(entered_at, left_at))
+    return waits
+
+
+def stage_dwell(
+    tasks: Sequence[TaskRecord],
+    transitions: Sequence[Transition],
+    completions: Sequence[tuple[TaskRecord, datetime]],
+) -> list[StageDwell]:
+    """Where the completed items' cycle time went, per station.
+
+    A station's numbers cover only the items that actually waited there
+    (``count`` is how many did), so a median over the blocked station answers
+    "when an item got stuck, how long was it stuck".
+    """
+    timelines = {task.id: stage_timeline(task, transitions) for task, _ in completions}
+    waits = _stage_waits(timelines, completions)
     return [
         StageDwell(
             stage=stage,
@@ -346,6 +399,112 @@ def stage_dwell(
     ]
 
 
+def stage_wait_shares(
+    tasks: Sequence[TaskRecord],
+    transitions: Sequence[Transition],
+    completions: Sequence[tuple[TaskRecord, datetime]],
+) -> list[StageWaitShare]:
+    """Each station's share of the completed items' total cycle time.
+
+    This is the bottleneck ranking: the station holding the largest slice of
+    an average trip is where the line loses the most time.
+    """
+    timelines = {task.id: stage_timeline(task, transitions) for task, _ in completions}
+    waits = _stage_waits(timelines, completions)
+    grand_total = sum(total for samples in waits.values() for total in samples)
+    shares: list[StageWaitShare] = []
+    for stage in STAGES:
+        samples = waits.get(stage, ())
+        total = sum(samples)
+        shares.append(
+            StageWaitShare(
+                stage=stage,
+                label=STAGE_LABELS[stage],
+                count=len(samples),
+                mean_hours=fmean(samples) if samples else None,
+                total_hours=total,
+                share=total / grand_total if grand_total > 0 else 0.0,
+            )
+        )
+    return shares
+
+
+def week_boundaries(start: datetime, end: datetime) -> list[tuple[datetime, datetime]]:
+    """Consecutive seven-day (last one possibly shorter) spans covering the window."""
+    boundaries: list[tuple[datetime, datetime]] = []
+    week_start = start
+    while week_start < end:
+        week_end = min(week_start + timedelta(days=7), end)
+        boundaries.append((week_start, week_end))
+        week_start = week_end
+    return boundaries
+
+
+def _stage_at(timeline: Sequence[tuple[datetime, str]], at: datetime) -> str | None:
+    """The station a timeline puts a task in at ``at``, or None before creation."""
+    current: str | None = None
+    for entered_at, stage in timeline:
+        if entered_at > at:
+            break
+        current = stage
+    return current
+
+
+def queue_pressure(
+    tasks: Sequence[TaskRecord],
+    transitions: Sequence[Transition],
+    start: datetime,
+    end: datetime,
+) -> list[QueuePressure]:
+    """Net flow and inventory trend for each active station.
+
+    ``arrived`` counts moves into the station in the window (creations count
+    as backlog arrivals) and ``departed`` moves out, so ``net`` says whether
+    the queue grew. ``trend`` reads the net directly, and ``weekly_wip``
+    samples the inventory at each week's end for a sparkline.
+    """
+    timelines = {task.id: stage_timeline(task, transitions) for task in tasks}
+    weeks = week_boundaries(start, end)
+    weekly: dict[str, list[int]] = {stage: [] for stage in ACTIVE_STAGES}
+    for _, week_end in weeks:
+        counts = dict.fromkeys(ACTIVE_STAGES, 0)
+        for task in tasks:
+            stage = _stage_at(timelines[task.id], week_end)
+            if stage in counts:
+                counts[stage] += 1
+        for stage in ACTIVE_STAGES:
+            weekly[stage].append(counts[stage])
+
+    arrived = dict.fromkeys(ACTIVE_STAGES, 0)
+    departed = dict.fromkeys(ACTIVE_STAGES, 0)
+    for transition in transitions:
+        if not (start <= transition.at <= end):
+            continue
+        if transition.to_stage in arrived:
+            arrived[transition.to_stage] += 1
+        if transition.from_stage in departed:
+            departed[transition.from_stage] += 1
+    arrived[BACKLOG] += sum(1 for task in tasks if start <= task.created_at <= end)
+
+    current = {stage: (weekly[stage][-1] if weekly[stage] else 0) for stage in ACTIVE_STAGES}
+    pressure: list[QueuePressure] = []
+    for stage in ACTIVE_STAGES:
+        net = arrived[stage] - departed[stage]
+        pressure.append(
+            QueuePressure(
+                stage=stage,
+                label=STAGE_LABELS[stage],
+                count=current[stage],
+                arrived=arrived[stage],
+                departed=departed[stage],
+                net=net,
+                trend=FILLING if net > 0 else DRAINING if net < 0 else STEADY,
+                weekly_wip=weekly[stage],
+            )
+        )
+    return pressure
+
+
 def weekly_flow(
     tasks: Sequence[TaskRecord],
     completions: Sequence[tuple[TaskRecord, datetime]],
@@ -354,9 +513,7 @@ def weekly_flow(
 ) -> list[FlowWeek]:
     """Arrivals and completions per week, anchored at the window start."""
     weeks: list[FlowWeek] = []
-    week_start = start
-    while week_start < end:
-        week_end = min(week_start + timedelta(days=7), end)
+    for week_start, week_end in week_boundaries(start, end):
         weeks.append(
             FlowWeek(
                 start=week_start,
@@ -365,7 +522,6 @@ def weekly_flow(
                 completed=sum(1 for _, at in completions if week_start <= at < week_end),
             )
         )
-        week_start = week_end
     return weeks
 
 
@@ -427,6 +583,8 @@ def build_report(
         dwell=stage_dwell(tasks, transitions, completions),
         weekly=weekly_flow(tasks, completions, start, now),
         littles=littles_law(tasks, transitions, completions, start, now),
+        wait_shares=stage_wait_shares(tasks, transitions, completions),
+        queue_pressure=queue_pressure(tasks, transitions, start, now),
     )
 
 
@@ -437,19 +595,24 @@ __all__ = [
     "BLOCKED",
     "DEFAULT_WINDOW_DAYS",
     "DONE",
+    "DRAINING",
+    "FILLING",
     "HISTOGRAM_BUCKETS",
     "IN_PROGRESS",
     "STAGES",
     "STAGE_LABELS",
     "STATUS_TO_STAGE",
+    "STEADY",
     "Distribution",
     "FlowWeek",
     "HistogramBucket",
     "LittlesLaw",
     "ProcessReport",
+    "QueuePressure",
     "StageDwell",
     "StageFlow",
     "StageStat",
+    "StageWaitShare",
     "TaskRecord",
     "Transition",
     "build_report",
@@ -458,11 +621,14 @@ __all__ = [
     "hours_between",
     "littles_law",
     "quantile",
+    "queue_pressure",
     "stage_dwell",
     "stage_flows",
     "stage_inventory",
     "stage_of",
     "stage_timeline",
+    "stage_wait_shares",
     "summarize_durations",
+    "week_boundaries",
     "weekly_flow",
 ]

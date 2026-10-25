@@ -94,6 +94,26 @@ function barHeight(count) {
 
 const littles = computed(() => report.value?.littles || {})
 
+// Bottleneck ranking: each station's slice of the completed items' total cycle
+// time, and whether each active station's queue grew over the window.
+const waitShares = computed(() => (report.value?.wait_shares || []).filter((entry) => entry.share > 0))
+const topShare = computed(() =>
+  waitShares.value.reduce((top, entry) => (top == null || entry.share > top.share ? entry : top), null)
+)
+const sharePercent = (entry) => `${Math.round(entry.share * 100)}%`
+
+const TREND_META = {
+  filling: { label: 'Filling', badge: 'badge warn' },
+  draining: { label: 'Draining', badge: 'badge ok' },
+  steady: { label: 'Steady', badge: 'badge' }
+}
+const trendMeta = (trend) => TREND_META[trend] || TREND_META.steady
+const pressure = computed(() => report.value?.queue_pressure || [])
+function sparkHeights(row) {
+  const max = Math.max(1, ...row.weekly_wip)
+  return row.weekly_wip.map((value) => (value ? Math.max(15, (value / max) * 100) : 4))
+}
+
 // Weekly arrivals vs completions: two bars per week against one shared scale.
 const weekly = computed(() => report.value?.weekly || [])
 const weeklyMax = computed(() => Math.max(1, ...weekly.value.flatMap((week) => [week.created, week.completed])))
@@ -200,6 +220,57 @@ function countLabel(n) {
           <span v-for="flow in otherFlows" :key="`${flow.from_stage}>${flow.to_stage}`" class="badge">
             {{ stageLabel(flow.from_stage) }} → {{ stageLabel(flow.to_stage) }} ×{{ flow.count }}
           </span>
+        </div>
+      </section>
+
+      <section class="panel" style="margin-top: 16px">
+        <div class="panel-head">
+          <h2>Bottlenecks</h2>
+          <span class="faint">where an average trip's time goes, and which queues grow</span>
+        </div>
+        <div v-if="!waitShares.length" class="empty">
+          Nothing completed in this window, so the waits cannot be split yet. The queue pressure below still shows where
+          work piles up.
+        </div>
+        <template v-else>
+          <p class="bottleneck-takeaway">
+            An average completed trip ({{ formatCycleHours(cycle.mean_hours) }}) spends
+            <strong>{{ sharePercent(topShare) }}</strong> of its time in <strong>{{ topShare.label }}</strong
+            >.
+          </p>
+          <div class="share-bar" role="img" aria-label="Share of cycle time per station">
+            <span
+              v-for="entry in waitShares"
+              :key="entry.stage"
+              class="share-segment"
+              :class="`st-${entry.stage}`"
+              :style="{ width: `${entry.share * 100}%` }"
+              :title="`${entry.label}: ${sharePercent(entry)}`"
+            ></span>
+          </div>
+          <div class="share-legend">
+            <span v-for="entry in waitShares" :key="entry.stage" class="share-legend-item">
+              <span class="share-dot" :class="`st-${entry.stage}`"></span>
+              {{ entry.label }} {{ sharePercent(entry) }}
+            </span>
+          </div>
+        </template>
+        <div class="pressure-rows">
+          <div v-for="row in pressure" :key="row.stage" class="pressure-row">
+            <span class="dwell-label">{{ row.label }}</span>
+            <span class="spark" role="img" :aria-label="`${row.label} inventory by week`">
+              <span
+                v-for="(height, index) in sparkHeights(row)"
+                :key="index"
+                class="spark-bar"
+                :style="{ height: `${height}%` }"
+              ></span>
+            </span>
+            <span class="faint pressure-nums"
+              >{{ row.count }} in station · {{ row.arrived }} in · {{ row.departed }} out</span
+            >
+            <span :class="trendMeta(row.trend).badge">{{ trendMeta(row.trend).label }}</span>
+          </div>
         </div>
       </section>
 

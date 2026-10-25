@@ -47,6 +47,30 @@ class StageDwell(BaseModel):
     median_hours: float | None = None
 
 
+class StageWaitShare(BaseModel):
+    """One station's slice of the completed items' total cycle time."""
+
+    stage: str
+    label: str
+    count: int = 0
+    mean_hours: float | None = None
+    total_hours: float = 0.0
+    share: float = 0.0
+
+
+class QueuePressure(BaseModel):
+    """A station's net flow and inventory trend over the window."""
+
+    stage: str
+    label: str
+    count: int = 0
+    arrived: int = 0
+    departed: int = 0
+    net: int = 0
+    trend: str = "steady"
+    weekly_wip: list[int] = []
+
+
 class FlowWeek(BaseModel):
     start: datetime
     end: datetime
@@ -72,3 +96,5 @@ class ProcessReport(BaseModel):
     dwell: list[StageDwell] = []
     weekly: list[FlowWeek] = []
     littles: LittlesLaw = LittlesLaw()
+    wait_shares: list[StageWaitShare] = []
+    queue_pressure: list[QueuePressure] = []

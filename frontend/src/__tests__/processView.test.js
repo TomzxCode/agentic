@@ -57,7 +57,46 @@ const report = {
     { stage: 'blocked', label: 'Blocked', count: 0, mean_hours: null, median_hours: null }
   ],
   weekly: [{ start: '2026-10-19T12:00:00Z', end: '2026-10-26T12:00:00Z', created: 2, completed: 1 }],
-  littles: { avg_wip: 1.5, throughput_per_day: 0.02, projected_cycle_hours: 72 }
+  littles: { avg_wip: 1.5, throughput_per_day: 0.02, projected_cycle_hours: 72 },
+  wait_shares: [
+    { stage: 'backlog', label: 'Backlog', count: 2, mean_hours: 96, total_hours: 192, share: 0.4 },
+    { stage: 'in_progress', label: 'In progress', count: 2, mean_hours: 144, total_hours: 288, share: 0.6 },
+    { stage: 'blocked', label: 'Blocked', count: 0, mean_hours: null, total_hours: 0, share: 0 },
+    { stage: 'done', label: 'Done', count: 0, mean_hours: null, total_hours: 0, share: 0 },
+    { stage: 'archived', label: 'Archived', count: 0, mean_hours: null, total_hours: 0, share: 0 }
+  ],
+  queue_pressure: [
+    {
+      stage: 'backlog',
+      label: 'Backlog',
+      count: 3,
+      arrived: 5,
+      departed: 4,
+      net: 1,
+      trend: 'filling',
+      weekly_wip: [1, 2, 2, 3]
+    },
+    {
+      stage: 'in_progress',
+      label: 'In progress',
+      count: 1,
+      arrived: 4,
+      departed: 4,
+      net: 0,
+      trend: 'steady',
+      weekly_wip: [1, 1, 2, 1]
+    },
+    {
+      stage: 'blocked',
+      label: 'Blocked',
+      count: 0,
+      arrived: 0,
+      departed: 0,
+      net: 0,
+      trend: 'steady',
+      weekly_wip: [0, 0, 0, 0]
+    }
+  ]
 }
 
 async function mountView() {
@@ -119,6 +158,27 @@ describe('ProcessView', () => {
     expect(rows).toHaveLength(2)
     expect(rows[0].text()).toContain('median 4.0d')
     expect(rows[0].text()).toContain('2 visited')
+  })
+
+  it('names the bottleneck and shows which queues grow', async () => {
+    const wrapper = await mountView()
+    const takeaway = wrapper.get('.bottleneck-takeaway').text()
+    expect(takeaway).toContain('5.0d')
+    expect(takeaway).toContain('60%')
+    expect(takeaway).toContain('In progress')
+    const segments = wrapper.findAll('.share-segment')
+    expect(segments).toHaveLength(2)
+    expect(segments[0].attributes('style')).toContain('width: 40%')
+    expect(segments[1].attributes('style')).toContain('width: 60%')
+    const legend = wrapper.get('.share-legend').text()
+    expect(legend).toContain('Backlog 40%')
+    expect(legend).toContain('In progress 60%')
+    const rows = wrapper.findAll('.pressure-row')
+    expect(rows).toHaveLength(3)
+    expect(rows[0].text()).toContain('3 in station · 5 in · 4 out')
+    expect(rows[0].get('.badge').text()).toBe('Filling')
+    expect(rows[1].get('.badge').text()).toBe('Steady')
+    expect(rows[0].findAll('.spark-bar')).toHaveLength(4)
   })
 
   it('reloads when the window changes', async () => {
