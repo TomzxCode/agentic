@@ -13,6 +13,7 @@ export default defineConfig({
     // default pool rebuilds it for all 50 files, which is half the suite's time.
     pool: 'vmThreads',
     globals: true,
+    setupFiles: ['src/test-setup.js'],
     include: ['src/**/*.{test,spec}.js'],
     restoreMocks: true,
     coverage: {

@@ -222,51 +222,104 @@ button.gantt-marker::after {
 
 /* Dependency graph */
 .dep-scroll {
-  overflow-x: auto;
+  position: relative;
+  overflow: hidden;
   margin: 0 -4px;
   padding: 0 4px;
+  border-radius: 8px;
 }
-.dep-svg {
-  display: block;
+.vue-flow__node-default {
+  background: transparent;
+  border: none;
+  padding: 0;
+  box-shadow: none;
+}
+.dep-scroll .vue-flow {
+  --xy-background-color: transparent;
+  --xy-background-color-default: transparent;
+  --xy-node-color-default: var(--text);
+  --xy-node-border: none;
+  --xy-node-border-default: none;
+  --xy-node-background-color-default: transparent;
+  --xy-edge-stroke: var(--border);
+  --xy-edge-stroke-width: 1.5;
+  --xy-attribution-background-color: transparent;
+  width: 100%;
+  height: 100%;
+  background: var(--bg-1, var(--bg));
+  border: 1px solid var(--border);
+  border-radius: 8px;
 }
 .dep-edge {
-  fill: none;
   stroke: var(--border);
   stroke-width: 1.5;
 }
-.dep-arrowhead {
-  fill: var(--muted);
+.vue-flow__edge-path {
+  stroke: var(--border);
+  stroke-width: 1.5;
+  fill: none;
 }
 .dep-node-link {
+  display: block;
+  width: 100%;
+  height: 100%;
+  text-decoration: none;
+  color: inherit;
   cursor: pointer;
 }
 .dep-node {
-  fill: var(--bg-2);
-  stroke: var(--muted);
-  stroke-width: 1.5;
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 6px 10px;
+  background: var(--bg-2);
+  border: 1.5px solid var(--muted);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 12px;
+  line-height: 1.25;
+  overflow: hidden;
+  transition: background 0.12s ease;
 }
 .dep-node-link:hover .dep-node {
-  fill: var(--bg-3);
+  background: var(--bg-3);
 }
 .dep-node.st-open {
-  stroke: var(--muted);
+  border-color: var(--muted);
 }
 .dep-node.st-in_progress {
-  stroke: var(--accent-2);
+  border-color: var(--accent-2);
 }
 .dep-node.st-blocked {
-  stroke: var(--warn);
+  border-color: var(--warn);
 }
 .dep-node.st-done {
-  stroke: var(--ok);
+  border-color: var(--ok);
 }
 .dep-node.st-archived {
-  stroke: var(--faint);
+  border-color: var(--faint);
+  opacity: 0.7;
 }
-.dep-node-text {
-  fill: var(--text);
-  font-size: 12px;
-  pointer-events: none;
+.dep-node-text-line {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dep-handle-wrap {
+  display: contents;
+}
+.vue-flow__handle {
+  width: 8px;
+  height: 8px;
+  background: var(--accent-2, var(--accent));
+  border: 1.5px solid var(--bg-1);
+}
+.vue-flow__handle:hover {
+  background: var(--accent);
 }
 .dep-legend {
   display: flex;

@@ -1,9 +1,10 @@
 // Layered layout for the before/after task graph.
 //
-// Each node is placed in a column by its longest path from a source, so every
-// edge points from an earlier column to a later one and the drawing reads left
-// to right. Within a column nodes keep the order they were given, which the
-// caller sets to something stable (the API returns tasks oldest first).
+// Each node is placed in a layer by its longest path from a source, so every
+// edge points from an earlier layer to a later one. Nodes are aligned to the
+// row of the node they link from, so a chain reads on one line instead of
+// being centered as a block. `direction` controls whether layers run
+// left-to-right ('LR', default) or top-to-bottom ('TB').
 
 export function layoutGraph(nodes, edges, options = {}) {
   const nodeWidth = options.nodeWidth ?? 180
@@ -11,22 +12,19 @@ export function layoutGraph(nodes, edges, options = {}) {
   const gapX = options.gapX ?? 90
   const gapY = options.gapY ?? 18
   const pad = options.pad ?? 24
+  const direction = options.direction === 'TB' ? 'TB' : 'LR'
 
   const ids = new Set(nodes.map((node) => node.id))
   const forward = new Map(nodes.map((node) => [node.id, []]))
   const indegree = new Map(nodes.map((node) => [node.id, 0]))
   const cleanEdges = []
   for (const edge of edges) {
-    // An edge to a node that is not drawn would dangle, so drop it.
     if (!ids.has(edge.before_id) || !ids.has(edge.after_id)) continue
     forward.get(edge.before_id).push(edge.after_id)
     indegree.set(edge.after_id, indegree.get(edge.after_id) + 1)
     cleanEdges.push({ before_id: edge.before_id, after_id: edge.after_id })
   }
 
-  // Longest-path layering, in topological order (Kahn's algorithm). A node with
-  // no predecessors starts a column; every other node sits one past its latest
-  // predecessor, so a chain of dependencies grows to the right.
   const layer = new Map(nodes.map((node) => [node.id, 0]))
   const remaining = new Map(indegree)
   const queue = nodes.filter((node) => indegree.get(node.id) === 0).map((node) => node.id)
@@ -39,43 +37,88 @@ export function layoutGraph(nodes, edges, options = {}) {
     }
   }
 
-  // Group by column, keeping the input order within each column.
-  const columns = new Map()
+  // Group by layer, keeping input order within each layer.
+  const layers = new Map()
   for (const node of nodes) {
-    const column = layer.get(node.id) ?? 0
-    if (!columns.has(column)) columns.set(column, [])
-    columns.get(column).push(node.id)
+    const l = layer.get(node.id) ?? 0
+    if (!layers.has(l)) layers.set(l, [])
+    layers.get(l).push(node.id)
   }
-  const columnKeys = [...columns.keys()].sort((a, b) => a - b)
-  const rows = Math.max(1, ...columnKeys.map((key) => columns.get(key).length))
+  const layerKeys = [...layers.keys()].sort((a, b) => a - b)
 
-  // Center every column against the tallest one.
-  const contentHeight = rows * nodeHeight + Math.max(0, rows - 1) * gapY
+  // Assign a row (LR) or column (TB) to each node, aligned to the row/column
+  // of the node it links from, so connected nodes sit beside each other.
+  const primary = new Map() // node id -> primary axis index (row for LR, col for TB)
+  for (const key of layerKeys) {
+    const idsInLayer = layers.get(key)
+    const used = new Set()
+    for (const id of idsInLayer) {
+      let p = null
+      for (const e of cleanEdges) {
+        if (e.after_id === id && primary.has(e.before_id)) {
+          const candidate = primary.get(e.before_id)
+          if (!used.has(candidate)) { p = candidate; break }
+        }
+      }
+      if (p === null) {
+        p = 0
+        while (used.has(p)) p++
+      }
+      used.add(p)
+      primary.set(id, p)
+    }
+  }
+
   const positions = new Map()
-  for (const key of columnKeys) {
-    const columnIds = columns.get(key)
-    const offset = (contentHeight - (columnIds.length * nodeHeight + (columnIds.length - 1) * gapY)) / 2
-    columnIds.forEach((id, row) => {
+
+  if (direction === 'LR') {
+    const maxPrimary = Math.max(0, ...[...primary.values()])
+    const contentHeight = (maxPrimary + 1) * nodeHeight + maxPrimary * gapY
+    for (const key of layerKeys) {
+      const idsInLayer = layers.get(key)
+      idsInLayer.forEach((id) => {
+        positions.set(id, {
+          x: pad + key * (nodeWidth + gapX),
+          y: pad + primary.get(id) * (nodeHeight + gapY)
+        })
+      })
+    }
+    const numLayers = layerKeys.length
+    return {
+      nodes: nodes.map((node) => ({ ...node, ...positions.get(node.id), width: nodeWidth, height: nodeHeight })),
+      edges: cleanEdges,
+      width: pad * 2 + (numLayers ? numLayers * nodeWidth + (numLayers - 1) * gapX : 0),
+      height: pad * 2 + contentHeight,
+      columns: numLayers,
+      nodeWidth,
+      nodeHeight
+    }
+  }
+
+  // TB: layers run top-to-bottom; align columns to the linked node.
+  const maxPrimary = Math.max(0, ...[...primary.values()])
+  const contentWidth = (maxPrimary + 1) * nodeWidth + maxPrimary * gapX
+  for (const key of layerKeys) {
+    const idsInLayer = layers.get(key)
+    idsInLayer.forEach((id) => {
       positions.set(id, {
-        x: pad + key * (nodeWidth + gapX),
-        y: pad + offset + row * (nodeHeight + gapY)
+        x: pad + primary.get(id) * (nodeWidth + gapX),
+        y: pad + key * (nodeHeight + gapY)
       })
     })
   }
-
+  const numLayers = layerKeys.length
   return {
     nodes: nodes.map((node) => ({ ...node, ...positions.get(node.id), width: nodeWidth, height: nodeHeight })),
     edges: cleanEdges,
-    width: pad * 2 + (columnKeys.length ? columnKeys.length * nodeWidth + (columnKeys.length - 1) * gapX : 0),
-    height: pad * 2 + contentHeight,
-    columns: columnKeys.length,
+    width: pad * 2 + contentWidth,
+    height: pad * 2 + (numLayers ? numLayers * nodeHeight + (numLayers - 1) * gapY : 0),
+    columns: numLayers,
     nodeWidth,
     nodeHeight
   }
 }
 
-// An edge drawn as a horizontal cubic curve from the source's right edge to the
-// target's left edge, so the arrowhead lands cleanly on the target.
 export function edgePath(from, to) {
   const x1 = from.x + from.width
   const y1 = from.y + from.height / 2
@@ -85,8 +128,6 @@ export function edgePath(from, to) {
   return `M ${x1} ${y1} C ${x1 + bend} ${y1}, ${x2 - bend} ${y2}, ${x2} ${y2}`
 }
 
-// Break a title into at most `max` lines that each fit `maxChars`, so a long
-// title stays inside its node box. Words are kept whole where possible.
 export function wrapTitle(title, maxChars = 24, max = 3) {
   const words = String(title || '')
     .split(/\s+/)
