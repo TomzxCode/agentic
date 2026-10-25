@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import json
-import sys
 import re
+import sys
 from collections.abc import Iterable
 from datetime import UTC, datetime, tzinfo
 from typing import Any
@@ -262,7 +262,7 @@ def slack_send_dm(user_id: str, text: str, *, unfurl: bool = True) -> dict[str, 
     headers = {"Authorization": f"Bearer {token}"}
     if cookie:
         headers["Cookie"] = f"d={cookie}"
-    base_url = (settings.slack_api_base_url or 'https://slack.com/api').rstrip('/')
+    base_url = (settings.slack_api_base_url or "https://slack.com/api").rstrip("/")
     url = f"{base_url}/chat.postMessage"
     payload = {
         "channel": user_id,
@@ -289,11 +289,18 @@ def slack_send_dm(user_id: str, text: str, *, unfurl: bool = True) -> dict[str, 
             if user_id.startswith("U"):
                 r2 = httpx.post(f"{base_url}/conversations.open", data={"users": user_id}, headers=headers, timeout=30)
                 d2 = r2.json()
-                if isinstance(d2, dict) and d2.get("ok") and isinstance(d2.get("channel"), dict) and d2["channel"].get("id"):
+                if (
+                    isinstance(d2, dict)
+                    and d2.get("ok")
+                    and isinstance(d2.get("channel"), dict)
+                    and d2["channel"].get("id")
+                ):
                     target = d2["channel"]["id"]
             else:
                 channel_name = user_id.lstrip("#")
-                httpx.post(f"{base_url}/conversations.join", data={"channel": channel_name}, headers=headers, timeout=30)
+                httpx.post(
+                    f"{base_url}/conversations.join", data={"channel": channel_name}, headers=headers, timeout=30
+                )
         except Exception:  # noqa: BLE001
             pass
         response, data = _post(target)
@@ -325,7 +332,7 @@ def slack_send_bot_dm(user_id: str, text: str) -> dict[str, Any]:
                 token = (effective.get("slack_bot_token") or "").strip()
                 if not cookie:
                     cookie = ""
-        except Exception as exc:  # noqa: BLE001
+        except Exception:  # noqa: BLE001
             token = ""
     if not token:
         token = (settings.slack_token or "").strip()
@@ -337,7 +344,7 @@ def slack_send_bot_dm(user_id: str, text: str) -> dict[str, Any]:
     headers = {"Authorization": f"Bearer {token}"}
     if cookie:
         headers["Cookie"] = f"d={cookie}"
-    base_url = (settings.slack_api_base_url or 'https://slack.com/api').rstrip('/')
+    base_url = (settings.slack_api_base_url or "https://slack.com/api").rstrip("/")
     url = f"{base_url}/chat.postMessage"
 
     def _post(target: str):
@@ -358,11 +365,18 @@ def slack_send_bot_dm(user_id: str, text: str) -> dict[str, Any]:
             if user_id.startswith("U"):
                 r2 = httpx.post(f"{base_url}/conversations.open", data={"users": user_id}, headers=headers, timeout=30)
                 d2 = r2.json()
-                if isinstance(d2, dict) and d2.get("ok") and isinstance(d2.get("channel"), dict) and d2["channel"].get("id"):
+                if (
+                    isinstance(d2, dict)
+                    and d2.get("ok")
+                    and isinstance(d2.get("channel"), dict)
+                    and d2["channel"].get("id")
+                ):
                     target = d2["channel"]["id"]
             else:
                 channel_name = user_id.lstrip("#")
-                httpx.post(f"{base_url}/conversations.join", data={"channel": channel_name}, headers=headers, timeout=30)
+                httpx.post(
+                    f"{base_url}/conversations.join", data={"channel": channel_name}, headers=headers, timeout=30
+                )
         except Exception:  # noqa: BLE001
             pass
         response, data = _post(target)

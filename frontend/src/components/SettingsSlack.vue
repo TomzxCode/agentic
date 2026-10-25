@@ -83,12 +83,7 @@ async function sendTest() {
 
     <div class="field">
       <label>Slack user id</label>
-      <input
-        v-model="form.slack_user_id"
-        class="input"
-        placeholder="U0123ABCDEF"
-        @blur="saveField('slack_user_id')"
-      />
+      <input v-model="form.slack_user_id" class="input" placeholder="U0123ABCDEF" @blur="saveField('slack_user_id')" />
     </div>
     <div class="field">
       <label>Slack bot token</label>

@@ -106,9 +106,7 @@ def _task_reads(session: Session, tasks: list[Task]) -> list[TaskRead]:
 
     repository_ids_by_task: dict[str, list[str]] = {task_id: [] for task_id in task_ids}
     for member in session.exec(
-        select(TaskRepository)
-        .where(col(TaskRepository.task_id).in_(task_ids))
-        .order_by(col(TaskRepository.created_at))
+        select(TaskRepository).where(col(TaskRepository.task_id).in_(task_ids)).order_by(col(TaskRepository.created_at))
     ).all():
         repository_ids_by_task.setdefault(member.task_id, []).append(member.repository_id)
 

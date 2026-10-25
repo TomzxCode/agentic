@@ -19,8 +19,6 @@ from datetime import UTC, datetime
 from importlib.metadata import PackageNotFoundError, version
 from typing import Any
 
-from agentic.config import settings
-
 from .protocol import (
     INVALID_PARAMS,
     METHOD_NOT_FOUND,
@@ -208,4 +206,5 @@ async def _cli_run(ctx: RpcContext, params: dict[str, Any]) -> dict[str, Any]:
 
 def _on_path(name: str) -> bool:
     import shutil
+
     return shutil.which(name) is not None

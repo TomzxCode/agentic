@@ -23,7 +23,9 @@ def register(app: App) -> None:
 MethodArg = Annotated[str, Parameter(help="JSON-RPC method to call, e.g. server.info.")]
 ParamsJsonArg = Annotated[str | None, Parameter(help="JSON object of method parameters, or '-' / '@path'.")]
 ParamsArg = Annotated[str | None, Parameter(name="--params", help="JSON object of method parameters.")]
-ParamsFileArg = Annotated[Path | None, Parameter(name="--params-file", help="Read parameters from a file or stdin with '-'.")]
+ParamsFileArg = Annotated[
+    Path | None, Parameter(name="--params-file", help="Read parameters from a file or stdin with '-'.")
+]
 CompactArg = Annotated[bool, Parameter(name="--compact", help="Print the result as one compact JSON line.")]
 UrlArg = Annotated[str | None, Parameter(name="--url", help="RPC endpoint URL.")]
 TokenArg = Annotated[str | None, Parameter(name="--token", help="Bearer token.")]

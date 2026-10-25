@@ -57,7 +57,10 @@ export function layoutGraph(nodes, edges, options = {}) {
       for (const e of cleanEdges) {
         if (e.after_id === id && primary.has(e.before_id)) {
           const candidate = primary.get(e.before_id)
-          if (!used.has(candidate)) { p = candidate; break }
+          if (!used.has(candidate)) {
+            p = candidate
+            break
+          }
         }
       }
       if (p === null) {

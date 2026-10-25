@@ -2,6 +2,7 @@
 
 import asyncio
 from types import SimpleNamespace
+from typing import Any
 
 import pytest
 
@@ -63,7 +64,7 @@ def _spawn_with(conn, process=None):
 
 
 def _harness(harness_id="opencode2", **kwargs):
-    fields = {"name": "OpenCode v2", "command": "opencode2", "args": ["acp"]}
+    fields: dict[str, Any] = {"name": "OpenCode v2", "command": "opencode2", "args": ["acp"]}
     fields.update(kwargs)
     return Harness(id=harness_id, **fields)
 
@@ -130,7 +131,7 @@ async def test_pool_reports_a_harness_that_will_not_start():
     models = await pool.models(_harness("pi"))
     assert models.choices == []
     assert models.live is False
-    assert "no such command" in models.error
+    assert models.error is not None and "no such command" in models.error
 
 
 @pytest.mark.asyncio
@@ -142,7 +143,7 @@ async def test_pool_closes_a_harness_that_fails_after_it_starts():
     process = FakeProcess()
     pool = HarnessSessionPool(spawn=_spawn_with(BadConn(), process))
     models = await pool.models(_harness("pi"))
-    assert "handshake failed" in models.error
+    assert models.error is not None and "handshake failed" in models.error
     # The spawned process is closed rather than left behind.
     assert process.returncode == 0
 

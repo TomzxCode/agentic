@@ -139,7 +139,9 @@ def parse_report(path: Path, text: str) -> Report:
             oppose = _OPPOSE_RE.match(line)
             if support or oppose:
                 target = current.supported_by if support else current.opposed_by
-                for name in _split_names((support or oppose).group(1)):
+                match = support or oppose
+                assert match is not None
+                for name in _split_names(match.group(1)):
                     if name.casefold() != person.casefold() and name not in target:
                         target.append(name)
                 continue

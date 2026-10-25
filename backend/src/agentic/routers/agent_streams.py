@@ -39,11 +39,13 @@ def _task_signature(session: Session, task_id: str) -> tuple:
     these streams; the signature lets a stream notice its writes by polling the DB.
     A single query (with scalar subqueries) keeps the polling cheap.
     """
+    # sqlmodel's generated `select` overloads stop at four entities, so the
+    # six-column form below cannot typecheck.
     row = session.exec(
-        select(
-            Task.title,
-            Task.summary,
-            Task.updated_at,
+        select(  # ty: ignore[no-matching-overload]
+            col(Task.title),
+            col(Task.summary),
+            col(Task.updated_at),
             select(func.count()).select_from(AgentRun).where(AgentRun.task_id == task_id).scalar_subquery(),
             select(func.group_concat(AgentRun.id + ":" + AgentRun.status))
             .where(AgentRun.task_id == task_id)

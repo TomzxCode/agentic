@@ -90,11 +90,7 @@ onMounted(load)
           :overrides="settings.overrides"
           :effective="settings.effective"
         />
-        <SettingsSlack
-          v-show="active === 'slack'"
-          :overrides="settings.overrides"
-          :defaults="settings.defaults"
-        />
+        <SettingsSlack v-show="active === 'slack'" :overrides="settings.overrides" :defaults="settings.defaults" />
         <SettingsHarnesses v-show="active === 'harnesses'" />
         <SettingsPrompts v-show="active === 'prompts'" :overrides="settings.overrides" :defaults="settings.defaults" />
         <SettingsRefresh

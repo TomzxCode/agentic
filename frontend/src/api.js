@@ -10,13 +10,16 @@ const pendingRequests = new Map()
 async function executeRequest(path, method, body, bodyString) {
   const headers = { ...PROVENANCE_HEADERS }
   if (body !== undefined) headers['Content-Type'] = 'application/json'
-  const start = typeof performance !== 'undefined' && typeof performance.now === 'function' ? performance.now() : Date.now()
+  const start =
+    typeof performance !== 'undefined' && typeof performance.now === 'function' ? performance.now() : Date.now()
   const res = await fetch(API + path, {
     method,
     headers,
     body: bodyString
   })
-  const duration = (typeof performance !== 'undefined' && typeof performance.now === 'function' ? performance.now() : Date.now()) - start
+  const duration =
+    (typeof performance !== 'undefined' && typeof performance.now === 'function' ? performance.now() : Date.now()) -
+    start
   const getHeader = (name) => (res.headers && typeof res.headers.get === 'function' ? res.headers.get(name) : null)
   const dbQueries = Number(getHeader('x-debug-db-queries') || 0)
   const dbTime = Number(getHeader('x-debug-db-time-ms') || 0)

@@ -85,9 +85,13 @@ async function resolveLinkedTask() {
     resolvedTask.value = (store.tasks || []).find((item) => item.id === taskId) || null
   }
 }
-watch(() => [props.url, store.items, store.tasks], () => {
-  resolveLinkedTask()
-}, { immediate: true, deep: true })
+watch(
+  () => [props.url, store.items, store.tasks],
+  () => {
+    resolveLinkedTask()
+  },
+  { immediate: true, deep: true }
+)
 
 async function adoptTask(task) {
   if (!task?.id) return
@@ -97,8 +101,6 @@ async function adoptTask(task) {
     resolvedTask.value = task
   }
 }
-
-
 
 // The pull requests to render: the task's linked PRs, or the single PR named by
 // `url` when this panel is used as a standalone view.

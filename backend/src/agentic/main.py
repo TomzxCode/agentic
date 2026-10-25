@@ -64,9 +64,9 @@ from .routers import (
 )
 from .routers import settings as settings_router
 from .routers import tags as tags_router
+from .rpc.server import add_rpc_routes
 from .schedules import reconcile_scheduled_runs, scheduler_loop
 from .services.managed_tools import managed_tools
-from .rpc.server import add_rpc_routes
 
 log = structlog.get_logger(__name__)
 configure_logging()
@@ -293,6 +293,7 @@ add_rpc_routes(
     token=settings.rpc_token or None,
     allow_exec=settings.rpc_allow_exec,
 )
+
 
 @app.get("/api/health")
 def health() -> dict[str, str]:

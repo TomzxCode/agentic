@@ -34,7 +34,7 @@ def _read_all(session: Session, entries: list[StackEntry]) -> list[StackEntryRea
     task_ids = [entry.task_id for entry in entries if entry.task_id]
     tasks_by_id = {}
     if task_ids:
-        for task in session.exec(select(Task).where(Task.id.in_(task_ids))).all():
+        for task in session.exec(select(Task).where(col(Task.id).in_(task_ids))).all():
             tasks_by_id[task.id] = task
     task_reads = _task_reads(session, [tasks_by_id[tid] for tid in task_ids if tid in tasks_by_id])
     task_read_by_id = {read.id: read for read in task_reads}
@@ -43,7 +43,9 @@ def _read_all(session: Session, entries: list[StackEntry]) -> list[StackEntryRea
     sessions_by_entry: dict[str, list[TaskSession]] = {entry_id: [] for entry_id in entry_ids}
     if entry_ids:
         for stint in session.exec(
-            select(TaskSession).where(TaskSession.stack_entry_id.in_(entry_ids)).order_by(col(TaskSession.started_at))
+            select(TaskSession)
+            .where(col(TaskSession.stack_entry_id).in_(entry_ids))
+            .order_by(col(TaskSession.started_at))
         ).all():
             sessions_by_entry.setdefault(stint.stack_entry_id, []).append(stint)
 

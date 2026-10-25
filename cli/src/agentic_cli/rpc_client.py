@@ -64,7 +64,9 @@ class RpcClient:
             raise RpcTransportError(f"server at {self.url} returned an unexpected payload")
         error = payload.get("error")
         if isinstance(error, dict):
-            raise RpcError(int(error.get("code", -32603)), str(error.get("message", "JSON-RPC error")), error.get("data"))
+            raise RpcError(
+                int(error.get("code", -32603)), str(error.get("message", "JSON-RPC error")), error.get("data")
+            )
         if "result" not in payload:
             raise RpcTransportError(f"server at {self.url} returned no result")
         return payload["result"]

@@ -39,7 +39,9 @@ async function load() {
 }
 onMounted(load)
 
-const layout = computed(() => layoutGraph(graph.value.nodes, graph.value.edges, { nodeHeight: 56, direction: direction.value }))
+const layout = computed(() =>
+  layoutGraph(graph.value.nodes, graph.value.edges, { nodeHeight: 56, direction: direction.value })
+)
 
 const nodes = computed(() =>
   layout.value.nodes.map((node) => {
@@ -113,7 +115,9 @@ const linkedCount = computed(() => graph.value.edges.length)
         <input v-model="includeDone" type="checkbox" @change="load" />
         Include done
       </label>
-      <button class="btn sm ghost" @click="toggleDirection">Layout: {{ direction === 'LR' ? 'Horizontal' : 'Vertical' }}</button>
+      <button class="btn sm ghost" @click="toggleDirection">
+        Layout: {{ direction === 'LR' ? 'Horizontal' : 'Vertical' }}
+      </button>
       <button class="btn sm ghost" @click="load"><span v-if="loading" class="spinner"></span> Refresh</button>
     </div>
 
@@ -158,13 +162,15 @@ const linkedCount = computed(() => graph.value.edges.length)
     </section>
 
     <div v-if="hasGraph" class="dep-legend" style="flex-shrink: 0">
-    <span class="legend-item"><span class="dep-dot st-open"></span>open</span>
-    <span class="legend-item"><span class="dep-dot st-in_progress"></span>in progress</span>
-    <span class="legend-item"><span class="dep-dot st-blocked"></span>blocked</span>
-    <span class="legend-item"><span class="dep-dot st-done"></span>done</span>
-    <span class="legend-item"><span class="dep-dot st-archived"></span>archived</span>
-    <span class="legend-item">arrows point from a task to the ones that follow it</span>
-    <span class="legend-item">drag from a node's right handle to another's left to link; click a link to remove it</span>
-  </div>
+      <span class="legend-item"><span class="dep-dot st-open"></span>open</span>
+      <span class="legend-item"><span class="dep-dot st-in_progress"></span>in progress</span>
+      <span class="legend-item"><span class="dep-dot st-blocked"></span>blocked</span>
+      <span class="legend-item"><span class="dep-dot st-done"></span>done</span>
+      <span class="legend-item"><span class="dep-dot st-archived"></span>archived</span>
+      <span class="legend-item">arrows point from a task to the ones that follow it</span>
+      <span class="legend-item"
+        >drag from a node's right handle to another's left to link; click a link to remove it</span
+      >
+    </div>
   </div>
 </template>

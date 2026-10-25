@@ -55,6 +55,7 @@ def test_resolving_a_thread_creates_an_item_with_its_canonical_external_id():
         assert item["done"] is True
         with Session(engine) as session:
             stored = session.get(SourceItem, item["id"])
+            assert stored is not None
             assert stored.done_message_ts == thread_ts
 
         # Marking it resolved again finds the same item rather than a second one.

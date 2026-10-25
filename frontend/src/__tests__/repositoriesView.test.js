@@ -207,7 +207,7 @@ describe('RepositoriesView', () => {
     expect(wrapper.text()).not.toContain('/src/api')
     expect(wrapper.text()).toContain('1 of 2 repositories')
   })
-  
+
   it('shows a Refresh button that re-reads the tracked repositories', async () => {
     const wrapper = await mountView()
     const button = wrapper.get('button[aria-label="Refresh the tracked repositories"]')

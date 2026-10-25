@@ -37,7 +37,8 @@ watch(cycleRepositoryId, (value) => {
 // whose activity is theirs; upstream checkouts stay available below them.
 const cycleRepositories = computed(() => {
   const login = (store.settings?.github_login || '').toLowerCase()
-  const owner = (repository) => (/(?:github\.com[/:])([^/]+)\//.exec(repository.remote_url || '')?.[1] || '').toLowerCase()
+  const owner = (repository) =>
+    (/(?:github\.com[/:])([^/]+)\//.exec(repository.remote_url || '')?.[1] || '').toLowerCase()
   return (store.repositories || [])
     .filter((repository) => /github\.com/.test(repository.remote_url || ''))
     .sort((a, b) => {

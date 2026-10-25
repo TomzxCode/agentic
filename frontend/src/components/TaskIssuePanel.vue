@@ -65,9 +65,13 @@ async function resolveLinkedTask() {
     resolvedTask.value = (store.tasks || []).find((item) => item.id === taskId) || null
   }
 }
-watch(() => [props.url, store.items, store.tasks], () => {
-  resolveLinkedTask()
-}, { immediate: true, deep: true })
+watch(
+  () => [props.url, store.items, store.tasks],
+  () => {
+    resolveLinkedTask()
+  },
+  { immediate: true, deep: true }
+)
 
 async function adoptTask(task) {
   if (!task?.id) return
@@ -98,8 +102,6 @@ const issues = computed(() => {
   }
   return props.task ? taskIssues(props.task) : []
 })
-
-
 </script>
 
 <template>

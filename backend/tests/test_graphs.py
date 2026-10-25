@@ -381,7 +381,9 @@ def test_two_node_graph_renders_downstream_prompt(monkeypatch):
         )
         assert row.error == ""
         with Session(engine) as session:
-            state = session.get(GraphExecution, execution_id).state
+            execution = session.get(GraphExecution, execution_id)
+            assert execution is not None
+            state = execution.state
         assert state["outputs"]["a"] == "DRAFT TEXT"
 
         # The execution detail reports every node, with outputs.
@@ -506,6 +508,7 @@ def test_unused_form_is_skipped_and_duplicate_run_conflicts(monkeypatch):
         # A graph whose definition no longer validates refuses to run.
         with Session(engine) as session:
             graph = session.get(ExecutionGraph, graph_id)
+            assert graph is not None
             graph.definition = _definition([], [])
             session.add(graph)
             session.commit()
@@ -637,6 +640,7 @@ async def test_scheduler_fires_due_graph_once(monkeypatch):
     graph_id = _make_graph(definition, name="scheduled", schedule="* * * * *", enabled=True)
     with Session(engine) as session:
         graph = session.get(ExecutionGraph, graph_id)
+        assert graph is not None
         graph.next_run_at = utcnow() - timedelta(minutes=1)
         session.add(graph)
         session.commit()
@@ -645,6 +649,7 @@ async def test_scheduler_fires_due_graph_once(monkeypatch):
     # The occurrence advanced, so a second tick does not fire again.
     with Session(engine) as session:
         graph = session.get(ExecutionGraph, graph_id)
+        assert graph is not None and graph.next_run_at is not None
         assert graph.next_run_at > utcnow()
         execution = session.exec(select(GraphExecution)).first()
         assert execution is not None and execution.trigger == "schedule"

@@ -143,7 +143,7 @@ const harnessOptions = computed(() => [
 ])
 const worktreeOptions = computed(() => [
   { value: '', label: 'Auto working directory' },
-  ...((props.task?.worktrees) || []).filter((w) => w.status === 'active').map((w) => ({ value: w.id, label: w.branch }))
+  ...(props.task?.worktrees || []).filter((w) => w.status === 'active').map((w) => ({ value: w.id, label: w.branch }))
 ])
 
 // The models the selected harness offers. They live on its ACP session and are
@@ -471,9 +471,12 @@ function adopt(run) {
 
 defineExpose({ adopt })
 
-watch(() => props.task?.id, () => {
-  loadRuns()
-})
+watch(
+  () => props.task?.id,
+  () => {
+    loadRuns()
+  }
+)
 onMounted(() => {
   loadRuns()
 })

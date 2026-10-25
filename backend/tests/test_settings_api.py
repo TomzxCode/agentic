@@ -380,7 +380,9 @@ def test_refresh_status_counts_a_legacy_last_run_in_the_window():
         assert get_refresh_status(session)["slack"]["refreshed_24h"] == 5
 
         # And it counts zero once that run is older than the window.
-        session.get(Setting, "slack_refresh_status").value = json.dumps(
+        setting = session.get(Setting, "slack_refresh_status")
+        assert setting is not None
+        setting.value = json.dumps(
             {"last_run_at": (now - timedelta(hours=30)).isoformat(), "refreshed": 5, "failed": 0}
         )
         session.commit()

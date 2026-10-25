@@ -15,13 +15,14 @@ const url = computed(() => `https://github.com/${owner.value}/${repo.value}/issu
 // view is reached through Repositories / owner/repo rather than Resources.
 const repository = computed(() => {
   const wanted = `${owner.value}/${repo.value}`.toLowerCase()
-  return (store.repositories || []).find((entry) => {
-    const remote = parseRemote(entry.remote_url)
-    return remote && `${remote.owner}/${remote.repo}`.toLowerCase() === wanted
-  }) || null
+  return (
+    (store.repositories || []).find((entry) => {
+      const remote = parseRemote(entry.remote_url)
+      return remote && `${remote.owner}/${remote.repo}`.toLowerCase() === wanted
+    }) || null
+  )
 })
 const backLink = computed(() => (repository.value ? `/repositories/${repository.value.id}` : '/repositories'))
-const backLabel = computed(() => (repository.value ? repository.value.name : `${owner.value}/${repo.value}`))
 
 onMounted(async () => {
   await store.loadHarnesses().catch(() => {})
@@ -36,7 +37,9 @@ onMounted(async () => {
   <div>
     <div class="faint" style="margin-bottom: 12px">
       <router-link to="/repositories">Repositories</router-link>
-      <template v-if="repository"> / <router-link :to="backLink">{{ repository.name }}</router-link></template>
+      <template v-if="repository">
+        / <router-link :to="backLink">{{ repository.name }}</router-link></template
+      >
       <template v-else> / {{ owner }}/{{ repo }}</template>
       / Issue #{{ number }}
     </div>

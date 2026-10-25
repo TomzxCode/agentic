@@ -31,8 +31,5 @@ def events_send_slack(
     if text:
         body["text"] = text
     with runtime._client() as client:
-        if event_id:
-            result = client.send_event_to_slack(event_id, body)
-        else:
-            result = client.send_events_to_slack(body)
+        result = client.send_event_to_slack(event_id, body) if event_id else client.send_events_to_slack(body)
     return emit(result, f"sent {result.get('count', 1)} event(s) to Slack")

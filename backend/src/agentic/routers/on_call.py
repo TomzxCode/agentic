@@ -218,7 +218,7 @@ def scan_channel(payload: OnCallScanRequest) -> dict[str, Any]:
             root = roots.get(thread_ts)
             if root is None:
                 # A reply without its root in this window; treat it as a root.
-                root = {
+                root: dict[str, Any] = {
                     "id": thread_ts,
                     "ts": thread_ts,
                     "title": message.get("text", "")[:80],

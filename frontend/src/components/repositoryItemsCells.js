@@ -63,12 +63,20 @@ export const LinksCell = defineComponent({
     const buttons = []
     if (internalPath) {
       buttons.push(
-        h(props.params.context.RouterLink, { to: internalPath, class: 'btn sm ghost', title: 'Open in app' }, () => 'View')
+        h(
+          props.params.context.RouterLink,
+          { to: internalPath, class: 'btn sm ghost', title: 'Open in app' },
+          () => 'View'
+        )
       )
     }
     if (row.ghxUrl) {
       buttons.push(
-        h('a', { class: 'btn sm ghost', href: row.ghxUrl, target: '_blank', rel: 'noopener', title: 'Open in ghx' }, 'ghx')
+        h(
+          'a',
+          { class: 'btn sm ghost', href: row.ghxUrl, target: '_blank', rel: 'noopener', title: 'Open in ghx' },
+          'ghx'
+        )
       )
     }
     if (!buttons.length) return null

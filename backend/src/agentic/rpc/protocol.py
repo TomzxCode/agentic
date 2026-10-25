@@ -64,9 +64,7 @@ def parse_request(payload: Any) -> RpcRequest:
 
     has_id = "id" in payload
     request_id = payload.get("id")
-    if isinstance(request_id, bool) or not (
-        request_id is None or isinstance(request_id, (str, int))
-    ):
+    if isinstance(request_id, bool) or not (request_id is None or isinstance(request_id, (str, int))):
         raise RpcError(INVALID_REQUEST, "Invalid Request", "id must be a string, number, or null")
 
     return RpcRequest(

@@ -62,8 +62,17 @@ async function scanChannel() {
   }
   const namespaces = ['onCall', 'oncall', 'on_call', 'onCallView', 'slack']
   const methods = [
-    'scan', 'scanChannel', 'list', 'fetch', 'get', 'threads', 'listThreads',
-    'fetchThreads', 'refresh', 'run', 'start'
+    'scan',
+    'scanChannel',
+    'list',
+    'fetch',
+    'get',
+    'threads',
+    'listThreads',
+    'fetchThreads',
+    'refresh',
+    'run',
+    'start'
   ]
   let found = false
   outer: for (const nsName of namespaces) {
@@ -75,11 +84,15 @@ async function scanChannel() {
         const result = await ns[method](payload)
         error.value = ''
         if (result?.lookback) lookback.value = result.lookback
-        const list =
-          Array.isArray(result) ? result :
-          Array.isArray(result?.threads) ? result.threads :
-          Array.isArray(result?.items) ? result.items :
-          Array.isArray(result?.data) ? result.data : null
+        const list = Array.isArray(result)
+          ? result
+          : Array.isArray(result?.threads)
+            ? result.threads
+            : Array.isArray(result?.items)
+              ? result.items
+              : Array.isArray(result?.data)
+                ? result.data
+                : null
         if (list) {
           threads.value = list
           found = true
@@ -105,10 +118,7 @@ async function scanChannel() {
       contexts.value[id] = thread.context || thread.summary || thread.text || ''
     }
     const prevCount = lastReplyCount.value[id]
-    const newMessages =
-      prevCount === undefined ||
-      (thread.replies || []).length > prevCount ||
-      thread.has_new_activity
+    const newMessages = prevCount === undefined || (thread.replies || []).length > prevCount || thread.has_new_activity
     lastReplyCount.value[id] = (thread.replies || []).length
     if (newMessages && !replyEdited.value[id]) {
       replies.value[id] = thread.reply || defaultDraft
@@ -167,7 +177,7 @@ async function submitReply(thread) {
         store.notify('Reply sent')
         submitting.value = ''
         return
-      } catch (e) {
+      } catch {
         // Try next.
       }
     }
@@ -195,7 +205,7 @@ async function toggleResolved(thread) {
         thread.has_new_activity = false
         store.notify(resolved ? 'Marked resolved' : 'Reopened')
         return
-      } catch (e) {
+      } catch {
         // Try next.
       }
     }
@@ -250,7 +260,11 @@ function persistConfig() {
     if (!ns) continue
     for (const method of methods) {
       if (typeof ns[method] === 'function') {
-        try { ns[method](payload) } catch (e) { /* ignore */ }
+        try {
+          ns[method](payload)
+        } catch {
+          /* ignore */
+        }
       }
     }
   }
@@ -268,14 +282,15 @@ onMounted(async () => {
       const s = await settingsNs.get()
       const effective = s?.effective || s || {}
       const overrides = s?.overrides || {}
-      if (effective.on_call_channel || overrides.on_call_channel) channel.value = effective.on_call_channel || overrides.on_call_channel
+      if (effective.on_call_channel || overrides.on_call_channel)
+        channel.value = effective.on_call_channel || overrides.on_call_channel
       if (effective.on_call_config || overrides.on_call_config) {
         const cfg = JSON.parse(effective.on_call_config || overrides.on_call_config)
         if (cfg?.frequency_minutes != null) frequencyMinutes.value = cfg.frequency_minutes
         if (cfg?.rotation_starts_at != null) rotationStartsAt.value = cfg.rotation_starts_at
         if (cfg?.rotation_ends_at != null) rotationEndsAt.value = cfg.rotation_ends_at
       }
-    } catch (e) {
+    } catch {
       // Ignore.
     }
   }
@@ -296,7 +311,7 @@ onBeforeUnmount(() => {
         <span v-if="loading" class="spinner" aria-hidden="true"></span>
         <span v-if="rotationState === 'waiting'" class="badge warning">Waiting for rotation start</span>
         <span v-if="rotationState === 'ended'" class="badge">Rotation ended</span>
-        <button class="btn sm" @click="scanChannel" :disabled="loading || !isActive">Scan now</button>
+        <button class="btn sm" :disabled="loading || !isActive" @click="scanChannel">Scan now</button>
         <button v-if="rotationState === 'stopped'" class="btn sm primary" @click="startRotation">Start</button>
         <button v-if="rotationState === 'running'" class="btn sm danger" @click="stopRotation">Stop</button>
       </span>
@@ -319,26 +334,26 @@ onBeforeUnmount(() => {
         <label>When the on-call rotation ends (refresh stops)</label>
         <input id="rotation-end" v-model="rotationEndsAt" type="datetime-local" class="input" />
       </div>
-      <p v-if="lookback" class="faint" style="margin: 4px 0 0">
-        Keeping the last {{ lookback }} fresh in slackx.
-      </p>
+      <p v-if="lookback" class="faint" style="margin: 4px 0 0">Keeping the last {{ lookback }} fresh in slackx.</p>
     </div>
 
     <div v-if="error" class="panel">
       <p style="margin-top: 0; color: var(--danger)">{{ error }}</p>
     </div>
 
-    <div v-if="!threads.length && !loading" class="empty">
-      No threads found in this channel yet.
-    </div>
+    <div v-if="!threads.length && !loading" class="empty">No threads found in this channel yet.</div>
 
     <div v-for="thread in threads" :key="thread.id || thread.ts" class="panel" style="margin-bottom: 8px">
       <div class="row" style="justify-content: space-between; gap: 10px; align-items: flex-start; flex-wrap: wrap">
         <div style="min-width: 0; flex: 1 1 220px">
           <strong>{{ thread.title || thread.id || thread.ts }}</strong>
           <span class="row" style="gap: 8px; margin-top: 4px">
-            <a v-if="thread.slack_url" :href="thread.slack_url" target="_blank" rel="noopener" class="btn sm ghost">Open in Slack</a>
-            <a v-if="thread.slackx_url" :href="thread.slackx_url" target="_blank" rel="noopener" class="btn sm ghost">Open in slackx</a>
+            <a v-if="thread.slack_url" :href="thread.slack_url" target="_blank" rel="noopener" class="btn sm ghost"
+              >Open in Slack</a
+            >
+            <a v-if="thread.slackx_url" :href="thread.slackx_url" target="_blank" rel="noopener" class="btn sm ghost"
+              >Open in slackx</a
+            >
             <span v-if="thread.resolved" class="badge ok">Resolved</span>
             <span v-if="thread.resolved && thread.has_new_activity" class="badge warning">New activity</span>
             <button class="btn sm" @click="toggleResolved(thread)">
@@ -346,8 +361,10 @@ onBeforeUnmount(() => {
             </button>
           </span>
           <div style="margin: 6px 0 0">
-            <p style="margin: 2px 0">{{ thread.user || 'Unknown' }}: {{ thread.text || thread.context || '(no text)' }}</p>
-            <p v-for="reply in (thread.replies || [])" :key="reply.ts" style="margin: 2px 0 2px 12px" class="faint">
+            <p style="margin: 2px 0">
+              {{ thread.user || 'Unknown' }}: {{ thread.text || thread.context || '(no text)' }}
+            </p>
+            <p v-for="reply in thread.replies || []" :key="reply.ts" style="margin: 2px 0 2px 12px" class="faint">
               {{ reply.user || 'Unknown' }}: {{ reply.text || '(no text)' }}
             </p>
           </div>
@@ -355,16 +372,24 @@ onBeforeUnmount(() => {
       </div>
       <div class="field" style="margin-top: 8px">
         <label>Prepared reply</label>
-        <textarea v-model="replies[thread.id || thread.ts]" class="input" rows="3" @input="replyEdited[thread.id || thread.ts] = true"></textarea>
+        <textarea
+          v-model="replies[thread.id || thread.ts]"
+          class="input"
+          rows="3"
+          @input="replyEdited[thread.id || thread.ts] = true"
+        ></textarea>
       </div>
       <div class="row" style="justify-content: flex-end; margin-top: 8px; gap: 8px">
-        <button v-if="!thread.task_id" class="btn sm" :disabled="creatingTask === (thread.id || thread.ts)" @click="createTask(thread)">
+        <button
+          v-if="!thread.task_id"
+          class="btn sm"
+          :disabled="creatingTask === (thread.id || thread.ts)"
+          @click="createTask(thread)"
+        >
           <span v-if="creatingTask === (thread.id || thread.ts)" class="spinner" aria-hidden="true"></span>
           Create task
         </button>
-        <RouterLink v-if="thread.task_id" :to="`/task/${thread.task_id}`" class="btn sm">
-          Open task
-        </RouterLink>
+        <RouterLink v-if="thread.task_id" :to="`/task/${thread.task_id}`" class="btn sm"> Open task </RouterLink>
         <button class="btn sm primary" :disabled="submitting === (thread.id || thread.ts)" @click="submitReply(thread)">
           <span v-if="submitting === (thread.id || thread.ts)" class="spinner" aria-hidden="true"></span>
           Submit reply

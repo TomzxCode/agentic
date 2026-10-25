@@ -14,8 +14,6 @@ from typing import Any
 from fastapi import FastAPI, Request, Response
 from fastapi.responses import JSONResponse
 
-from agentic.config import settings
-
 from .methods import RpcContext, dispatch
 from .protocol import (
     INVALID_REQUEST,
@@ -86,9 +84,7 @@ def add_rpc_routes(
 
         if isinstance(payload, list):
             if not payload:
-                return JSONResponse(
-                    error_response(None, INVALID_REQUEST, "Invalid Request", "Empty batch")
-                )
+                return JSONResponse(error_response(None, INVALID_REQUEST, "Invalid Request", "Empty batch"))
             responses = []
             for item in payload:
                 response = await _handle_one(ctx, item)

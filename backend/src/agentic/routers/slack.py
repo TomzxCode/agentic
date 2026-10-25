@@ -32,28 +32,55 @@ def list_users(ids: list[str] = Query(default=[])) -> SlackUsers:
 
 # Send one event (identified in the path or in the body).
 @router.post("/events/{event_id}")
-def send_slack_event(event_id: str, payload: SlackEventSend | None = Body(default=None), user_id: str | None = Query(default=None), channel: str | None = Query(default=None), session: Session = Depends(get_session)):
+def send_slack_event(
+    event_id: str,
+    payload: SlackEventSend | None = Body(default=None),
+    user_id: str | None = Query(default=None),
+    channel: str | None = Query(default=None),
+    session: Session = Depends(get_session),
+):
     return _send_one_event(session, event_id, payload, user_id, channel)
 
 
 @router.post("/event/{event_id}")
-def send_slack_event_alias(event_id: str, payload: SlackEventSend | None = Body(default=None), user_id: str | None = Query(default=None), channel: str | None = Query(default=None), session: Session = Depends(get_session)):
+def send_slack_event_alias(
+    event_id: str,
+    payload: SlackEventSend | None = Body(default=None),
+    user_id: str | None = Query(default=None),
+    channel: str | None = Query(default=None),
+    session: Session = Depends(get_session),
+):
     return _send_one_event(session, event_id, payload, user_id, channel)
 
 
 # Send several / recent events.
 @router.post("/events")
-def send_slack_events(payload: SlackEventSend | None = Body(default=None), user_id: str | None = Query(default=None), channel: str | None = Query(default=None), session: Session = Depends(get_session)):
+def send_slack_events(
+    payload: SlackEventSend | None = Body(default=None),
+    user_id: str | None = Query(default=None),
+    channel: str | None = Query(default=None),
+    session: Session = Depends(get_session),
+):
     return _send_events(session, payload, user_id, channel)
 
 
 @router.post("/event")
-def send_slack_event_multi(payload: SlackEventSend | None = Body(default=None), user_id: str | None = Query(default=None), channel: str | None = Query(default=None), session: Session = Depends(get_session)):
+def send_slack_event_multi(
+    payload: SlackEventSend | None = Body(default=None),
+    user_id: str | None = Query(default=None),
+    channel: str | None = Query(default=None),
+    session: Session = Depends(get_session),
+):
     return _send_events(session, payload, user_id, channel)
 
 
 @router.post("/send")
-def slack_send(payload: SlackEventSend | None = Body(default=None), user_id: str | None = Query(default=None), channel: str | None = Query(default=None), session: Session = Depends(get_session)):
+def slack_send(
+    payload: SlackEventSend | None = Body(default=None),
+    user_id: str | None = Query(default=None),
+    channel: str | None = Query(default=None),
+    session: Session = Depends(get_session),
+):
     # If a single event_id is given, send that one; otherwise send many.
     if payload is not None and (payload.event_id and not payload.event_ids and not payload.task_id):
         return _send_one_event(session, payload.event_id, payload, user_id, channel)
@@ -61,19 +88,37 @@ def slack_send(payload: SlackEventSend | None = Body(default=None), user_id: str
 
 
 @router.post("/send-event")
-def slack_send_event_endpoint(payload: SlackEventSend | None = Body(default=None), user_id: str | None = Query(default=None), channel: str | None = Query(default=None), session: Session = Depends(get_session)):
+def slack_send_event_endpoint(
+    payload: SlackEventSend | None = Body(default=None),
+    user_id: str | None = Query(default=None),
+    channel: str | None = Query(default=None),
+    session: Session = Depends(get_session),
+):
     if payload is not None and (payload.event_id and not payload.event_ids and not payload.task_id):
         return _send_one_event(session, payload.event_id, payload, user_id, channel)
     return _send_events(session, payload, user_id, channel)
 
 
 @router.post("/send-events")
-def slack_send_events_endpoint(payload: SlackEventSend | None = Body(default=None), user_id: str | None = Query(default=None), channel: str | None = Query(default=None), session: Session = Depends(get_session)):
+def slack_send_events_endpoint(
+    payload: SlackEventSend | None = Body(default=None),
+    user_id: str | None = Query(default=None),
+    channel: str | None = Query(default=None),
+    session: Session = Depends(get_session),
+):
     return _send_events(session, payload, user_id, channel)
 
 
-def _send_test(session: Session, payload: SlackEventSend | None = None, user_id: str | None = None, channel: str | None = None, text: str | None = None) -> dict[str, Any]:
+def _send_test(
+    session: Session,
+    payload: SlackEventSend | None = None,
+    user_id: str | None = None,
+    channel: str | None = None,
+    text: str | None = None,
+) -> dict[str, Any]:
     recipient = _event_recipient(session, payload, user_id, channel)
+    if not recipient:
+        raise HTTPException(status_code=400, detail="No Slack recipient configured")
     message = text or "Agentic test notification"
     try:
         sent = slack.slack_send_bot_dm(recipient, message)
@@ -83,10 +128,22 @@ def _send_test(session: Session, payload: SlackEventSend | None = None, user_id:
 
 
 @router.post("/test")
-def slack_test(payload: SlackEventSend | None = Body(default=None), user_id: str | None = Query(default=None), channel: str | None = Query(default=None), text: str | None = Query(default=None), session: Session = Depends(get_session)):
+def slack_test(
+    payload: SlackEventSend | None = Body(default=None),
+    user_id: str | None = Query(default=None),
+    channel: str | None = Query(default=None),
+    text: str | None = Query(default=None),
+    session: Session = Depends(get_session),
+):
     return _send_test(session, payload, user_id, channel, text)
 
 
 @router.post("/test-notification")
-def slack_test_notification(payload: SlackEventSend | None = Body(default=None), user_id: str | None = Query(default=None), channel: str | None = Query(default=None), text: str | None = Query(default=None), session: Session = Depends(get_session)):
+def slack_test_notification(
+    payload: SlackEventSend | None = Body(default=None),
+    user_id: str | None = Query(default=None),
+    channel: str | None = Query(default=None),
+    text: str | None = Query(default=None),
+    session: Session = Depends(get_session),
+):
     return _send_test(session, payload, user_id, channel, text)
