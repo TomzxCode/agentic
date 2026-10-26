@@ -64,8 +64,8 @@ class HarnessModelChoice(BaseModel):
 class HarnessModelsRead(BaseModel):
     """The models a harness offers, read from a live ACP session.
 
-    ``live`` says the answer came from a session the API holds open (the default
-    harness); otherwise it came from a short-lived session on request. ``error``
+    ``live`` says the answer came from a session the API holds open; every
+    harness gets one held and reused, so any answered request is live. ``error``
     is set when the harness could not be asked, so the caller shows why rather
     than an empty list.
     """

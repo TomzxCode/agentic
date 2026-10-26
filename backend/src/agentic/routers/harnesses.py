@@ -64,9 +64,10 @@ def list_harnesses_full(session: Session = Depends(get_session)) -> list[Harness
 async def list_harness_models(harness_id: str, session: Session = Depends(get_session)) -> HarnessModelsRead:
     """The models a harness offers, for the task view's model picker.
 
-    Answered from the warm session the API holds for the default harness, or
-    from a short-lived session for any other harness. A harness that cannot be
-    asked returns an empty list and the reason in ``error``.
+    Answered from the session the API holds open for this harness (the default
+    harness's is up from startup, any other's from its first ask), so repeated
+    asks reuse one session instead of spawning a harness each time. A harness
+    that cannot be asked returns an empty list and the reason in ``error``.
     """
     harness = get_or_404(session, Harness, harness_id, "Harness not found")
     models = await pool.models(harness)

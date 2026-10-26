@@ -102,7 +102,7 @@ async def test_pool_answers_the_default_harness_from_the_session_it_holds():
 
 
 @pytest.mark.asyncio
-async def test_pool_reads_a_harness_it_does_not_hold_on_demand_and_reuses_it():
+async def test_pool_holds_the_session_it_opens_and_reuses_it():
     spawned: list[str] = []
 
     def spawn(client, command, *args, **kwargs):
@@ -112,14 +112,37 @@ async def test_pool_reads_a_harness_it_does_not_hold_on_demand_and_reuses_it():
     pool = HarnessSessionPool(spawn=spawn)
     harness = _harness("pi")
     first = await pool.models(harness)
-    assert first.live is False
+    assert first.live is True
     assert [choice["value"] for choice in first.choices] == ["m1", "m2"]
 
-    # The result is cached, so a second ask does not spawn the harness again.
+    # The session is held open, so a second ask spawns the harness again only
+    # when the harness changed.
     second = await pool.models(harness)
     assert second.choices == first.choices
     assert spawned == ["opencode2"]
     await pool.stop()
+
+
+@pytest.mark.asyncio
+async def test_pool_reopens_when_the_harness_changes_and_closes_the_old_session():
+    processes: list[FakeProcess] = []
+
+    def spawn(client, command, *args, **kwargs):
+        process = FakeProcess()
+        processes.append(process)
+        return FakeSpawn(FakeConn([_model_option()]), process)
+
+    pool = HarnessSessionPool(spawn=spawn)
+    harness = _harness("pi")
+    await pool.models(harness)
+    changed = _harness("pi", model="zai/glm")
+    models = await pool.models(changed)
+    assert models.live is True
+    assert len(processes) == 2
+    assert pool._sessions["pi"].fingerprint == fingerprint(changed)
+    await pool.stop()
+    # The replaced session's process was closed, not left behind.
+    assert processes[0].returncode == 0
 
 
 @pytest.mark.asyncio
@@ -159,7 +182,7 @@ async def test_pool_closes_the_process_when_an_open_is_cancelled():
     with pytest.raises(asyncio.CancelledError):
         await pool._open(_harness())
     assert process.returncode == 0
-    assert pool._session is None
+    assert pool._sessions == {}
 
 
 @pytest.mark.asyncio
@@ -172,15 +195,15 @@ async def test_pool_keeps_a_session_up_for_the_default_harness(monkeypatch):
     pool.start()
     try:
         for _ in range(200):
-            if pool._session is not None:
+            if harness.id in pool._sessions:
                 break
             await asyncio.sleep(0.01)
-        assert pool._session is not None
+        assert harness.id in pool._sessions
         models = await pool.models(harness)
         assert models.live is True
     finally:
         await pool.stop()
-    assert pool._session is None
+    assert pool._sessions == {}
 
 
 def test_fingerprint_changes_with_the_harnesss_command_and_model():
