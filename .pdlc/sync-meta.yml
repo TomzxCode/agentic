@@ -1,0 +1,17 @@
+last_synced: 2026-10-26
+initialized: true
+write_location: repo
+mirror: not set (PDLC_DIR unset)
+structure: ok
+anchor: created
+anchor_file: AGENTS.md
+context_files_seeded:
+  - product-overview.md
+  - vision.md
+  - goals.md
+  - roadmap.md
+  - vocabulary.md
+drift: []
+notes: >-
+  First run: .pdlc/ was absent and was bootstrapped via initialize-pdlc-directory.
+  No initiatives or decisions exist yet, so no drift was detectable.
