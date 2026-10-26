@@ -30,7 +30,7 @@ Specifically:
 
 | File | Coverage |
 |---|---|
-| `frontend/src/__tests__/feedback.test.js` (10 cases) | The helpers and the view: section ordering with named ones first, the thread link extraction, grouping by recommendation and by pull request with PR-linked headings, counts including awaiting-run, the rendered list with recommendation and sections, recording a decision and reflecting it on the card, resetting a decision to null, the closed-PR filter under the active default, the search filter, and the empty state |
+| `frontend/src/__tests__/feedback.test.js` (13 cases) | The helpers and the view: section ordering with named ones first, the thread link extraction, grouping by recommendation and by pull request with PR-linked headings, counts including awaiting-run, the rendered list with recommendation and sections, recording a decision and reflecting it on the card, resetting a decision to null, the closed-PR filter under the active default, the search filter, the sidebar group pick filtering the list and clearing by picking it again or from the toolbar, the grouping change clearing the pick, and the empty state |
 
 ## Edge Cases and Failure Scenarios
 

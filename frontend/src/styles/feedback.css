@@ -68,6 +68,13 @@
 .feedback-controls .select {
   width: auto;
 }
+/* A picked group reads as a removable filter here too, because the group nav
+   is hidden on phones. */
+.feedback-controls .feedback-scope {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  text-align: left;
+}
 
 /* The author filter: a summary that opens a checkbox menu. */
 .filter-menu {
@@ -166,16 +173,29 @@
   display: flex;
   align-items: center;
   gap: 8px;
+  width: 100%;
   padding: 6px 8px;
+  border: 0;
   border-radius: 6px;
+  background: none;
   color: var(--muted);
+  font: inherit;
   font-size: 12.5px;
+  text-align: left;
+  cursor: pointer;
   margin-bottom: 2px;
 }
 .feedback-nav .nav-item:hover {
   background: var(--bg-2);
   color: var(--text);
   text-decoration: none;
+}
+.feedback-nav .nav-item.active {
+  background: var(--bg-2);
+  color: var(--text);
+}
+.feedback-nav .nav-item.active .nav-label {
+  font-weight: 600;
 }
 .feedback-nav .nav-label {
   overflow: hidden;
@@ -347,6 +367,7 @@
   }
   .feedback-controls .input,
   .feedback-controls .select,
+  .feedback-controls .feedback-scope,
   .feedback-controls .filter-menu {
     flex: 1 1 100%;
     width: 100%;

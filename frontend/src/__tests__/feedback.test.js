@@ -163,6 +163,66 @@ describe('FeedbackView', () => {
     expect(wrapper.text()).not.toContain('Beta')
   })
 
+  it('filters the list to the pull request picked in the sidebar', async () => {
+    mocks.list.mockResolvedValue({
+      root: '/home/u/.sdlc',
+      items: [
+        item({ feedback_id: 'on-42', pr: '42', title: 'On pull 42' }),
+        item({ feedback_id: 'on-43', pr: '43', title: 'On pull 43' })
+      ]
+    })
+    const wrapper = mount(FeedbackView)
+    await settle()
+    expect(wrapper.findAll('.feedback-card')).toHaveLength(2)
+
+    const navItems = () => wrapper.findAll('.feedback-nav .nav-item')
+    // All items, then one entry per pull request.
+    expect(navItems()).toHaveLength(3)
+
+    await navItems()
+      .find((nav) => nav.text().includes('#43'))
+      .trigger('click')
+    expect(wrapper.findAll('.feedback-card')).toHaveLength(1)
+    expect(wrapper.text()).toContain('On pull 43')
+    expect(wrapper.text()).not.toContain('On pull 42')
+    // The sidebar still lists every pull request, so another one is one click away.
+    expect(navItems()).toHaveLength(3)
+    expect(wrapper.get('.feedback-nav .nav-item.active').text()).toContain('#43')
+
+    // Picking the selected pull request again shows the whole queue.
+    await navItems()
+      .find((nav) => nav.text().includes('#43'))
+      .trigger('click')
+    expect(wrapper.findAll('.feedback-card')).toHaveLength(2)
+    expect(wrapper.get('.feedback-nav .nav-item.active').text()).toContain('All items')
+
+    // The picked pull request also clears from the toolbar.
+    await navItems()
+      .find((nav) => nav.text().includes('#42'))
+      .trigger('click')
+    expect(wrapper.findAll('.feedback-card')).toHaveLength(1)
+    await wrapper.get('.feedback-scope').trigger('click')
+    expect(wrapper.findAll('.feedback-card')).toHaveLength(2)
+  })
+
+  it('clears the sidebar pick when the grouping changes', async () => {
+    mocks.list.mockResolvedValue({
+      root: '/home/u/.sdlc',
+      items: [
+        item({ feedback_id: 'on-42', pr: '42', author: 'alice', title: 'On pull 42' }),
+        item({ feedback_id: 'on-43', pr: '43', author: 'bob', title: 'On pull 43' })
+      ]
+    })
+    const wrapper = mount(FeedbackView)
+    await settle()
+    await wrapper.findAll('.feedback-nav .nav-item').at(1).trigger('click')
+    expect(wrapper.findAll('.feedback-card')).toHaveLength(1)
+
+    await wrapper.get('select[title="Group feedback into sections by"]').setValue('author')
+    expect(wrapper.findAll('.feedback-card')).toHaveLength(2)
+    expect(wrapper.get('.feedback-nav .nav-item.active').text()).toContain('All items')
+  })
+
   it('shows the empty state when the store has no feedback', async () => {
     mocks.list.mockResolvedValue({ root: '/home/u/.sdlc', items: [] })
     const wrapper = mount(FeedbackView)

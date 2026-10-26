@@ -21,7 +21,11 @@ The header reads `PR feedback` with the item and pending counts, and `Refresh`.
 The root line names the directory the analysis was read from.
 Five tiles count `pending`, `implement`, `decline`, `defer`, and `to run`.
 
-The layout is a sidebar of group anchors and a list of cards.
+The layout is a sidebar of groups and a list of cards.
+Picking a group in the sidebar narrows the list to that group's cards (a pull request under the default grouping).
+Picking the same group again, or `All items`, shows the whole queue.
+The picked group also appears as a `Show all` button in the toolbar, so it can be cleared when the sidebar is hidden on a phone.
+Changing the grouping clears the pick.
 The toolbar sits above both:
 
 | Control | Options |
@@ -63,6 +67,7 @@ There is no confirmation step and no undo other than `Reset`.
 ### Good to know
 
 - The tiles and the header count only the items the filters show.
+- The sidebar keeps every group under the current filters, so you can switch without clearing the pick first.
 - Cards come from `~/.sdlc/{owner}/{repository}/pull-requests/{number}/feedback/`, one file per analyzed comment.
 - Group headings link to GitHub, not to an app page.
 - A pull request whose state cannot be read stays under `Active PRs`.

@@ -35,7 +35,7 @@ The app never touches GitHub: the decision, not this feature, queues the follow-
 | FR-9 | Must | The decision endpoint shall accept only implement, decline, defer, or null as a reset; an unknown feedback id answers 404, and a file without frontmatter or one that cannot be re-read answers 422. |
 | FR-10 | Must | The listing shall report counts of pending, implement, decline, defer, and awaiting-run items, and name the store root it scanned, or none when the store is missing. |
 | FR-11 | Should | The web app shall show one card per item at `/feedback` with recommendation, confidence, kind, PR state, decision, and run-state pills, the sections with the first one open, a thread link, and a copyable suggested reply. |
-| FR-12 | Should | The view shall filter by search, PR state, repository, author, status, recommendation, and execution state, and group and sort the cards, with grouping and sorting remembered on the device. |
+| FR-12 | Should | The view shall filter by search, PR state, repository, author, status, recommendation, and execution state, group and sort the cards, and narrow the list to a group picked in the sidebar, with grouping and sorting remembered on the device. |
 | FR-13 | Must | Frontmatter writes shall replace the file atomically, so a crash cannot leave it truncated. |
 
 ## Non-Functional Requirements

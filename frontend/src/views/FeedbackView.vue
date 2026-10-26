@@ -51,8 +51,14 @@ const execFilter = ref('')
 const selectedAuthors = ref([])
 const groupBy = ref(readStored(GROUP_KEY, 'pr'))
 const sortBy = ref(readStored(SORT_KEY, 'date-desc'))
+// The group the sidebar picked (a pull request under the default grouping).
+// Selecting one narrows the list to its items; selecting it again clears it.
+const selectedGroup = ref('')
 
 watch(groupBy, (value) => {
+  // A group key belongs to one grouping (a PR number is not an author), so the
+  // sidebar selection cannot carry over.
+  selectedGroup.value = ''
   try {
     localStorage.setItem(GROUP_KEY, value)
   } catch {
@@ -112,9 +118,25 @@ function matchesFilters(item) {
   return true
 }
 
-const visible = computed(() => items.value.filter(matchesFilters))
+const filtered = computed(() => items.value.filter(matchesFilters))
+const visible = computed(() => {
+  if (!selectedGroup.value) return filtered.value
+  const grouping = FEEDBACK_GROUPINGS[groupBy.value] || FEEDBACK_GROUPINGS.pr
+  return filtered.value.filter((item) => (grouping.key(item) || '(none)') === selectedGroup.value)
+})
 const counts = computed(() => feedbackCounts(visible.value))
-const groups = computed(() => groupFeedback(visible.value, groupBy.value, sortBy.value))
+// The sidebar lists every group the filters leave, so another group is always
+// one click away, while the list itself shows only the selected group.
+const groups = computed(() => groupFeedback(filtered.value, groupBy.value, sortBy.value))
+const shownGroups = computed(() =>
+  selectedGroup.value ? groups.value.filter((group) => group.key === selectedGroup.value) : groups.value
+)
+
+// A group can disappear when another filter narrows the items, so drop a
+// selection that no longer names a group rather than leave an empty list.
+watch(groups, (value) => {
+  if (selectedGroup.value && !value.some((group) => group.key === selectedGroup.value)) selectedGroup.value = ''
+})
 
 const summary = computed(() => {
   const total = visible.value.length
@@ -137,6 +159,11 @@ function toggleAuthor(author) {
 
 function selectAllAuthors(names) {
   selectedAuthors.value = [...names]
+}
+
+// Picking a group narrows the list; picking it again goes back to everything.
+function toggleGroup(key) {
+  selectedGroup.value = selectedGroup.value === key ? '' : key
 }
 
 async function setDecision(item, value) {
@@ -226,6 +253,15 @@ onMounted(load)
 
       <div class="feedback-controls">
         <input v-model="search" class="input" type="search" placeholder="Search title, author, repo, id…" />
+        <button
+          v-if="selectedGroup"
+          type="button"
+          class="btn sm ghost feedback-scope"
+          :title="`Show every ${FEEDBACK_GROUPINGS[groupBy]?.title.toLowerCase() || 'item'}`"
+          @click="selectedGroup = ''"
+        >
+          Showing {{ selectedGroup }}. Show all
+        </button>
         <select v-model="stateFilter" class="select" title="Filter by PR state">
           <option value="active">Active PRs</option>
           <option value="all">All PRs</option>
@@ -296,16 +332,35 @@ onMounted(load)
       <div v-else class="feedback-layout">
         <aside class="feedback-nav">
           <div class="sidebar-title">{{ FEEDBACK_GROUPINGS[groupBy]?.title || 'Groups' }}</div>
-          <a v-for="group in groups" :key="group.key" class="nav-item" :href="`#${slugify(group.key)}`">
+          <button
+            type="button"
+            class="nav-item"
+            :class="{ active: !selectedGroup }"
+            :aria-pressed="!selectedGroup"
+            @click="selectedGroup = ''"
+          >
+            <span class="nav-label">All items</span>
+            <span class="nav-count">{{ filtered.length }}</span>
+          </button>
+          <button
+            v-for="group in groups"
+            :key="group.key"
+            type="button"
+            class="nav-item"
+            :class="{ active: selectedGroup === group.key }"
+            :aria-pressed="selectedGroup === group.key"
+            :title="`Show only ${group.label}`"
+            @click="toggleGroup(group.key)"
+          >
             <span class="nav-label">{{ group.label }}</span>
             <span class="nav-count">{{ group.items.length }}</span>
-          </a>
+          </button>
         </aside>
 
         <main class="feedback-list">
           <p v-if="!visible.length" class="empty">No items match the current filters.</p>
 
-          <section v-for="group in groups" :key="group.key" class="feedback-group">
+          <section v-for="group in shownGroups" :key="group.key" class="feedback-group">
             <div :id="slugify(group.key)" class="group-head">
               <a v-if="group.url" :href="group.url" target="_blank" rel="noopener">{{ group.label }}</a>
               <span v-else>{{ group.label }}</span>

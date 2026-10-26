@@ -357,7 +357,8 @@ comment, the analysis, a recommended action, and a draft reply). **Implement**,
 (`decision` + `decided_at`, leaving `executed_at` unset), which is the "decided
 but not run" state `handle-pr-reviewer-feedback` picks up and carries out on its
 next run; **Reset** clears the decision. Cards filter and group by pull request,
-repository, author, recommendation, status, or comment type, and a card for a
+repository, author, recommendation, status, or comment type, and picking a pull
+request (or any other group) in the sidebar narrows the list to it. A card for a
 closed PR is marked and hidden under the default "Active PRs" filter.
 
 The **Decisions** page (`/decisions`, the signpost icon) collects what your
