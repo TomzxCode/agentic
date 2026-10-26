@@ -15,6 +15,7 @@ vi.mock('../api', () => ({
 import MyPullsView from '../views/MyPullsView.vue'
 import {
   attentionRank,
+  attentionState,
   checkCounts,
   checkLabel,
   checkTone,
@@ -100,6 +101,27 @@ describe('my pulls helpers', () => {
     expect(attentionRank(pull())).toBe(4)
     expect(attentionRank(pull({ review_decision: 'APPROVED', approved: true, ci: 'success' }))).toBe(5)
     expect(attentionRank(pull({ review_decision: '', ci: 'none' }))).toBe(6)
+  })
+
+  it('names the state behind every rank', () => {
+    // The first of the three author-facing states wins when a pull request has more than one.
+    expect(attentionState(pull({ ci: 'failure', review_decision: 'CHANGES_REQUESTED', open_threads: 2 }))).toEqual({
+      rank: 0,
+      label: 'Failing checks'
+    })
+    expect(attentionState(pull({ review_decision: 'CHANGES_REQUESTED' }))).toEqual({
+      rank: 1,
+      label: 'Changes requested'
+    })
+    expect(attentionState(pull({ open_threads: 2 }))).toEqual({ rank: 2, label: '2 review threads open' })
+    expect(attentionState(pull({ open_threads: 1 }))).toMatchObject({ rank: 2, label: '1 review thread open' })
+    expect(attentionState(pull({ ci: 'pending' }))).toEqual({ rank: 3, label: 'Checks running' })
+    expect(attentionState(pull())).toEqual({ rank: 4, label: 'Review required' })
+    expect(attentionState(pull({ review_decision: 'APPROVED', approved: true }))).toEqual({
+      rank: 5,
+      label: 'Approved'
+    })
+    expect(attentionState(pull({ ci: 'none', review_decision: '' }))).toEqual({ rank: 6, label: 'No action needed' })
   })
 
   it('calls only failing checks, requested changes, and open threads attention', () => {
@@ -297,6 +319,47 @@ describe('MyPullsView', () => {
     // The failing PR needs attention, so it sorts above the other one.
     const numbers = wrapper.findAll('.my-pulls-link').map((link) => link.text())
     expect(numbers).toEqual(['#7', '#42'])
+  })
+
+  it('marks every rank with its own colour and names it on hover', async () => {
+    mocks.list.mockResolvedValue(
+      report([
+        pull({ number: 1, ci: 'failure', review_decision: 'REVIEW_REQUIRED', open_threads: 0 }),
+        pull({ number: 2, ci: 'success', review_decision: 'CHANGES_REQUESTED', open_threads: 0 }),
+        pull({ number: 3, ci: 'success', review_decision: 'REVIEW_REQUIRED', open_threads: 2, threads_total: 3 }),
+        pull({ number: 4, ci: 'pending', review_decision: 'REVIEW_REQUIRED', open_threads: 0 }),
+        pull({ number: 5, ci: 'success', review_decision: 'REVIEW_REQUIRED', open_threads: 0 }),
+        pull({ number: 6, ci: 'success', review_decision: 'APPROVED', approved: true, open_threads: 0 }),
+        pull({ number: 7, ci: 'none', review_decision: '', approved: false, open_threads: 0 })
+      ])
+    )
+    const wrapper = mount(MyPullsView, { global: { stubs: { RouterLink: RouterLinkStub } } })
+    await flushPromises()
+
+    // Seven ranks, seven edges, each naming the state behind it.
+    const rows = wrapper.findAll('.my-pulls-table tbody tr')
+    expect(rows).toHaveLength(7)
+    expect(rows.map((row) => row.classes().find((name) => name.startsWith('attention-rank-')))).toEqual([
+      'attention-rank-0',
+      'attention-rank-1',
+      'attention-rank-2',
+      'attention-rank-3',
+      'attention-rank-4',
+      'attention-rank-5',
+      'attention-rank-6'
+    ])
+    const edges = wrapper.findAll('.my-pulls-attention')
+    expect(edges).toHaveLength(7)
+    expect(edges.map((edge) => edge.attributes('title'))).toEqual([
+      'Failing checks',
+      'Changes requested',
+      '2 review threads open',
+      'Checks running',
+      'Review required',
+      'Approved',
+      'No action needed'
+    ])
+    expect(edges[0].attributes('aria-label')).toBe('Failing checks')
   })
 
   it('links each pull request to the app, ghx, and GitHub', async () => {

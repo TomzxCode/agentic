@@ -150,11 +150,46 @@
 .my-pulls-table tbody tr:hover td {
   background: var(--bg-2);
 }
-/* A pull request that needs its author (failing checks, requested changes, or an
-   open thread) carries a marker down its first cell, so the sorted list is
-   scannable without reading every badge. */
-.my-pulls-table tbody tr.needs-attention td:first-child {
-  box-shadow: inset 2px 0 0 var(--warn);
+/* Every row carries the rank that put it where it is as a vertical edge down its
+   first cell, in the colour of the state behind that rank, so the sorted list is
+   scannable without reading every badge. Hovering the edge names the state. */
+.my-pulls-table tbody tr {
+  --attention-color: var(--faint);
+}
+.my-pulls-table tbody tr.attention-rank-0 {
+  --attention-color: var(--danger);
+}
+.my-pulls-table tbody tr.attention-rank-1 {
+  --attention-color: #fb923c;
+}
+.my-pulls-table tbody tr.attention-rank-2 {
+  --attention-color: var(--warn);
+}
+.my-pulls-table tbody tr.attention-rank-3 {
+  --attention-color: var(--accent-2);
+}
+.my-pulls-table tbody tr.attention-rank-4 {
+  --attention-color: #a78bfa;
+}
+.my-pulls-table tbody tr.attention-rank-5 {
+  --attention-color: var(--ok);
+}
+.my-pulls-table tbody tr.attention-rank-6 {
+  --attention-color: var(--faint);
+}
+.my-pulls-table tbody td:first-child {
+  position: relative;
+}
+.my-pulls-attention {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  /* A 4px coloured edge, with the rest of the cell's padding as a wider hover
+     target for its tooltip. */
+  width: 8px;
+  background: linear-gradient(to right, var(--attention-color) 0 4px, transparent 4px);
+  cursor: help;
 }
 .my-pulls-pr-cell {
   display: flex;
@@ -362,7 +397,7 @@ a.my-pulls-check-name:hover {
   font-variant-numeric: tabular-nums;
 }
 /* An unresolved thread is what the author has to answer, so it is not faint like
-   the total beside it. */
+   the total beside it, and it shares the thread rank's amber. */
 .my-pulls-threads-open {
   color: var(--warn);
   font-weight: 600;
@@ -401,14 +436,12 @@ a.my-pulls-check-name:hover {
     gap: 6px 10px;
     padding: 10px 12px;
     border: 1px solid var(--border);
+    border-left: 3px solid var(--attention-color);
     border-radius: var(--radius);
     background: var(--bg-1);
   }
-  .my-pulls-table tbody tr.needs-attention {
-    border-left: 2px solid var(--warn);
-  }
-  .my-pulls-table tbody tr.needs-attention td:first-child {
-    box-shadow: none;
+  .my-pulls-attention {
+    display: none;
   }
   .my-pulls-table tbody tr:hover td {
     background: none;

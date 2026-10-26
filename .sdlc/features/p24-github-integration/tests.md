@@ -31,7 +31,7 @@ Out of scope: real network calls to GitHub or Slack, and the cycle-time reads th
 | TC-14 | The My PRs cache is reused without refresh, bypassed with refresh, and a failed lookup reports the unreachable error | test_my_pulls.py |
 | TC-15 | `fetch_my_pulls` without a login reports the no-login error | test_my_pulls.py |
 | TC-16 | Reviewer parsing keeps each reviewer once, keeps the latest decisive state over a later comment, keeps the last review time, marks a re-requested reviewer PENDING, and skips teams | test_item_github_reviewers.py |
-| TC-17 | My PRs page helpers: labels, attention ranking, sorting, search, counts, groupings, and filter matching | frontend `myPulls.test.js` |
+| TC-17 | My PRs page helpers: labels, attention ranking and the state named for each of the seven ranks, sorting, search, counts, groupings, filter matching, and the per-rank edge with its tooltip | frontend `myPulls.test.js` |
 | TC-18 | `layoutGraph` layers by longest path, stacks independent nodes, drops undrawn edges, and sizes the canvas; `edgePath`; `wrapTitle` | frontend `graph.test.js` |
 | TC-36 | One pull request's checks reduce to name, state, description, and URL, failing first; unnamed checks drop; a failed read is none; the number is sent as a typed literal | test_my_pulls.py |
 | TC-38 | Checks popover helpers: per-check labels and tones, failing-first order, counts, and the summary line | frontend `myPulls.test.js` |

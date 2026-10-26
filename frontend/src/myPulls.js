@@ -116,18 +116,28 @@ export function checksSummary(checks) {
   return parts.join(' · ')
 }
 
+// The state behind a pull request's rank, and the words its indicator's tooltip
+// shows. All seven ranks are covered, from the work the author owes (failing
+// checks, requested changes, open threads) to the ones waiting on someone else.
+export function attentionState(pull) {
+  if (pull.ci === 'failure') return { rank: 0, label: 'Failing checks' }
+  if (pull.review_decision === 'CHANGES_REQUESTED') return { rank: 1, label: 'Changes requested' }
+  const threads = Number(pull.open_threads) || 0
+  if (threads > 0) {
+    return { rank: 2, label: `${threads} review thread${threads === 1 ? '' : 's'} open` }
+  }
+  if (pull.ci === 'pending') return { rank: 3, label: 'Checks running' }
+  if (pull.review_decision === 'REVIEW_REQUIRED') return { rank: 4, label: 'Review required' }
+  if (pull.approved) return { rank: 5, label: 'Approved' }
+  return { rank: 6, label: 'No action needed' }
+}
+
 // How much a pull request needs its author to act, lowest first: failing checks,
 // then requested changes, then unresolved threads, then checks still running,
 // then a required review not yet given, then an approval, then the rest. The
 // list is sorted by this, so what needs work is at the top.
 export function attentionRank(pull) {
-  if (pull.ci === 'failure') return 0
-  if (pull.review_decision === 'CHANGES_REQUESTED') return 1
-  if (Number(pull.open_threads) > 0) return 2
-  if (pull.ci === 'pending') return 3
-  if (pull.review_decision === 'REVIEW_REQUIRED') return 4
-  if (pull.approved) return 5
-  return 6
+  return attentionState(pull).rank
 }
 
 // The pull requests that need the author: failing checks, requested changes, or

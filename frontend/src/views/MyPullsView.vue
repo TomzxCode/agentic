@@ -4,13 +4,13 @@ import { api } from '../api'
 import PullChecksPopover from '../components/PullChecksPopover.vue'
 import SearchSelect from '../components/SearchSelect.vue'
 import {
+  attentionState,
   CI_FILTERS,
   groupPulls,
   matchesCiFilter,
   matchesPullSearch,
   matchesReviewFilter,
   matchesThreadFilter,
-  needsAttention,
   PULL_GROUPINGS,
   pullCounts,
   pullFilterCounts,
@@ -338,9 +338,15 @@ onMounted(load)
                 <tr
                   v-for="pull in group.pulls"
                   :key="`${pull.repository}#${pull.number}`"
-                  :class="{ 'needs-attention': needsAttention(pull) }"
+                  :class="`attention-rank-${attentionState(pull).rank}`"
                 >
                   <td class="my-pulls-pr-cell">
+                    <span
+                      class="my-pulls-attention"
+                      role="img"
+                      :title="attentionState(pull).label"
+                      :aria-label="attentionState(pull).label"
+                    ></span>
                     <router-link class="my-pulls-link" :to="pullPath(pull)" :title="`Open #${pull.number} in the app`"
                       >#{{ pull.number }}</router-link
                     >

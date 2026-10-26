@@ -334,9 +334,11 @@ request's individual checks in a panel, failing first, with each check's state
 and a link to its detail page; the checks are read on demand, so the page load
 carries only the rollup. Each row's number opens the app's PR page, with a `ghx`
 link (when a local ghx web server is configured) and a `gh` link to GitHub
-beside it. Rows that need you (failing checks,
-requested changes, or an open thread) are marked and sorted first, then by
-newest update; a text search filters by repository, number, title, or approver,
+beside it. Rows carry a vertical edge in the colour of the rank that placed
+them (red for failing checks, orange for requested changes, amber for open
+threads, blue for running checks, violet for a required review, green for
+approved, grey for no action needed), with a tooltip naming that state, and sort
+first, then by newest update; a text search filters by repository, number, title, or approver,
 the same repository multi-select as the review queue narrows it to chosen
 repositories, and chips narrow the list by CI status, review status, or whether
 it has open threads, each chip counting the pull requests it would show. **Group

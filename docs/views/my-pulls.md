@@ -30,7 +30,17 @@ The table has one row per pull request:
 | Threads | `N open`, with a tooltip giving how many of the review threads are still open. |
 | Updated | When the pull request last changed, relative, with the full time in a tooltip. |
 
-A row that needs attention is styled as such.
+Every row carries a vertical edge down its first cell in the colour of the rank that placed it, and hovering the edge names the state behind it:
+
+| Edge | State |
+| --- | --- |
+| Red | Failing checks |
+| Orange | Changes requested |
+| Amber | Open review threads (`N review thread(s) open`) |
+| Blue | Checks running |
+| Violet | Review required |
+| Green | Approved |
+| Grey | No action needed |
 
 Each row links the pull request three ways: the number opens the app's PR page, `ghx` opens the local ghx web UI when its URL is configured, and `gh` opens the pull request on GitHub.
 
