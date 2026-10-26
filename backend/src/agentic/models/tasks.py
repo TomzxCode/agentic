@@ -62,6 +62,23 @@ class TaskDependency(SQLModel, table=True):
     created_at: datetime = Field(default_factory=utcnow)
 
 
+class TaskRelation(SQLModel, table=True):
+    """A symmetric "related" link between two tasks.
+
+    The pair is stored once with the two ids ordered, so the link reads the same
+    from either task and a second link between the pair is refused as a
+    duplicate. It is not an ordering statement, so it never joins the
+    before/after graph.
+    """
+
+    __table_args__ = (UniqueConstraint("task_id", "related_id", name="uq_related_pair"),)
+
+    id: str = Field(default_factory=new_id, primary_key=True)
+    task_id: str = Field(foreign_key="task.id", index=True)
+    related_id: str = Field(foreign_key="task.id", index=True)
+    created_at: datetime = Field(default_factory=utcnow)
+
+
 class StackEntry(SQLModel, table=True):
     """One task's place on the focus stack.
 

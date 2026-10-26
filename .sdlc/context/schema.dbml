@@ -48,6 +48,22 @@ Table taskdependency {
   }
 }
 
+// A symmetric "related" link between two tasks. The pair is stored once with
+// the ids ordered, so it reads the same from either task and never joins the
+// before/after dependency graph.
+Table taskrelation {
+  id varchar [pk]
+  task_id varchar [not null, ref: > task.id]
+  related_id varchar [not null, ref: > task.id]
+  created_at datetime [not null]
+
+  Indexes {
+    task_id
+    related_id
+    (task_id, related_id) [unique, name: 'uq_related_pair']
+  }
+}
+
 Table sourceitem {
   id varchar [pk]
   source varchar // slack | github | gdrive | url | note | commit | file

@@ -116,6 +116,7 @@ def test_task_get_shows_recorded_sessions(text_format, monkeypatch):
 def test_dependency_and_graph_commands(text_format, fake_client):
     deps = tasks.task_deps("t1")
     assert "before:" in deps and "First" in deps
+    assert "related:" in deps and "Sibling" in deps
     assert "Next" in tasks.task_link("t1", "t2")
     assert "unlinked t2 from t1" in tasks.task_unlink("t1", "t2")
     graph = tasks.graph()

@@ -268,7 +268,7 @@ button.tag-chip.active {
   align-items: center;
   gap: 6px;
 }
-/* Before/after links: two labelled chip groups that sit inline in the strip. */
+/* Task links: labelled chip groups (before, after, related) inline in the strip. */
 .dep-select {
   display: flex;
   flex-wrap: wrap;

@@ -48,6 +48,7 @@ class TasksFake:
             "task_id": task_id,
             "before": [{"id": "t0", "status": "done", "priority": 1, "title": "First"}],
             "after": [],
+            "related": [{"id": "t9", "status": "open", "priority": 1, "title": "Sibling"}],
         }
 
     def add_dependency(self, task_id, related_id, relation="after"):

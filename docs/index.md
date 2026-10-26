@@ -29,7 +29,7 @@ The web app is organized into these pages:
 | --- | --- |
 | [Stack](views/stack.md) (`/stack`) | The focus queue, with the current task on top. |
 | [Tasks](views/tasks.md) (`/`) | The task list, with status filters, grouping, upcoming deadlines, and the people in flight. |
-| [Task](views/task.md) (`/task/:id`) | One task: context, items, people, dependencies, worktrees, runs, and changes. |
+| [Task](views/task.md) (`/task/:id`) | One task: context, items, people, task links, worktrees, runs, and changes. |
 | [Inbox](views/inbox.md) (`/inbox`) | Suggested next actions, recomputed on every read. |
 | [Review queue](views/reviews.md) (`/reviews`) | Pull requests awaiting your review and those with review reports, one row per PR with a column per review step and a merge-readiness light. |
 | [My PRs](views/my-pulls.md) (`/my-pulls`) | The open pull requests you authored, with their check rollup (click a badge for the individual checks), review decision, approvers, and open review threads. |

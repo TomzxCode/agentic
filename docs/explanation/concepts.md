@@ -26,9 +26,9 @@ This page explains the parts and how they relate.
 
 ## How the parts relate
 
-- A task has zero or more items, people, repositories, worktrees, runs, sessions, changes, and dependency links.
+- A task has zero or more items, people, repositories, worktrees, runs, sessions, changes, and links to other tasks.
 - The task to repository relation is many-to-many, so a task can span several repositories.
-- Dependencies form a directed acyclic graph: the API refuses a link that would close a cycle.
+- Before/after links form a directed acyclic graph: the API refuses a link that would close a cycle. A `related` link is symmetric and sits outside that graph.
 - Every open, in-progress, or blocked task is on the focus stack automatically.
 
 ## Timeline and provenance

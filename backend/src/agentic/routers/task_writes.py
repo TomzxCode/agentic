@@ -23,7 +23,7 @@ from ..models.base import TaskStatus, utcnow
 from ..models.changes import Change, ChangeIntervention
 from ..models.items import Association, Person, SourceItem, TaskPerson, TaskRequester
 from ..models.repositories import Repository, RepositoryGroup, TaskRepository, Worktree
-from ..models.tasks import StackEntry, Task, TaskDependency, TaskSession, TimelineEvent
+from ..models.tasks import StackEntry, Task, TaskDependency, TaskRelation, TaskSession, TimelineEvent
 from ..schemas.items import ItemCreate
 from ..schemas.tasks import (
     TaskBulkResult,
@@ -310,10 +310,16 @@ async def delete_task(task_id: str, session: Session = Depends(get_session)) -> 
     session.exec(sa_delete(TaskRepository).where(col(TaskRepository.task_id) == task.id))
     session.exec(sa_delete(TaskPerson).where(col(TaskPerson.task_id) == task.id))
     session.exec(sa_delete(TaskRequester).where(col(TaskRequester.task_id) == task.id))
-    # Before/after links point at the task from either side; drop them first.
+    # Before/after and related links point at the task from either side; drop
+    # them first.
     session.exec(
         sa_delete(TaskDependency).where(
             (col(TaskDependency.before_id) == task.id) | (col(TaskDependency.after_id) == task.id)
+        )
+    )
+    session.exec(
+        sa_delete(TaskRelation).where(
+            (col(TaskRelation.task_id) == task.id) | (col(TaskRelation.related_id) == task.id)
         )
     )
     # Stack entries (and their sessions) reference the task and must go first.

@@ -126,6 +126,100 @@ def test_deleting_a_task_drops_its_links():
         client.delete(f"/api/tasks/{b}")
 
 
+def test_related_link_is_symmetric():
+    with TestClient(app) as client:
+        a = _task(client, "A")
+        b = _task(client, "B")
+
+        deps = client.post(f"/api/tasks/{a}/dependencies", json={"related_id": b, "relation": "related"}).json()
+        assert [t["id"] for t in deps["related"]] == [b]
+        # A related link is neither side of the ordering graph.
+        assert deps["before"] == [] and deps["after"] == []
+
+        # Read from the other side: the same link is there.
+        other = client.get(f"/api/tasks/{b}/dependencies").json()
+        assert [t["id"] for t in other["related"]] == [a]
+        assert other["before"] == [] and other["after"] == []
+
+        client.delete(f"/api/tasks/{a}")
+        client.delete(f"/api/tasks/{b}")
+
+
+def test_duplicate_related_link_is_idempotent():
+    with TestClient(app) as client:
+        a = _task(client, "A")
+        b = _task(client, "B")
+
+        body = {"related_id": b, "relation": "related"}
+        client.post(f"/api/tasks/{a}/dependencies", json=body)
+        # Linking from the other side stores nothing new.
+        client.post(f"/api/tasks/{b}/dependencies", json={"related_id": a, "relation": "related"})
+
+        assert len(client.get(f"/api/tasks/{a}/dependencies").json()["related"]) == 1
+        assert len(client.get(f"/api/tasks/{b}/dependencies").json()["related"]) == 1
+
+        client.delete(f"/api/tasks/{a}")
+        client.delete(f"/api/tasks/{b}")
+
+
+def test_related_link_stays_out_of_the_graph():
+    with TestClient(app) as client:
+        a = _task(client, "A")
+        b = _task(client, "B")
+        client.post(f"/api/tasks/{a}/dependencies", json={"related_id": b, "relation": "related"})
+
+        graph = client.get("/api/graph").json()
+        assert {"before_id": a, "after_id": b} not in graph["edges"]
+        assert {"before_id": b, "after_id": a} not in graph["edges"]
+
+        client.delete(f"/api/tasks/{a}")
+        client.delete(f"/api/tasks/{b}")
+
+
+def test_remove_related_link_from_either_side():
+    with TestClient(app) as client:
+        a = _task(client, "A")
+        b = _task(client, "B")
+        client.post(f"/api/tasks/{a}/dependencies", json={"related_id": b, "relation": "related"})
+
+        assert client.delete(f"/api/tasks/{b}/dependencies/{a}").status_code == 204
+        assert client.get(f"/api/tasks/{a}/dependencies").json()["related"] == []
+        assert client.delete(f"/api/tasks/{b}/dependencies/{a}").status_code == 404
+
+        client.delete(f"/api/tasks/{a}")
+        client.delete(f"/api/tasks/{b}")
+
+
+def test_related_link_records_timeline_on_both_tasks():
+    with TestClient(app) as client:
+        a = _task(client, "A")
+        b = _task(client, "B")
+        client.post(f"/api/tasks/{a}/dependencies", json={"related_id": b, "relation": "related"})
+
+        a_events = client.get(f"/api/tasks/{a}/timeline").json()
+        b_events = client.get(f"/api/tasks/{b}/timeline").json()
+        assert any(e["type"] == "relation_added" for e in a_events)
+        assert any(e["type"] == "relation_added" for e in b_events)
+
+        client.delete(f"/api/tasks/{a}/dependencies/{b}")
+        assert any(e["type"] == "relation_removed" for e in client.get(f"/api/tasks/{a}/timeline").json())
+
+        client.delete(f"/api/tasks/{a}")
+        client.delete(f"/api/tasks/{b}")
+
+
+def test_deleting_a_task_drops_related_links():
+    with TestClient(app) as client:
+        a = _task(client, "A")
+        b = _task(client, "B")
+        client.post(f"/api/tasks/{a}/dependencies", json={"related_id": b, "relation": "related"})
+
+        client.delete(f"/api/tasks/{a}")
+        assert client.get(f"/api/tasks/{b}/dependencies").json()["related"] == []
+
+        client.delete(f"/api/tasks/{b}")
+
+
 def test_graph_returns_nodes_and_edges():
     with TestClient(app) as client:
         a = _task(client, "Graph A")

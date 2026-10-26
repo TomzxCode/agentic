@@ -1,15 +1,17 @@
-"""Before/after links between tasks, and the graph they form.
+"""Links between tasks: the before/after graph, and symmetric related pairs.
 
 An edge ``before_id -> after_id`` means the ``before`` task must be done before
 the ``after`` task. The edges are kept acyclic: a link that would close a cycle
-is refused, so the whole set always forms a DAG.
+is refused, so the whole set always forms a DAG. A related pair is a separate,
+symmetric link with no ordering, so it lives in its own table and never enters
+the graph.
 """
 
 from __future__ import annotations
 
 from sqlmodel import Session, col, select
 
-from .models.tasks import TaskDependency
+from .models.tasks import TaskDependency, TaskRelation
 
 
 def edge_exists(session: Session, before_id: str, after_id: str) -> bool:
@@ -65,4 +67,35 @@ def all_edges(session: Session) -> list[TaskDependency]:
     return list(session.exec(select(TaskDependency).order_by(col(TaskDependency.created_at))).all())
 
 
-__all__ = ["all_edges", "dependencies", "edge_exists", "would_cycle"]
+def related_pair(task_id: str, related_id: str) -> tuple[str, str]:
+    """The pair as stored: the two ids ordered, so either side finds the row."""
+    return (task_id, related_id) if task_id < related_id else (related_id, task_id)
+
+
+def related_link(session: Session, task_id: str, related_id: str) -> TaskRelation | None:
+    """The stored symmetric link between two tasks, if there is one."""
+    first, second = related_pair(task_id, related_id)
+    return session.exec(
+        select(TaskRelation).where(TaskRelation.task_id == first, TaskRelation.related_id == second)
+    ).first()
+
+
+def related_ids(session: Session, task_id: str) -> list[str]:
+    """The tasks linked to this one as related, oldest link first."""
+    rows = session.exec(
+        select(TaskRelation)
+        .where((TaskRelation.task_id == task_id) | (TaskRelation.related_id == task_id))
+        .order_by(col(TaskRelation.created_at))
+    ).all()
+    return [row.related_id if row.task_id == task_id else row.task_id for row in rows]
+
+
+__all__ = [
+    "all_edges",
+    "dependencies",
+    "edge_exists",
+    "related_ids",
+    "related_link",
+    "related_pair",
+    "would_cycle",
+]

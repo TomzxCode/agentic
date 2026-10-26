@@ -174,11 +174,12 @@ def task_timeline(task_id: str) -> str:
 
 @task_app.command(name="link")
 @safe
-def task_link(task_id: str, related_id: str, relation: Literal["before", "after"] = "after") -> str:
-    """Link a related task before or after this one.
+def task_link(task_id: str, related_id: str, relation: Literal["before", "after", "related"] = "after") -> str:
+    """Link a related task before or after this one, or as a related task.
 
     `--relation before` means the related task must be done first; `after` means
-    it follows this one. A link that would close a cycle is refused.
+    it follows this one; both are refused when they would close a cycle.
+    `related` links the two tasks symmetrically, with no ordering.
     """
     with runtime._client() as client:
         deps = client.add_dependency(task_id, related_id, relation)
@@ -188,7 +189,7 @@ def task_link(task_id: str, related_id: str, relation: Literal["before", "after"
 @task_app.command(name="unlink")
 @safe
 def task_unlink(task_id: str, related_id: str) -> str:
-    """Remove the before/after link between two tasks."""
+    """Remove the link between two tasks, of either kind."""
     with runtime._client() as client:
         client.remove_dependency(task_id, related_id)
     return emit({"unlinked": related_id}, f"unlinked {related_id} from {task_id}")
@@ -197,7 +198,7 @@ def task_unlink(task_id: str, related_id: str) -> str:
 @task_app.command(name="deps")
 @safe
 def task_deps(task_id: str) -> str:
-    """Show the tasks linked before and after this one."""
+    """Show the tasks linked before, after, and related to this one."""
     with runtime._client() as client:
         deps = client.task_dependencies(task_id)
     return emit(deps, _deps_text(deps))

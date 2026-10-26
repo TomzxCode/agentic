@@ -61,6 +61,7 @@ erDiagram
     TASK ||--o{ TIMELINEEVENT : "records"
     TASK ||--o{ TASKDEPENDENCY : "blocks"
     TASK ||--o{ TASKDEPENDENCY : "depends on"
+    TASK ||--o{ TASKRELATION : "related to"
     REPOSITORYGROUP ||--o{ REPOSITORYGROUPMEMBER : "contains"
     REPOSITORY ||--o{ REPOSITORYGROUPMEMBER : "belongs to"
     TASK ||--o{ TASKREPOSITORY : "draws on"
@@ -362,7 +363,7 @@ The full schema with types, constraints, and indexes lives in [`schema.dbml`](sc
 | Operations audit | Every mutating request recorded with its client (web/cli/api) and actor (human/agent), exposed to handlers as request provenance | `provenance.py` (middleware), `routers/operations.py` |
 | Tiered item refresh | Age-band refresh policies for Slack and GitHub items, applied by a background loop and on demand | `refresh.py`, `routers/items_refresh.py` |
 | Managed tools | ghx and slackx run in serve mode as processes the server starts and stops, replacing a user-supplied URL and token | `services/managed_tools.py` |
-| Task dependencies | Before/after edges between tasks, refused when they would close a cycle, plus the whole-graph view | `dependencies.py`, `routers/task_dependencies.py`, `routers/graph.py` |
+| Task links | Before/after edges between tasks, refused when they would close a cycle, symmetric related pairs, plus the whole-graph view | `dependencies.py`, `routers/task_dependencies.py`, `routers/graph.py` |
 | Source services | Parse/infer/fetch items, build the context prompt, parse agent JSON | httpx, subprocess (`ghx`, `slackx`) |
 | Git services | Create/remove worktrees, detect remote and default branch | `git` subprocess |
 | Gantt view | Tasks as time bars with one marker per timeline event | `routers/gantt.py`, Vue GanttView |
@@ -403,7 +404,7 @@ Detailed stack, tooling, environments, deployment, and rollback live in [`infras
 - Tools whose transport is `managed` are started and stopped by the API lifespan, so the ghx/slackx serve processes live and die with the server.
 - The API holds one warm ACP session for the default harness, so the model picker answers without spawning a harness per request; it is best effort and never delays startup or runs.
 - An in-process asyncio event bus rather than an external broker, because the app is single-process and local.
-- Task dependency edges are refused when they would close a cycle, so the before/after links always form a DAG.
+- Task before/after edges are refused when they would close a cycle, so they always form a DAG; symmetric `related` links live in their own table and never join it.
 - The SPA is built into `backend/static` and served by the API, so one process serves both the API and the UI.
 - The focus stack is a separate `StackEntry` (plus `TaskSession`) rather than fields on `Task`, so a task can exist without being queued and its stack history stays independent of its own lifecycle.
 - A small native launcher rather than a desktop shell: the tray icon and global hotkey are the only things a PWA cannot do, so the launcher adds just those and opens the web stack page.

@@ -5,10 +5,11 @@ import { api } from '../api'
 import { store } from '../store'
 import SearchSelect from './SearchSelect.vue'
 
-// The before/after links around a task, shown inline in the task header next to
-// the repository and people selectors: the tasks that must come first, and the
-// tasks that follow. Both sides can be linked and unlinked from here, and the
-// whole set forms the graph the Graph page draws.
+// The links around a task, shown inline in the task header next to the
+// repository and people selectors: the tasks that must come first, the tasks
+// that follow, and the tasks merely related to it. Each can be linked and
+// unlinked from here; the before/after pairs form the graph the Graph page
+// draws, while a related pair reads the same from both tasks.
 const props = defineProps({
   task: { type: Object, required: true },
   // When true, each linked task's title links to its detail page.
@@ -16,14 +17,23 @@ const props = defineProps({
 })
 const emit = defineEmits(['changed'])
 
-const deps = ref({ before: [], after: [] })
+const deps = ref({ before: [], after: [], related: [] })
+
+// Every response carries all three sides; fill in any the caller omitted so the
+// lists render regardless of API shape.
+function normalize(payload) {
+  return { before: [], after: [], related: [], ...payload }
+}
 const allTasks = ref([])
 const busy = ref(false)
 const beforeSelect = ref(null)
 
-const linkedIds = computed(() => new Set([...deps.value.before, ...deps.value.after].map((task) => task.id)))
+const linkedIds = computed(
+  () => new Set([...deps.value.before, ...deps.value.after, ...deps.value.related].map((task) => task.id))
+)
 
-// Tasks that can still be linked: not this one, not already linked either way.
+// Tasks that can still be linked: not this one, and not already linked as
+// before, after, or related.
 const candidates = computed(() =>
   allTasks.value
     .filter((task) => task.id !== props.task.id && !linkedIds.value.has(task.id))
@@ -33,7 +43,7 @@ const candidates = computed(() =>
 async function load() {
   try {
     const [dependencies, tasks] = await Promise.all([api.tasks.dependencies(props.task.id), api.tasks.list()])
-    deps.value = dependencies
+    deps.value = normalize(dependencies)
     allTasks.value = tasks
   } catch (e) {
     store.notify(e.message, true)
@@ -46,7 +56,7 @@ async function link(relatedId, relation) {
   if (!relatedId) return
   busy.value = true
   try {
-    deps.value = await api.tasks.addDependency(props.task.id, { related_id: relatedId, relation })
+    deps.value = normalize(await api.tasks.addDependency(props.task.id, { related_id: relatedId, relation }))
     emit('changed')
   } catch (e) {
     store.notify(e.message, true)
@@ -111,6 +121,26 @@ defineExpose({ activate: () => beforeSelect.value?.activate?.() })
           placeholder="＋ link…"
           title="Link a task that follows this one"
           @update:model-value="(id) => link(id, 'after')"
+        />
+      </div>
+    </div>
+
+    <div class="dep-group">
+      <span class="dep-label">related</span>
+      <div class="dep-chips">
+        <span v-for="linked in deps.related" :key="`r-${linked.id}`" class="chip">
+          <RouterLink v-if="linkToDetail" :to="`/task/${linked.id}`">{{ linked.title }}</RouterLink>
+          <template v-else>{{ linked.title }}</template>
+          <button type="button" class="chip-x" title="Unlink" :disabled="busy" @click="unlink(linked.id)">×</button>
+        </span>
+        <SearchSelect
+          variant="inline"
+          keep-open
+          :model-value="''"
+          :options="candidates"
+          placeholder="＋ link…"
+          title="Link a task related to this one, in either direction"
+          @update:model-value="(id) => link(id, 'related')"
         />
       </div>
     </div>

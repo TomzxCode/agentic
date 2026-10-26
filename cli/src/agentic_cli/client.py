@@ -145,7 +145,7 @@ class AgenticClient:
         return self._request("GET", f"/api/tasks/{task_id}/dependencies")
 
     def add_dependency(self, task_id: str, related_id: str, relation: str = "after") -> dict:
-        """Link a related task before or after this one (relation: before | after)."""
+        """Link a related task (relation: before | after | related)."""
         return self._request(
             "POST", f"/api/tasks/{task_id}/dependencies", json={"related_id": related_id, "relation": relation}
         )

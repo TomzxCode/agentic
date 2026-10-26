@@ -32,7 +32,7 @@ It is also the page that drives the agent, so the prompt, the worktree, and the 
 | People | Link the people involved, including suggested people taken from the linked items' authors and commenters. |
 | Requested by | Link whoever asked for the task. |
 | Repositories | Link the checkouts the work touches. |
-| Dependencies | Link a task `before` or `after` this one, and unlink with `×`. The API refuses a link that would close a cycle. |
+| Links | Link a task `before` or `after` this one, or as `related`, and unlink with `×`. A `related` link is symmetric and has no ordering, so it reads the same from both tasks. The API refuses a before/after link that would close a cycle. |
 
 ### The panels
 
@@ -82,7 +82,7 @@ Each check writes `include` or `skip` onto that finding, and the app itself post
 | Context | `agentic context get <task>`, `agentic context refresh <task>` | `GET /api/tasks/{id}/context`, `POST /api/tasks/{id}/context/refresh` |
 | Link an item or a URL | `agentic link add <task> --url … --item-id …` | `POST /api/tasks/{id}/items` |
 | Refresh, finish, or reopen an item | `agentic item refresh/done/reopen <item>` | `POST /api/items/{id}/refresh`, `PATCH /api/items/{id}` |
-| Dependencies | `agentic task link/deps/unlink` | `GET`/`POST`/`DELETE /api/tasks/{id}/dependencies` |
+| Links | `agentic task link/deps/unlink` | `GET`/`POST`/`DELETE /api/tasks/{id}/dependencies` |
 | People and requesters | `agentic person link <person> --task … --requested-by …` | `POST /api/tasks/{id}/people`, `/requesters` |
 | Changes | `agentic change create/verify/accept/reject/revert/intervene` | `POST /api/changes`, `POST /api/changes/{id}/status`, `/interventions` |
 | Worktrees | `agentic worktree create/list/remove` | `GET`/`POST /api/tasks/{id}/worktrees` |

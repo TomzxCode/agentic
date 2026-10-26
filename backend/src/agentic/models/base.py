@@ -24,10 +24,15 @@ class TaskStatus(StrEnum):
 
 
 class DependencyRelation(StrEnum):
-    """Which side of a before/after link the related task sits on."""
+    """How a related task is linked to this one.
+
+    ``before`` and ``after`` place it on a side of the ordering graph;
+    ``related`` is a symmetric link, with no direction.
+    """
 
     before = "before"
     after = "after"
+    related = "related"
 
 
 class RunStatus(StrEnum):

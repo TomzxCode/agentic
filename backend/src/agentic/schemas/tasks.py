@@ -134,18 +134,23 @@ class TaskDetail(TaskRead):
 
 
 class DependencyCreate(BaseModel):
-    """Link ``related_id`` to the task: it comes before, or after, this one."""
+    """Link ``related_id`` to the task: before it, after it, or as a related task."""
 
     related_id: str
     relation: DependencyRelation = DependencyRelation.after
 
 
 class TaskDependencies(BaseModel):
-    """A task's neighbours in the before/after graph, resolved to full tasks."""
+    """A task's linked neighbours, resolved to full tasks.
+
+    ``before``/``after`` are the ordered sides of the dependency graph;
+    ``related`` is the symmetric pair list, which reads the same from both tasks.
+    """
 
     task_id: str
     before: list[TaskRead] = []
     after: list[TaskRead] = []
+    related: list[TaskRead] = []
 
 
 class GraphNode(BaseModel):

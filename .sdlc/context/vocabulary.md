@@ -62,6 +62,7 @@
 | Tag | A short label a task carries; stored as a list on the task, normalized on write, and usable to filter the task list. |
 | Task | The unit of work everything hangs off. |
 | Task dependency edge | A before/after edge between two tasks; the dependency graph must stay acyclic. |
+| Task relation | A symmetric link between two tasks that says they are related, with no ordering and no place in the dependency graph. |
 | Task session | A stretch of time a stack entry spent as the current task, with a start and an end; execution count and duration are derived from these. |
 | Timeline event | A persisted record of a meaningful change to a task, shown as a chronological timeline. |
 | Tool transport | How the app reaches ghx or slackx: `cli` (shell out per call), `rpc` (the URL and token of an already-running serve mode), or `managed` (the server starts and stops the serve-mode process). |

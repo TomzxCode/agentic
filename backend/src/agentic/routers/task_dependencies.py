@@ -1,7 +1,7 @@
-"""Task dependencies: the before/after edges between tasks.
+"""Task relations: the before/after edges, and the symmetric related pairs.
 
-Mounted under the same ``/api/tasks`` prefix as the task CRUD router; the
-dependency read helper reuses the task read shape from ``tasks.py``.
+Mounted under the same ``/api/tasks`` prefix as the task CRUD router; the read
+helper reuses the task read shape from ``tasks.py``.
 """
 
 from __future__ import annotations
@@ -11,28 +11,45 @@ from sqlmodel import Session, select
 
 from ..crud import add_timeline, get_or_404, get_task_or_404
 from ..db import get_session
-from ..dependencies import dependencies, edge_exists, would_cycle
+from ..dependencies import (
+    dependencies,
+    edge_exists,
+    related_ids,
+    related_link,
+    related_pair,
+    would_cycle,
+)
 from ..events import bus
 from ..models.base import DependencyRelation
-from ..models.tasks import Task, TaskDependency
-from ..schemas.tasks import DependencyCreate, TaskDependencies
+from ..models.tasks import Task, TaskDependency, TaskRelation
+from ..schemas.tasks import DependencyCreate, TaskDependencies, TaskRead
 from .task_service import _task_read
 
 router = APIRouter(prefix="/api/tasks", tags=["tasks"])
+
+
+def _read_tasks(session: Session, task_ids: list[str]) -> list[TaskRead]:
+    return [_task_read(session, task) for task in (session.get(Task, i) for i in task_ids) if task]
 
 
 def _dependency_read(session: Session, task_id: str) -> TaskDependencies:
     before_ids, after_ids = dependencies(session, task_id)
     return TaskDependencies(
         task_id=task_id,
-        before=[_task_read(session, task) for task in (session.get(Task, i) for i in before_ids) if task],
-        after=[_task_read(session, task) for task in (session.get(Task, i) for i in after_ids) if task],
+        before=_read_tasks(session, before_ids),
+        after=_read_tasks(session, after_ids),
+        related=_read_tasks(session, related_ids(session, task_id)),
     )
+
+
+async def _publish_changed(task_id: str, related_id: str) -> None:
+    await bus.publish(f"task:{task_id}", {"kind": "task", "action": "dependencies_changed"})
+    await bus.publish(f"task:{related_id}", {"kind": "task", "action": "dependencies_changed"})
 
 
 @router.get("/{task_id}/dependencies", response_model=TaskDependencies)
 def get_dependencies(task_id: str, session: Session = Depends(get_session)) -> TaskDependencies:
-    """The tasks that come before and after this one in the dependency graph."""
+    """The tasks linked to this one: before, after, and related."""
     get_task_or_404(session, task_id)
     return _dependency_read(session, task_id)
 
@@ -41,15 +58,39 @@ def get_dependencies(task_id: str, session: Session = Depends(get_session)) -> T
 async def add_dependency(
     task_id: str, payload: DependencyCreate, session: Session = Depends(get_session)
 ) -> TaskDependencies:
-    """Link a related task before or after this one.
+    """Link a related task before or after this one, or as a related task.
 
     ``relation="before"`` means the related task must be done first; ``"after"``
-    means it follows this one. A link that would close a cycle is refused.
+    means it follows this one. Both are directed and a link that would close a
+    cycle is refused. ``relation="related"`` stores a symmetric link, which
+    reads the same from either task and is never part of the graph.
     """
     task = get_task_or_404(session, task_id)
     related = get_or_404(session, Task, payload.related_id, "Related task not found")
     if related.id == task.id:
         raise HTTPException(status_code=400, detail="A task cannot be linked to itself")
+
+    if payload.relation == DependencyRelation.related:
+        if related_link(session, task.id, related.id) is None:
+            first, second = related_pair(task.id, related.id)
+            session.add(TaskRelation(task_id=first, related_id=second))
+            session.commit()
+            add_timeline(
+                session,
+                task.id,
+                "relation_added",
+                f"Related: {related.title}",
+                {"related_id": related.id, "related_title": related.title},
+            )
+            add_timeline(
+                session,
+                related.id,
+                "relation_added",
+                f"Related: {task.title}",
+                {"related_id": task.id, "related_title": task.title},
+            )
+            await _publish_changed(task_id, related.id)
+        return _dependency_read(session, task_id)
 
     before, after = (related, task) if payload.relation == DependencyRelation.before else (task, related)
     if would_cycle(session, before.id, after.id):
@@ -71,15 +112,38 @@ async def add_dependency(
             f"Follows: {before.title}",
             {"before_id": before.id, "after_id": after.id, "before_title": before.title},
         )
-        await bus.publish(f"task:{task_id}", {"kind": "task", "action": "dependencies_changed"})
-        await bus.publish(f"task:{related.id}", {"kind": "task", "action": "dependencies_changed"})
+        await _publish_changed(task_id, related.id)
     return _dependency_read(session, task_id)
 
 
 @router.delete("/{task_id}/dependencies/{related_id}", status_code=204)
 async def remove_dependency(task_id: str, related_id: str, session: Session = Depends(get_session)) -> None:
-    """Remove the before/after link between this task and a related one."""
-    get_task_or_404(session, task_id)
+    """Remove the link between this task and a related one, of either kind."""
+    task = get_task_or_404(session, task_id)
+
+    relation = related_link(session, task_id, related_id)
+    if relation is not None:
+        other = session.get(Task, related_id)
+        session.delete(relation)
+        session.commit()
+        if other is not None:
+            add_timeline(
+                session,
+                task.id,
+                "relation_removed",
+                f"No longer related: {other.title}",
+                {"related_id": other.id, "related_title": other.title},
+            )
+            add_timeline(
+                session,
+                other.id,
+                "relation_removed",
+                f"No longer related: {task.title}",
+                {"related_id": task.id, "related_title": task.title},
+            )
+        await _publish_changed(task_id, related_id)
+        return
+
     edge = session.exec(
         select(TaskDependency).where(
             ((TaskDependency.before_id == task_id) & (TaskDependency.after_id == related_id))
@@ -108,8 +172,7 @@ async def remove_dependency(task_id: str, related_id: str, session: Session = De
             f"No longer follows: {before.title}",
             {"before_id": before.id, "after_id": after.id, "before_title": before.title},
         )
-    await bus.publish(f"task:{task_id}", {"kind": "task", "action": "dependencies_changed"})
-    await bus.publish(f"task:{related_id}", {"kind": "task", "action": "dependencies_changed"})
+    await _publish_changed(task_id, related_id)
 
 
 __all__ = ["router"]

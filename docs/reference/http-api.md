@@ -22,8 +22,8 @@ There is no authentication, so expose it only on a trusted network.
 | `POST` | `/api/tasks/{id}/items` | Associate an item, by `item_id` or URL. |
 | `DELETE` | `/api/tasks/{id}/items/{item_id}` | Remove an association. |
 | `GET` | `/api/tasks/{id}/timeline` | The task's timeline events. |
-| `GET` / `POST` | `/api/tasks/{id}/dependencies` | List and add before/after dependency links. |
-| `DELETE` | `/api/tasks/{id}/dependencies/{related_id}` | Remove a dependency link. |
+| `GET` / `POST` | `/api/tasks/{id}/dependencies` | List and add task links. `POST` takes `related_id` and a `relation` of `before`, `after`, or `related`; a `related` link is symmetric and unconstrained by the dependency cycle check. |
+| `DELETE` | `/api/tasks/{id}/dependencies/{related_id}` | Remove a link of either kind. |
 
 `POST` and `PATCH` accept `waiting_on_person_id`, `follow_up_at`, and `snoozed_until`; a waiting task is marked blocked, and a task with an active snooze or wait is parked off the stack until the date passes.
 The task representation returns those fields plus `waiting_on_name`.

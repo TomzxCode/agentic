@@ -39,6 +39,7 @@ Scrolling is the only way around a large graph.
 - A link to a task hidden by the filter is dropped from the drawing, so the graph thins out as you filter rather than showing holes.
 - `No tasks to show. Link a task's dependencies to build the graph.` means the filtered set is empty.
 - Editing dependencies happens on the task page, not here.
+- Only `before`/`after` links are drawn. A `related` link is symmetric and does not appear in the graph.
 - Nothing polls; the graph loads on mount and when you change the filter or press `Refresh`.
 
 ## CLI and agent interface

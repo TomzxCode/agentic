@@ -88,7 +88,21 @@ describe('DependenciesSelect', () => {
     await flushPromises()
     expect(wrapper.text()).toContain('Prerequisite')
     expect(wrapper.text()).toContain('Follow-up')
-    expect(wrapper.findAll('.dep-label').map((label) => label.text())).toEqual(['before', 'after'])
+    expect(wrapper.findAll('.dep-label').map((label) => label.text())).toEqual(['before', 'after', 'related'])
+  })
+
+  it('lists a related link on both sides', async () => {
+    mocks.depsGet.mockResolvedValue({
+      task_id: 't1',
+      before: [],
+      after: [],
+      related: [{ id: 'b', title: 'Sibling' }]
+    })
+    mocks.tasksList.mockResolvedValue([task])
+
+    const wrapper = mountPanel()
+    await flushPromises()
+    expect(wrapper.text()).toContain('Sibling')
   })
 
   it('removes a link and reloads', async () => {
@@ -116,6 +130,25 @@ describe('DependenciesSelect', () => {
     await flushPromises()
 
     expect(mocks.depsAdd).toHaveBeenCalledWith('t1', { related_id: 'c', relation: 'before' })
+    expect(wrapper.emitted('changed')).toBeTruthy()
+  })
+
+  it('links a related task', async () => {
+    mocks.depsGet.mockResolvedValue({ task_id: 't1', before: [], after: [], related: [] })
+    mocks.tasksList.mockResolvedValue([task, { id: 'c', title: 'Other' }])
+    mocks.depsAdd.mockResolvedValue({
+      task_id: 't1',
+      before: [],
+      after: [],
+      related: [{ id: 'c', title: 'Other' }]
+    })
+
+    const wrapper = mountPanel()
+    await flushPromises()
+    await wrapper.findAllComponents(SearchSelect)[2].vm.$emit('update:modelValue', 'c')
+    await flushPromises()
+
+    expect(mocks.depsAdd).toHaveBeenCalledWith('t1', { related_id: 'c', relation: 'related' })
     expect(wrapper.emitted('changed')).toBeTruthy()
   })
 })

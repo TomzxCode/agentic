@@ -99,7 +99,7 @@ def _session_text(session: dict) -> str:
 
 def _deps_text(deps: dict) -> str:
     lines = []
-    for label in ("before", "after"):
+    for label in ("before", "after", "related"):
         tasks = deps.get(label) or []
         lines.append(f"{label}:")
         if tasks:
