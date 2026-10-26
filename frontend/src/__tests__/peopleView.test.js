@@ -111,6 +111,33 @@ describe('PeopleView', () => {
     expect(wrapper.get('a.title').attributes('href')).toBe('/person/p1')
   })
 
+  it('filters the list as a name is typed, matching aliases too', async () => {
+    store.people = [
+      { id: 'p1', name: 'Ada', aliases: ['ada', 'ada@example.com'], task_count: 0, item_count: 0 },
+      { id: 'p2', name: 'Grace', aliases: ['grace-hopper'], task_count: 0, item_count: 0 }
+    ]
+    const wrapper = await mountPeople()
+    const input = wrapper.get('input[placeholder="Add a person by name…"]')
+
+    await input.setValue('gra')
+    await settle()
+    expect(wrapper.text()).toContain('Grace')
+    expect(wrapper.text()).not.toContain('Ada')
+    expect(wrapper.text()).toContain('1 of 2')
+
+    // Typing part of an alias finds the person too, so a handle that already
+    // belongs to someone is visible before a duplicate is created.
+    await input.setValue('ada@exam')
+    await settle()
+    expect(wrapper.text()).toContain('Ada')
+    expect(wrapper.text()).not.toContain('Grace')
+
+    await input.setValue('')
+    await settle()
+    expect(wrapper.text()).toContain('Grace')
+    expect(wrapper.text()).toContain('2 of 2')
+  })
+
   it('shows when each person was created', async () => {
     const wrapper = await mountPeople()
     expect(wrapper.get('.ag-cell[col-id="created"]').text()).toBe(formatDateTime('2026-01-01T00:00:00Z'))

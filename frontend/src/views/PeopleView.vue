@@ -30,6 +30,24 @@ const rows = computed(() =>
   }))
 )
 
+function matchesName(row, query) {
+  const values = [row.name, row.aliases_line, ...(row.aliases || [])]
+  return values.some((value) =>
+    String(value || '')
+      .toLowerCase()
+      .includes(query)
+  )
+}
+
+// The name being typed narrows the list as it goes, so the same field that adds
+// a person also shows whether one with that name, or a matching alias, already
+// exists.
+const visibleRows = computed(() => {
+  const query = newName.value.trim().toLowerCase()
+  if (!query) return rows.value
+  return rows.value.filter((row) => matchesName(row, query))
+})
+
 async function load() {
   loading.value = true
   try {
@@ -81,6 +99,12 @@ onMounted(load)
 
     <div v-if="loading" class="empty"><span class="spinner"></span></div>
     <div v-else-if="!people.length" class="empty">No people.</div>
-    <PeopleGrid v-else :rows="rows" :router-link="routerLink" @count="shown = $event" @ready="gridApi = $event" />
+    <PeopleGrid
+      v-else
+      :rows="visibleRows"
+      :router-link="routerLink"
+      @count="shown = $event"
+      @ready="gridApi = $event"
+    />
   </div>
 </template>
