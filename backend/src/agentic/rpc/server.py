@@ -68,6 +68,7 @@ def add_rpc_routes(
         allow_exec=allow_exec,
         executable=executable,
         base_args=base_args,
+        app=fastapp,
     )
 
     @fastapp.post(RPC_PATH, include_in_schema=False)

@@ -40,6 +40,7 @@ class RpcContext:
     executable: str | None = None
     base_args: tuple[str, ...] = ()
     started_at: float = field(default_factory=time.time)
+    app: Any = None
 
     @property
     def self_url(self) -> str:
@@ -208,3 +209,68 @@ def _on_path(name: str) -> bool:
     import shutil
 
     return shutil.which(name) is not None
+
+
+# ---------------------------------------------------------------------------
+# In-process REST proxy (fully in-process fulfillment, no subprocess/network)
+# ---------------------------------------------------------------------------
+
+
+@method(
+    "api.request",
+    "Call an Agentic REST endpoint in-process and return its response.",
+    ("method", "path", "query", "body", "headers"),
+)
+async def _api_request(ctx: RpcContext, params: dict[str, Any]) -> dict[str, Any]:
+    _check_params(params, ("method", "path", "query", "body", "headers"))
+    if ctx.app is None:
+        raise RpcError(SERVER_ERROR, "no app bound to this RPC context")
+
+    import httpx
+    from httpx import ASGITransport
+
+    http_method = _str_param(params, "method", default="GET")
+    assert http_method is not None
+    http_method = http_method.upper()
+    path = _str_param(params, "path", required=True)
+    assert path is not None
+    if not path.startswith("/"):
+        path = "/" + path
+
+    query = params.get("query", {})
+    if query is None:
+        query = {}
+    if not isinstance(query, dict):
+        raise RpcError(INVALID_PARAMS, "query must be a JSON object")
+    body = params.get("body", None)
+    headers = params.get("headers", {})
+    if headers is None:
+        headers = {}
+    if not isinstance(headers, dict):
+        raise RpcError(INVALID_PARAMS, "headers must be a JSON object")
+
+    transport = ASGITransport(app=ctx.app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://agentic") as client:
+        response = await client.request(
+            http_method,
+            path,
+            params=query,
+            json=body if body is not None and not isinstance(body, str) else None,
+            content=body if isinstance(body, str) else None,
+            headers={str(k): str(v) for k, v in headers.items()},
+        )
+
+    try:
+        parsed = response.json()
+    except Exception:  # noqa: BLE001
+        parsed = response.text
+    return {
+        "status_code": response.status_code,
+        "headers": dict(response.headers),
+        "body": parsed,
+    }
+
+
+@method("http.request", "Alias for api.request.")
+async def _http_request(ctx: RpcContext, params: dict[str, Any]) -> dict[str, Any]:
+    return await _api_request(ctx, params)
