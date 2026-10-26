@@ -32,50 +32,52 @@ export const StateCell = defineComponent({
   }
 })
 
-// The title, linking to the item on GitHub, with the last-fetched time below it.
+// The title, linking to the app's own page for the issue or pull request, with
+// the last-fetched time below it.
 export const TitleCell = defineComponent({
   props: { params },
   setup: (props) => () => {
     const row = props.params.data
     const label = row.title || row.url || '(untitled)'
-    const title = row.url
-      ? h('a', { class: 'title', href: row.url, target: '_blank', rel: 'noopener' }, label)
-      : h('span', { class: 'title' }, label)
-    const children = [title]
-    if (row.fetched) children.push(h('div', { class: 'faint' }, row.fetched))
-    return h('div', { class: 'repo-title-cell' }, children)
-  }
-})
-
-// The app and ghx links for a row, in their own column: the app's issue/PR view
-// (when the row is a GitHub issue or pull request) and the ghx web UI (when a
-// local ghx server is configured).
-export const LinksCell = defineComponent({
-  props: { params },
-  setup: (props) => () => {
-    const row = props.params.data
     const parsed = row.url ? parseGithubUrl(row.url) : null
     const internalPath = parsed
       ? parsed.kind === 'pr'
         ? `/pr/${parsed.owner}/${parsed.repo}/${parsed.number}`
         : `/issue/${parsed.owner}/${parsed.repo}/${parsed.number}`
       : ''
+    const title = internalPath
+      ? h(props.params.context.RouterLink, { class: 'title', to: internalPath }, () => label)
+      : row.url
+        ? h('a', { class: 'title', href: row.url, target: '_blank', rel: 'noopener' }, label)
+        : h('span', { class: 'title' }, label)
+    const children = [title]
+    if (row.fetched) children.push(h('div', { class: 'faint' }, row.fetched))
+    return h('div', { class: 'repo-title-cell' }, children)
+  }
+})
+
+// The GitHub and ghx links for a row, in their own column: the app's own page is
+// the title, so this column holds only the external copies.
+export const LinksCell = defineComponent({
+  props: { params },
+  setup: (props) => () => {
+    const row = props.params.data
     const buttons = []
-    if (internalPath) {
-      buttons.push(
-        h(
-          props.params.context.RouterLink,
-          { to: internalPath, class: 'btn sm ghost', title: 'Open in app' },
-          () => 'View'
-        )
-      )
-    }
     if (row.ghxUrl) {
       buttons.push(
         h(
           'a',
           { class: 'btn sm ghost', href: row.ghxUrl, target: '_blank', rel: 'noopener', title: 'Open in ghx' },
           'ghx'
+        )
+      )
+    }
+    if (row.url && parseGithubUrl(row.url)) {
+      buttons.push(
+        h(
+          'a',
+          { class: 'btn sm ghost', href: row.url, target: '_blank', rel: 'noopener', title: 'Open on GitHub' },
+          'gh'
         )
       )
     }

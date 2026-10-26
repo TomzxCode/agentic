@@ -45,12 +45,26 @@ const mountGrid = async (rows) => {
 }
 
 describe('RepositoryItemsGrid', () => {
-  it('renders each row as a kind badge, state badge, title link, and number', async () => {
+  it('renders each row as a kind badge, state badge, app title link, and number', async () => {
     const wrapper = await mountGrid([baseRow({})])
 
     expect(wrapper.get('.badge.st-open').text()).toBe('Open')
     expect(wrapper.findAll('.badge').map((b) => b.text())).toEqual(['issue', 'Open'])
-    expect(wrapper.get('a[href="https://github.com/acme/api/issues/1"]').text()).toBe('Open issue')
+    // The title opens the app's issue page; the Links column carries GitHub.
+    expect(wrapper.get('a[href="/issue/acme/api/1"]').text()).toBe('Open issue')
+    const links = wrapper.get('.repo-links-cell')
+    expect(links.get('a[title="Open on GitHub"]').attributes('href')).toBe('https://github.com/acme/api/issues/1')
+  })
+
+  it('links a pull request title to the app PR page', async () => {
+    const wrapper = await mountGrid([
+      baseRow({ key: 'pr:7', kind: 'pr', number: '7', title: 'Open PR', url: 'https://github.com/acme/api/pull/7' })
+    ])
+
+    expect(wrapper.get('a[href="/pr/acme/api/7"]').text()).toBe('Open PR')
+    expect(wrapper.get('.repo-links-cell a[title="Open on GitHub"]').attributes('href')).toBe(
+      'https://github.com/acme/api/pull/7'
+    )
   })
 
   it('links an author to the person carrying the login', async () => {

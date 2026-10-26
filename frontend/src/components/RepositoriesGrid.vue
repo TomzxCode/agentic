@@ -2,7 +2,7 @@
 import { computed, shallowRef, watch } from 'vue'
 import { AgGridVue } from 'ag-grid-vue3'
 import { gridTheme } from './gridSetup'
-import { BranchCell, NameCell, RemoveCell } from './repositoriesCells'
+import { BranchCell, LinksCell, NameCell, RemoveCell } from './repositoriesCells'
 import ValuesFilter from './ValuesFilter.vue'
 
 // The repositories list as a data grid (AG Grid), the same treatment the
@@ -21,6 +21,7 @@ const components = {
   valuesFilter: ValuesFilter,
   name: NameCell,
   branch: BranchCell,
+  links: LinksCell,
   actions: RemoveCell
 }
 
@@ -59,6 +60,7 @@ const columnDefs = [
     // The list opens alphabetical by name, as it did before.
     sort: 'asc'
   },
+  { headerName: 'Links', width: 120, sortable: false, filter: false, cellRenderer: 'links' },
   { headerName: 'Path', field: 'path', minWidth: 220, cellClass: 'faint mono' },
   {
     headerName: 'Branch',

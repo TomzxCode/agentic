@@ -71,6 +71,7 @@ beforeEach(() => {
   localStorage.clear()
   store.people = []
   store.repositories = []
+  store.settings = {}
   store.toast = null
   vi.spyOn(store, 'loadPeople').mockResolvedValue()
   vi.spyOn(store, 'loadRepositories').mockResolvedValue()
@@ -296,6 +297,35 @@ describe('MyPullsView', () => {
     // The failing PR needs attention, so it sorts above the other one.
     const numbers = wrapper.findAll('.my-pulls-link').map((link) => link.text())
     expect(numbers).toEqual(['#7', '#42'])
+  })
+
+  it('links each pull request to the app, ghx, and GitHub', async () => {
+    store.settings = { ghx_url: 'http://ghx:8080/' }
+    mocks.list.mockResolvedValue(report([pull()]))
+    const wrapper = mount(MyPullsView, { global: { stubs: { RouterLink: RouterLinkStub } } })
+    await flushPromises()
+
+    // The number opens the app's PR view, not GitHub.
+    const appLink = wrapper.get('.my-pulls-link')
+    expect(appLink.text()).toBe('#42')
+    expect(appLink.attributes('href')).toBe('/pr/TomzxCode/agentic/42')
+
+    const ghx = wrapper.get('a[title="Open in ghx"]')
+    expect(ghx.text()).toBe('ghx')
+    expect(ghx.attributes('href')).toBe('http://ghx:8080/#/TomzxCode/agentic/pulls/42')
+
+    const github = wrapper.get('a[title="Open on GitHub"]')
+    expect(github.text()).toBe('gh')
+    expect(github.attributes('href')).toBe('https://github.com/TomzxCode/agentic/pull/42')
+  })
+
+  it('shows no ghx link when no ghx server is configured', async () => {
+    mocks.list.mockResolvedValue(report([pull()]))
+    const wrapper = mount(MyPullsView, { global: { stubs: { RouterLink: RouterLinkStub } } })
+    await flushPromises()
+
+    expect(wrapper.find('a[title="Open in ghx"]').exists()).toBe(false)
+    expect(wrapper.get('a[title="Open on GitHub"]').text()).toBe('gh')
   })
 
   it('says what to fix when no login is configured', async () => {

@@ -8,26 +8,46 @@ import { defineComponent, h } from 'vue'
 
 const params = { type: Object, required: true }
 
-// The repository name, linking to its detail page, with the ghx link after it
-// when a local ghx server is configured.
+// The repository name, linking to its detail page.
 export const NameCell = defineComponent({
   props: { params },
   setup: (props) => () => {
     const row = props.params.data
-    const name = h(
+    return h(
       props.params.context.RouterLink,
       { to: `/repositories/${row.id}`, class: 'title' },
       () => row.name || row.path
     )
-    if (!row.ghxUrl) return name
-    return h('div', { class: 'repo-name-cell' }, [
-      name,
-      h(
-        'a',
-        { class: 'btn sm ghost', href: row.ghxUrl, target: '_blank', rel: 'noopener', title: 'Open in ghx' },
-        'ghx'
+  }
+})
+
+// The repository's links in their own column: the ghx web UI when one is
+// configured, and its page on GitHub when the remote names one.
+export const LinksCell = defineComponent({
+  props: { params },
+  setup: (props) => () => {
+    const row = props.params.data
+    const buttons = []
+    if (row.ghxUrl) {
+      buttons.push(
+        h(
+          'a',
+          { class: 'btn sm ghost', href: row.ghxUrl, target: '_blank', rel: 'noopener', title: 'Open in ghx' },
+          'ghx'
+        )
       )
-    ])
+    }
+    if (row.githubUrl) {
+      buttons.push(
+        h(
+          'a',
+          { class: 'btn sm ghost', href: row.githubUrl, target: '_blank', rel: 'noopener', title: 'Open on GitHub' },
+          'gh'
+        )
+      )
+    }
+    if (!buttons.length) return null
+    return h('div', { class: 'repo-links-cell' }, buttons)
   }
 })
 

@@ -167,6 +167,23 @@
   color: var(--accent);
   white-space: nowrap;
 }
+/* The row's external links, beside the app link: compact so the repository and
+   title keep their room. */
+.my-pulls-tool-link {
+  flex: none;
+  padding: 0 5px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--faint);
+  font-size: 10px;
+  line-height: 1.6;
+  white-space: nowrap;
+}
+.my-pulls-tool-link:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+  text-decoration: none;
+}
 .my-pulls-pr-cell .badge {
   flex: none;
 }

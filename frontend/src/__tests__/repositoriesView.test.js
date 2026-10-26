@@ -168,7 +168,7 @@ describe('RepositoriesView', () => {
     expect(wrapper.get('a[href="/repositories/r1"]').text()).toBe('api')
   })
 
-  it('links a repository into the local ghx web UI when configured', async () => {
+  it('links a repository into the local ghx web UI and on GitHub, in their own column', async () => {
     store.settings = { ghx_url: 'http://localhost:8080/' }
     store.repositories = [
       { id: 'r1', name: 'api', remote_url: 'https://github.com/acme/api.git', path: '/src/api' },
@@ -176,16 +176,29 @@ describe('RepositoriesView', () => {
     ]
     const wrapper = await mountView()
 
-    const cell = wrapper.get('.repo-name-cell')
-    expect(cell.findAll('a').map((a) => a.text())).toEqual(['api', 'ghx'])
-    const link = cell.get('a[title="Open in ghx"]')
-    expect(link.text()).toBe('ghx')
-    expect(link.attributes('href')).toBe('http://localhost:8080/#/acme/api')
+    // The name cell links the app's page and nothing else.
+    expect(wrapper.get('a[href="/repositories/r1"]').text()).toBe('api')
+
+    // Both external links sit in the Links column, right after the name; the
+    // non-GitHub row has none.
+    const headers = wrapper
+      .getComponent(AgGridVue)
+      .vm.api.getColumnDefs()
+      .map((column) => column.headerName)
+    expect(headers.indexOf('Links')).toBe(headers.indexOf('Name') + 1)
+    const cells = wrapper.findAll('.repo-links-cell')
+    expect(cells).toHaveLength(1)
+    expect(cells[0].findAll('a').map((a) => a.text())).toEqual(['ghx', 'gh'])
+    expect(cells[0].get('a[title="Open in ghx"]').attributes('href')).toBe('http://localhost:8080/#/acme/api')
+    expect(cells[0].get('a[title="Open on GitHub"]').attributes('href')).toBe('https://github.com/acme/api')
   })
 
-  it('shows no ghx link when no ghx server is configured', async () => {
+  it('shows no ghx link when no ghx server is configured, and keeps the GitHub link', async () => {
     const wrapper = await mountView()
     expect(wrapper.find('a[title="Open in ghx"]').exists()).toBe(false)
+    const links = wrapper.get('.repo-links-cell')
+    expect(links.findAll('a').map((a) => a.text())).toEqual(['gh'])
+    expect(links.get('a[title="Open on GitHub"]').attributes('href')).toBe('https://github.com/acme/api')
   })
 
   it('filters the rows through the grid, and reports how much is shown', async () => {

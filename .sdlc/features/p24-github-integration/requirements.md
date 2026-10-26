@@ -35,10 +35,11 @@ Importing GitHub issues and pull requests as source items is a separate feature 
 | FR-8 | Should | The system shall cache the My PRs answer per login for 60 seconds (a failed lookup for 30) and bypass the cache on `refresh`. |
 | FR-9 | Should | The system shall send a review-request DM to a pull request's named reviewers on Slack, resolving each GitHub login through the people directory, deduplicating logins, and reporting each reviewer's outcome separately. |
 | FR-10 | Must | The system shall serve a standalone page per issue and per pull request (`/issue/owner/repo/number`, `/pr/owner/repo/number`) that renders the object read fresh from GitHub, falls back to the stored item, offers the agent panel, and adopts an existing linked task when there is one. |
-| FR-11 | Must | The repository view shall list the repository's issues and pull requests as a grid with kind, number, title, state, author, linked tasks, changes, and links out to GitHub, ghx, and the app's own pages, with a refresh that forces `ghx` to re-fetch and a separate refresh of the linked items. |
+| FR-11 | Must | The repository view shall list the repository's issues and pull requests as a grid with kind, number, title, state, author, linked tasks, changes, and links out to GitHub, ghx, and the app's own pages (the title opens the app's issue or PR page, and a Links column carries ghx and GitHub), with a refresh that forces `ghx` to re-fetch and a separate refresh of the linked items. |
 | FR-12 | Should | The system shall list a pull request item's reviewers live from GitHub through `gh`, one row per reviewer with their latest decisive review state, last review time, and pending review requests, skipping team requests. |
 | FR-13 | Should | The system shall poke one reviewer of a pull request item by Slack DM through the people directory, explaining what is missing when the login or a Slack id cannot be resolved. |
 | FR-14 | Should | The system shall list one pull request's individual checks on demand, failing first, when its CI badge's popover opens, each carrying its name, state, description, and detail URL, and report why when the read could not run instead of reading as a pull request with no checks. |
+| FR-15 | Should | The system shall link each My PRs row to the app's PR page, to the pull request on GitHub, and to the local ghx web UI when configured, and shall link each GitHub repository in the repository list's own Links column to GitHub and to the ghx web UI when configured. |
 
 ## Non-Functional Requirements
 
@@ -221,7 +222,8 @@ Importing GitHub issues and pull requests as source items is a separate feature 
       Given a registered repository with issues and pull requests on GitHub
       When the repository view loads
       Then the grid shows one row per issue and PR with kind, number, title, state, author, and linked tasks
-      And each row links to GitHub, to ghx, and to the app's own issue or PR page
+      And the title opens the row in the app's issue or PR page
+      And the Links column carries ghx and GitHub links
 
     @FR-11
     Scenario: Refresh all re-fetches the repository
@@ -276,6 +278,23 @@ Importing GitHub issues and pull requests as source items is a separate feature 
       Given `gh` cannot read the pull request
       When the client asks GET /api/my-pulls/checks
       Then the response carries the checks error and no checks
+    ```
+
+- [ ] **FR-15**
+
+    ```gherkin
+    @FR-15
+    Scenario: A My PRs row's links
+      Given a pull request with a GitHub URL and a configured ghx URL
+      Then its number opens /pr/{owner}/{repo}/{number} in the app
+      And ghx opens the pull request's page in the ghx web UI
+      And gh opens the pull request on GitHub
+
+    @FR-15
+    Scenario: The repository list's links
+      Given a registered repository with a GitHub remote and a configured ghx URL
+      Then its Links cell offers ghx and gh links
+      And a repository whose remote is not GitHub offers neither
     ```
 
 - [ ] **NFR-1**

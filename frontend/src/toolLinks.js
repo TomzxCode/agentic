@@ -66,6 +66,14 @@ export function ghxRepoUrl(remote, base) {
   return `${root}/#/${encodeURIComponent(match[1])}/${encodeURIComponent(match[2])}`
 }
 
+// A registered repository's page on GitHub, or null when its remote is not
+// GitHub. The remote's casing is kept, so the link reads as the checkout does.
+export function githubRepoUrl(remote) {
+  const match = GITHUB_REPO_RE.exec(String(remote || ''))
+  if (!match) return null
+  return `https://github.com/${match[1]}/${match[2]}`
+}
+
 // The item's page in the ghx web UI, or null when there is no server or the
 // item is not a GitHub issue/PR.
 export function ghxItemUrl(item, base) {

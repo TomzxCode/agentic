@@ -23,7 +23,7 @@ The table has one row per pull request:
 
 | Column | What it shows |
 | --- | --- |
-| PR | The number, linking to GitHub, a `draft` badge, the repository (hidden when grouped by repository, linking to the app's repository page), and the title. |
+| PR | The number, linking to the app's PR page, with a `ghx` link (when a ghx web server is configured) and a `gh` link to GitHub beside it, a `draft` badge, the repository (hidden when grouped by repository, linking to the app's repository page), and the title. |
 | CI | The check rollup: passing, failing, running, or no checks. Click it to list the pull request's individual checks, failing first. |
 | Review | The review decision: approved, changes requested, review required, or no review. |
 | Approvers | The logins whose latest decisive review approves, each a person link, or a dash when none are known. |
@@ -31,6 +31,8 @@ The table has one row per pull request:
 | Updated | When the pull request last changed, relative, with the full time in a tooltip. |
 
 A row that needs attention is styled as such.
+
+Each row links the pull request three ways: the number opens the app's PR page, `ghx` opens the local ghx web UI when its URL is configured, and `gh` opens the pull request on GitHub.
 
 ### The checks popover
 

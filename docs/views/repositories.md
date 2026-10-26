@@ -17,7 +17,8 @@ The header counts repositories, issues, and pull requests (`N of M repositories 
 
 | Column | What it shows |
 | --- | --- |
-| `Name` | A link to the repository page, plus a `ghx` link when the ghx URL is configured. It is `owner/repo` when `origin` is a GitHub remote, and the folder name otherwise. |
+| `Name` | A link to the repository page. It is `owner/repo` when `origin` is a GitHub remote, and the folder name otherwise. |
+| `Links` | A `ghx` link when the ghx URL is configured and a `gh` link to the repository on GitHub when `origin` is a GitHub remote. |
 | `Path` | The checkout on disk. |
 | `Branch` | The repository's default branch, with a multi-select filter. |
 | `Issues`, `PRs` | Counts, with number filters. |
@@ -49,7 +50,8 @@ The grid has one row per issue and pull request:
 | --- | --- |
 | `Kind` | `issue` or `PR`, with a value filter. |
 | `#` | The number, with a number filter. |
-| `Title` | The title, linking to GitHub, with a `ghx` link when ghx is configured and how long ago it was fetched. |
+| `Title` | The title, linking to the app's issue or PR page, with how long ago it was fetched. |
+| `Links` | A `ghx` link when the ghx URL is configured and a `gh` link to the item on GitHub. |
 | `State` | The state, with a value filter. |
 | `Author` | A person link, or a grey link to create the person. |
 | `Tasks` | The tasks already linked to this item. |

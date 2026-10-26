@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { ghxItemUrl, ghxRepoUrl, githubItemTarget, itemToolLinks, slackItemTarget, slackxItemUrl } from '../toolLinks'
+import {
+  ghxItemUrl,
+  ghxRepoUrl,
+  githubItemTarget,
+  githubRepoUrl,
+  itemToolLinks,
+  slackItemTarget,
+  slackxItemUrl
+} from '../toolLinks'
 
 describe('githubItemTarget', () => {
   it('reads an issue and a pull request URL, keeping their casing', () => {
@@ -45,6 +53,18 @@ describe('ghxRepoUrl', () => {
   it('is null without a server URL or for a non-GitHub remote', () => {
     expect(ghxRepoUrl('https://github.com/Acme/Web.git', '')).toBeNull()
     expect(ghxRepoUrl('https://gitlab.com/Acme/Web.git', 'http://localhost:8080')).toBeNull()
+  })
+})
+
+describe('githubRepoUrl', () => {
+  it('builds the GitHub repository URL from an https or ssh remote', () => {
+    expect(githubRepoUrl('https://github.com/Acme/Web.git')).toBe('https://github.com/Acme/Web')
+    expect(githubRepoUrl('git@github.com:Acme/Web.git')).toBe('https://github.com/Acme/Web')
+  })
+
+  it('is null for a non-GitHub remote or a missing one', () => {
+    expect(githubRepoUrl('https://gitlab.com/Acme/Web.git')).toBeNull()
+    expect(githubRepoUrl(null)).toBeNull()
   })
 })
 

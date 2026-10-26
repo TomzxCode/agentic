@@ -23,6 +23,7 @@ import {
 import { parseRemote, personLink } from '../repositories/parse'
 import { matchesRepositoryFilter, repositoriesWithCounts } from '../reviews'
 import { formatDateTime, store, timeAgo } from '../store'
+import { ghxItemUrl } from '../toolLinks'
 
 // My PRs: the open pull requests the GitHub login in Settings authored, read
 // from one GraphQL search per load. Each row carries the four things that decide
@@ -168,6 +169,16 @@ const repositoryIds = computed(() => {
 // null when the app does not track it.
 function repositoryLink(repository) {
   return repositoryIds.value.get(String(repository || '').toLowerCase()) || null
+}
+
+// The app's own page for a pull request, the row's primary link.
+function pullPath(pull) {
+  return `/pr/${pull.repository}/${pull.number}`
+}
+
+// The pull request's page in the local ghx web UI, when one is configured.
+function ghxLink(pull) {
+  return ghxItemUrl(pull, store.settings?.ghx_url)
 }
 
 // Where a GitHub login links: the person carrying it as an alias, or the
@@ -330,13 +341,26 @@ onMounted(load)
                   :class="{ 'needs-attention': needsAttention(pull) }"
                 >
                   <td class="my-pulls-pr-cell">
+                    <router-link class="my-pulls-link" :to="pullPath(pull)" :title="`Open #${pull.number} in the app`"
+                      >#{{ pull.number }}</router-link
+                    >
                     <a
-                      class="my-pulls-link"
+                      v-if="ghxLink(pull)"
+                      class="my-pulls-tool-link"
+                      :href="ghxLink(pull)"
+                      target="_blank"
+                      rel="noopener"
+                      title="Open in ghx"
+                      >ghx</a
+                    >
+                    <a
+                      v-if="pull.url"
+                      class="my-pulls-tool-link"
                       :href="pull.url"
                       target="_blank"
                       rel="noopener"
-                      :title="`Open #${pull.number} on GitHub`"
-                      >#{{ pull.number }}</a
+                      title="Open on GitHub"
+                      >gh</a
                     >
                     <span v-if="pull.draft" class="badge st-draft">draft</span>
                     <!-- The heading already names the repository when the list is

@@ -507,7 +507,7 @@ button.gantt-marker::after {
 .repo-chips,
 .repo-statuses,
 .repo-actions,
-.repo-name-cell {
+.repo-links-cell {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;

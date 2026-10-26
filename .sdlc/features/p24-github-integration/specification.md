@@ -171,6 +171,10 @@ sequenceDiagram
 | My PRs cache | 60 seconds per login, 30 for a failure | A reload does not re-query GitHub, and an offline host is retried later rather than on every request |
 | Individual checks | Read on demand when the CI badge's popover opens, cached 30 seconds | The page needs only the rollup state, and a check list per pull request would dwarf the search's payload |
 | Checks panel position | Fixed from the badge's rectangle | The table scrolls sideways in a wrapper, which would clip a panel positioned inside the cell |
+| PR row links | The app's PR page first, with a `ghx` link when configured and a `gh` link to GitHub beside it | The app page is the actionable view; the two external copies stay one click away |
+| Repository list links | `ghx` and `gh` in their own `Links` column | The list is where a checkout is identified, so both its cached UI and its GitHub page belong there, without crowding the name |
+| Repository item links | The title opens the app's issue or PR page, with `ghx` and `gh` in the `Links` column | The app page is the actionable view; the external copies stay one click away |
+| Links column order | Right after the name on the repositories list | It belongs with the repository identity, before the path and counts |
 | Approvers | Latest opinionated reviews only | A plain comment must not undo an approval, and a dismissal must drop one |
 | Listing write-back | State fields only, merged onto matching items | The repository view is never staler than its items; bodies and people still come from full fetches |
 | Issue creation | `gh issue create` | `ghx` has no issue-create command |

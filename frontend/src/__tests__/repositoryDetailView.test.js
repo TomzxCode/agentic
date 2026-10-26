@@ -458,30 +458,42 @@ describe('RepositoryDetailView', () => {
     expect(link.classes()).toContain('faint')
   })
 
-  it('links the repository and its items into the local ghx web UI when configured', async () => {
+  it('links an item title to the app page and its ghx and GitHub links in the Links column', async () => {
     store.settings = { ghx_url: 'http://localhost:8080/' }
-    store.items = [ghItem('i1', 'issue', 1, 'Open issue', { state: 'OPEN' })]
+    store.items = [
+      ghItem('i1', 'issue', 1, 'Open issue', { state: 'OPEN' }),
+      ghItem('i2', 'pr', 7, 'Open PR', { state: 'OPEN' })
+    ]
     const wrapper = await mountRepoLinked()
     await flushPromises()
 
     expect(wrapper.get('a[title="Open this repository in the local ghx web UI"]').attributes('href')).toBe(
       'http://localhost:8080/#/acme/api'
     )
-    const cell = wrapper.get('.repo-title-cell')
-    expect(cell.findAll('a').map((a) => a.text())).toEqual(['Open issue'])
-    const linksCell = wrapper.get('.repo-links-cell')
-    const link = linksCell.get('a[title="Open in ghx"]')
-    expect(link.text()).toBe('ghx')
-    expect(link.attributes('href')).toBe('http://localhost:8080/#/acme/api/issues/1')
+
+    // The title is the app's own page, for an issue and for a pull request.
+    const titleLink = (label) => wrapper.findAll('.repo-title-cell a').find((link) => link.text() === label)
+    expect(titleLink('Open issue').attributes('href')).toBe('/issue/acme/api/1')
+    expect(titleLink('Open PR').attributes('href')).toBe('/pr/acme/api/7')
+
+    const linksCell = wrapper
+      .findAll('.repo-links-cell')
+      .find((cell) => cell.get('a[title="Open on GitHub"]').attributes('href').endsWith('/issues/1'))
+    expect(linksCell.findAll('a').map((link) => link.text())).toEqual(['ghx', 'gh'])
+    expect(linksCell.get('a[title="Open in ghx"]').attributes('href')).toBe('http://localhost:8080/#/acme/api/issues/1')
+    expect(linksCell.get('a[title="Open on GitHub"]').attributes('href')).toBe('https://github.com/acme/api/issues/1')
   })
 
-  it('shows no ghx links when no ghx server is configured', async () => {
+  it('shows no ghx links when no ghx server is configured, and keeps the GitHub link', async () => {
     store.items = [ghItem('i1', 'issue', 1, 'Open issue', { state: 'OPEN' })]
     const wrapper = await mountRepoLinked()
     await flushPromises()
 
     expect(wrapper.find('a[title="Open this repository in the local ghx web UI"]').exists()).toBe(false)
     expect(wrapper.find('a[title="Open in ghx"]').exists()).toBe(false)
+    const linksCell = wrapper.get('.repo-links-cell')
+    expect(linksCell.findAll('a').map((link) => link.text())).toEqual(['gh'])
+    expect(linksCell.get('a[title="Open on GitHub"]').attributes('href')).toBe('https://github.com/acme/api/issues/1')
   })
 
   it('refreshes the repository listing from GitHub', async () => {

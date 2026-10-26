@@ -51,9 +51,10 @@ Out of scope: real network calls to GitHub or Slack, and the cycle-time reads th
 | TC-27 | Item poke | person with Slack aliases, Slack monkeypatched | DM sent without unfurl to the resolved user id; 400 naming the missing person or Slack id; 502 when Slack refuses |
 | TC-28 | TaskIssuePanel and the task's issue mode | stored item, monkeypatched API | live GitHub read shown with the agent panel; stored-item fallback; author person links |
 | TC-29 | MyPullsView | monkeypatched API | rows rendered with badges, filters, grouping (remembered in localStorage), repository multi-select, refresh, empty and error states |
-| TC-30 | Repository detail view and grid | monkeypatched API and store | grid rows with kind, state, author, tasks, and app/ghx links; refresh all; new-task and record-change actions |
+| TC-30 | Repository detail view and grid | monkeypatched API and store | grid rows with kind, state, author, and tasks; the title opens the app's issue or PR page; the Links column carries ghx and GitHub; refresh all; new-task and record-change actions |
 | TC-37 | My pull request checks endpoint | router read monkeypatched | checks and rollup returned; 400 for a missing repository, a non-`owner/name` repository, or a non-positive number; a failed read carries the error |
 | TC-39 | Pull checks popover | monkeypatched API | the badge opens the panel with failing checks first and the summary; a failed read offers a retry; Escape and an outside click close it; reopening answers from the visit's copy |
+| TC-41 | My PRs and repository list links | monkeypatched API and store | a My PRs row links its number to `/pr/{owner}/{repo}/{number}`, with ghx (when configured) and gh beside it; a repository's Links cell holds ghx and GitHub when the remote is GitHub, and is empty otherwise |
 
 ## Edge Cases and Failure Scenarios
 
@@ -90,6 +91,7 @@ Out of scope: real network calls to GitHub or Slack, and the cycle-time reads th
 | FR-12 | TC-16, TC-26 |
 | FR-13 | TC-27 |
 | FR-14 | TC-36, TC-37, TC-38, TC-39, TC-40 |
+| FR-15 | TC-41 |
 | NFR-1 | TC-19, TC-20, TC-31 |
 | NFR-2 | TC-13, TC-14, TC-36, TC-37 |
 | NFR-3 | TC-23 |
