@@ -63,8 +63,9 @@ const mergeTargets = computed(() =>
   store.people.filter((other) => other.id !== props.id).map((other) => ({ value: other.id, label: other.name }))
 )
 
+// Reload in place: the loading state is only the first-render spinner, so a
+// save never swaps the page for a spinner (which reads as a full reload).
 async function load() {
-  loading.value = true
   try {
     person.value = await api.people.get(props.id)
     // An alias that is a Slack user id reads as a name; slackx is asked only

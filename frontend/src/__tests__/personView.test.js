@@ -171,6 +171,37 @@ describe('PersonView', () => {
     expect(mocks.peopleUpdate).toHaveBeenCalledWith('p1', { name: 'Ada L' })
   })
 
+  it('keeps the page in place while a save reloads it', async () => {
+    // The reload after a save keeps the page rendered, rather than swapping it
+    // for the loading spinner as if the page reloaded.
+    const person = {
+      id: 'p1',
+      name: 'Ada',
+      aliases: ['ada'],
+      notes: '',
+      task_ids: [],
+      involved_task_ids: [],
+      requester_task_ids: [],
+      item_ids: []
+    }
+    let finishReload
+    mocks.peopleGet.mockResolvedValueOnce(person).mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          finishReload = resolve
+        })
+    )
+    mocks.peopleUpdate.mockResolvedValue(person)
+    const wrapper = mount(PersonView, { props: { id: 'p1' }, ...stub })
+    await flushPromises()
+    wrapper.findAllComponents(EditableText)[0].vm.$emit('save', 'Ada L')
+    await flushPromises()
+    expect(wrapper.find('.spinner').exists()).toBe(false)
+    expect(wrapper.text()).toContain('Aliases')
+    finishReload(person)
+    await flushPromises()
+  })
+
   it('adds an alias', async () => {
     mocks.peopleUpdate.mockResolvedValue({})
     const wrapper = mount(PersonView, { props: { id: 'p1' }, ...stub })
