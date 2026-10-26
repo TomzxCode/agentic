@@ -10,6 +10,12 @@ const MAX_QUERY = 60
 // groups, so one kind never crowds out the other.
 const PER_KIND = 5
 
+// Relative date references: `@last week`, `@last Thursday`, `@next month`.
+// The picker shows the phrase, and inserts the date it resolves to.
+const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+const WEEKDAY_ALIASES = [['sun'], ['mon'], ['tue', 'tues'], ['wed', 'weds'], ['thu', 'thur', 'thurs'], ['fri'], ['sat']]
+const DATE_UNITS = ['week', 'month', 'year']
+
 // The mention being typed at the caret, or null. `query` is the text between
 // the `@` and the caret; it may contain spaces so a full name can be matched.
 export function findMentionQuery(text, caret) {
@@ -69,13 +75,101 @@ function isNote(item) {
   return item?.source === 'note'
 }
 
-// The people and items the picker offers for `query`, people first. Matching
-// is case-insensitive over a person's name and aliases, and an item's title
-// and URL.
-export function buildMentionOptions({ people = [], items = [], query = '', perKind = PER_KIND } = {}) {
+// Midnight in the reader's own zone, so "today" is the day they see, not UTC.
+function localDay(now) {
+  const date = now instanceof Date ? now : new Date(now)
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate())
+}
+
+function addDays(day, days) {
+  const next = new Date(day.getFullYear(), day.getMonth(), day.getDate())
+  next.setDate(next.getDate() + days)
+  return next
+}
+
+// Adding months (or years) keeps the day of the month, clamped to the target
+// month's last day: Jan 31 plus a month is Feb 28, not Mar 3.
+function addMonths(day, months) {
+  const target = new Date(day.getFullYear(), day.getMonth() + months, 1)
+  const lastDay = new Date(target.getFullYear(), target.getMonth() + 1, 0).getDate()
+  target.setDate(Math.min(day.getDate(), lastDay))
+  return target
+}
+
+function addYears(day, years) {
+  return addMonths(day, years * 12)
+}
+
+function isoDay(day) {
+  const pad = (value) => String(value).padStart(2, '0')
+  return `${day.getFullYear()}-${pad(day.getMonth() + 1)}-${pad(day.getDate())}`
+}
+
+// The most recent weekday strictly before `day`, or the next one strictly
+// after it. When `day` is that weekday itself, "last" is a week back and
+// "next" is a week ahead.
+function weekdayFrom(day, weekday, relation) {
+  const distance = relation === 'last' ? (day.getDay() - weekday + 7) % 7 || 7 : (weekday - day.getDay() + 7) % 7 || 7
+  return addDays(day, relation === 'last' ? -distance : distance)
+}
+
+function dateOption(relation, term, day) {
+  const value = isoDay(day)
+  return { kind: 'date', id: `${relation}-${term.toLowerCase()}`, label: `${relation} ${term}`, detail: value, value }
+}
+
+function matchesTerm(term, rest, aliases = []) {
+  return [term, ...aliases].some((name) => name.toLowerCase().startsWith(rest))
+}
+
+// The dates a `@last ...` or `@next ...` query resolves to, given `now`.
+// `@last` alone offers the units; a weekday appears once its name is typed.
+export function buildDateMentionOptions(query, now = new Date()) {
+  const text = String(query ?? '')
+    .trim()
+    .toLowerCase()
+  const match = /^(last|next)(?:\s+(.*))?$/.exec(text)
+  if (!match) return []
+  const relation = match[1]
+  const rest = (match[2] || '').trim()
+  const today = localDay(now)
+  const options = []
+
+  for (const unit of DATE_UNITS) {
+    if (rest && !unit.startsWith(rest)) continue
+    let day
+    if (unit === 'week') day = addDays(today, relation === 'last' ? -7 : 7)
+    else if (unit === 'month') day = addMonths(today, relation === 'last' ? -1 : 1)
+    else day = addYears(today, relation === 'last' ? -1 : 1)
+    options.push(dateOption(relation, unit, day))
+  }
+
+  // Only spell out a weekday once the user starts naming one, so `@last` stays
+  // short instead of listing all seven.
+  if (rest) {
+    WEEKDAYS.forEach((name, weekday) => {
+      if (!matchesTerm(name, rest, WEEKDAY_ALIASES[weekday])) return
+      options.push(dateOption(relation, name, weekdayFrom(today, weekday, relation)))
+    })
+  }
+  return options
+}
+
+// The references the picker offers for `query`: dates first when the query
+// names one, then people, then items. Matching is case-insensitive over a
+// person's name and aliases, and an item's title and URL.
+export function buildMentionOptions({
+  people = [],
+  items = [],
+  query = '',
+  perKind = PER_KIND,
+  now = new Date()
+} = {}) {
   const needle = String(query || '')
     .trim()
     .toLowerCase()
+
+  const dateMatches = buildDateMentionOptions(needle, now)
 
   const peopleMatches = []
   for (const person of people) {
@@ -95,14 +189,15 @@ export function buildMentionOptions({ people = [], items = [], query = '', perKi
   }
   itemMatches.sort((a, b) => compareMatches(a, b, needle))
 
-  return [...peopleMatches.slice(0, perKind), ...itemMatches.slice(0, perKind)]
+  return [...dateMatches, ...peopleMatches.slice(0, perKind), ...itemMatches.slice(0, perKind)]
 }
 
-// A person or item reference as it is written into a field. It is plain text
+// A reference as it is written into a field. A person or item is plain text
 // (`@name`), the same way a person would type it: the field stores what the
-// editor shows, and the renderer links the reference when it displays it.
+// editor shows, and the renderer links the reference when it displays it. A
+// date becomes its ISO value (`2026-10-22`) rather than the phrase typed.
 export function mentionText(option) {
-  return `@${option.label}`
+  return option.kind === 'date' ? option.value : `@${option.label}`
 }
 
 // A saved link from an earlier build (or a hand-written one) is edited as its

@@ -4,9 +4,10 @@ import { decodeMentionLinks } from '../mentions'
 import { useMentions } from '../composables/useMentions'
 import MentionMenu from './MentionMenu.vue'
 
-// A textarea that completes people and items when an @ mention is typed. It
-// writes the reference as plain `@name` text, so the editor keeps showing what
-// the field stores; the Markdown renderer links it when the value is displayed.
+// A textarea that completes people, items, and relative dates when an @ mention
+// is typed. It writes a person or item as plain `@name` text, so the editor
+// keeps showing what the field stores; the Markdown renderer links it when the
+// value is displayed. A date is written as its ISO value instead.
 // Every other attribute, such as its class and placeholder, stays on the
 // textarea itself.
 defineOptions({ inheritAttrs: false })

@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { enableAutoUnmount, mount } from '@vue/test-utils'
 import MentionTextarea from '../components/MentionTextarea.vue'
 import { store } from '../store'
@@ -17,6 +17,7 @@ beforeEach(() => {
 })
 
 afterEach(() => {
+  vi.useRealTimers()
   store.people = []
   store.items = []
 })
@@ -59,6 +60,22 @@ describe('MentionTextarea', () => {
     expect(option.text()).toContain('Fix login timeout')
     await option.trigger('click')
     expect(wrapper.emitted('update:modelValue').at(-1)).toEqual(['@Fix login timeout '])
+  })
+
+  it('offers relative dates and inserts the date instead of the phrase', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date(2026, 9, 26, 12))
+    const wrapper = mount(MentionTextarea, { props: { modelValue: '' } })
+    await type(wrapper, '@last')
+    const panel = wrapper.get('.mention-panel')
+    expect(panel.text()).toContain('Dates')
+    expect(panel.text()).toContain('last week')
+    expect(panel.text()).toContain('last month')
+    // The full phrase keeps the picker open: choosing it is what writes the date.
+    await type(wrapper, '@last week')
+    expect(wrapper.find('.mention-panel').exists()).toBe(true)
+    await wrapper.get('.mention-option').trigger('click')
+    expect(wrapper.emitted('update:modelValue').at(-1)).toEqual(['2026-10-19 '])
   })
 
   it('moves the highlight with the arrow keys and inserts with Enter', async () => {

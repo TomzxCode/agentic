@@ -341,7 +341,7 @@ onUnmounted(() => {
               <MentionTextarea
                 :model-value="description"
                 class="textarea"
-                placeholder="Add a description… Use @ to mention a person or an item."
+                placeholder="Add a description… Use @ to mention a person, an item, or a date."
                 @update:model-value="emit('update:description', $event)"
                 @blur="saveDescription"
                 @keydown.escape="saveDescription"

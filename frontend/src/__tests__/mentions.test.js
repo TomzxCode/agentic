@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   applyMention,
+  buildDateMentionOptions,
   buildMentionOptions,
   decodeMentionLinks,
   findMentionQuery,
@@ -68,6 +69,11 @@ describe('buildMentionOptions', () => {
     expect(options.map((option) => option.id)).toEqual(['p1'])
   })
 
+  it('offers dates before people and items for a date query', () => {
+    const options = buildMentionOptions({ people, items, query: 'last', now: new Date(2026, 9, 26) })
+    expect(options.slice(0, 3).map((option) => option.kind)).toEqual(['date', 'date', 'date'])
+  })
+
   it('puts prefix matches before matches in the middle', () => {
     const list = [
       { id: 'p1', name: 'The Ada fan club', aliases: [] },
@@ -78,10 +84,73 @@ describe('buildMentionOptions', () => {
   })
 })
 
+describe('buildDateMentionOptions', () => {
+  // Monday, 26 October 2026, in the reader's own zone.
+  const now = new Date(2026, 9, 26)
+  const values = (query, at = now) => buildDateMentionOptions(query, at).map((option) => [option.label, option.value])
+
+  it('offers the units when only last or next is typed', () => {
+    expect(values('last')).toEqual([
+      ['last week', '2026-10-19'],
+      ['last month', '2026-09-26'],
+      ['last year', '2025-10-26']
+    ])
+    expect(values('next')).toEqual([
+      ['next week', '2026-11-02'],
+      ['next month', '2026-11-26'],
+      ['next year', '2027-10-26']
+    ])
+  })
+
+  it('resolves a weekday to the nearest one before or after today', () => {
+    expect(values('last Thursday')).toEqual([['last Thursday', '2026-10-22']])
+    expect(values('next Thursday')).toEqual([['next Thursday', '2026-10-29']])
+  })
+
+  it('treats the same weekday as a week away', () => {
+    expect(values('last Monday')).toEqual([['last Monday', '2026-10-19']])
+    expect(values('next Monday')).toEqual([['next Monday', '2026-11-02']])
+  })
+
+  it('accepts abbreviations and filters as the weekday is typed', () => {
+    expect(values('last t')).toEqual([
+      ['last Tuesday', '2026-10-20'],
+      ['last Thursday', '2026-10-22']
+    ])
+    expect(values('last thurs')).toEqual([['last Thursday', '2026-10-22']])
+    expect(values('next fri')).toEqual([['next Friday', '2026-10-30']])
+  })
+
+  it('offers a matching unit alongside a matching weekday', () => {
+    expect(values('next w')).toEqual([
+      ['next week', '2026-11-02'],
+      ['next Wednesday', '2026-10-28']
+    ])
+  })
+
+  it('clamps the day when the target month is shorter', () => {
+    expect(values('next month', new Date(2026, 0, 31))).toEqual([['next month', '2026-02-28']])
+    expect(values('last month', new Date(2026, 2, 31))).toEqual([['last month', '2026-02-28']])
+    expect(values('next year', new Date(2024, 1, 29))).toEqual([['next year', '2025-02-28']])
+  })
+
+  it('ignores text that is not a last or next phrase', () => {
+    expect(buildDateMentionOptions('la', now)).toEqual([])
+    expect(buildDateMentionOptions('previous week', now)).toEqual([])
+    expect(buildDateMentionOptions('', now)).toEqual([])
+  })
+})
+
 describe('mentionText and applyMention', () => {
   it('writes a plain @ name for a person or an item', () => {
     expect(mentionText({ kind: 'person', id: 'p1', label: 'Ada Lovelace' })).toBe('@Ada Lovelace')
     expect(mentionText({ kind: 'item', id: 'i1', label: 'Fix login timeout' })).toBe('@Fix login timeout')
+  })
+
+  it('writes a date as its value, not the typed phrase', () => {
+    expect(mentionText({ kind: 'date', id: 'last-thursday', label: 'last Thursday', value: '2026-10-22' })).toBe(
+      '2026-10-22'
+    )
   })
 
   it('replaces the typed query and leaves the caret after the mention', () => {
@@ -95,6 +164,21 @@ describe('mentionText and applyMention', () => {
   it('adds a space when the mention ends the value', () => {
     const result = applyMention('@ad', { start: 0, end: 3 }, { kind: 'person', id: 'p1', label: 'Ada' })
     expect(result.value).toBe('@Ada ')
+    expect(result.caret).toBe(result.value.length)
+  })
+
+  it('replaces a date phrase with the date', () => {
+    const result = applyMention(
+      'due @last week',
+      { start: 4, end: 14, query: 'last week' },
+      {
+        kind: 'date',
+        id: 'last-week',
+        label: 'last week',
+        value: '2026-10-19'
+      }
+    )
+    expect(result.value).toBe('due 2026-10-19 ')
     expect(result.caret).toBe(result.value.length)
   })
 })

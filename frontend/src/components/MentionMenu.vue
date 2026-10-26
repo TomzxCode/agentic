@@ -12,15 +12,17 @@ function startsGroup(index) {
 }
 
 function groupLabel(kind) {
-  return kind === 'person' ? 'People' : 'Items'
+  if (kind === 'person') return 'People'
+  if (kind === 'date') return 'Dates'
+  return 'Items'
 }
 </script>
 
 <template>
   <!-- mousedown is prevented so clicking an option never blurs the field and
        commits a half-written value before the mention is inserted. -->
-  <div class="mention-panel" role="listbox" aria-label="Mention a person or item" @mousedown.prevent>
-    <div v-if="!options.length" class="ss-empty faint">No people or items match</div>
+  <div class="mention-panel" role="listbox" aria-label="Mention a person, item, or date" @mousedown.prevent>
+    <div v-if="!options.length" class="ss-empty faint">No people, items, or dates match</div>
     <template v-for="(option, index) in options" :key="`${option.kind}-${option.id}`">
       <div v-if="startsGroup(index)" class="mention-group" aria-hidden="true">{{ groupLabel(option.kind) }}</div>
       <button
@@ -33,7 +35,7 @@ function groupLabel(kind) {
         @click="emit('choose', option)"
       >
         <span class="mention-mark" :class="option.kind" aria-hidden="true">{{
-          option.kind === 'person' ? '@' : '#'
+          option.kind === 'item' ? '#' : '@'
         }}</span>
         <span class="ss-option-label">{{ option.label }}</span>
         <span v-if="option.detail" class="mention-detail faint">{{ option.detail }}</span>
