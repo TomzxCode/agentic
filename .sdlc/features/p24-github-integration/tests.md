@@ -45,16 +45,17 @@ Out of scope: real network calls to GitHub or Slack, and the cycle-time reads th
 | TC-21 | Create issue endpoint | monkeypatched `create_github_issue` | issue created; 400 for a blank title or unresolvable repository; 502 on failure |
 | TC-22 | Repository endpoint with refresh | monkeypatched `ghx` | `ghx cache --force` runs first; 502 when both kinds fail |
 | TC-23 | Repository listing syncs the items it names | stored item for a listed issue | item's state metadata and author updated; an identical listing writes nothing; other repositories' items untouched |
-| TC-24 | My PRs endpoint | login resolved, search monkeypatched | rows and counts returned; the no-login case carries the error |
+| TC-24 | My PRs endpoint | login resolved, search monkeypatched | rows and counts returned; linked tasks resolved per request; the no-login case carries the error |
 | TC-25 | My PRs poke | people and Slack monkeypatched | one DM per deduplicated login; per-reviewer failure reasons; 400 with no logins |
 | TC-26 | Item reviewers endpoint | PR item, monkeypatched `gh` | reviewers listed with a PENDING request; a non-PR item returns an empty list; a failed read carries the error |
 | TC-27 | Item poke | person with Slack aliases, Slack monkeypatched | DM sent without unfurl to the resolved user id; 400 naming the missing person or Slack id; 502 when Slack refuses |
 | TC-28 | TaskIssuePanel and the task's issue mode | stored item, monkeypatched API | live GitHub read shown with the agent panel; stored-item fallback; author person links |
-| TC-29 | MyPullsView | monkeypatched API | rows rendered with badges, filters, grouping (remembered in localStorage), repository multi-select, refresh, empty and error states |
+| TC-29 | MyPullsView | monkeypatched API | rows rendered with badges, task links, filters, grouping (remembered in localStorage), repository multi-select, refresh, empty and error states |
 | TC-30 | Repository detail view and grid | monkeypatched API and store | grid rows with kind, state, author, and tasks; the title opens the app's issue or PR page; the Links column carries ghx and GitHub; refresh all; new-task and record-change actions |
 | TC-37 | My pull request checks endpoint | router read monkeypatched | checks and rollup returned; 400 for a missing repository, a non-`owner/name` repository, or a non-positive number; a failed read carries the error |
 | TC-39 | Pull checks popover | monkeypatched API | the badge opens the panel with failing checks first and the summary; a failed read offers a retry; Escape and an outside click close it; reopening answers from the visit's copy |
-| TC-41 | My PRs and repository list links | monkeypatched API and store | a My PRs row links its number to `/pr/{owner}/{repo}/{number}`, with ghx (when configured) and gh beside it; a repository's Links cell holds ghx and GitHub when the remote is GitHub, and is empty otherwise |
+| TC-41 | My PRs and repository list links | monkeypatched API and store | a My PRs row puts ghx (when configured) and gh before its number, which links to `/pr/{owner}/{repo}/{number}`, with a linked task after the title; a repository's Links cell holds ghx and GitHub when the remote is GitHub, and is empty otherwise |
+| TC-42 | My PRs task links | a stored PR item associated with a task | the row carries the task's id, title, and status, resolved on each request even when the GitHub read is cached, and the item's casing need not match GitHub's |
 
 ## Edge Cases and Failure Scenarios
 
@@ -82,7 +83,7 @@ Out of scope: real network calls to GitHub or Slack, and the cycle-time reads th
 | FR-3 | TC-21 |
 | FR-4 | TC-5, TC-22 |
 | FR-5 | TC-6, TC-22, TC-23 |
-| FR-6 | TC-9, TC-10, TC-11, TC-12, TC-24 |
+| FR-6 | TC-9, TC-10, TC-11, TC-12, TC-24, TC-42 |
 | FR-7 | TC-14, TC-15, TC-24 |
 | FR-8 | TC-14 |
 | FR-9 | TC-25 |
@@ -91,7 +92,7 @@ Out of scope: real network calls to GitHub or Slack, and the cycle-time reads th
 | FR-12 | TC-16, TC-26 |
 | FR-13 | TC-27 |
 | FR-14 | TC-36, TC-37, TC-38, TC-39, TC-40 |
-| FR-15 | TC-41 |
+| FR-15 | TC-41, TC-42 |
 | NFR-1 | TC-19, TC-20, TC-31 |
 | NFR-2 | TC-13, TC-14, TC-36, TC-37 |
 | NFR-3 | TC-23 |

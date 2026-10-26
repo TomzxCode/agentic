@@ -17,10 +17,13 @@ from __future__ import annotations
 import re
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlmodel import Session
+from sqlalchemy import func
+from sqlmodel import Session, col, select
 
 from ..db import get_session
 from ..models.base import utcnow
+from ..models.items import Association, SourceItem
+from ..models.tasks import Task
 from ..my_pulls import fetch_my_pull_checks, fetch_my_pulls
 from ..schemas.my_pulls import (
     MyPullChecksRead,
@@ -29,6 +32,7 @@ from ..schemas.my_pulls import (
     MyPullPokeRequest,
     MyPullPokeSent,
     MyPullsRead,
+    MyPullTask,
 )
 from ..services.github import pr_review_request_message
 from ..services.slack import SlackError, resolve_slack_user_id, slack_send_dm
@@ -41,6 +45,52 @@ router = APIRouter(prefix="/api/my-pulls", tags=["my-pulls"])
 _REPOSITORY_RE = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
 
 
+def _tasks_by_pull(session: Session, pulls: list[dict]) -> dict[str, list[MyPullTask]]:
+    """The tasks each pull request is linked to, keyed by its external id.
+
+    A pull request's stored item carries ``owner/repo#number`` as its external
+    id, so the row joins back to its tasks through that. The key is lowercased
+    because GitHub's casing of a repository can differ from the casing the item
+    was created with.
+    """
+    keys = {f"{pull['repository']}#{pull['number']}".lower() for pull in pulls if pull.get("repository")}
+    if not keys:
+        return {}
+    item_ids_by_key: dict[str, list[str]] = {}
+    for item in session.exec(
+        select(SourceItem).where(
+            SourceItem.source == "github",
+            func.lower(col(SourceItem.external_id)).in_(keys),
+        )
+    ).all():
+        if item.external_id:
+            item_ids_by_key.setdefault(item.external_id.lower(), []).append(item.id)
+    item_ids = [item_id for ids in item_ids_by_key.values() for item_id in ids]
+    if not item_ids:
+        return {}
+    task_ids_by_item: dict[str, list[str]] = {}
+    for assoc in session.exec(select(Association).where(col(Association.item_id).in_(item_ids))).all():
+        task_ids_by_item.setdefault(assoc.item_id, []).append(assoc.task_id)
+    task_ids = {task_id for ids in task_ids_by_item.values() for task_id in ids}
+    if not task_ids:
+        return {}
+    tasks = {
+        task.id: MyPullTask(id=task.id, title=task.title, status=task.status)
+        for task in session.exec(select(Task).where(col(Task.id).in_(task_ids))).all()
+    }
+    linked: dict[str, list[MyPullTask]] = {}
+    for key, ids in item_ids_by_key.items():
+        rows = {
+            task_id: tasks[task_id]
+            for item_id in ids
+            for task_id in task_ids_by_item.get(item_id, [])
+            if task_id in tasks
+        }
+        if rows:
+            linked[key] = list(rows.values())
+    return linked
+
+
 @router.get("", response_model=MyPullsRead)
 def list_my_pulls(refresh: bool = False, session: Session = Depends(get_session)) -> MyPullsRead:
     """The open pull requests authored by the configured GitHub login.
@@ -50,7 +100,19 @@ def list_my_pulls(refresh: bool = False, session: Session = Depends(get_session)
     that could not run, the response carries an ``error`` and no pull requests.
     """
     report = fetch_my_pulls(resolve_github_login(session), refresh=refresh)
-    return MyPullsRead(generated_at=utcnow(), **report)
+    # The cached GitHub read carries no task links, so copy each row and add
+    # them here: linking or unlinking a task shows at once, without a re-query.
+    tasks = _tasks_by_pull(session, report["pulls"])
+    pulls = [
+        {**pull, "tasks": tasks.get(f"{pull['repository']}#{pull['number']}".lower(), [])} for pull in report["pulls"]
+    ]
+    return MyPullsRead(
+        login=str(report.get("login") or ""),
+        generated_at=utcnow(),
+        counts=report.get("counts") or {},
+        error=report.get("error"),
+        pulls=pulls,
+    )
 
 
 @router.get("/checks", response_model=MyPullChecksRead)

@@ -247,6 +247,27 @@ a.my-pulls-repository:hover {
   color: var(--muted);
   font-size: 12px;
 }
+/* A task the pull request is linked to, after the title: the shared task chip,
+   compact enough that the row still fits inside the PR column. */
+.my-pulls-task {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 34%;
+  padding: 0 6px;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 11px;
+}
+.my-pulls-task:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+  text-decoration: none;
+}
+.my-pulls-task .task-link-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .my-pulls-table .badge {
   white-space: nowrap;
 }

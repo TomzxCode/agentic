@@ -2,9 +2,14 @@ import json
 from types import SimpleNamespace
 
 from fastapi.testclient import TestClient
+from sqlalchemy import delete as sa_delete
+from sqlmodel import Session, col
 
 from agentic import my_pulls
+from agentic.db import create_db_and_tables, engine
 from agentic.main import app
+from agentic.models.items import Association, SourceItem
+from agentic.models.tasks import Task
 from agentic.services import github, shell
 
 
@@ -256,6 +261,69 @@ def test_my_pulls_endpoint(monkeypatch):
     assert payload["counts"]["open_threads"] == 1
     assert payload["pulls"][0]["number"] == 12
     assert payload["pulls"][0]["approvers"] == ["alice"]
+
+
+def test_my_pulls_endpoint_links_each_pull_to_its_tasks(monkeypatch):
+    """A tracked PR shows the tasks its item is associated with.
+
+    The links are resolved per request, so linking a task after the GitHub read
+    was cached shows without a refresh. The item's casing need not match
+    GitHub's ``nameWithOwner`` casing.
+    """
+    create_db_and_tables()
+    row = {
+        "repository": "O/R",
+        "number": 12,
+        "title": "Fix the thing",
+        "url": "https://github.com/O/R/pull/12",
+        "draft": False,
+        "created_at": "2026-10-01T00:00:00Z",
+        "updated_at": "2026-10-02T00:00:00Z",
+        "review_decision": "APPROVED",
+        "approved": True,
+        "approvers": ["alice"],
+        "ci": "success",
+        "open_threads": 0,
+        "threads_total": 0,
+    }
+    monkeypatch.setattr("agentic.routers.my_pulls.resolve_github_login", lambda session: "tomzx")
+    monkeypatch.setattr(my_pulls, "search_my_open_pulls", lambda login: [row])
+    my_pulls._cache.clear()
+
+    with Session(engine) as session:
+        task = Task(title="Fix the thing")
+        item = SourceItem(
+            source="github",
+            kind="pull_request",
+            external_id="o/r#12",
+            url="https://github.com/o/r/pull/12",
+        )
+        session.add(task)
+        session.add(item)
+        session.commit()
+        session.refresh(task)
+        session.refresh(item)
+        task_id = task.id
+        item_id = item.id
+
+    try:
+        with TestClient(app) as client:
+            # Nothing links the pull request yet, even though the read is cached now.
+            assert client.get("/api/my-pulls").json()["pulls"][0]["tasks"] == []
+
+            with Session(engine) as session:
+                session.add(Association(task_id=task_id, item_id=item_id))
+                session.commit()
+
+            payload = client.get("/api/my-pulls").json()
+
+        assert payload["pulls"][0]["tasks"] == [{"id": task_id, "title": "Fix the thing", "status": "open"}]
+    finally:
+        with Session(engine) as session:
+            session.exec(sa_delete(Association).where(col(Association.task_id) == task_id))
+            session.exec(sa_delete(SourceItem).where(col(SourceItem.id) == item_id))
+            session.exec(sa_delete(Task).where(col(Task.id) == task_id))
+            session.commit()
 
 
 def test_my_pulls_endpoint_without_a_login(monkeypatch):

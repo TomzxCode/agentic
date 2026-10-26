@@ -46,7 +46,7 @@ Response models (`schemas/github.py`, `schemas/my_pulls.py`, `schemas/items.py`)
 | GithubIssue | number, title, url, state, author, labels, body |
 | GithubRepoItem | number, kind (issue / pr), title, url, state, is_draft, merged_at, created_at, author, labels |
 | GithubRepoListing | items, failed (each kind `ghx` could not list) |
-| MyPullRead | repository, number, title, url, draft, created_at, updated_at, review_decision, approved, approvers, ci, open_threads, threads_total, reviewed, requested_reviewers |
+| MyPullRead | repository, number, title, url, draft, created_at, updated_at, review_decision, approved, approvers, ci, open_threads, threads_total, reviewed, requested_reviewers, tasks (id, title, status) |
 | MyPullsRead | login, generated_at, counts, error, pulls |
 | MyPullCheck / MyPullChecksRead | name, state, description, url / repository, number, rollup, checks, total, error |
 | MyPullPokeRead | poked (login, name, slack_user_id, ts), failed (login, reason) |
@@ -59,6 +59,7 @@ Derived My PRs fields:
 - `approvers` lists the logins whose latest opinionated review is an approval, so a later plain comment neither drops nor adds one and a dismissal drops it.
 - `reviewed` is true when anyone but the author submitted any review, a comment included; a review page that overflows its read count also counts as reviewed.
 - `open_threads` counts the first page of review threads that are unresolved; `threads_total` comes from the connection and stays exact.
+- `tasks` lists each task whose stored GitHub PR item carries `owner/repo#number` as its external id, matched case-insensitively and resolved per request so linking a task shows without a GitHub refresh; an untracked pull request carries none.
 
 The header `counts` are `total`, `attention` (failing checks, requested changes, or an unresolved thread), `approved`, `failing`, `open_threads`, and `draft`.
 
@@ -112,7 +113,9 @@ sequenceDiagram
         S-->>M: rows (ci, decision, approvers, threads)
         M->>M: cache 60s, derive counts
     end
-    M-->>V: login, pulls, counts, error
+    M-->>R: login, pulls, counts, error
+    R->>R: resolve linked tasks from stored items
+    R-->>V: login, pulls (with tasks), counts, error
 ```
 
 ### Checks popover
@@ -167,11 +170,11 @@ sequenceDiagram
 | Listings and single objects | `ghx` | Consistent JSON shape, repository selection, and an on-disk cache the refresh can force |
 | My PRs, reviewers, checks, threads | `gh` GraphQL | `ghx` carries no review threads, check rollup, or reviews, and `gh --json` exposes neither |
 | My PRs source | One paginated search per lookup | One read answers the whole page (state, checks, threads, approvers) |
-| My PRs storage | Nothing stored | A merged pull request leaves the page on the next refresh without a bookkeeping step |
+| My PRs storage | A pull request is not stored; its task links read the stored items | A merged pull request leaves the page on the next refresh, while task links come from the app's own items and stay current |
 | My PRs cache | 60 seconds per login, 30 for a failure | A reload does not re-query GitHub, and an offline host is retried later rather than on every request |
 | Individual checks | Read on demand when the CI badge's popover opens, cached 30 seconds | The page needs only the rollup state, and a check list per pull request would dwarf the search's payload |
 | Checks panel position | Fixed from the badge's rectangle | The table scrolls sideways in a wrapper, which would clip a panel positioned inside the cell |
-| PR row links | The app's PR page first, with a `ghx` link when configured and a `gh` link to GitHub beside it | The app page is the actionable view; the two external copies stay one click away |
+| PR row links | `ghx` and `gh` first, then the number opens the app's PR page, with a linked task after the title | The two external copies belong with the PR identity; the app page stays the one actionable view beside it, and the linked task sits with the row it belongs to |
 | Repository list links | `ghx` and `gh` in their own `Links` column | The list is where a checkout is identified, so both its cached UI and its GitHub page belong there, without crowding the name |
 | Repository item links | The title opens the app's issue or PR page, with `ghx` and `gh` in the `Links` column | The app page is the actionable view; the external copies stay one click away |
 | Links column order | Right after the name on the repositories list | It belongs with the repository identity, before the path and counts |

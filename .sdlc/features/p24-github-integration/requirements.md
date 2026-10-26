@@ -30,7 +30,7 @@ Importing GitHub issues and pull requests as source items is a separate feature 
 | FR-3 | Should | The system shall create an issue in a repository from a title and body through `gh`, returning the new issue's number, url, and state. |
 | FR-4 | Must | The system shall list a repository's complete issue and pull request set through `ghx`, all states by default, each row tagged with its kind, running the two listings together, and reporting each kind that failed instead of reading as an empty section. |
 | FR-5 | Must | The system shall re-fetch a repository through `ghx` before listing when `refresh` is set, and write the listing's state fields back onto the stored items the listing names, so an item never reads staler than the repository view. |
-| FR-6 | Must | The system shall list the open pull requests authored by the configured GitHub login through one paginated GraphQL search, newest update first and archived repositories excluded, each row carrying its check rollup, review decision, approvers, review thread counts, whether anyone but the author reviewed it, and the requested reviewers. |
+| FR-6 | Must | The system shall list the open pull requests authored by the configured GitHub login through one paginated GraphQL search, newest update first and archived repositories excluded, each row carrying its check rollup, review decision, approvers, review thread counts, whether anyone but the author reviewed it, the requested reviewers, and the tasks its stored item is associated with. |
 | FR-7 | Must | The system shall report why the My PRs list is empty when no GitHub login is configured or `gh` could not run, rather than reading as no open work. |
 | FR-8 | Should | The system shall cache the My PRs answer per login for 60 seconds (a failed lookup for 30) and bypass the cache on `refresh`. |
 | FR-9 | Should | The system shall send a review-request DM to a pull request's named reviewers on Slack, resolving each GitHub login through the people directory, deduplicating logins, and reporting each reviewer's outcome separately. |
@@ -39,7 +39,7 @@ Importing GitHub issues and pull requests as source items is a separate feature 
 | FR-12 | Should | The system shall list a pull request item's reviewers live from GitHub through `gh`, one row per reviewer with their latest decisive review state, last review time, and pending review requests, skipping team requests. |
 | FR-13 | Should | The system shall poke one reviewer of a pull request item by Slack DM through the people directory, explaining what is missing when the login or a Slack id cannot be resolved. |
 | FR-14 | Should | The system shall list one pull request's individual checks on demand, failing first, when its CI badge's popover opens, each carrying its name, state, description, and detail URL, and report why when the read could not run instead of reading as a pull request with no checks. |
-| FR-15 | Should | The system shall link each My PRs row to the app's PR page, to the pull request on GitHub, and to the local ghx web UI when configured, and shall link each GitHub repository in the repository list's own Links column to GitHub and to the ghx web UI when configured. |
+| FR-15 | Should | The system shall link each My PRs row to the app's PR page, to the pull request on GitHub, and to the local ghx web UI when configured (the external links before the number), to each task the pull request's stored item is associated with, and shall link each GitHub repository in the repository list's own Links column to GitHub and to the ghx web UI when configured. |
 
 ## Non-Functional Requirements
 
@@ -55,7 +55,7 @@ Importing GitHub issues and pull requests as source items is a separate feature 
 
 - GitHub access goes through `ghx` for listings and single objects; `gh` is used only where `ghx` does not reach (reviews, check rollups, review threads, issue creation).
 - `ghx` and `gh` must be installed and authenticated on the host; there are no OAuth flows or webhooks.
-- Nothing about My PRs is stored in the database; the only writes are the repository listing's state fields onto stored items.
+- The My PRs read stores nothing; its task links are read from the stored GitHub items, and the only writes are the repository listing's state fields onto those items.
 
 ## Acceptance Criteria
 
@@ -143,7 +143,7 @@ Importing GitHub issues and pull requests as source items is a separate feature 
     Scenario: One search answers the page
       Given a configured GitHub login with open pull requests
       When the client asks GET /api/my-pulls
-      Then each row carries its repository, number, check rollup state, review decision, approvers, open thread count, reviewed flag, and requested reviewers
+      Then each row carries its repository, number, check rollup state, review decision, approvers, open thread count, reviewed flag, requested reviewers, and linked tasks
 
     @FR-6
     Scenario: Only opinionated reviews approve
@@ -286,9 +286,15 @@ Importing GitHub issues and pull requests as source items is a separate feature 
     @FR-15
     Scenario: A My PRs row's links
       Given a pull request with a GitHub URL and a configured ghx URL
-      Then its number opens /pr/{owner}/{repo}/{number} in the app
-      And ghx opens the pull request's page in the ghx web UI
+      Then ghx opens the pull request's page in the ghx web UI
       And gh opens the pull request on GitHub
+      And both external links come before the number, which opens /pr/{owner}/{repo}/{number} in the app
+
+    @FR-15
+    Scenario: A My PRs row's task link
+      Given a pull request whose stored item is associated with a task
+      Then the row links the task after its title
+      And a pull request the app does not store shows no task link
 
     @FR-15
     Scenario: The repository list's links

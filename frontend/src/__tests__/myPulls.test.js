@@ -58,6 +58,7 @@ function pull(overrides = {}) {
     ci: 'success',
     open_threads: 0,
     threads_total: 1,
+    tasks: [],
     ...overrides
   }
 }
@@ -362,13 +363,14 @@ describe('MyPullsView', () => {
     expect(edges[0].attributes('aria-label')).toBe('Failing checks')
   })
 
-  it('links each pull request to the app, ghx, and GitHub', async () => {
+  it('links each pull request to ghx, GitHub, and the app, in that order', async () => {
     store.settings = { ghx_url: 'http://ghx:8080/' }
     mocks.list.mockResolvedValue(report([pull()]))
     const wrapper = mount(MyPullsView, { global: { stubs: { RouterLink: RouterLinkStub } } })
     await flushPromises()
 
-    // The number opens the app's PR view, not GitHub.
+    // The number opens the app's PR view, not GitHub; the two external copies
+    // come before it.
     const appLink = wrapper.get('.my-pulls-link')
     expect(appLink.text()).toBe('#42')
     expect(appLink.attributes('href')).toBe('/pr/TomzxCode/agentic/42')
@@ -380,6 +382,36 @@ describe('MyPullsView', () => {
     const github = wrapper.get('a[title="Open on GitHub"]')
     expect(github.text()).toBe('gh')
     expect(github.attributes('href')).toBe('https://github.com/TomzxCode/agentic/pull/42')
+
+    expect(
+      wrapper
+        .get('.my-pulls-pr-cell')
+        .findAll('a')
+        .map((link) => link.attributes('href'))
+    ).toEqual([
+      'http://ghx:8080/#/TomzxCode/agentic/pulls/42',
+      'https://github.com/TomzxCode/agentic/pull/42',
+      '/pr/TomzxCode/agentic/42'
+    ])
+    expect(wrapper.find('.my-pulls-task').exists()).toBe(false)
+  })
+
+  it('links the task each pull request is associated with', async () => {
+    mocks.list.mockResolvedValue(
+      report([
+        pull({ tasks: [{ id: 't1', title: 'Ship the My PRs page', status: 'in_progress' }] }),
+        pull({ number: 7, tasks: [] })
+      ])
+    )
+    const wrapper = mount(MyPullsView, { global: { stubs: { RouterLink: RouterLinkStub } } })
+    await flushPromises()
+
+    // Only the linked row carries a task link, and it names the task.
+    const tasks = wrapper.findAll('.my-pulls-task')
+    expect(tasks).toHaveLength(1)
+    expect(tasks[0].attributes('href')).toBe('/task/t1')
+    expect(tasks[0].text()).toContain('Ship the My PRs page')
+    expect(tasks[0].attributes('title')).toBe('Open task: Ship the My PRs page')
   })
 
   it('shows no ghx link when no ghx server is configured', async () => {

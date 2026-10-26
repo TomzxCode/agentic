@@ -11,6 +11,7 @@ Checking each one on GitHub costs a tab per pull request.
 This page answers "which of mine are moving, and which need a nudge" with one row per pull request, carrying its check rollup, review decision, approvers, and open thread count.
 
 The list is read-only over GitHub: nothing is stored, so a merged pull request leaves on the next refresh.
+A pull request's task link is resolved from the app's own stored items, so linking or unlinking a task shows on the next load without a GitHub refresh.
 
 ## How to use it
 
@@ -23,7 +24,7 @@ The table has one row per pull request:
 
 | Column | What it shows |
 | --- | --- |
-| PR | The number, linking to the app's PR page, with a `ghx` link (when a ghx web server is configured) and a `gh` link to GitHub beside it, a `draft` badge, the repository (hidden when grouped by repository, linking to the app's repository page), and the title. |
+| PR | A `ghx` link (when a ghx web server is configured) and a `gh` link to GitHub, then the number, linking to the app's PR page; a `draft` badge; the repository (hidden when grouped by repository, linking to the app's repository page); the title; and a link to each task the pull request is associated with, if the app tracks it. |
 | CI | The check rollup: passing, failing, running, or no checks. Click it to list the pull request's individual checks, failing first. |
 | Review | The review decision: approved, changes requested, review required, or no review. |
 | Approvers | The logins whose latest decisive review approves, each a person link, or a dash when none are known. |
@@ -42,7 +43,8 @@ Every row carries a vertical edge down its first cell in the colour of the rank 
 | Green | Approved |
 | Grey | No action needed |
 
-Each row links the pull request three ways: the number opens the app's PR page, `ghx` opens the local ghx web UI when its URL is configured, and `gh` opens the pull request on GitHub.
+Each row links the pull request three ways: `ghx` opens the local ghx web UI when its URL is configured, `gh` opens the pull request on GitHub, and the number opens the app's PR page.
+A pull request that is associated with a task also links that task after its title, with the task's status icon, so you can go from the pull request to the work it belongs to.
 
 ### The checks popover
 
@@ -110,7 +112,7 @@ Two failures have their own messages:
 
 An agent can reproduce the data with `gh search prs` and `gh pr view`, but the app offers no command that wraps it.
 
-The read carries `reviewed` (whether anyone but the author has submitted a review) and `requested_reviewers` (who GitHub still lists as requested) beside each row's other fields.
+The read carries `reviewed` (whether anyone but the author has submitted a review) and `requested_reviewers` (who GitHub still lists as requested) beside each row's other fields, plus `tasks` for the tasks its stored item is associated with.
 The [Inbox](inbox.md)'s review nudge is built from the same read: a pull request past the nudge SLO with no reviews lists its requested reviewers with a poke each (this endpoint), or, when nobody was asked to review it, takes you to the PR page to find one.
 
 ## Related

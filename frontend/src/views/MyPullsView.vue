@@ -3,6 +3,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { api } from '../api'
 import PullChecksPopover from '../components/PullChecksPopover.vue'
 import SearchSelect from '../components/SearchSelect.vue'
+import TaskLink from '../components/TaskLink.vue'
 import {
   attentionState,
   CI_FILTERS,
@@ -347,9 +348,6 @@ onMounted(load)
                       :title="attentionState(pull).label"
                       :aria-label="attentionState(pull).label"
                     ></span>
-                    <router-link class="my-pulls-link" :to="pullPath(pull)" :title="`Open #${pull.number} in the app`"
-                      >#{{ pull.number }}</router-link
-                    >
                     <a
                       v-if="ghxLink(pull)"
                       class="my-pulls-tool-link"
@@ -368,6 +366,9 @@ onMounted(load)
                       title="Open on GitHub"
                       >gh</a
                     >
+                    <router-link class="my-pulls-link" :to="pullPath(pull)" :title="`Open #${pull.number} in the app`"
+                      >#{{ pull.number }}</router-link
+                    >
                     <span v-if="pull.draft" class="badge st-draft">draft</span>
                     <!-- The heading already names the repository when the list is
                          grouped by it, so the row does not repeat it. -->
@@ -382,6 +383,13 @@ onMounted(load)
                       <span v-else class="my-pulls-repository faint">{{ pull.repository }}</span>
                     </template>
                     <span class="my-pulls-title" :title="pull.title">{{ pull.title }}</span>
+                    <TaskLink
+                      v-for="task in pull.tasks"
+                      :key="task.id"
+                      class="my-pulls-task"
+                      :task="task"
+                      :title="`Open task: ${task.title}`"
+                    />
                   </td>
                   <td>
                     <PullChecksPopover :pull="pull" />

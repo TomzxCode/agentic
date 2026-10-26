@@ -13,6 +13,6 @@ defineProps({
 <template>
   <router-link :to="`/task/${task.id}`" class="btn sm ghost">
     <StatusIcon :status="task.status" :label="statusLabel(task.status)" />
-    {{ task.title }}
+    <span class="task-link-title">{{ task.title }}</span>
   </router-link>
 </template>

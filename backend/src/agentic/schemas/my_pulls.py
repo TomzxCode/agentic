@@ -9,7 +9,16 @@ from __future__ import annotations
 
 from pydantic import BaseModel
 
+from ..models.base import TaskStatus
 from .base import UtcDateTime
+
+
+class MyPullTask(BaseModel):
+    """One task a pull request is linked to, as the row links it."""
+
+    id: str
+    title: str
+    status: TaskStatus = TaskStatus.open
 
 
 class MyPullRead(BaseModel):
@@ -37,6 +46,9 @@ class MyPullRead(BaseModel):
     # and who GitHub still lists as requested reviewers.
     reviewed: bool = False
     requested_reviewers: list[str] = []
+    # The tasks the pull request's stored item is associated with, if the app
+    # tracks it. A pull request the app does not track carries none.
+    tasks: list[MyPullTask] = []
 
 
 class MyPullsRead(BaseModel):
