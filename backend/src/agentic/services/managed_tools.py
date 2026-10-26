@@ -4,13 +4,20 @@ A tool whose transport is ``managed`` is started by this server and stopped with
 it, so its lifecycle is tied to the server's. The tool's serve mode answers both
 its web UI and the JSON-RPC endpoint this server calls, so choosing ``managed``
 replaces the URL and token a user would otherwise supply for ``rpc`` mode.
+
+The tool's output is reprinted on this server's console, one line at a time with
+the tool's name in front, so a line from ghx is never mistaken for a line from
+slackx or from the server itself.
 """
 
 from __future__ import annotations
 
 import contextlib
+import os
 import shutil
 import subprocess
+import sys
+import threading
 import time
 from typing import Any
 
@@ -37,6 +44,25 @@ def serve_url(tool: str) -> str:
     Its web UI is there and so is its JSON-RPC endpoint, at ``<url>/rpc``.
     """
     return f"http://127.0.0.1:{SERVE_PORTS[tool]}"
+
+
+def _relay(stream: Any, out: Any, prefix: str) -> None:
+    """Reprint a tool's output on *out*, one prefixed line at a time.
+
+    Runs in its own thread so a tool that writes slowly never blocks the server
+    or its sibling stream. The console going away (or the stream closing under
+    us) ends the relay quietly: the server keeps running either way.
+    """
+    try:
+        for line in stream:
+            text = line.rstrip("\n")
+            out.write(f"{prefix}{text}\n")
+            out.flush()
+    except (OSError, ValueError):
+        pass
+    finally:
+        with contextlib.suppress(Exception):
+            stream.close()
 
 
 def backend_for(tool: str) -> str:
@@ -68,9 +94,13 @@ class ManagedToolServer:
         # Loopback only: the endpoint needs no token, and both binaries refuse
         # a non-loopback bind without one anyway.
         self.command = [tool, "serve", "--host", "127.0.0.1", "--port", str(port)]
+        # Every relayed line carries this, so a viewer can tell the tool's own
+        # output from the server's.
+        self.prefix = f"[{tool}] "
         self._spawn = spawn
         self.process: Any = None
         self.started_at: float | None = None
+        self._readers: list[threading.Thread] = []
 
     @property
     def alive(self) -> bool:
@@ -87,12 +117,23 @@ class ManagedToolServer:
             if self._spawn is not None:
                 self.process = self._spawn(self.command)
             else:
+                # The tool's output is piped and reprinted with its name in front,
+                # so it lands on the console running this server (`make run-dev`)
+                # and stays distinguishable from the server's own logs. stdin
+                # stays closed: the tool never reads the terminal.
                 self.process = subprocess.Popen(
                     self.command,
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
                     stdin=subprocess.DEVNULL,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                    encoding="utf-8",
+                    errors="replace",
+                    # A piped Python tool block-buffers its stdout, which would
+                    # hold its startup lines back until it exits.
+                    env={**os.environ, "PYTHONUNBUFFERED": "1"},
                 )
+            self._relay_output()
             self.started_at = time.time()
             log.info("started managed tool", tool=self.tool, cmd=self.command)
             return True
@@ -100,6 +141,17 @@ class ManagedToolServer:
             log.warning("could not start managed tool", tool=self.tool, error=str(exc))
             self.process = None
             return False
+
+    def _relay_output(self) -> None:
+        """Reprint the process's stdout and stderr, each on its own thread."""
+        proc = self.process
+        for name, out in (("stdout", sys.stdout), ("stderr", sys.stderr)):
+            stream = getattr(proc, name, None)
+            if stream is None:
+                continue
+            thread = threading.Thread(target=_relay, args=(stream, out, self.prefix), daemon=True)
+            thread.start()
+            self._readers.append(thread)
 
     def stop(self) -> None:
         """Stop the process if it is running."""
@@ -116,6 +168,11 @@ class ManagedToolServer:
                 proc.kill()
             with contextlib.suppress(Exception):
                 proc.wait(timeout=5)
+        # Drains whatever the tool wrote before it died, so a stopping tool does
+        # not drop its last lines (its error message, typically).
+        for thread in self._readers:
+            thread.join(timeout=2)
+        self._readers.clear()
         log.info("stopped managed tool", tool=self.tool)
 
 

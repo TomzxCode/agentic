@@ -1,5 +1,9 @@
 """The managed transport: this server runs the tool and supplies its endpoint."""
 
+import io
+import subprocess
+import sys
+
 import pytest
 
 from agentic.config import settings
@@ -81,6 +85,62 @@ def test_slackx_managed_uses_its_own_port(monkeypatch):
 
     assert spawn.commands == [["slackx", "serve", "--host", "127.0.0.1", "--port", "8280"]]
     assert manager.endpoint("slackx") == ("http://127.0.0.1:8280/rpc", "")
+
+
+def test_the_tool_writes_to_the_console_running_the_server(monkeypatch):
+    monkeypatch.setattr(settings, "ghx_backend", "managed")
+    monkeypatch.setattr(managed_tools.shutil, "which", lambda name: f"/usr/local/bin/{name}")
+    calls: list[tuple[list[str], dict]] = []
+
+    def fake_popen(command, **kwargs):
+        calls.append((command, kwargs))
+        return _Process(command)
+
+    monkeypatch.setattr(managed_tools.subprocess, "Popen", fake_popen)
+    manager = managed_tools.ManagedToolManager()
+
+    manager.start()
+
+    ((command, kwargs),) = calls
+    assert command == ["ghx", "serve", "--host", "127.0.0.1", "--port", "8080"]
+    # Piped streams, so the lines can be reprinted on the console that runs the
+    # server with the tool's name in front; stdin stays closed so the tool never
+    # reads the terminal.
+    assert kwargs["stdout"] is subprocess.PIPE
+    assert kwargs["stderr"] is subprocess.PIPE
+    assert kwargs["stdin"] is subprocess.DEVNULL
+    # Without this, a Python tool would block-buffer the output we just piped.
+    assert kwargs["env"]["PYTHONUNBUFFERED"] == "1"
+
+
+def test_relayed_lines_name_the_tool_they_came_from():
+    stream = io.StringIO("Serving ghx cache at http://127.0.0.1:8080\nno newline at end")
+    out = io.StringIO()
+
+    managed_tools._relay(stream, out, "[ghx] ")
+
+    assert out.getvalue() == ("[ghx] Serving ghx cache at http://127.0.0.1:8080\n[ghx] no newline at end\n")
+
+
+def test_a_tool_that_dies_has_its_last_lines_relayed(monkeypatch, capsys):
+    """End to end over a real process: both streams, prefixed, nothing dropped."""
+    monkeypatch.setattr(managed_tools.shutil, "which", lambda name: f"/usr/local/bin/{name}")
+    server = managed_tools.ManagedToolServer("ghx")
+    server.command = [
+        sys.executable,
+        "-c",
+        "import sys; print('out line'); print('err line', file=sys.stderr)",
+    ]
+
+    assert server.start() is True
+    # Let the process run to completion first; stopping then drains whatever it
+    # wrote before it went away.
+    server.process.wait(timeout=10)
+    server.stop()
+
+    captured = capsys.readouterr()
+    assert "[ghx] out line" in captured.out
+    assert "[ghx] err line" in captured.err
 
 
 def test_cli_and_rpc_transports_start_nothing(monkeypatch):

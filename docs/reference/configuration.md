@@ -77,6 +77,7 @@ Template placeholders:
 The session-link settings (OpenChamber URL and path, terminal URL template, and editor URL template) can also be set on the **Settings** page.
 The ghx and slackx settings are under **Settings → Local tools**: the web UI base URLs, and how the server runs each tool (`cli` spawns the binary per call, `rpc` asks the tool's JSON-RPC server instead, started with `ghx rpc serve` or `slackx rpc serve`; reads go through the server's typed methods, so they answer in-process instead of spawning a child per call).
 `managed` starts the tool's serve process from this server instead, so its web UI URL is shown as a link to open rather than as a field, and it fills in that tool's web UI URL for item links.
+That process's stdout and stderr are reprinted on the console running the server (for example the `make run-dev` terminal), one line at a time prefixed with the tool's name (`[ghx] `, `[slackx] `), so its lines stay distinguishable from the server's own logs.
 The transport is read per call, so a change there applies without a restart, also for the worker that runs agents.
 A stored override wins over the matching environment variable.
 
