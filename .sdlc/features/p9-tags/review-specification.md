@@ -1,6 +1,6 @@
 ---
 artifact: specification
-verdict: approved
+verdict: changes-requested
 reviewed_at: 2026-10-12
 ---
 
@@ -89,3 +89,10 @@ Open Question 1 carries the most implementation impact (it changes write normali
 `approved`: no blocking finding.
 All seven prior non-blocking findings are addressed, both deterministic checks pass, and the specification is internally consistent, coherent with the approved requirements, and accurate to the implementation.
 The two Ambiguities and two Inconsistencies above are non-blocking clarity and tooling-command nits.
+
+## Sync drift: 2026-10-26
+
+Found by the 2026-10-26 `/sync-sdlc` reconciliation against the current code; the verdict above is regressed until the specification absorbs these.
+
+- The API contract (table here and `api.yaml`) lacks `POST /api/tasks/bulk`, which edits tags additively (`add_tags`/`remove_tags`) across many tasks and records one timeline entry per task (routers/task_writes.py `bulk_update_tasks`).
+- The Web UI table attributes the tag pills to `TasksView.vue`; they now render in the shared `TaskCard.vue` (chips call `store.toggleTagFilter`), while `TasksView.vue` keeps the filter row and has grown a bulk-selection tag edit (status plus add/remove tags on selected rows) that the specification does not cover.

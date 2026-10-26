@@ -1,6 +1,6 @@
 ---
 title: "Task tags"
-status: draft
+status: done
 session_link: "http://localhost:10000/?session=ses_ed2936849ffePjqvp9kEDOH0mX"
 ---
 

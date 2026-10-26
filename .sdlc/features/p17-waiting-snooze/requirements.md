@@ -1,6 +1,6 @@
 ---
 title: "Waiting on a person and snoozing a task"
-status: draft
+status: done
 session_link: "http://localhost:10000/?session=ses_ea7d0aac4ffeV3TsloMQSksTqm"
 ---
 

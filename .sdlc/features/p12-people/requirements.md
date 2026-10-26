@@ -1,6 +1,6 @@
 ---
 title: "People: associate tasks and items with specific individuals"
-status: draft
+status: done
 session_link: "http://localhost:10000/?session=ses_ed1c7d2feffevews1ZEr34mSZC"
 ---
 

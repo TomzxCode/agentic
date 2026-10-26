@@ -16,7 +16,7 @@ Out of scope: the SPA's rendering of the task list and detail.
 | ID | Description | Input | Expected Output |
 |---|---|---|---|
 | TC-1 | Task lifecycle end to end | create, update, read, delete | 201 / 200 / 200 / 204 |
-| TC-2 | Relationship labels in the timeline | set group_id then harness_id | event data carries `from_label`/`to_label` names |
+| TC-2 | Relationship labels in the timeline | set repository_ids then remove them | event data carries `from_label`/`to_label` names |
 
 ## Integration Tests
 

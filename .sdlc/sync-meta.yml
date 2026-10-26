@@ -1,3 +1,294 @@
-agents_ref: 9556f67b5fef5ea909e2a9f612bc74183eb8806a
+# SDLC Sync Metadata
+# Tracks which version of agents was used for the last sync.
+# Used by sync-sdlc to detect process/template changes and migrate existing files.
+agents_ref: 7055594a860ab568c41550bcb42f3c2a33b2a608
 agents_remote: https://github.com/tomzx/agents.git
-last_synced: 2026-10-11
+last_synced: 2026-10-26
+code_ref: 3cd7df07958106e5b9b8e17304b339740fc5211e
+code_index:
+  p1-tasks:
+    - backend/src/agentic/routers/tasks.py
+    - backend/src/agentic/routers/task_service.py
+    - backend/src/agentic/routers/task_writes.py
+    - backend/src/agentic/routers/task_items.py
+    - backend/src/agentic/models/tasks.py
+    - backend/src/agentic/crud.py
+    - backend/tests/test_crud.py
+    - backend/tests/test_api.py
+  p2-source-items:
+    - backend/src/agentic/routers/items.py
+    - backend/src/agentic/routers/task_items.py
+    - backend/src/agentic/services/sources.py
+    - backend/src/agentic/services/parsing.py
+    - backend/src/agentic/models/items.py
+    - backend/src/agentic/schemas/items.py
+    - backend/tests/test_items_api.py
+    - backend/tests/test_services_sources.py
+    - backend/tests/test_services_parsing.py
+  p3-repositories:
+    - backend/src/agentic/routers/repositories.py
+    - backend/src/agentic/routers/groups.py
+    - backend/src/agentic/routers/fs.py
+    - backend/src/agentic/models/repositories.py
+    - backend/tests/test_repositories_api.py
+    - backend/tests/test_groups.py
+    - backend/tests/test_groups_more.py
+    - backend/tests/test_fs.py
+    - backend/tests/test_fs_more.py
+  p4-worktrees:
+    - backend/src/agentic/routers/worktrees.py
+    - backend/src/agentic/services/git.py
+    - backend/src/agentic/services/names.py
+    - backend/tests/test_worktrees.py
+    - backend/tests/test_services_git.py
+  p5-agent-runs:
+    - backend/src/agentic/agents/
+    - backend/src/agentic/routers/agent_runs.py
+    - backend/src/agentic/routers/agent_streams.py
+    - backend/src/agentic/jobs.py
+    - backend/tests/test_agents_run.py
+    - backend/tests/test_agents_execute.py
+    - backend/tests/test_agents_context.py
+    - backend/tests/test_agent_api.py
+  p6-cli:
+    - cli/src/agentic_cli/
+    - cli/tests/
+    - docs/reference/cli.md
+  p7-web-ui:
+    - frontend/src/main.js
+    - frontend/src/App.vue
+    - frontend/src/store.js
+    - frontend/src/api.js
+    - frontend/src/components/CommandPalette.vue
+    - frontend/src/styles/
+  p8-gantt:
+    - backend/src/agentic/routers/gantt.py
+    - frontend/src/views/GanttView.vue
+    - frontend/src/components/GanttChart.vue
+    - frontend/src/gantt.js
+    - backend/tests/test_gantt.py
+  p9-tags:
+    - backend/src/agentic/routers/tags.py
+    - frontend/src/components/TagInput.vue
+    - cli/src/agentic_cli/commands/tags.py
+    - backend/tests/test_api.py
+  p10-sidebar:
+    - frontend/src/sidebarNav.js
+    - frontend/src/App.vue
+    - frontend/src/components/StatusSelect.vue
+  p11-metrics:
+    - backend/src/agentic/metrics.py
+    - backend/src/agentic/auto_changes.py
+    - backend/src/agentic/routers/metrics.py
+    - backend/src/agentic/routers/changes.py
+    - backend/src/agentic/models/changes.py
+    - frontend/src/components/ChangesPanel.vue
+    - frontend/src/views/MetricsView.vue
+    - cli/src/agentic_cli/commands/changes.py
+    - cli/src/agentic_cli/commands/metrics.py
+    - backend/tests/test_metrics.py
+    - backend/tests/test_auto_changes.py
+    - docs/how-to/track-changes-and-metrics.md
+  p12-people:
+    - backend/src/agentic/routers/people.py
+    - backend/src/agentic/routers/people_links.py
+    - backend/src/agentic/routers/people_service.py
+    - frontend/src/views/PeopleView.vue
+    - frontend/src/views/PersonView.vue
+    - frontend/src/views/PersonCreateView.vue
+    - frontend/src/components/PeopleGrid.vue
+    - frontend/src/components/PeopleSelect.vue
+    - backend/tests/test_people_api.py
+    - backend/tests/test_people_fetch.py
+    - backend/tests/test_people_links.py
+    - backend/tests/test_people_requesters.py
+    - docs/views/people.md
+  p13-repository-navigation:
+    - frontend/src/views/RepositoriesView.vue
+    - frontend/src/views/RepositoryDetailView.vue
+    - frontend/src/components/RepositoriesGrid.vue
+    - frontend/src/components/RepositoryItemsGrid.vue
+    - frontend/src/components/GridColumnChooser.vue
+    - frontend/src/components/ValuesFilter.vue
+    - frontend/src/components/gridSetup.js
+    - frontend/src/repositories/
+  p14-slack-task-import:
+    - backend/src/agentic/routers/slack.py
+    - backend/src/agentic/agents/executions.py
+    - backend/tests/test_slack_import.py
+    - backend/tests/test_slack_api.py
+  p15-run-queue:
+    - backend/src/agentic/jobs.py
+    - backend/src/agentic/parallel.py
+    - backend/src/agentic/server_cli.py
+    - scripts/dev.py
+    - backend/tests/test_jobs.py
+    - backend/tests/test_parallel.py
+  p16-deadlines:
+    - backend/src/agentic/routers/tasks.py
+    - frontend/src/components/DeadlinePicker.vue
+    - backend/tests/test_deadlines.py
+  p17-waiting-snooze:
+    - backend/src/agentic/stack.py
+    - frontend/src/components/WaitingOnSelect.vue
+    - backend/tests/test_waiting_snooze.py
+  p18-review-slo:
+    - backend/src/agentic/review_scan.py
+    - backend/src/agentic/inbox.py
+    - backend/tests/test_inbox.py
+  p19-focus-stack:
+    - backend/src/agentic/stack.py
+    - backend/src/agentic/routers/stack.py
+    - launcher/
+    - frontend/src/views/StackView.vue
+    - frontend/src/components/StackHeader.vue
+    - frontend/src/components/StackHistory.vue
+    - frontend/src/components/StackList.vue
+    - frontend/src/stack.js
+    - cli/src/agentic_cli/commands/stack.py
+    - backend/tests/test_stack.py
+    - docs/how-to/use-the-focus-stack.md
+    - docs/views/stack.md
+  p20-agent-harnesses:
+    - backend/src/agentic/agents/harnesses.py
+    - backend/src/agentic/agents/pool.py
+    - backend/src/agentic/routers/harnesses.py
+    - cli/src/agentic_cli/commands/harnesses.py
+    - frontend/src/components/SettingsHarnesses.vue
+    - backend/tests/test_agents_harnesses.py
+    - backend/tests/test_agents_pool.py
+    - docs/explanation/how-agents-are-wired.md
+  p21-agent-sessions-tools:
+    - backend/src/agentic/routers/sessions.py
+    - backend/src/agentic/links.py
+    - backend/src/agentic/services/managed_tools.py
+    - frontend/src/components/SessionsPanel.vue
+    - frontend/src/components/SessionLinks.vue
+    - frontend/src/components/SettingsToolServers.vue
+    - frontend/src/components/SettingsSessionLinks.vue
+    - frontend/src/toolLinks.js
+    - backend/tests/test_sessions_api.py
+    - backend/tests/test_links.py
+    - backend/tests/test_links_more.py
+    - backend/tests/test_managed_tools.py
+    - docs/how-to/configure-session-links.md
+  p22-review-queue:
+    - backend/src/agentic/review_store.py
+    - backend/src/agentic/review_scan.py
+    - backend/src/agentic/review_queue.py
+    - backend/src/agentic/review_findings.py
+    - backend/src/agentic/models/reviews.py
+    - backend/src/agentic/routers/reviews.py
+    - frontend/src/views/ReviewsView.vue
+    - frontend/src/components/TaskReviewPanel.vue
+    - frontend/src/components/FindingsSelector.vue
+    - frontend/src/components/ShareFindingsModal.vue
+    - backend/tests/test_review_scan.py
+    - backend/tests/test_review_queue.py
+    - backend/tests/test_reviews.py
+    - backend/tests/test_review_findings.py
+    - docs/views/reviews.md
+    - docs/how-to/review-pull-requests.md
+  p23-pr-feedback-triage:
+    - backend/src/agentic/feedback_store.py
+    - backend/src/agentic/routers/feedback.py
+    - frontend/src/views/FeedbackView.vue
+    - backend/tests/test_feedback.py
+    - docs/views/feedback.md
+    - docs/how-to/triage-pr-feedback.md
+  p24-github-integration:
+    - backend/src/agentic/services/github.py
+    - backend/src/agentic/routers/github.py
+    - backend/src/agentic/my_pulls.py
+    - backend/src/agentic/routers/my_pulls.py
+    - frontend/src/views/IssueView.vue
+    - frontend/src/views/PullRequestView.vue
+    - frontend/src/views/MyPullsView.vue
+    - frontend/src/components/GithubItemPanel.vue
+    - frontend/src/components/TaskIssuePanel.vue
+    - backend/tests/test_github.py
+    - backend/tests/test_github_more.py
+    - backend/tests/test_my_pulls.py
+    - backend/tests/test_services_github.py
+    - backend/tests/test_item_github_reviewers.py
+    - docs/views/my-pulls.md
+  p25-task-dependencies:
+    - backend/src/agentic/dependencies.py
+    - backend/src/agentic/routers/task_dependencies.py
+    - backend/src/agentic/routers/graph.py
+    - frontend/src/views/DependencyGraphView.vue
+    - frontend/src/components/DependenciesSelect.vue
+    - frontend/src/graph.js
+    - backend/tests/test_dependencies.py
+    - docs/views/graph.md
+  p26-execution-graphs:
+    - backend/src/agentic/graphs.py
+    - backend/src/agentic/models/graphs.py
+    - backend/src/agentic/routers/graphs.py
+    - cli/src/agentic_cli/commands/graphs.py
+    - frontend/src/views/ExecutionGraphsView.vue
+    - frontend/src/components/GraphEditor.vue
+    - frontend/src/components/GraphExecutions.vue
+    - frontend/src/components/GraphsList.vue
+    - frontend/src/components/GraphMetaForm.vue
+    - frontend/src/executionGraph.js
+    - backend/tests/test_graphs.py
+  p27-scheduled-tasks:
+    - backend/src/agentic/schedules.py
+    - backend/src/agentic/models/schedules.py
+    - backend/src/agentic/routers/schedules.py
+    - cli/src/agentic_cli/commands/schedules.py
+    - frontend/src/views/SchedulesView.vue
+    - frontend/src/components/ScheduleForm.vue
+    - frontend/src/components/SchedulesExecutions.vue
+    - backend/tests/test_schedules.py
+    - docs/how-to/schedule-a-script.md
+    - docs/views/schedules.md
+  p28-inbox:
+    - backend/src/agentic/inbox.py
+    - backend/src/agentic/routers/inbox.py
+    - frontend/src/views/InboxView.vue
+    - backend/tests/test_inbox.py
+    - docs/views/inbox.md
+  p29-decisions:
+    - backend/src/agentic/decisions_store.py
+    - backend/src/agentic/routers/decisions.py
+    - frontend/src/views/DecisionsView.vue
+    - backend/tests/test_decisions.py
+    - docs/views/decisions.md
+  p30-events-feed:
+    - backend/src/agentic/routers/events.py
+    - frontend/src/views/EventsView.vue
+    - backend/tests/test_events_feed.py
+    - docs/views/events.md
+    - docs/how-to/send-events-to-slack.md
+  p31-on-call:
+    - backend/src/agentic/routers/on_call.py
+    - frontend/src/views/OnCallView.vue
+    - backend/tests/test_on_call.py
+  p32-process-metrics:
+    - backend/src/agentic/process_flow.py
+    - backend/src/agentic/cycle_time.py
+    - backend/src/agentic/routers/process.py
+    - frontend/src/views/ProcessView.vue
+    - frontend/src/components/CumulativeFlow.vue
+    - frontend/src/components/CycleTimeTrend.vue
+    - backend/tests/test_process_flow.py
+    - backend/tests/test_cycle_time.py
+  p33-operations-audit:
+    - backend/src/agentic/provenance.py
+    - backend/src/agentic/routers/operations.py
+    - backend/src/agentic/request_logging.py
+    - backend/src/agentic/diagnostics.py
+    - backend/src/agentic/debug.py
+    - cli/src/agentic_cli/commands/operations.py
+    - backend/tests/test_provenance.py
+    - backend/tests/test_request_logging.py
+    - backend/tests/test_diagnostics.py
+    - backend/tests/test_debug.py
+  p34-item-refresh:
+    - backend/src/agentic/refresh.py
+    - backend/src/agentic/routers/items_refresh.py
+    - frontend/src/components/SettingsRefresh.vue
+    - backend/tests/test_refresh.py
+    - docs/how-to/refresh-items.md

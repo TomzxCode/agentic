@@ -1,10 +1,10 @@
 ---
 id: "6"
 title: "Merge duplicate people"
-status: draft
+status: done
 size: S
 depends_on: [1, 2, 3]
-completed_date: null
+completed_date: "2026-10-13"
 blocker: null
 session_link: null
 ---

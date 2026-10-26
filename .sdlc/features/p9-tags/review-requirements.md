@@ -1,6 +1,6 @@
 ---
 artifact: requirements
-verdict: approved
+verdict: changes-requested
 reviewed_at: 2026-10-12
 ---
 
@@ -97,3 +97,9 @@ Open Question 1 is the one with real implementation impact (it changes write nor
 
 `approved`: the nine prior findings are resolved and no blocking finding remains.
 The remaining items above are minor and non-blocking.
+
+## Sync drift: 2026-10-26
+
+Found by the 2026-10-26 `/sync-sdlc` reconciliation against the current code; the verdict above is regressed until the requirements absorb these.
+
+- Bulk tag editing exists with no requirement: `POST /api/tasks/bulk` applies `add_tags`/`remove_tags` across many tasks at once (routers/task_writes.py `bulk_update_tasks`, tested in backend/tests/test_api.py::test_bulk_update_tasks_changes_status_and_tags), which also answers Open Question 2 (cross-task tag editing) in part.

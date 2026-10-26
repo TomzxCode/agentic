@@ -1,6 +1,6 @@
 ---
 artifact: specification
-verdict: approved
+verdict: changes-requested
 reviewed_at: 2026-10-12
 session_link: http://localhost:10000/?session=ses_ed1823a65ffe7LJmF4SEXBZr08
 ---
@@ -76,3 +76,14 @@ Carried from `requirements.md:316`; the spec defers it explicitly and the revisi
 No blocking findings.
 All four prior findings are addressed, including the single blocking `FR-6` finding.
 One advisory finding is carried forward: the detail-view sequence still passes `tasks` to the helper while the new Task resolution bullet says the helper returns `task_ids` only (Inconsistencies).
+
+## Sync drift: 2026-10-26
+
+The implementation has moved past the approved specification. Reopened during /sync-sdlc; the specification was not rewritten.
+
+- `frontend/src/repositories.js` was split into `repositories/parse.js` and `repositories/rows.js`.
+- Both views render as AG Grid data grids (`RepositoriesGrid.vue`, `RepositoryItemsGrid.vue`, with `repositoriesCells.js`, `repositoryItemsCells.js`, `gridSetup.js`, `ValuesFilter.vue`), not the specified `.panel`/`.item` sections.
+- The detail view's load now also fetches the live ghx listing, people, and change records, beyond the specified repositories, items, and tasks.
+- The out-of-scope item "Importing a task from an unassociated issue or PR" is implemented (the grid's New task action calls `api.tasks.create` with `github_url`).
+- The consumption contract grew beyond the two list endpoints: `GET /api/github/repository` (live listing), `POST /api/items/{id}/refresh`, and `POST /api/changes` (record a change from a merged PR), plus ghx web-UI links.
+- A home-grown column chooser (`GridColumnChooser.vue`) with per-device `agentic.gridColumns.*` localStorage preferences was added; the specification does not cover it.

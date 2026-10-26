@@ -1,10 +1,10 @@
 ---
 id: "1"
 title: "Backend people model and API"
-status: draft
+status: done
 size: M
 depends_on: []
-completed_date: null
+completed_date: "2026-10-13"
 blocker: null
 session_link: "http://localhost:10000/?session=ses_ed1c7d2feffevews1ZEr34mSZC"
 ---

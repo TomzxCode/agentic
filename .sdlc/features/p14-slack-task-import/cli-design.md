@@ -1,6 +1,6 @@
 ---
 title: "Create a task from a Slack thread"
-status: draft
+status: done
 session_link: "http://localhost:10000/?session=ses_ecf740bfcffeTbPo9DIeiSPyDH"
 ---
 

@@ -1,6 +1,6 @@
 ---
 artifact: mockups
-verdict: approved
+verdict: changes-requested
 reviewed_at: 2026-10-12
 session_link: http://localhost:10000/?session=ses_ed1823a65ffe7LJmF4SEXBZr08
 ---
@@ -57,3 +57,11 @@ No blocking findings.
 
 `approved`.
 All four blocking findings from revision 0 are addressed, and the advisory findings are resolved or carried forward. The remaining findings are advisory and do not force another round.
+
+## Sync drift: 2026-10-26
+
+The approved mockups no longer match the implemented views. Reopened during /sync-sdlc; the mockups were not rewritten.
+
+- The mockups draw the repositories list and the repository detail as stacked `.item` rows; the implementation renders both as AG Grid data grids with per-column filters and a column chooser.
+- `repository-detail.html` shows separate Issues and Pull requests sections with headings and counts; the implementation shows one grid with a Kind column, plus State, Author, Task status, Changes, and Actions columns the mockups do not show.
+- The mockups have no New task action on an unassociated issue or PR row, no Refresh all / Refresh linked controls, and no ghx web-UI link; all three exist in the implementation.

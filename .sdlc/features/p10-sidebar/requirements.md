@@ -1,6 +1,6 @@
 ---
 title: "Sidebar"
-status: draft
+status: done
 session_link: "http://localhost:10000/?session=ses_ed267ac83ffevHmFcwZ0aUr1Hf"
 ---
 

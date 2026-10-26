@@ -1,6 +1,6 @@
 ---
 title: "Create a task from a Slack thread"
-status: draft
+status: done
 session_link: "http://localhost:10000/?session=ses_ecf740bfcffeTbPo9DIeiSPyDH"
 ---
 
@@ -63,10 +63,11 @@ Out of scope: the live `slackx` fetch and a real ACP harness turn, which the tes
 | File | Covers |
 |---|---|
 | `backend/tests/test_slack_import.py` | TC-1 to TC-6, TC-13, TC-15, TC-18, TC-19 |
-| `backend/tests/test_agents.py` | TC-7, TC-8, TC-11, TC-12, TC-14, TC-17 |
-| `cli/tests/test_commands.py` | TC-10 |
-| `frontend/src/__tests__/app.test.js` | TC-9, TC-16 |
-| `frontend/src/__tests__/panels.test.js` | TC-20 |
+| `backend/tests/test_agents_context.py` | TC-7, TC-8, TC-11, TC-12, TC-14 |
+| `backend/tests/test_jobs.py` | TC-17 |
+| `cli/tests/test_commands_tasks.py` | TC-10 |
+| `frontend/src/__tests__/appShell.test.js` | TC-9, TC-16 |
+| `frontend/src/__tests__/contextPanel.test.js` | TC-20 |
 
 ## Coverage Matrix
 

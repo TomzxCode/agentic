@@ -1,10 +1,10 @@
 ---
 id: "3"
 title: "Web UI people surfaces"
-status: draft
+status: done
 size: M
 depends_on: [1]
-completed_date: null
+completed_date: "2026-10-13"
 blocker: null
 session_link: "http://localhost:10000/?session=ses_ed1c7d2feffevews1ZEr34mSZC"
 ---

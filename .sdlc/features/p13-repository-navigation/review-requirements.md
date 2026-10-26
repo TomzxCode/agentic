@@ -1,6 +1,6 @@
 ---
 artifact: requirements
-verdict: approved
+verdict: changes-requested
 reviewed_at: 2026-10-12
 session_link: http://localhost:10000/?session=ses_ed1823a65ffe7LJmF4SEXBZr08
 ---
@@ -45,3 +45,12 @@ Every finding from the previous `changes-requested` review is addressed in the r
 
 No conflict found in the changed content.
 FR-2's removal of the Settings "Repositories" section while keeping "Repository groups" matches the code's separate sections, and FR-5's issue/PR scoping removes the contradiction the previous round flagged.
+
+## Sync drift: 2026-10-26
+
+The implementation has moved past the approved requirements (AG Grid, live GitHub listing, task import). Reopened during /sync-sdlc; no requirement text was rewritten.
+
+- FR-3: the repository detail view now lists the repository's whole issue and PR listing fetched from GitHub (ghx), including items associated with no task (each offering a New task action), not only items associated with at least one task.
+- FR-6: the detail empty state reads "No issues or pull requests to show for this repository"; it no longer describes the rows as task-associated.
+- FR-7: the separate Issues and Pull requests sections with headings, counts, and a text query were replaced by one data grid with a Kind column and per-column filters.
+- NFR-2: the detail view fetches a live GitHub listing on load; stored item metadata is the fallback after a ghx failure, not the only source of the rows.

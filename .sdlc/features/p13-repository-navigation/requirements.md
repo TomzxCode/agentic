@@ -1,6 +1,6 @@
 ---
 title: "Repository navigation"
-status: draft
+status: done
 revision: 1
 session_link: "http://localhost:10000/?session=ses_ed1823a65ffe7LJmF4SEXBZr08"
 ---

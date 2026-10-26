@@ -1,6 +1,6 @@
 ---
 title: "Durable agent-run queue and worker"
-status: draft
+status: done
 session_link: "http://localhost:10000/?session=ses_ecf740bfcffeTbPo9DIeiSPyDH"
 ---
 

@@ -1,6 +1,6 @@
 ---
 title: "Review SLO"
-status: draft
+status: done
 ---
 
 # Specification: Review SLO
