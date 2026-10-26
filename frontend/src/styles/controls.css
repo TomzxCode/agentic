@@ -103,6 +103,9 @@
 .mention-mark.date {
   color: var(--warn);
 }
+.mention-mark.task {
+  color: var(--ok);
+}
 .mention-detail {
   flex: none;
   font-size: 11px;

@@ -74,7 +74,7 @@ async function remove(itemId) {
           v-model="draft"
           class="textarea"
           rows="2"
-          placeholder="Add a note… Use @ to mention a person, an item, or a date."
+          placeholder="Add a note… Use @ to mention a person, an item, a task, or a date."
           @keydown="onAddKeydown"
         />
         <button class="btn primary sm" :disabled="busy || !draft.trim()" @click="addNote">

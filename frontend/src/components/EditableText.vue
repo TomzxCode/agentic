@@ -1,6 +1,7 @@
 <script setup>
 import { computed, nextTick, ref } from 'vue'
 import { decodeMentionLinks } from '../mentions'
+import { store } from '../store'
 import { useMentions } from '../composables/useMentions'
 import MarkdownView from './MarkdownView.vue'
 import MentionMenu from './MentionMenu.vue'
@@ -53,7 +54,7 @@ const {
 // Open the editor with the raw value; what both the click target and the edit
 // button do once a click is theirs to handle.
 function open() {
-  draft.value = decodeMentionLinks(props.value || '')
+  draft.value = decodeMentionLinks(props.value || '', store.tasks)
   closeMentions()
   // Measure the displayed value before the editor replaces it.
   const displayed = props.multiline ? displayEl.value?.offsetHeight || 0 : 0

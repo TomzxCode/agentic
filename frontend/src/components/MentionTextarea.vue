@@ -1,13 +1,15 @@
 <script setup>
 import { computed, ref } from 'vue'
 import { decodeMentionLinks } from '../mentions'
+import { store } from '../store'
 import { useMentions } from '../composables/useMentions'
 import MentionMenu from './MentionMenu.vue'
 
-// A textarea that completes people, items, and relative dates when an @ mention
-// is typed. It writes a person or item as plain `@name` text, so the editor
-// keeps showing what the field stores; the Markdown renderer links it when the
-// value is displayed. A date is written as its ISO value instead.
+// A textarea that completes people, tasks, items, and relative dates when an @
+// mention is typed. It writes a person or item as plain `@name` text, so the
+// editor keeps showing what the field stores; the Markdown renderer links it
+// when the value is displayed. A task is written as a link carrying its id, and
+// a date as its ISO value.
 // Every other attribute, such as its class and placeholder, stays on the
 // textarea itself.
 defineOptions({ inheritAttrs: false })
@@ -19,7 +21,7 @@ const emit = defineEmits(['update:modelValue', 'keydown', 'blur'])
 
 const text = computed({
   // A link saved by an earlier build edits as its plain `@name`.
-  get: () => decodeMentionLinks(props.modelValue ?? ''),
+  get: () => decodeMentionLinks(props.modelValue ?? '', store.tasks),
   set: (value) => emit('update:modelValue', value)
 })
 const input = ref(null)

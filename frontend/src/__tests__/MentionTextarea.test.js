@@ -10,6 +10,10 @@ beforeEach(() => {
     { id: 'p1', name: 'Ada Lovelace', aliases: ['ada'] },
     { id: 'p2', name: 'Grace Hopper', aliases: ['grace'] }
   ]
+  store.tasks = [
+    { id: 't1', title: 'Ship release notes', status: 'in_progress' },
+    { id: 't2', title: 'Plan the launch', status: 'open' }
+  ]
   store.items = [
     { id: 'i1', source: 'github', kind: 'issue', title: 'Fix login timeout', metadata_json: { number: 42 } },
     { id: 'i2', source: 'note', kind: '', title: 'just a note' }
@@ -19,6 +23,7 @@ beforeEach(() => {
 afterEach(() => {
   vi.useRealTimers()
   store.people = []
+  store.tasks = []
   store.items = []
 })
 
@@ -60,6 +65,19 @@ describe('MentionTextarea', () => {
     expect(option.text()).toContain('Fix login timeout')
     await option.trigger('click')
     expect(wrapper.emitted('update:modelValue').at(-1)).toEqual(['@Fix login timeout '])
+  })
+
+  it('references another task by its id with a readable label', async () => {
+    const wrapper = mount(MentionTextarea, { props: { modelValue: '' } })
+    await type(wrapper, '@release')
+    expect(wrapper.get('.mention-panel').text()).toContain('Tasks')
+    await wrapper.get('.mention-option').trigger('click')
+    expect(wrapper.emitted('update:modelValue').at(-1)).toEqual(['[@Ship release notes](/task/t1) '])
+  })
+
+  it('shows the current title of a saved task reference', () => {
+    const wrapper = mount(MentionTextarea, { props: { modelValue: 'see [@Old title](/task/t1)' } })
+    expect(wrapper.get('textarea').element.value).toBe('see [@Ship release notes](/task/t1)')
   })
 
   it('offers relative dates and inserts the date instead of the phrase', async () => {

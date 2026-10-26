@@ -4,8 +4,8 @@ import { applyMention, buildMentionOptions, findMentionQuery } from '../mentions
 
 // @-mention autocomplete for a text field. The caller owns the value and the
 // textarea element; this tracks the mention being typed, offers matching
-// people, items, and relative dates, and inserts the chosen reference at the
-// caret.
+// people, tasks, items, and relative dates, and inserts the chosen reference at
+// the caret.
 export function useMentions({ value, input }) {
   const open = ref(false)
   const query = ref('')
@@ -14,7 +14,9 @@ export function useMentions({ value, input }) {
   const token = ref(null)
 
   const options = computed(() =>
-    open.value ? buildMentionOptions({ people: store.people, items: store.items, query: query.value }) : []
+    open.value
+      ? buildMentionOptions({ people: store.people, tasks: store.tasks, items: store.items, query: query.value })
+      : []
   )
 
   // A fresh search starts at the top of the list; a shorter result list never
@@ -52,7 +54,12 @@ export function useMentions({ value, input }) {
     // inserted plain `@Ada Lovelace` from reopening the picker). A date phrase
     // is different: `@last week` is exactly what the user types before
     // choosing, and the field then stores the date instead, so it stays open.
-    const matches = buildMentionOptions({ people: store.people, items: store.items, query: found.query })
+    const matches = buildMentionOptions({
+      people: store.people,
+      tasks: store.tasks,
+      items: store.items,
+      query: found.query
+    })
     const typed = found.query.trim().toLowerCase()
     const spellsName = !matches.some((option) => option.kind === 'date')
     if (!matches.length || (spellsName && matches.some((option) => option.label.toLowerCase() === typed))) {

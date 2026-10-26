@@ -213,7 +213,7 @@ onMounted(async () => {
           multiline
           markdown
           :value="person.notes || ''"
-          placeholder="No notes. Use @ to mention a person, an item, or a date."
+          placeholder="No notes. Use @ to mention a person, an item, a task, or a date."
           @save="(value) => save('notes', value)"
         />
       </section>

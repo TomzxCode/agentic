@@ -559,7 +559,7 @@ onUnmounted(() => {
           <MentionTextarea
             v-model="draft.description"
             class="textarea"
-            placeholder="Context, links, anything… Use @ to mention a person, an item, or a date."
+            placeholder="Context, links, anything… Use @ to mention a person, an item, a task, or a date."
           />
         </div>
         <div class="field">

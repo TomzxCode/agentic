@@ -16,8 +16,10 @@ export default {
   render() {
     const html = renderMarkdown(this.source, {
       taskListInteractive: this.taskLists,
-      // A plain @name in the text links to the person or item it names.
-      mentions: mentionTargets({ people: store.people, items: store.items })
+      // A plain @name in the text links to the person or item it names, and a
+      // task link shows the task's current title.
+      mentions: mentionTargets({ people: store.people, items: store.items }),
+      tasks: store.tasks
     })
     return h('div', { class: 'md', innerHTML: html })
   }

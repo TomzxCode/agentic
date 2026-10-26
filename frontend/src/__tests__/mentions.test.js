@@ -6,12 +6,18 @@ import {
   decodeMentionLinks,
   findMentionQuery,
   mentionTargets,
-  mentionText
+  mentionText,
+  taskReference
 } from '../mentions'
 
 const people = [
   { id: 'p1', name: 'Ada Lovelace', aliases: ['ada', 'ada@example.com'] },
   { id: 'p2', name: 'Grace Hopper', aliases: ['grace'] }
+]
+const tasks = [
+  { id: 't1', title: 'Ship release notes', status: 'in_progress' },
+  { id: 't2', title: 'Fix login timeout', status: 'open' },
+  { id: 't3', title: 'Retire the old importer', status: 'archived' }
 ]
 const items = [
   { id: 'i1', source: 'github', kind: 'issue', title: 'Fix login timeout', metadata_json: { number: 42 } },
@@ -69,8 +75,23 @@ describe('buildMentionOptions', () => {
     expect(options.map((option) => option.id)).toEqual(['p1'])
   })
 
-  it('offers dates before people and items for a date query', () => {
-    const options = buildMentionOptions({ people, items, query: 'last', now: new Date(2026, 9, 26) })
+  it('offers tasks after people and before items, with their status', () => {
+    const options = buildMentionOptions({ people, tasks, items, query: 'login' })
+    expect(options.map((option) => [option.kind, option.id])).toEqual([
+      ['task', 't2'],
+      ['item', 'i1']
+    ])
+    expect(options[0]).toMatchObject({ label: 'Fix login timeout', detail: 'Open' })
+  })
+
+  it('matches a task by title', () => {
+    const options = buildMentionOptions({ people, tasks, items, query: 'release' })
+    expect(options.map((option) => [option.kind, option.id])).toEqual([['task', 't1']])
+    expect(options[0].detail).toBe('In progress')
+  })
+
+  it('offers dates before people, tasks, and items for a date query', () => {
+    const options = buildMentionOptions({ people, tasks, items, query: 'last', now: new Date(2026, 9, 26) })
     expect(options.slice(0, 3).map((option) => option.kind)).toEqual(['date', 'date', 'date'])
   })
 
@@ -153,6 +174,11 @@ describe('mentionText and applyMention', () => {
     )
   })
 
+  it('writes a task as a link carrying its id', () => {
+    expect(mentionText({ kind: 'task', id: 't1', label: 'Ship release notes' })).toBe('[@Ship release notes](/task/t1)')
+    expect(taskReference({ id: 't2', title: 'Fix [login]' })).toBe('[@Fix \\[login\\]](/task/t2)')
+  })
+
   it('replaces the typed query and leaves the caret after the mention', () => {
     const token = { start: 4, end: 7, query: 'ad' }
     const result = applyMention('ask @ad please', token, { kind: 'person', id: 'p1', label: 'Ada' })
@@ -181,6 +207,20 @@ describe('mentionText and applyMention', () => {
     expect(result.value).toBe('due 2026-10-19 ')
     expect(result.caret).toBe(result.value.length)
   })
+
+  it('replaces a task query with a link to the task', () => {
+    const result = applyMention(
+      'blocked by @release',
+      { start: 11, end: 19, query: 'release' },
+      {
+        kind: 'task',
+        id: 't1',
+        label: 'Ship release notes'
+      }
+    )
+    expect(result.value).toBe('blocked by [@Ship release notes](/task/t1) ')
+    expect(result.caret).toBe(result.value.length)
+  })
 })
 
 describe('decodeMentionLinks', () => {
@@ -196,6 +236,11 @@ describe('decodeMentionLinks', () => {
 
   it('leaves other links alone', () => {
     expect(decodeMentionLinks('[docs](https://example.com)')).toBe('[docs](https://example.com)')
+  })
+
+  it('refreshes a task link label from the task list', () => {
+    expect(decodeMentionLinks('see [@Old title](/task/t1)', tasks)).toBe('see [@Ship release notes](/task/t1)')
+    expect(decodeMentionLinks('see [@Gone](/task/missing)', tasks)).toBe('see [@Gone](/task/missing)')
   })
 })
 

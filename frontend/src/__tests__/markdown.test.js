@@ -50,6 +50,30 @@ describe('renderMarkdown', () => {
     expect(html).not.toContain('target="_blank"')
   })
 
+  it('keeps task references in the app, styled as mentions', () => {
+    const html = renderMarkdown('see [@Fix login](/task/t1)')
+    expect(html).toContain('class="mention"')
+    expect(html).toContain('href="/task/t1"')
+    expect(html).not.toContain('target="_blank"')
+  })
+
+  it("renders a task reference with the task's current title", () => {
+    const tasks = [{ id: 't1', title: 'Fix login timeout' }]
+    const html = renderMarkdown('see [@Old title](/task/t1)', { tasks })
+    expect(html).toContain('@Fix login timeout')
+    expect(html).not.toContain('Old title')
+  })
+
+  it('keeps a task reference label when the task is not loaded', () => {
+    const html = renderMarkdown('see [@Old title](/task/missing)', { tasks: [{ id: 't1', title: 'Other' }] })
+    expect(html).toContain('@Old title')
+  })
+
+  it('keeps a hand-written task link label', () => {
+    const html = renderMarkdown('[read this first](/task/t1)', { tasks: [{ id: 't1', title: 'Fix login timeout' }] })
+    expect(html).toContain('read this first')
+  })
+
   it('links a plain @ name to the person or item it names', () => {
     const html = renderMarkdown('ask @Ada Lovelace to review', {
       mentions: [{ name: 'Ada Lovelace', href: '/person/p1' }]

@@ -1,4 +1,4 @@
-import { sourceLabel } from './store'
+import { sourceLabel, statusLabel } from './store'
 
 // An `@` mention starts at the beginning of the text or after whitespace or
 // opening punctuation, so an email address (or a handle in the middle of a
@@ -6,8 +6,8 @@ import { sourceLabel } from './store'
 const TRIGGER_BEFORE = /[\s([{"'“‘>]/
 // A name is short; a longer run after `@` is prose, not a mention being typed.
 const MAX_QUERY = 60
-// How many of each kind the picker offers. People and items are shown as two
-// groups, so one kind never crowds out the other.
+// How many of each kind the picker offers. Each kind is shown as its own group,
+// so one kind never crowds out another.
 const PER_KIND = 5
 
 // Relative date references: `@last week`, `@last Thursday`, `@next month`.
@@ -73,6 +73,26 @@ function isNote(item) {
   // A note is prose kept with the task, not a thing to point at; its "title"
   // is derived from its body, which would make a useless reference.
   return item?.source === 'note'
+}
+
+function taskLabel(task) {
+  return task?.title || 'Untitled task'
+}
+
+// A task's title goes inside a Markdown link label, so brackets and backslashes
+// that would end the label early are escaped.
+function escapeLinkLabel(label) {
+  return String(label ?? '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/([\\[\]])/g, '\\$1')
+}
+
+// A task reference stores the id in the link path, not the title, so renaming
+// the task never breaks the reference. The label is only a readable stand-in;
+// the renderer replaces it with the task's current title.
+export function taskReference(task) {
+  return `[@${escapeLinkLabel(task.title || task.label || 'Untitled task')}](/task/${task.id})`
 }
 
 // Midnight in the reader's own zone, so "today" is the day they see, not UTC.
@@ -156,10 +176,11 @@ export function buildDateMentionOptions(query, now = new Date()) {
 }
 
 // The references the picker offers for `query`: dates first when the query
-// names one, then people, then items. Matching is case-insensitive over a
-// person's name and aliases, and an item's title and URL.
+// names one, then people, tasks, and items. Matching is case-insensitive over a
+// person's name and aliases, a task's title, and an item's title and URL.
 export function buildMentionOptions({
   people = [],
+  tasks = [],
   items = [],
   query = '',
   perKind = PER_KIND,
@@ -180,6 +201,15 @@ export function buildMentionOptions({
   }
   peopleMatches.sort((a, b) => compareMatches(a, b, needle))
 
+  const taskMatches = []
+  for (const task of tasks) {
+    if (!task?.id) continue
+    const label = taskLabel(task)
+    if (needle && !includes(label, needle)) continue
+    taskMatches.push({ kind: 'task', id: task.id, label, detail: statusLabel(task.status) })
+  }
+  taskMatches.sort((a, b) => compareMatches(a, b, needle))
+
   const itemMatches = []
   for (const item of items) {
     if (isNote(item)) continue
@@ -189,23 +219,39 @@ export function buildMentionOptions({
   }
   itemMatches.sort((a, b) => compareMatches(a, b, needle))
 
-  return [...dateMatches, ...peopleMatches.slice(0, perKind), ...itemMatches.slice(0, perKind)]
+  return [
+    ...dateMatches,
+    ...peopleMatches.slice(0, perKind),
+    ...taskMatches.slice(0, perKind),
+    ...itemMatches.slice(0, perKind)
+  ]
 }
 
 // A reference as it is written into a field. A person or item is plain text
 // (`@name`), the same way a person would type it: the field stores what the
 // editor shows, and the renderer links the reference when it displays it. A
-// date becomes its ISO value (`2026-10-22`) rather than the phrase typed.
+// date becomes its ISO value (`2026-10-22`) rather than the phrase typed. A
+// task becomes a link carrying its id, so a rename keeps the reference.
 export function mentionText(option) {
-  return option.kind === 'date' ? option.value : `@${option.label}`
+  if (option.kind === 'date') return option.value
+  if (option.kind === 'task') return taskReference(option)
+  return `@${option.label}`
 }
 
 // A saved link from an earlier build (or a hand-written one) is edited as its
 // plain `@name` again, so opening a field never shows raw link syntax.
 const MENTION_LINK = /\[@((?:\\.|[^\]\\])*)\]\(\/(?:person|items)\/[^)\s]+\)/g
+// A task reference keeps its link syntax (the id is what makes it stable), but
+// its label is refreshed from the task so the editor shows the current title.
+const TASK_LINK = /\[@((?:\\.|[^\]\\])*)\]\(\/task\/([^/?#)\s]+)\)/g
 
-export function decodeMentionLinks(text) {
-  return String(text ?? '').replace(MENTION_LINK, (_, label) => `@${label.replace(/\\([\\[\]<>])/g, '$1')}`)
+export function decodeMentionLinks(text, tasks = []) {
+  const value = String(text ?? '').replace(MENTION_LINK, (_, label) => `@${label.replace(/\\([\\[\]<>])/g, '$1')}`)
+  const titles = new Map((tasks || []).filter((task) => task?.id).map((task) => [task.id, taskLabel(task)]))
+  if (!titles.size) return value
+  return value.replace(TASK_LINK, (match, _label, id) =>
+    titles.has(id) ? `[@${escapeLinkLabel(titles.get(id))}](/task/${id})` : match
+  )
 }
 
 // Replace the `@query` being typed with the chosen reference, leaving the

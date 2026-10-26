@@ -62,13 +62,43 @@ md.inline.ruler.before('emphasis', 'mention', (state, silent) => {
   return true
 })
 
+// A task reference is a Markdown link to /task/<id>. Its label is the title at
+// insert time, but the id is what identifies the task; when the caller passes
+// the tasks in `env.tasks`, render the current title so renaming a task updates
+// every reference to it. Only labels that start with `@` are treated as
+// references, so a hand-written link keeps its own text.
+md.core.ruler.after('inline', 'task-links', (state) => {
+  const tasks = state.env?.tasks
+  if (!tasks?.length) return
+  const titles = new Map(tasks.filter((task) => task?.id).map((task) => [task.id, task.title || 'Untitled task']))
+  for (const token of state.tokens) {
+    const children = token.children
+    if (!children) continue
+    for (let i = 0; i < children.length; i++) {
+      const open = children[i]
+      if (open.type !== 'link_open') continue
+      const match = /^\/task\/([A-Za-z0-9_-]+)$/.exec(open.attrGet('href') || '')
+      if (!match || !titles.has(match[1])) continue
+      let close = i + 1
+      while (close < children.length && children[close].type !== 'link_close') close++
+      if (close >= children.length) continue
+      const label = children[i + 1]
+      if (label?.type !== 'text' || !label.content.startsWith('@')) continue
+      const text = new state.Token('text', '', 0)
+      text.content = `@${titles.get(match[1])}`
+      children.splice(i + 1, close - i - 1, text)
+      i += 1
+    }
+  }
+})
+
 // External links open in a new tab so the app stays put. A reference to a
-// person or an item stays in the app and gets the mention styling.
+// person, task, or item stays in the app and gets the mention styling.
 const defaultLinkOpen =
   md.renderer.rules.link_open || ((tokens, idx, options, _env, self) => self.renderToken(tokens, idx, options))
 md.renderer.rules.link_open = (tokens, idx, options, env, self) => {
   const href = tokens[idx].attrGet('href') || ''
-  if (/^\/(person|items)\//.test(href)) {
+  if (/^\/(person|items|task)\//.test(href)) {
     tokens[idx].attrJoin('class', 'mention')
   } else {
     tokens[idx].attrSet('target', '_blank')
