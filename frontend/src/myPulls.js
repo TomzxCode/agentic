@@ -72,6 +72,50 @@ export function reviewTone(pull) {
   return REVIEW_TONES[pull.review_decision] || ''
 }
 
+// One check behind a pull request's CI badge, as the checks popover labels it.
+// Its state uses the same success / pending / failure vocabulary as the rollup.
+export const CHECK_LABELS = { success: 'Passed', pending: 'Running', failure: 'Failed' }
+export const CHECK_TONES = { success: 'ok', pending: 'warn', failure: 'danger' }
+const CHECK_ORDER = ['failure', 'pending', 'success']
+
+export function checkLabel(check) {
+  return CHECK_LABELS[check.state] || 'Unknown'
+}
+
+export function checkTone(check) {
+  return CHECK_TONES[check.state] || ''
+}
+
+// The checks in the order that answers "what is failing" first, keeping the read
+// order within a state.
+export function sortChecks(checks) {
+  const rank = (check) => {
+    const index = CHECK_ORDER.indexOf(check.state)
+    return index === -1 ? CHECK_ORDER.length : index
+  }
+  return [...(checks || [])].sort((a, b) => rank(a) - rank(b))
+}
+
+export function checkCounts(checks) {
+  const counts = { failure: 0, pending: 0, success: 0, total: 0 }
+  for (const check of checks || []) {
+    if (Object.hasOwn(counts, check.state)) counts[check.state] += 1
+    counts.total += 1
+  }
+  return counts
+}
+
+// The popover's one-line summary, naming only the states present: "2 failing ·
+// 1 running · 8 passed". An empty list reads as nothing rather than as zeroes.
+export function checksSummary(checks) {
+  const counts = checkCounts(checks)
+  const parts = []
+  if (counts.failure) parts.push(`${counts.failure} failing`)
+  if (counts.pending) parts.push(`${counts.pending} running`)
+  if (counts.success) parts.push(`${counts.success} passed`)
+  return parts.join(' · ')
+}
+
 // How much a pull request needs its author to act, lowest first: failing checks,
 // then requested changes, then unresolved threads, then checks still running,
 // then a required review not yet given, then an approval, then the rest. The

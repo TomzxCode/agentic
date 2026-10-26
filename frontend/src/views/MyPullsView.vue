@@ -1,10 +1,9 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
 import { api } from '../api'
+import PullChecksPopover from '../components/PullChecksPopover.vue'
 import SearchSelect from '../components/SearchSelect.vue'
 import {
-  ciLabel,
-  ciTone,
   CI_FILTERS,
   groupPulls,
   matchesCiFilter,
@@ -355,7 +354,7 @@ onMounted(load)
                     <span class="my-pulls-title" :title="pull.title">{{ pull.title }}</span>
                   </td>
                   <td>
-                    <span class="badge" :class="ciTone(pull)">{{ ciLabel(pull) }}</span>
+                    <PullChecksPopover :pull="pull" />
                   </td>
                   <td>
                     <span class="badge" :class="reviewTone(pull)">{{ reviewLabel(pull) }}</span>

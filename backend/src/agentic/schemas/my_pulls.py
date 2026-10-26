@@ -49,6 +49,32 @@ class MyPullsRead(BaseModel):
     pulls: list[MyPullRead] = []
 
 
+class MyPullCheck(BaseModel):
+    """One check run or commit status behind a pull request's CI badge."""
+
+    name: str
+    # failure / pending / success, the same vocabulary as the rollup.
+    state: str = "pending"
+    # What the check reported, or a short label when it names no description.
+    description: str = ""
+    # The check's detail page on GitHub, when it has one.
+    url: str = ""
+
+
+class MyPullChecksRead(BaseModel):
+    """The checks behind one pull request, failing first."""
+
+    repository: str
+    number: int
+    # The head commit's rollup, so the popover agrees with the badge.
+    rollup: str = "none"
+    checks: list[MyPullCheck] = []
+    # Every check on the commit, which can exceed the listed ones.
+    total: int = 0
+    # Why the checks are missing, when GitHub could not be read.
+    error: str | None = None
+
+
 class MyPullPokeRequest(BaseModel):
     """Ask the API to DM a pull request's reviewers on Slack.
 

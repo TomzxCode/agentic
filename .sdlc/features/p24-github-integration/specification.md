@@ -48,6 +48,7 @@ Response models (`schemas/github.py`, `schemas/my_pulls.py`, `schemas/items.py`)
 | GithubRepoListing | items, failed (each kind `ghx` could not list) |
 | MyPullRead | repository, number, title, url, draft, created_at, updated_at, review_decision, approved, approvers, ci, open_threads, threads_total, reviewed, requested_reviewers |
 | MyPullsRead | login, generated_at, counts, error, pulls |
+| MyPullCheck / MyPullChecksRead | name, state, description, url / repository, number, rollup, checks, total, error |
 | MyPullPokeRead | poked (login, name, slack_user_id, ts), failed (login, reason) |
 | ItemGithubReviewer / ItemGithubReviewers | login, state, submitted_at, requested / reviewers, error |
 
@@ -72,6 +73,7 @@ The normative contract is in [`api.yaml`](api.yaml) once written; the table belo
 | POST | /api/github/issues | Create an issue from a title and body (gh) |
 | GET | /api/github/repository | List every issue and PR, all states by default; `refresh=true` forces a ghx re-fetch first; syncs stored items |
 | GET | /api/my-pulls | The configured login's open pull requests; `refresh=true` bypasses the cache |
+| GET | /api/my-pulls/checks | One pull request's individual checks, failing first, read on demand for the CI badge's popover (`refresh=true` bypasses the 30-second cache) |
 | POST | /api/my-pulls/poke | DM a pull request's named reviewers on Slack |
 | GET | /api/items/{item_id}/reviewers | A PR item's reviewers, read live from GitHub |
 | POST | /api/items/{item_id}/poke | DM one reviewer of a PR item |
@@ -80,7 +82,7 @@ Error codes shared across endpoints:
 
 | Status | Condition |
 |---|---|
-| 400 | Not a GitHub issue or PR URL, missing repository coordinates, a repository without a GitHub remote, a blank issue title, or an empty poke login list |
+| 400 | Not a GitHub issue or PR URL, missing repository coordinates, a repository without a GitHub remote, a blank issue title, an empty poke login list, or a checks read without `owner/name` and a positive number |
 | 404 | Unknown repository_id or item_id |
 | 502 | `ghx` or `gh` could not run, or the read failed |
 
@@ -113,6 +115,31 @@ sequenceDiagram
     M-->>V: login, pulls, counts, error
 ```
 
+### Checks popover
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant V as PullChecksPopover
+    participant R as my_pulls router
+    participant M as my_pulls.py
+    participant S as services/github.py
+    participant GH as gh api graphql
+    V->>V: badge clicked
+    V->>R: GET /api/my-pulls/checks?repository=o/r&number=12
+    R->>R: validate owner/name and number
+    R->>M: fetch_my_pull_checks(owner, repo, number)
+    alt cache fresh (30s)
+        M-->>R: cached checks
+    else
+        M->>S: fetch_pull_checks(owner, repo, number)
+        S->>GH: pullRequest -> head commit -> statusCheckRollup contexts
+        S-->>M: checks, rollup, total
+    end
+    M-->>V: checks failing first, total, error
+    V->>V: place the fixed panel under (or over) the badge
+```
+
 ### Repository listing and item sync
 
 ```mermaid
@@ -142,6 +169,8 @@ sequenceDiagram
 | My PRs source | One paginated search per lookup | One read answers the whole page (state, checks, threads, approvers) |
 | My PRs storage | Nothing stored | A merged pull request leaves the page on the next refresh without a bookkeeping step |
 | My PRs cache | 60 seconds per login, 30 for a failure | A reload does not re-query GitHub, and an offline host is retried later rather than on every request |
+| Individual checks | Read on demand when the CI badge's popover opens, cached 30 seconds | The page needs only the rollup state, and a check list per pull request would dwarf the search's payload |
+| Checks panel position | Fixed from the badge's rectangle | The table scrolls sideways in a wrapper, which would clip a panel positioned inside the cell |
 | Approvers | Latest opinionated reviews only | A plain comment must not undo an approval, and a dismissal must drop one |
 | Listing write-back | State fields only, merged onto matching items | The repository view is never staler than its items; bodies and people still come from full fetches |
 | Issue creation | `gh issue create` | `ghx` has no issue-create command |

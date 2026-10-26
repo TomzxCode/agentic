@@ -38,13 +38,14 @@ Importing GitHub issues and pull requests as source items is a separate feature 
 | FR-11 | Must | The repository view shall list the repository's issues and pull requests as a grid with kind, number, title, state, author, linked tasks, changes, and links out to GitHub, ghx, and the app's own pages, with a refresh that forces `ghx` to re-fetch and a separate refresh of the linked items. |
 | FR-12 | Should | The system shall list a pull request item's reviewers live from GitHub through `gh`, one row per reviewer with their latest decisive review state, last review time, and pending review requests, skipping team requests. |
 | FR-13 | Should | The system shall poke one reviewer of a pull request item by Slack DM through the people directory, explaining what is missing when the login or a Slack id cannot be resolved. |
+| FR-14 | Should | The system shall list one pull request's individual checks on demand, failing first, when its CI badge's popover opens, each carrying its name, state, description, and detail URL, and report why when the read could not run instead of reading as a pull request with no checks. |
 
 ## Non-Functional Requirements
 
 | ID | Priority | Category | Requirement |
 |---|---|---|---|
 | NFR-1 | Must | Reliability | A GitHub read failure shall surface as an explicit error (400 for bad coordinates, 502 when `ghx` or `gh` could not run), never as a silent empty list. |
-| NFR-2 | Should | Performance | A My PRs reload shall answer from the short cache rather than re-query GitHub, and one lookup shall read at most 500 pull requests. |
+| NFR-2 | Should | Performance | A My PRs reload shall answer from the short cache rather than re-query GitHub, and one lookup shall read at most 500 pull requests; the checks popover shall reuse a 30-second cache and list at most 100 checks per read. |
 | NFR-3 | Should | Data integrity | The listing sync shall write only the state fields (state, is_draft, merged_at, created_at, author) and only when something changed; bodies and people stay with full fetches. |
 | NFR-4 | Should | Maintainability | The My PRs page logic (labels, attention ranking, grouping, filters, search, counts) shall live in pure helpers tested without rendering the view. |
 | NFR-5 | Should | Security | Issue and pull request bodies shall render through the shared sanitized Markdown renderer, and review-request DMs shall be sent without link previews. |
@@ -258,6 +259,23 @@ Importing GitHub issues and pull requests as source items is a separate feature 
       Given no person carries the login, or the person has no Slack alias
       When the poke is attempted
       Then the response is 400 and names exactly what to add
+    ```
+
+- [ ] **FR-14**
+
+    ```gherkin
+    @FR-14
+    Scenario: Open a pull request's checks
+      Given a pull request whose head commit has failing, running, and passing checks
+      When the client asks GET /api/my-pulls/checks for its repository and number
+      Then the checks are returned failing first, each with its name, state, description, and detail URL
+      And the response's total is the number of checks on the commit, even beyond the first hundred listed
+
+    @FR-14
+    Scenario: A failed checks read
+      Given `gh` cannot read the pull request
+      When the client asks GET /api/my-pulls/checks
+      Then the response carries the checks error and no checks
     ```
 
 - [ ] **NFR-1**

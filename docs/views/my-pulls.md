@@ -24,13 +24,28 @@ The table has one row per pull request:
 | Column | What it shows |
 | --- | --- |
 | PR | The number, linking to GitHub, a `draft` badge, the repository (hidden when grouped by repository, linking to the app's repository page), and the title. |
-| CI | The check rollup: passing, failing, running, or no checks. |
+| CI | The check rollup: passing, failing, running, or no checks. Click it to list the pull request's individual checks, failing first. |
 | Review | The review decision: approved, changes requested, review required, or no review. |
 | Approvers | The logins whose latest decisive review approves, each a person link, or a dash when none are known. |
 | Threads | `N open`, with a tooltip giving how many of the review threads are still open. |
 | Updated | When the pull request last changed, relative, with the full time in a tooltip. |
 
 A row that needs attention is styled as such.
+
+### The checks popover
+
+Clicking a row's CI badge opens a panel listing the checks behind the rollup, the way GitHub's checks popover does.
+The panel loads when it opens, because the page itself carries only the rollup state.
+
+- Failing checks come first, then running ones, then passed ones.
+- Each row names the check and its state (`Failed`, `Running`, `Passed`) and links to the check's detail page on GitHub when it has one.
+- The summary line names the states present, such as `2 failing · 1 running · 8 passed`.
+- The panel lists the first 100 checks; when the commit has more, it says `Showing 100 of 130 checks.`
+- `View on GitHub` opens the pull request's checks tab.
+
+The panel closes on a click elsewhere or on `Esc`.
+Closing and reopening it during the visit answers from the 30-second cache.
+A read that could not run says so and offers `Retry`, which bypasses that cache.
 
 ### Filtering and grouping
 
@@ -56,7 +71,8 @@ There is no sort control.
 ### Caching and failures
 
 The server caches the GitHub answer per login for 60 seconds and retries a failed read after 30 seconds.
-`Refresh` bypasses that cache.
+The checks popover caches each pull request's checks for 30 seconds.
+`Refresh` bypasses the list's cache; the popover's cache is not tied to it.
 
 Two failures have their own messages:
 
@@ -68,6 +84,7 @@ Two failures have their own messages:
 - `You have no open pull requests.` is the empty state, not an error.
 - The list is capped at 500 pull requests, newest update first.
 - Approvers come from review decisions on GitHub, so a stale approval shows until GitHub updates it.
+- The checks popover reads GitHub when it opens, so it is not affected by the list's `Refresh`.
 
 ## CLI and agent interface
 
@@ -75,6 +92,7 @@ Two failures have their own messages:
 | --- | --- | --- |
 | List your open pull requests | none | `GET /api/my-pulls` |
 | Force a fresh GitHub read | none | `GET /api/my-pulls?refresh=true` |
+| List one pull request's checks | none | `GET /api/my-pulls/checks?repository=owner/name&number=12` |
 | Poke a pull request's reviewers on Slack | none | `POST /api/my-pulls/poke` |
 | Act on one | use the review queue or a task | `POST /api/tasks` with `github_url` |
 

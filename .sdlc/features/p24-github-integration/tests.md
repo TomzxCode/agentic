@@ -33,6 +33,8 @@ Out of scope: real network calls to GitHub or Slack, and the cycle-time reads th
 | TC-16 | Reviewer parsing keeps each reviewer once, keeps the latest decisive state over a later comment, keeps the last review time, marks a re-requested reviewer PENDING, and skips teams | test_item_github_reviewers.py |
 | TC-17 | My PRs page helpers: labels, attention ranking, sorting, search, counts, groupings, and filter matching | frontend `myPulls.test.js` |
 | TC-18 | `layoutGraph` layers by longest path, stacks independent nodes, drops undrawn edges, and sizes the canvas; `edgePath`; `wrapTitle` | frontend `graph.test.js` |
+| TC-36 | One pull request's checks reduce to name, state, description, and URL, failing first; unnamed checks drop; a failed read is none; the number is sent as a typed literal | test_my_pulls.py |
+| TC-38 | Checks popover helpers: per-check labels and tones, failing-first order, counts, and the summary line | frontend `myPulls.test.js` |
 
 ## Integration Tests
 
@@ -50,6 +52,8 @@ Out of scope: real network calls to GitHub or Slack, and the cycle-time reads th
 | TC-28 | TaskIssuePanel and the task's issue mode | stored item, monkeypatched API | live GitHub read shown with the agent panel; stored-item fallback; author person links |
 | TC-29 | MyPullsView | monkeypatched API | rows rendered with badges, filters, grouping (remembered in localStorage), repository multi-select, refresh, empty and error states |
 | TC-30 | Repository detail view and grid | monkeypatched API and store | grid rows with kind, state, author, tasks, and app/ghx links; refresh all; new-task and record-change actions |
+| TC-37 | My pull request checks endpoint | router read monkeypatched | checks and rollup returned; 400 for a missing repository, a non-`owner/name` repository, or a non-positive number; a failed read carries the error |
+| TC-39 | Pull checks popover | monkeypatched API | the badge opens the panel with failing checks first and the summary; a failed read offers a retry; Escape and an outside click close it; reopening answers from the visit's copy |
 
 ## Edge Cases and Failure Scenarios
 
@@ -60,6 +64,7 @@ Out of scope: real network calls to GitHub or Slack, and the cycle-time reads th
 | TC-33 | A payload without people, or with no author | metadata stores None rather than failing |
 | TC-34 | A reviewer who reviewed before and is asked again | one row, state PENDING, still carrying their last review time |
 | TC-35 | A reviewer login repeated in different cases | deduplicated to one DM |
+| TC-40 | A pull request with more than a hundred checks | the popover lists the first hundred and says how many of the total it shows |
 
 ## Test Infrastructure
 
@@ -84,8 +89,9 @@ Out of scope: real network calls to GitHub or Slack, and the cycle-time reads th
 | FR-11 | TC-29, TC-30 |
 | FR-12 | TC-16, TC-26 |
 | FR-13 | TC-27 |
+| FR-14 | TC-36, TC-37, TC-38, TC-39, TC-40 |
 | NFR-1 | TC-19, TC-20, TC-31 |
-| NFR-2 | TC-13, TC-14 |
+| NFR-2 | TC-13, TC-14, TC-36, TC-37 |
 | NFR-3 | TC-23 |
 | NFR-4 | TC-17 |
 | NFR-5 | TC-27 (no unfurl), TC-28 (sanitized Markdown) |

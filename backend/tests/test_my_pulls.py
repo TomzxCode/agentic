@@ -329,3 +329,200 @@ def test_my_pulls_poke_without_logins_is_rejected():
         response = client.post("/api/my-pulls/poke", json={"repository": "o/r", "number": 12, "logins": []})
 
     assert response.status_code == 400
+
+
+def _checks_payload(nodes, rollup="FAILURE", total=None):
+    return json.dumps(
+        {
+            "data": {
+                "repository": {
+                    "pullRequest": {
+                        "commits": {
+                            "nodes": [
+                                {
+                                    "commit": {
+                                        "statusCheckRollup": {
+                                            "state": rollup,
+                                            "contexts": {
+                                                "totalCount": len(nodes) if total is None else total,
+                                                "nodes": nodes,
+                                            },
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        }
+    )
+
+
+def test_fetch_pull_checks_lists_failing_checks_first(monkeypatch):
+    seen: dict = {}
+    nodes = [
+        {
+            "__typename": "CheckRun",
+            "name": "lint",
+            "status": "COMPLETED",
+            "conclusion": "SUCCESS",
+            "detailsUrl": "https://github.com/o/r/runs/1",
+        },
+        {
+            "__typename": "CheckRun",
+            "name": "build",
+            "status": "COMPLETED",
+            "conclusion": "FAILURE",
+            "detailsUrl": "https://github.com/o/r/runs/2",
+        },
+        {
+            "__typename": "CheckRun",
+            "name": "integration",
+            "status": "IN_PROGRESS",
+            "conclusion": None,
+            "detailsUrl": "",
+        },
+        {
+            "__typename": "StatusContext",
+            "context": "ci/verify",
+            "state": "ERROR",
+            "description": "Verification failed",
+            "targetUrl": "https://ci.example/verify",
+        },
+        {"__typename": "StatusContext", "context": "ci/docs", "state": "SUCCESS", "description": "", "targetUrl": ""},
+        {"__typename": "CheckRun", "name": "", "status": "COMPLETED", "conclusion": "FAILURE"},
+    ]
+
+    def fake(cmd, timeout=60):
+        seen["cmd"] = cmd
+        return _checks_payload(nodes, total=8)
+
+    monkeypatch.setattr(shell, "_run_cli", fake)
+    report = github.fetch_pull_checks("o", "r", 12)
+
+    assert report is not None
+    assert report["rollup"] == "failure"
+    assert report["total"] == 8
+    assert [(check["name"], check["state"]) for check in report["checks"]] == [
+        ("build", "failure"),
+        ("ci/verify", "failure"),
+        ("integration", "pending"),
+        ("lint", "success"),
+        ("ci/docs", "success"),
+    ]
+    verify = report["checks"][1]
+    assert verify["description"] == "Verification failed"
+    assert verify["url"] == "https://ci.example/verify"
+    # A status context with no description falls back to a label; a check run
+    # names its detail page.
+    assert report["checks"][4]["description"] == "passed"
+    assert report["checks"][0]["url"] == "https://github.com/o/r/runs/2"
+    # gh needs a typed literal for the Int, not the string -f would send.
+    assert "-F" in seen["cmd"]
+    assert "number=12" in seen["cmd"]
+
+
+def test_fetch_pull_checks_returns_none_when_github_fails(monkeypatch):
+    monkeypatch.setattr(shell, "_run_cli", lambda cmd, timeout=60: None)
+    assert github.fetch_pull_checks("o", "r", 12) is None
+
+    payload = json.dumps({"data": {"repository": {"pullRequest": None}}})
+    monkeypatch.setattr(shell, "_run_cli", lambda cmd, timeout=60: payload)
+    assert github.fetch_pull_checks("o", "r", 12) is None
+
+
+def test_fetch_my_pull_checks_caches_and_reports_failure(monkeypatch):
+    calls: list[tuple[str, str, int]] = []
+
+    def fake(owner, repo, number):
+        calls.append((owner, repo, number))
+        return {
+            "rollup": "failure",
+            "checks": [{"name": "build", "state": "failure", "description": "failed", "url": ""}],
+            "total": 1,
+        }
+
+    monkeypatch.setattr(my_pulls, "fetch_pull_checks", fake)
+    my_pulls._checks_cache.clear()
+
+    first = my_pulls.fetch_my_pull_checks("o", "r", 12)
+    second = my_pulls.fetch_my_pull_checks("O", "R", 12)
+
+    assert first["error"] is None
+    assert first["checks"][0]["name"] == "build"
+    assert second == first
+    # The second read answers from the cache, casing aside; a refresh asks again.
+    assert calls == [("o", "r", 12)]
+
+    refreshed = my_pulls.fetch_my_pull_checks("o", "r", 12, refresh=True)
+    assert refreshed["rollup"] == "failure"
+    assert calls == [("o", "r", 12), ("o", "r", 12)]
+
+    monkeypatch.setattr(my_pulls, "fetch_pull_checks", lambda owner, repo, number: None)
+    my_pulls._checks_cache.clear()
+    failed = my_pulls.fetch_my_pull_checks("o", "r", 12)
+    assert failed["checks"] == []
+    assert failed["error"] == my_pulls.CHECKS_UNREACHABLE_ERROR
+
+
+def test_my_pull_checks_endpoint(monkeypatch):
+    calls: list[bool] = []
+    report = {
+        "rollup": "failure",
+        "checks": [{"name": "build", "state": "failure", "description": "failed", "url": "https://ci/1"}],
+        "total": 1,
+        "error": None,
+    }
+
+    def fake(owner, repo, number, refresh=False):
+        calls.append(refresh)
+        return report
+
+    monkeypatch.setattr("agentic.routers.my_pulls.fetch_my_pull_checks", fake)
+
+    with TestClient(app) as client:
+        payload = client.get("/api/my-pulls/checks", params={"repository": "o/r", "number": 12}).json()
+        refreshed = client.get(
+            "/api/my-pulls/checks", params={"repository": "o/r", "number": 12, "refresh": "true"}
+        ).json()
+
+    assert payload["repository"] == "o/r"
+    assert payload["number"] == 12
+    assert payload["rollup"] == "failure"
+    assert payload["checks"][0]["name"] == "build"
+    assert payload["error"] is None
+    assert refreshed["checks"] == payload["checks"]
+    assert calls == [False, True]
+
+
+def test_my_pull_checks_endpoint_rejects_bad_coordinates(monkeypatch):
+    called: list[tuple] = []
+    monkeypatch.setattr(
+        "agentic.routers.my_pulls.fetch_my_pull_checks",
+        lambda owner, repo, number, refresh=False: called.append((owner, repo, number)) or {},
+    )
+
+    with TestClient(app) as client:
+        missing_repo = client.get("/api/my-pulls/checks", params={"repository": "", "number": 12})
+        bad_repo = client.get("/api/my-pulls/checks", params={"repository": "not-a-repo", "number": 12})
+        bad_number = client.get("/api/my-pulls/checks", params={"repository": "o/r", "number": 0})
+
+    assert missing_repo.status_code == 400
+    assert bad_repo.status_code == 400
+    assert bad_number.status_code == 400
+    assert called == []
+
+
+def test_my_pull_checks_endpoint_reports_a_failed_read(monkeypatch):
+    report = {"rollup": "none", "checks": [], "total": 0, "error": my_pulls.CHECKS_UNREACHABLE_ERROR}
+    monkeypatch.setattr(
+        "agentic.routers.my_pulls.fetch_my_pull_checks",
+        lambda owner, repo, number, refresh=False: report,
+    )
+
+    with TestClient(app) as client:
+        payload = client.get("/api/my-pulls/checks", params={"repository": "o/r", "number": 12}).json()
+
+    assert payload["checks"] == []
+    assert payload["error"] == my_pulls.CHECKS_UNREACHABLE_ERROR

@@ -14,19 +14,31 @@ that GitHub still lists unreviewed is often not tracked as an item at all.
 
 from __future__ import annotations
 
+import re
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session
 
 from ..db import get_session
 from ..models.base import utcnow
-from ..my_pulls import fetch_my_pulls
-from ..schemas.my_pulls import MyPullPokeFailure, MyPullPokeRead, MyPullPokeRequest, MyPullPokeSent, MyPullsRead
+from ..my_pulls import fetch_my_pull_checks, fetch_my_pulls
+from ..schemas.my_pulls import (
+    MyPullChecksRead,
+    MyPullPokeFailure,
+    MyPullPokeRead,
+    MyPullPokeRequest,
+    MyPullPokeSent,
+    MyPullsRead,
+)
 from ..services.github import pr_review_request_message
 from ..services.slack import SlackError, resolve_slack_user_id, slack_send_dm
 from ..settings_store import resolve_github_login
 from .people_service import person_aliases, person_for_alias
 
 router = APIRouter(prefix="/api/my-pulls", tags=["my-pulls"])
+
+#: A repository as ``owner/name``; anything else is a bad coordinate, not a read.
+_REPOSITORY_RE = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
 
 
 @router.get("", response_model=MyPullsRead)
@@ -39,6 +51,26 @@ def list_my_pulls(refresh: bool = False, session: Session = Depends(get_session)
     """
     report = fetch_my_pulls(resolve_github_login(session), refresh=refresh)
     return MyPullsRead(generated_at=utcnow(), **report)
+
+
+@router.get("/checks", response_model=MyPullChecksRead)
+def list_my_pull_checks(repository: str, number: int, refresh: bool = False) -> MyPullChecksRead:
+    """The individual checks behind one pull request's CI badge, read live.
+
+    The page load carries only the rollup state, so this read runs when the
+    badge's popover opens. A read that could not run carries an ``error`` and no
+    checks, so the popover can say what is wrong instead of reading as a pull
+    request with nothing to run. ``refresh`` asks GitHub again instead of
+    reusing the short cache, which is what the popover's retry does.
+    """
+    if not _REPOSITORY_RE.match(repository) or number < 1:
+        raise HTTPException(
+            status_code=400,
+            detail="Provide a repository as owner/name and a positive pull request number",
+        )
+    owner, _, repo = repository.partition("/")
+    report = fetch_my_pull_checks(owner, repo, number, refresh=refresh)
+    return MyPullChecksRead(repository=repository, number=number, **report)
 
 
 @router.post("/poke", response_model=MyPullPokeRead)

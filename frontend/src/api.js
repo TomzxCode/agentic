@@ -242,6 +242,13 @@ export const api = {
     // check rollup, review decision, approvers, and open threads. refresh
     // re-queries GitHub instead of reusing the short cache.
     list: ({ refresh = false } = {}) => request(`/my-pulls${refresh ? '?refresh=true' : ''}`),
+    // The individual checks behind one pull request's CI badge, read when the
+    // badge's popover opens. The page load carries only the rollup state.
+    checks: ({ repository, number, refresh = false }) => {
+      const qs = new URLSearchParams({ repository, number: String(number) })
+      if (refresh) qs.set('refresh', 'true')
+      return request(`/my-pulls/checks?${qs}`)
+    },
     // DM a pull request's requested reviewers on Slack, asking for their review.
     poke: (payload) => request('/my-pulls/poke', { method: 'POST', body: payload })
   },

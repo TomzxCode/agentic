@@ -4,16 +4,21 @@ import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
 enableAutoUnmount(afterEach)
 
 const mocks = vi.hoisted(() => ({
-  list: vi.fn()
+  list: vi.fn(),
+  checks: vi.fn()
 }))
 
 vi.mock('../api', () => ({
-  api: { myPulls: { list: mocks.list } }
+  api: { myPulls: { list: mocks.list, checks: mocks.checks } }
 }))
 
 import MyPullsView from '../views/MyPullsView.vue'
 import {
   attentionRank,
+  checkCounts,
+  checkLabel,
+  checkTone,
+  checksSummary,
   ciLabel,
   ciTone,
   CI_FILTERS,
@@ -29,6 +34,7 @@ import {
   reviewLabel,
   REVIEW_FILTERS,
   reviewTone,
+  sortChecks,
   sortPulls,
   THREAD_FILTERS
 } from '../myPulls'
@@ -61,6 +67,7 @@ function report(pulls, overrides = {}) {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  mocks.checks.mockReset()
   localStorage.clear()
   store.people = []
   store.repositories = []
@@ -128,6 +135,29 @@ describe('my pulls helpers', () => {
       pull({ review_decision: 'CHANGES_REQUESTED' })
     ])
     expect(counts).toEqual({ total: 3, attention: 2, approved: 1, openThreads: 2 })
+  })
+
+  it('labels one check and lists failing checks first', () => {
+    const checks = [
+      { name: 'lint', state: 'success' },
+      { name: 'build', state: 'failure' },
+      { name: 'integration', state: 'pending' },
+      { name: 'docs', state: 'success' }
+    ]
+
+    expect(sortChecks(checks).map((check) => check.name)).toEqual(['build', 'integration', 'lint', 'docs'])
+    expect(checkLabel({ state: 'failure' })).toBe('Failed')
+    expect(checkLabel({ state: 'pending' })).toBe('Running')
+    expect(checkLabel({ state: 'success' })).toBe('Passed')
+    expect(checkLabel({ state: 'unknown' })).toBe('Unknown')
+    expect(checkTone({ state: 'failure' })).toBe('danger')
+    expect(checkTone({ state: 'pending' })).toBe('warn')
+    expect(checkTone({ state: 'success' })).toBe('ok')
+
+    expect(checkCounts(checks)).toEqual({ failure: 1, pending: 1, success: 2, total: 4 })
+    expect(checksSummary(checks)).toBe('1 failing · 1 running · 2 passed')
+    expect(checksSummary([{ name: 'build', state: 'failure' }])).toBe('1 failing')
+    expect(checksSummary([])).toBe('')
   })
 })
 
@@ -413,5 +443,92 @@ describe('MyPullsView', () => {
     await wrapper.find('button.btn.sm.ghost').trigger('click')
     await flushPromises()
     expect(mocks.list).toHaveBeenLastCalledWith({ refresh: true })
+  })
+
+  it('lists the individual checks when the CI badge opens, failing first', async () => {
+    mocks.list.mockResolvedValue(report([pull({ ci: 'failure' })]))
+    mocks.checks.mockResolvedValue({
+      repository: 'TomzxCode/agentic',
+      number: 42,
+      rollup: 'failure',
+      total: 5,
+      error: null,
+      checks: [
+        { name: 'lint', state: 'success', description: 'passed', url: 'https://ci/lint' },
+        { name: 'build', state: 'failure', description: 'failed', url: 'https://ci/build' },
+        { name: 'integration', state: 'pending', description: 'running', url: '' }
+      ]
+    })
+    const wrapper = mount(MyPullsView, { global: { stubs: { RouterLink: RouterLinkStub } } })
+    await flushPromises()
+
+    expect(wrapper.find('.my-pulls-checks').exists()).toBe(false)
+    await wrapper.get('.my-pulls-ci-button').trigger('click')
+    await flushPromises()
+
+    expect(mocks.checks).toHaveBeenCalledWith({ repository: 'TomzxCode/agentic', number: 42, refresh: false })
+    const rows = wrapper.findAll('.my-pulls-check')
+    expect(rows.map((row) => row.find('.my-pulls-check-name').text())).toEqual(['build', 'integration', 'lint'])
+    expect(rows.map((row) => row.find('.my-pulls-check-state').text())).toEqual(['Failed', 'Running', 'Passed'])
+    expect(wrapper.get('.my-pulls-checks-summary').text()).toBe('1 failing · 1 running · 1 passed')
+    expect(wrapper.get('.my-pulls-checks-all').attributes('href')).toBe(
+      'https://github.com/TomzxCode/agentic/pull/42/checks'
+    )
+    expect(wrapper.get('.my-pulls-checks-more').text()).toBe('Showing 3 of 5 checks.')
+
+    // Closing and reopening answers from the visit's copy.
+    await wrapper.get('.my-pulls-ci-button').trigger('click')
+    expect(wrapper.find('.my-pulls-checks').exists()).toBe(false)
+    await wrapper.get('.my-pulls-ci-button').trigger('click')
+    await flushPromises()
+    expect(mocks.checks).toHaveBeenCalledTimes(1)
+  })
+
+  it('reports a failed check read, retries it, and closes on Escape or an outside click', async () => {
+    mocks.list.mockResolvedValue(report([pull({ ci: 'failure' })]))
+    mocks.checks
+      .mockResolvedValueOnce({
+        repository: 'TomzxCode/agentic',
+        number: 42,
+        rollup: 'failure',
+        total: 0,
+        error: 'Could not read this pull request’s checks from GitHub',
+        checks: []
+      })
+      .mockResolvedValueOnce({
+        repository: 'TomzxCode/agentic',
+        number: 42,
+        rollup: 'failure',
+        total: 1,
+        error: null,
+        checks: [{ name: 'build', state: 'failure', description: 'failed', url: '' }]
+      })
+    const wrapper = mount(MyPullsView, { global: { stubs: { RouterLink: RouterLinkStub } } })
+    await flushPromises()
+
+    await wrapper.get('.my-pulls-ci-button').trigger('click')
+    await flushPromises()
+    expect(wrapper.text()).toContain('Could not read this pull request')
+    expect(wrapper.get('.my-pulls-ci-button').attributes('aria-expanded')).toBe('true')
+
+    await wrapper.get('.my-pulls-checks .btn').trigger('click')
+    await flushPromises()
+    expect(wrapper.get('.my-pulls-check-name').text()).toBe('build')
+    expect(mocks.checks).toHaveBeenCalledTimes(2)
+    expect(mocks.checks).toHaveBeenLastCalledWith({ repository: 'TomzxCode/agentic', number: 42, refresh: true })
+
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+    await flushPromises()
+    expect(wrapper.find('.my-pulls-checks').exists()).toBe(false)
+    expect(wrapper.get('.my-pulls-ci-button').attributes('aria-expanded')).toBe('false')
+
+    // Reopening answers from the loaded copy, and a click elsewhere closes it.
+    await wrapper.get('.my-pulls-ci-button').trigger('click')
+    await flushPromises()
+    expect(wrapper.find('.my-pulls-checks').exists()).toBe(true)
+    document.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    await flushPromises()
+    expect(wrapper.find('.my-pulls-checks').exists()).toBe(false)
+    expect(mocks.checks).toHaveBeenCalledTimes(2)
   })
 })

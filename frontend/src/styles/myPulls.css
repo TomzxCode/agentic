@@ -198,6 +198,140 @@ a.my-pulls-repository:hover {
 .my-pulls-table .badge {
   white-space: nowrap;
 }
+/* The CI badge opens the checks popover, so it is a button that keeps the badge
+   look and adds a caret the plain badges do not carry. */
+.my-pulls-ci {
+  display: inline-flex;
+  min-width: 0;
+}
+button.my-pulls-ci-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: inherit;
+  cursor: pointer;
+}
+button.my-pulls-ci-button:hover {
+  border-color: currentColor;
+}
+.my-pulls-ci-caret {
+  width: 0;
+  height: 0;
+  border-left: 3px solid transparent;
+  border-right: 3px solid transparent;
+  border-top: 4px solid currentColor;
+  opacity: 0.7;
+}
+/* The checks panel is fixed-positioned from the badge's rectangle: the table's
+   sideways scroll wrapper would clip a panel positioned inside the cell. */
+.my-pulls-checks {
+  position: fixed;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  background: var(--bg-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
+  overflow-y: auto;
+}
+.my-pulls-checks-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.my-pulls-checks-title {
+  font-size: 12px;
+  font-weight: 600;
+}
+.my-pulls-checks-all {
+  font-size: 11px;
+}
+.my-pulls-checks-summary,
+.my-pulls-checks-empty,
+.my-pulls-checks-more {
+  margin: 0;
+  font-size: 11px;
+}
+.my-pulls-checks-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.my-pulls-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+}
+.my-pulls-check:first-child {
+  border-top: none;
+}
+.my-pulls-check-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--muted);
+}
+.my-pulls-check-dot.ok {
+  background: var(--ok);
+}
+.my-pulls-check-dot.warn {
+  background: var(--warn);
+}
+.my-pulls-check-dot.danger {
+  background: var(--danger);
+}
+.my-pulls-check-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text);
+}
+a.my-pulls-check-name:hover {
+  color: var(--accent);
+}
+/* A failing check is what the popover exists to surface. */
+.my-pulls-check.is-failure .my-pulls-check-name {
+  font-weight: 600;
+}
+.my-pulls-check-state {
+  flex: none;
+  font-size: 11px;
+}
+.my-pulls-check-state.ok {
+  color: var(--ok);
+}
+.my-pulls-check-state.warn {
+  color: var(--warn);
+}
+.my-pulls-check-state.danger {
+  color: var(--danger);
+}
+.my-pulls-checks-status {
+  display: flex;
+  justify-content: center;
+  padding: 12px 0;
+}
+.my-pulls-checks-error {
+  margin: 0;
+  color: var(--danger);
+  font-size: 12px;
+}
+.my-pulls-checks .btn {
+  align-self: flex-start;
+}
 /* The approvers' logins stay on one line and truncate; the cell's tooltip
    carries none, so a long list is still readable by widening the window. */
 .my-pulls-approvers {

@@ -356,7 +356,7 @@ The full schema with types, constraints, and indexes lives in [`schema.dbml`](sc
 | PR feedback | The reviewer-comment analysis files in the store, read as a triage queue whose implement/decline/defer decision is written back into the file's frontmatter for the executor to run | `feedback_store.py`, `routers/feedback.py`, Vue FeedbackView |
 | Decisions | Colleague-decision reports written by the extract-colleague-decisions skill, parsed read-only from the notes tree | `decisions_store.py`, `routers/decisions.py` |
 | Inbox | Suggestions of things to do (stale reviews, unreviewed own PRs, closable tasks, leftover worktrees), recomputed from current state on every read so nothing is stored | `inbox.py`, `routers/inbox.py` |
-| My PRs | The viewer's own open pull requests with attention counts, plus reviewer pokes over Slack | `my_pulls.py`, `routers/my_pulls.py` |
+| My PRs | The viewer's own open pull requests with attention counts, the individual checks behind each CI badge, plus reviewer pokes over Slack | `my_pulls.py`, `routers/my_pulls.py` |
 | On-call | Scan a Slack channel and prepare replies | `routers/on_call.py` |
 | Process and cycle time | The task lifecycle read as a production line (station inventory, flows, Little's law) and cycle-time metrics over GitHub issue and PR events | `process_flow.py`, `cycle_time.py`, `routers/process.py` |
 | Operations audit | Every mutating request recorded with its client (web/cli/api) and actor (human/agent), exposed to handlers as request provenance | `provenance.py` (middleware), `routers/operations.py` |

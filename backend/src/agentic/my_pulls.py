@@ -2,8 +2,11 @@
 
 The rows come from one GraphQL search (``services.github.search_my_open_pulls``);
 this module caches the result for a short time and derives the header's counts,
-so reloading the page does not re-query GitHub. Nothing is stored in the
-database: a pull request that merges leaves the list on the next refresh.
+so reloading the page does not re-query GitHub. The individual checks behind one
+pull request's CI badge are read on demand (``fetch_my_pull_checks``), since the
+page needs only the rollup state until the badge's popover opens. Nothing is
+stored in the database: a pull request that merges leaves the list on the next
+refresh.
 """
 
 from __future__ import annotations
@@ -13,7 +16,7 @@ from typing import Any
 
 import structlog
 
-from .services.github import search_my_open_pulls
+from .services.github import fetch_pull_checks, search_my_open_pulls
 
 log = structlog.get_logger(__name__)
 
@@ -22,14 +25,24 @@ MY_PULLS_TTL = 60
 #: A lookup that failed (gh missing, offline) is retried after this long rather
 #: than on every request.
 MY_PULLS_FAILED_TTL = 30
+#: How long one pull request's checks are reused, so closing and reopening the
+#: CI popover does not re-query GitHub. Checks move faster than the list, so it
+#: is shorter than the list's own cache.
+PULL_CHECKS_TTL = 30
 
 #: A message for when no GitHub login is configured at all.
 NO_LOGIN_ERROR = "No GitHub login is configured; set it in Settings > Identity to list your pull requests."
 #: A message for when the login is known but GitHub could not be read.
 UNREACHABLE_ERROR = "Could not read your pull requests from GitHub; check that `gh` is installed and authenticated."
+#: A message for when one pull request's checks could not be read.
+CHECKS_UNREACHABLE_ERROR = (
+    "Could not read this pull request's checks from GitHub; check that `gh` is installed and authenticated."
+)
 
 #: lowercased login -> (monotonic fetch time, pull requests or None on failure).
 _cache: dict[str, tuple[float, list[dict[str, Any]] | None]] = {}
+#: (lowercased repository, number) -> (monotonic fetch time, checks or None).
+_checks_cache: dict[tuple[str, int], tuple[float, dict[str, Any] | None]] = {}
 
 
 def pull_counts(pulls: list[dict[str, Any]]) -> dict[str, int]:
@@ -86,4 +99,25 @@ def fetch_my_pulls(login: str, refresh: bool = False) -> dict[str, Any]:
     return _report(login, pulls, None)
 
 
-__all__ = ["fetch_my_pulls", "pull_counts"]
+def fetch_my_pull_checks(owner: str, repo: str, number: int, refresh: bool = False) -> dict[str, Any]:
+    """One pull request's checks, cached briefly, with any error.
+
+    The My PRs row carries only the rollup state, so this read backs the CI
+    badge's popover. A read that could not run reports the reason and no checks,
+    so the popover can say what is wrong instead of reading as a pull request
+    with nothing to run. ``refresh`` skips the reuse and asks GitHub again.
+    """
+    repository = f"{owner}/{repo}"
+    key = (repository.lower(), number)
+    cached = _checks_cache.get(key)
+    if cached is not None and not refresh and time.monotonic() - cached[0] < PULL_CHECKS_TTL:
+        report = cached[1]
+    else:
+        report = fetch_pull_checks(owner, repo, number)
+        _checks_cache[key] = (time.monotonic(), report)
+    if report is None:
+        return {"rollup": "none", "checks": [], "total": 0, "error": CHECKS_UNREACHABLE_ERROR}
+    return {**report, "error": None}
+
+
+__all__ = ["fetch_my_pull_checks", "fetch_my_pulls", "pull_counts"]

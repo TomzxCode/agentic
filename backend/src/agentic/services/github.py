@@ -385,13 +385,21 @@ query($owner: String!, $repo: String!, $endCursor: String) {
 """
 
 
-def _graphql(query: str, variables: dict[str, Any]) -> dict[str, Any] | None:
-    """Run one GraphQL query through ``gh``. None when it could not run."""
+def _graphql(
+    query: str,
+    variables: dict[str, Any],
+    typed: frozenset[str] | set[str] = frozenset(),
+) -> dict[str, Any] | None:
+    """Run one GraphQL query through ``gh``. None when it could not run.
+
+    ``gh`` sends ``-f`` values as strings and ``-F`` ones as literals, so a
+    non-string variable (an Int, a Bool) must be named in ``typed``.
+    """
     cmd = ["gh", "api", "graphql", "-f", f"query={query}"]
     for key, value in variables.items():
         if value is None:
             continue
-        cmd.extend(["-f", f"{key}={value}"])
+        cmd.extend(["-F" if key in typed else "-f", f"{key}={value}"])
     raw = shell._run_cli(cmd, timeout=120)
     if not raw:
         return None
@@ -627,6 +635,137 @@ def search_my_open_pulls(login: str, limit: int = MY_PULLS_LIMIT) -> list[dict[s
     rows = [row for node in nodes if (row := _pull_row(node, login)) is not None]
     rows.sort(key=lambda row: str(row.get("updated_at") or ""), reverse=True)
     return rows
+
+
+# --- A pull request's individual checks -------------------------------------
+#
+# The My PRs row carries only the head commit's rollup state. Which check failed
+# is behind the page's CI badge, so that read happens when the badge's popover
+# opens rather than on every page load: the search can cover 500 pull requests,
+# and reading a hundred checks for each would dwarf the rest of the payload.
+
+#: The most checks one read lists.
+PULL_CHECKS_LIMIT = 100
+
+_PULL_CHECKS_QUERY = """
+query($owner: String!, $repo: String!, $number: Int!) {
+  repository(owner: $owner, name: $repo) {
+    pullRequest(number: $number) {
+      commits(last: 1) {
+        nodes {
+          commit {
+            statusCheckRollup {
+              state
+              contexts(first: __CHECK_LIMIT__) {
+                totalCount
+                nodes {
+                  __typename
+                  ... on CheckRun {
+                    name
+                    status
+                    conclusion
+                    detailsUrl
+                  }
+                  ... on StatusContext {
+                    context
+                    state
+                    description
+                    targetUrl
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+""".replace("__CHECK_LIMIT__", str(PULL_CHECKS_LIMIT))
+
+#: A finished check with one of these conclusions passed. GitHub treats neutral
+#: and skipped runs as non-blocking, so they read as success here too.
+_CHECK_SUCCESS_STATES = frozenset({"SUCCESS", "NEUTRAL", "SKIPPED"})
+#: A finished check with one of these conclusions failed.
+_CHECK_FAILURE_STATES = frozenset({"FAILURE", "ERROR", "CANCELLED", "TIMED_OUT", "ACTION_REQUIRED", "STARTUP_FAILURE"})
+#: The order the checks popover lists: what needs the author first.
+_CHECK_STATE_ORDER = {"failure": 0, "pending": 1, "success": 2}
+#: What a check that names no state of its own says.
+_CHECK_STATE_LABELS = {"failure": "failed", "pending": "running", "success": "passed"}
+
+
+def _check_state(node: dict[str, Any]) -> str:
+    """One check context as failure / pending / success."""
+    if str(node.get("__typename") or "") == "StatusContext":
+        state = str(node.get("state") or "").upper()
+    else:
+        # A check run that has not finished carries no conclusion to read.
+        if str(node.get("status") or "").upper() not in ("", "COMPLETED"):
+            return "pending"
+        state = str(node.get("conclusion") or "").upper()
+    if state in _CHECK_SUCCESS_STATES:
+        return "success"
+    if state in _CHECK_FAILURE_STATES:
+        return "failure"
+    return "pending"
+
+
+def _check_row(node: dict[str, Any]) -> dict[str, Any] | None:
+    """One GraphQL check context as the popover's row, or None when it is unnamed."""
+    if str(node.get("__typename") or "") == "StatusContext":
+        name = str(node.get("context") or "")
+        url = str(node.get("targetUrl") or "")
+        description = str(node.get("description") or "")
+    else:
+        name = str(node.get("name") or "")
+        url = str(node.get("detailsUrl") or "")
+        description = ""
+    if not name:
+        return None
+    state = _check_state(node)
+    return {
+        "name": name,
+        "state": state,
+        "url": url,
+        "description": description or _CHECK_STATE_LABELS[state],
+    }
+
+
+def fetch_pull_checks(owner: str, repo: str, number: int) -> dict[str, Any] | None:
+    """One pull request's head-commit checks, failing first.
+
+    Returns ``{"rollup", "checks", "total"}``, or None when GitHub could not be
+    read. Only the first hundred checks are listed; ``total`` stays exact so the
+    caller can say what it left out. A check run reports its state through a
+    conclusion once it finishes and through its status while it runs, and a
+    commit status reports a state directly, so both shapes reduce to the same
+    failure / pending / success vocabulary as the rollup.
+    """
+    payload = _graphql(
+        _PULL_CHECKS_QUERY,
+        {"owner": owner, "repo": repo, "number": number},
+        typed={"number"},
+    )
+    if payload is None:
+        return None
+    try:
+        pull = payload["data"]["repository"]["pullRequest"]
+    except (KeyError, TypeError):
+        return None
+    if not isinstance(pull, dict):
+        return None
+    commits = (pull.get("commits") or {}).get("nodes") or []
+    commit = (commits[0] or {}).get("commit") if commits else None
+    rollup = (commit or {}).get("statusCheckRollup") or {}
+    contexts = rollup.get("contexts") or {}
+    nodes = [node for node in contexts.get("nodes") or [] if isinstance(node, dict)]
+    checks = [row for node in nodes if (row := _check_row(node)) is not None]
+    checks.sort(key=lambda check: _CHECK_STATE_ORDER[check["state"]])
+    return {
+        "rollup": _CI_STATES.get(str(rollup.get("state") or "").upper(), "none"),
+        "checks": checks,
+        "total": int(contexts.get("totalCount") or len(nodes)),
+    }
 
 
 def fetch_github_cycle_time(

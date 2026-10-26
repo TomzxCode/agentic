@@ -329,7 +329,10 @@ requests the GitHub login in Settings → Identity authored, one row per PR, and
 the four things that decide whether it is moving: its head commit's check
 rollup (passing, running, failing, or no checks), its review decision (approved,
 changes requested, review required, or no review), who approved it, and how many
-of its review threads are still open. Rows that need you (failing checks,
+of its review threads are still open. Clicking the CI badge opens the pull
+request's individual checks in a panel, failing first, with each check's state
+and a link to its detail page; the checks are read on demand, so the page load
+carries only the rollup. Rows that need you (failing checks,
 requested changes, or an open thread) are marked and sorted first, then by
 newest update; a text search filters by repository, number, title, or approver,
 the same repository multi-select as the review queue narrows it to chosen
