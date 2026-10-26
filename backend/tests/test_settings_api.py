@@ -218,6 +218,14 @@ def test_review_scan_setting_validates():
         assert slo["effective"]["review_slo"] == "8h"
         assert client.patch("/api/settings", json={"review_slo": ""}).json()["effective"]["review_slo"] == ""
 
+        # The nudge SLO accepts a combination such as 1h30m, and a blank turns
+        # it off.
+        assert client.patch("/api/settings", json={"review_nudge_slo": "soon"}).status_code == 422
+        nudge = client.patch("/api/settings", json={"review_nudge_slo": "1h30m"}).json()
+        assert nudge["effective"]["review_nudge_slo"] == "1h30m"
+        cleared = client.patch("/api/settings", json={"review_nudge_slo": ""}).json()
+        assert cleared["effective"]["review_nudge_slo"] == ""
+
         # The default is one of the two policies a repository can fall back to.
         assert client.patch("/api/settings", json={"review_scan_default": "sometimes"}).status_code == 422
         excluded = client.patch("/api/settings", json={"review_scan_default": "exclude"}).json()

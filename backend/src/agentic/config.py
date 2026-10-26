@@ -200,6 +200,11 @@ class Settings(BaseSettings):
     # the inbox flags it. A duration such as "1d" or "8h"; empty disables it.
     # The wait is measured from when the scan first saw the pull request waiting.
     review_slo: str = ""
+    # The review nudge SLO: how long a pull request the user authored may wait
+    # without any review from anyone before the inbox offers to poke its
+    # reviewers. A duration such as "1h30m" or "1d"; empty disables it. The wait
+    # runs from when GitHub says the pull request was opened.
+    review_nudge_slo: str = ""
 
     # Where application logs are written. Empty uses <data_dir>/logs/agentic.log.
     # Set to a path to override, or to "none"/"off" to disable file logging.

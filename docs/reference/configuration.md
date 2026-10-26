@@ -59,6 +59,7 @@ The Slack credentials keep the names `slackx` uses (`SLACK_TOKEN`, `SLACK_COOKIE
 | `AGENTIC_REVIEW_SCAN_LIMIT` | `100` | How many results each of the review scan's two searches returns. |
 | `AGENTIC_REVIEW_SCAN_EXCLUDE_AUTHORS` | `dependabot[bot]` | Comma-separated logins the review scan leaves out of its results. |
 | `AGENTIC_REVIEW_SLO` | (empty) | How long a pull request may await your review before the inbox flags it. A duration such as `8h` or `1d`; empty disables it. Measured from when the scan first saw the pull request waiting. |
+| `AGENTIC_REVIEW_NUDGE_SLO` | (empty) | How long a pull request of yours may wait without any review from anyone before the inbox offers to poke its reviewers on Slack. A duration such as `1h30m` or `1d`; empty disables it. Measured from when the pull request was opened. |
 | `AGENTIC_SCHEDULED_TASK_TICK` | `30` | Seconds between checks for scheduled shell tasks that are due. `0` disables the loop. |
 | `AGENTIC_SCHEDULED_TASK_TIMEOUT` | `3600` | Seconds a scheduled shell task may run before it is stopped and marked failed. |
 

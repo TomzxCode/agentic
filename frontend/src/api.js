@@ -241,7 +241,9 @@ export const api = {
     // The open pull requests the configured GitHub login authored, with their
     // check rollup, review decision, approvers, and open threads. refresh
     // re-queries GitHub instead of reusing the short cache.
-    list: ({ refresh = false } = {}) => request(`/my-pulls${refresh ? '?refresh=true' : ''}`)
+    list: ({ refresh = false } = {}) => request(`/my-pulls${refresh ? '?refresh=true' : ''}`),
+    // DM a pull request's requested reviewers on Slack, asking for their review.
+    poke: (payload) => request('/my-pulls/poke', { method: 'POST', body: payload })
   },
 
   decisions: {

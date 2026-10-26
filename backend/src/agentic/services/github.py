@@ -473,6 +473,11 @@ query($q: String!, $endCursor: String) {
           nodes { isResolved }
         }
         latestOpinionatedReviews(first: 50) { nodes { author { login } state } }
+        reviews(first: 30) { totalCount nodes { author { login } } }
+        reviewRequests(first: 10) {
+          totalCount
+          nodes { requestedReviewer { ... on User { login } ... on Team { name } } }
+        }
       }
     }
   }
@@ -529,7 +534,48 @@ def _approvers(node: dict[str, Any]) -> list[str]:
     return approvers
 
 
-def _pull_row(node: dict[str, Any]) -> dict[str, Any] | None:
+def _was_reviewed(node: dict[str, Any], author: str) -> bool:
+    """Whether anyone other than the pull request's author submitted a review.
+
+    A review is any submission, a comment included: the plain ``reviews``
+    connection counts them, and only the author's own (a self-comment does not
+    mean the pull request received a review) are left out. A pull request whose
+    reviews overflow the page read counts as reviewed, since that many reviews
+    are never all the author's own.
+    """
+    reviews = node.get("reviews") or {}
+    read = reviews.get("nodes") or []
+    if int(reviews.get("totalCount") or 0) > len(read):
+        return True
+    author = author.strip().lower()
+    return any(
+        str((review.get("author") or {}).get("login") or "").strip().lower() not in ("", author) for review in read
+    )
+
+
+def _requested_reviewers(node: dict[str, Any]) -> list[str]:
+    """The logins (or team names) GitHub still lists as requested reviewers."""
+    names: list[str] = []
+    requests = (node.get("reviewRequests") or {}).get("nodes") or []
+    for request in requests:
+        reviewer = request.get("requestedReviewer") or {}
+        name = reviewer.get("login") or reviewer.get("name")
+        if name and name not in names:
+            names.append(str(name))
+    return names
+
+
+def pr_review_request_message(url: str, title: str) -> str:
+    """The Slack message a poke sends: a wave, a robot, and the PR's title as a link."""
+    title = " ".join(str(title or "").split())
+    # Slack's link label ends at "|", and the angle brackets delimit the link.
+    for char in ("|", "<", ">"):
+        title = title.replace(char, "-")
+    label = f"<{url}|{title}>" if title else f"<{url}>"
+    return f":wave::robot_face: I would love your review on this PR: {label}"
+
+
+def _pull_row(node: dict[str, Any], login: str = "") -> dict[str, Any] | None:
     """One GraphQL search node as the My PRs row, or None when it names no PR."""
     repository = str((node.get("repository") or {}).get("nameWithOwner") or "")
     number = node.get("number")
@@ -553,6 +599,10 @@ def _pull_row(node: dict[str, Any]) -> dict[str, Any] | None:
         "ci": _ci_state(node),
         "open_threads": open_threads,
         "threads_total": total_threads,
+        # Whether anyone but the author has submitted a review, and who GitHub
+        # still lists as requested reviewers; the inbox's review nudge reads both.
+        "reviewed": _was_reviewed(node, login),
+        "requested_reviewers": _requested_reviewers(node),
     }
 
 
@@ -574,7 +624,7 @@ def search_my_open_pulls(login: str, limit: int = MY_PULLS_LIMIT) -> list[dict[s
     )
     if nodes is None:
         return None
-    rows = [row for node in nodes if (row := _pull_row(node)) is not None]
+    rows = [row for node in nodes if (row := _pull_row(node, login)) is not None]
     rows.sort(key=lambda row: str(row.get("updated_at") or ""), reverse=True)
     return rows
 

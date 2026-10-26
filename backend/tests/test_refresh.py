@@ -91,6 +91,23 @@ def test_parse_duration_units():
     assert parse_duration("soon") is None
 
 
+def test_parse_duration_combinations():
+    # A human combination reads unit by unit, spaces between groups allowed.
+    assert parse_duration("1h30m") == timedelta(minutes=90)
+    assert parse_duration("1d4h") == timedelta(hours=28)
+    assert parse_duration("2w3d") == timedelta(days=17)
+    assert parse_duration("1h 30m") == timedelta(minutes=90)
+    assert parse_duration("1h30m15s") == timedelta(hours=1, minutes=30, seconds=15)
+    assert parse_duration("30m1h") == timedelta(minutes=90)
+    # Anything that is not pairs of value and unit is malformed.
+    assert parse_duration("1h-30m") is None
+    assert parse_duration("1h2") is None
+    assert parse_duration("1h30x") is None
+    assert parse_duration("m") is None
+    assert parse_duration("90") is None
+    assert parse_duration("0m") is None
+
+
 def test_item_start_prefers_github_created_at():
     recorded = NOW - timedelta(days=90)
     item = SimpleNamespace(

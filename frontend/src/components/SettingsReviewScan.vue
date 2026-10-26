@@ -21,7 +21,12 @@ const POLICIES = [
   { value: 'exclude', label: 'Exclude' }
 ]
 
-const form = reactive({ review_scan_interval: '', review_scan_default: 'include', review_slo: '' })
+const form = reactive({
+  review_scan_interval: '',
+  review_scan_default: 'include',
+  review_slo: '',
+  review_nudge_slo: ''
+})
 const status = ref(null)
 const loading = ref(false)
 const saving = ref('')
@@ -114,6 +119,7 @@ watch(
     form.review_scan_interval = overrides.review_scan_interval ?? ''
     form.review_scan_default = overrides.review_scan_default ?? 'include'
     form.review_slo = overrides.review_slo ?? ''
+    form.review_nudge_slo = overrides.review_nudge_slo ?? ''
   },
   { immediate: true }
 )
@@ -141,7 +147,8 @@ onMounted(load)
       A background scan asks GitHub which pull requests await your review: those with a review requested from you, and
       the open ones you have already reviewed. They join the
       <router-link to="/reviews">review queue</router-link> even before a review report exists for them. Discovery runs
-      through <code>gh</code>, so the GitHub CLI must be installed and authenticated.
+      through <code>gh</code>, so the GitHub CLI must be installed and authenticated. The nudge SLO below instead reads
+      your own open pull requests, the way the <router-link to="/my-pulls">My PRs</router-link> page does.
     </p>
 
     <div class="field">
@@ -188,6 +195,25 @@ onMounted(load)
         How long a pull request may await your review before the inbox flags it, such as <code>8h</code> or
         <code>1d</code>. The wait starts when the scan first sees the pull request waiting. Leave it blank to turn the
         SLO off.
+      </p>
+    </div>
+
+    <div class="field">
+      <label>
+        Review nudge SLO
+        <span v-if="saving === 'review_nudge_slo'" class="faint">saving…</span>
+        <span v-else-if="saved === 'review_nudge_slo'" class="faint">saved</span>
+      </label>
+      <input
+        v-model="form.review_nudge_slo"
+        class="input mono"
+        :placeholder="defaults.review_nudge_slo || '1d'"
+        @blur="save('review_nudge_slo')"
+      />
+      <p class="faint" style="margin: 4px 0 0">
+        How long a pull request of yours may wait without any review from anyone before the inbox offers to poke its
+        reviewers, such as <code>1h30m</code> or <code>1d</code>. The wait runs from when the pull request was opened.
+        Leave it blank to turn the nudge off.
       </p>
     </div>
 

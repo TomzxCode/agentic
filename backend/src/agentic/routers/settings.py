@@ -78,6 +78,12 @@ def patch_settings(payload: SettingsUpdate, session: Session = Depends(get_sessi
             status_code=422,
             detail="review_slo: use a duration such as 8h or 1d, or leave it blank to turn it off",
         )
+    nudge = values.get("review_nudge_slo")
+    if nudge is not None and nudge.strip() and scan_interval(nudge) is None:
+        raise HTTPException(
+            status_code=422,
+            detail="review_nudge_slo: use a duration such as 1h30m or 1d, or leave it blank to turn it off",
+        )
     prompts = values.get("agent_prompts")
     if prompts is not None:
         try:

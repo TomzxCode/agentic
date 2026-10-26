@@ -12,7 +12,7 @@ Work leaves loose ends: a task whose pull requests all merged while its status i
 The Inbox is a short decision queue of those loose ends, recomputed from the current state on every read.
 It stores nothing: a suggestion is derived from tasks, their linked items and changes, their worktrees, the review requests the scan found awaiting the user, and the user's own unreviewed pull requests.
 Acting on a suggestion changes that state, so the suggestion disappears on the next read instead of needing to be dismissed.
-The SPA shows the suggestions at `/inbox`, grouped into five sections, with one primary action per suggestion.
+The SPA shows the suggestions at `/inbox`, grouped into six sections, with the actions each suggestion offers.
 
 ## Stakeholders
 
@@ -25,14 +25,14 @@ The SPA shows the suggestions at `/inbox`, grouped into five sections, with one 
 
 | ID | Priority | Requirement |
 |---|---|---|
-| FR-1 | Must | The system shall return the suggestions from `GET /api/inbox` ordered by kind rank (review past SLO, poke reviewers, close finished tasks, record changes, clean up worktrees), keeping the newest task first within each kind. |
+| FR-1 | Must | The system shall return the suggestions from `GET /api/inbox` ordered by kind rank (review past SLO, poke reviewers, find a reviewer, close finished tasks, record changes, clean up worktrees), keeping the newest task first within each kind. |
 | FR-2 | Must | The system shall offer to close an open task (not done or archived) that links at least one GitHub issue or pull request when every linked item is closed or merged, with a `Close task` action that sets the task status to done. |
 | FR-3 | Must | The system shall offer to record a change for each merged pull request linked to a task that no change references yet, skipping archived tasks and, when the viewer's GitHub login is known, pull requests the viewer did not author. |
 | FR-4 | Must | The system shall offer to remove each active worktree of a done or archived task. |
 | FR-5 | Should | The system shall offer to review each pull request the scan found requested from the user that has waited past the configured review SLO, counting the wait from when the scan first saw it and skipping drafts and pull requests no longer open. |
-| FR-6 | Should | The system shall offer to poke reviewers for each of the user's own open pull requests that nobody but the author has reviewed past the configured nudge SLO, counting the wait from when the pull request was opened, with a `Poke reviewers` action when GitHub still lists requested reviewers and an `Open PR` link always. |
+| FR-6 | Should | The system shall offer to poke the reviewers of each of the user's own open pull requests that nobody but the author has reviewed past the configured nudge SLO, counting the wait from when the pull request was opened: a `poke_pr_no_reviews` suggestion lists the requested reviewers GitHub still reports, one row each with its own poke action, and a pull request nobody was asked to review goes in a separate `find_pr_reviewer` suggestion instead, since there is no one to poke. Both offer `Open PR`, the app's PR page. |
 | FR-7 | Must | The system shall store nothing about suggestions, so a suggestion disappears as soon as the action it offers (or any other change) removes the state it was derived from. |
-| FR-8 | Should | The Inbox page shall group the suggestions into five fixed sections, execute each action kind through the matching endpoint, and reload the inbox after each action. |
+| FR-8 | Should | The Inbox page shall group the suggestions into six fixed sections, execute each action kind through the matching endpoint (a reviewer poke included), and reload the inbox after each action. |
 | FR-9 | Should | The Inbox page shall disable the action buttons while an action is in flight, and record a change as already accepted and dated to the pull request's merge time, refreshing the item once when its merge time is unknown. |
 
 ## Non-Functional Requirements
@@ -131,10 +131,17 @@ The SPA shows the suggestions at `/inbox`, grouped into five sections, with one 
 
     ```gherkin
     @FR-6
-    Scenario: An unreviewed pull request past the nudge threshold is suggested
+    Scenario: An unreviewed pull request with requested reviewers lists them to poke
       Given a nudge SLO of 1h 30m and the user's own pull request opened 2 days ago with two requested reviewers
       When the inbox is read
-      Then a "poke_pr_no_reviews" suggestion names the reviewers and offers "Poke reviewers" and "Open PR"
+      Then a "poke_pr_no_reviews" suggestion carries the two reviewer logins and offers "Open PR"
+      And its row lists one reviewer per requested login, each with a poke action
+
+    @FR-6
+    Scenario: An unreviewed pull request nobody was asked to review goes in its own section
+      Given a nudge SLO of 1h 30m and the user's own pull request opened 2 days ago with no requested reviewer
+      When the inbox is read
+      Then a "find_pr_reviewer" suggestion reports that no reviewer is requested and offers only "Open PR"
 
     @FR-6
     Scenario: No threshold configured means no pokes

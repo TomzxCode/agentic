@@ -6,9 +6,12 @@ from sqlmodel import Session, select
 from agentic.db import engine
 from agentic.inbox import (
     CLOSE_TASK_FINISHED_ITEMS,
+    FIND_PR_REVIEWER,
+    POKE_PR_NO_REVIEWS,
     RECORD_CHANGE_MERGED_PR,
     REMOVE_WORKTREE_DONE_TASK,
     REVIEW_PR_PAST_SLO,
+    build_poke_suggestions,
     build_review_suggestions,
     build_suggestions,
     is_finished_item,
@@ -360,6 +363,101 @@ def test_a_naive_first_seen_time_is_read_as_utc():
     naive = (NOW - timedelta(days=2)).replace(tzinfo=None)
     suggestions = build_review_suggestions([_review_request(11, first_seen_at=naive)], timedelta(days=1), NOW)
     assert [s["number"] for s in suggestions] == [11]
+
+
+def _my_pull(
+    number: int,
+    *,
+    created_at: str = "2026-10-20T06:00:00+00:00",
+    reviewed: bool = False,
+    draft: bool = False,
+    requested_reviewers: list[str] | None = None,
+    title: str = "",
+) -> dict:
+    return {
+        "repository": "o/r",
+        "number": number,
+        "title": title or f"PR {number}",
+        "url": f"https://github.com/o/r/pull/{number}",
+        "draft": draft,
+        "created_at": created_at,
+        "reviewed": reviewed,
+        "requested_reviewers": requested_reviewers or [],
+    }
+
+
+def test_an_unreviewed_pull_request_past_the_nudge_threshold_is_suggested():
+    pulls = [_my_pull(21, requested_reviewers=["alice", "bob"], title="Fix the thing")]
+    suggestions = build_poke_suggestions(pulls, timedelta(hours=1, minutes=30), NOW)
+
+    assert [s["kind"] for s in suggestions] == [POKE_PR_NO_REVIEWS]
+    suggestion = suggestions[0]
+    assert suggestion["task_id"] is None
+    assert suggestion["repository"] == "o/r"
+    assert suggestion["title"] == "Fix the thing"
+    assert suggestion["reason"] == "No reviews after 2d 6h; the nudge threshold is 1h 30m."
+    # The reviewers ride on the suggestion, so the row lists them with their
+    # own pokes the way the PR page does.
+    assert suggestion["reviewers"] == ["alice", "bob"]
+    open_action = suggestion["actions"][0]
+    # The open action keeps you in the app: the PR page, not GitHub.
+    assert [action["kind"] for action in suggestion["actions"]] == ["open_pr"]
+    assert open_action.get("url") is None
+    assert (open_action["repository"], open_action["number"]) == ("o/r", 21)
+
+
+def test_a_pull_request_with_no_requested_reviewer_asks_to_find_one():
+    suggestions = build_poke_suggestions([_my_pull(22)], timedelta(hours=1), NOW)
+
+    assert [s["kind"] for s in suggestions] == [FIND_PR_REVIEWER]
+    assert [s["number"] for s in suggestions] == [22]
+    assert suggestions[0]["reviewers"] == []
+    assert suggestions[0]["reason"] == "No reviews after 2d 6h; the nudge threshold is 1h. No reviewer is requested."
+    assert [action["kind"] for action in suggestions[0]["actions"]] == ["open_pr"]
+
+
+def test_reviewed_draft_and_unaged_pull_requests_are_left_alone():
+    pulls = [
+        _my_pull(23, reviewed=True, created_at="2026-01-01T00:00:00+00:00"),
+        _my_pull(24, draft=True, created_at="2026-01-01T00:00:00+00:00"),
+        _my_pull(25, created_at=(NOW - timedelta(minutes=30)).isoformat()),
+        _my_pull(26, created_at=""),
+    ]
+    assert build_poke_suggestions(pulls, timedelta(hours=1), NOW) == []
+
+
+def test_the_nudge_threshold_is_off_when_unset():
+    pulls = [_my_pull(27, created_at="2026-01-01T00:00:00+00:00")]
+    assert build_poke_suggestions(pulls, None, NOW) == []
+
+
+def test_inbox_endpoint_offers_to_poke_an_unreviewed_pull_request(monkeypatch):
+    pulls = [
+        _my_pull(994, created_at=(NOW - timedelta(days=2)).isoformat(), requested_reviewers=["alice"]),
+        _my_pull(995, created_at=(NOW - timedelta(days=2)).isoformat()),
+    ]
+    monkeypatch.setattr(
+        "agentic.routers.inbox.fetch_my_pulls",
+        lambda login: {"login": login, "pulls": pulls, "counts": {}, "error": None},
+    )
+    monkeypatch.setattr("agentic.routers.inbox.resolve_github_login", lambda session: "tomzx")
+    monkeypatch.setattr("agentic.routers.inbox.configured_review_nudge_slo", lambda session: timedelta(days=1))
+    with TestClient(app) as client:
+        report = client.get("/api/inbox").json()
+        mine = [s for s in report["suggestions"] if s["kind"] == POKE_PR_NO_REVIEWS]
+        assert [s["number"] for s in mine] == [994]
+        assert mine[0]["repository"] == "o/r"
+        assert mine[0]["reviewers"] == ["alice"]
+        assert [action["kind"] for action in mine[0]["actions"]] == ["open_pr"]
+        # The pull request nobody was asked to review lands in its own kind.
+        find = [s for s in report["suggestions"] if s["kind"] == FIND_PR_REVIEWER]
+        assert [s["number"] for s in find] == [995]
+        assert report["count"] == len(report["suggestions"])
+
+        # Turning the nudge off removes the suggestion again.
+        monkeypatch.setattr("agentic.routers.inbox.configured_review_nudge_slo", lambda session: None)
+        after = [s for s in client.get("/api/inbox").json()["suggestions"] if s["kind"] == POKE_PR_NO_REVIEWS]
+        assert after == []
 
 
 def test_inbox_endpoint_flags_a_pull_request_past_the_review_slo():

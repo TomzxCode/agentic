@@ -8,7 +8,8 @@ const mocks = vi.hoisted(() => ({
   tasksUpdate: vi.fn(),
   itemsRefresh: vi.fn(),
   changesCreate: vi.fn(),
-  worktreesRemove: vi.fn()
+  worktreesRemove: vi.fn(),
+  myPullsPoke: vi.fn()
 }))
 
 vi.mock('../api', () => ({
@@ -17,7 +18,8 @@ vi.mock('../api', () => ({
     tasks: { update: mocks.tasksUpdate },
     items: { refresh: mocks.itemsRefresh },
     changes: { create: mocks.changesCreate },
-    worktrees: { remove: mocks.worktreesRemove }
+    worktrees: { remove: mocks.worktreesRemove },
+    myPulls: { poke: mocks.myPullsPoke }
   }
 }))
 
@@ -110,11 +112,10 @@ describe('InboxView', () => {
     expect(wrapper.text()).toContain('Reviews past SLO')
     expect(wrapper.text()).toContain('Fix the thing')
     expect(wrapper.text()).toContain('Has awaited your review for 2d 3h; the SLO is 1d.')
+    // The title opens the app's own PR page; the action still goes to GitHub,
+    // where the review happens.
     const links = wrapper.findAll('.inbox-item a')
-    expect(links.map((link) => link.attributes('href'))).toEqual([
-      'https://github.com/o/r/pull/7',
-      'https://github.com/o/r/pull/7'
-    ])
+    expect(links.map((link) => link.attributes('href'))).toEqual(['/pr/o/r/7', 'https://github.com/o/r/pull/7'])
     expect(links[1].text()).toBe('Review PR')
   })
 
@@ -190,5 +191,151 @@ describe('InboxView', () => {
     await flushPromises()
 
     expect(mocks.worktreesRemove).toHaveBeenCalledWith('t1', 'w1')
+  })
+
+  it("lists an unreviewed pull request's reviewers with their own pokes", async () => {
+    mocks.inboxGet
+      .mockResolvedValueOnce([
+        {
+          id: 'poke_pr_no_reviews:o/r:21',
+          kind: 'poke_pr_no_reviews',
+          reason: 'No reviews after 2d 6h; the nudge threshold is 1h 30m.',
+          task_id: null,
+          task_title: '',
+          task_status: '',
+          repository: 'o/r',
+          number: 21,
+          title: 'Fix the thing',
+          url: 'https://github.com/o/r/pull/21',
+          reviewers: ['alice', 'bob'],
+          actions: [
+            {
+              id: 'open:o/r:21',
+              kind: 'open_pr',
+              label: 'Open PR',
+              repository: 'o/r',
+              number: 21,
+              title: 'Fix the thing'
+            }
+          ]
+        }
+      ])
+      .mockResolvedValue([])
+    mocks.myPullsPoke.mockResolvedValue({ poked: [{ login: 'alice', name: 'Alice' }], failed: [] })
+
+    const wrapper = mount(InboxView, stub)
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Poke reviewers')
+    expect(wrapper.text()).toContain('No reviews after 2d 6h; the nudge threshold is 1h 30m.')
+    // The row's title and the open action both stay in the app (the reviewer
+    // names link to their people pages too).
+    const hrefs = wrapper.findAll('.inbox-item a').map((link) => link.attributes('href'))
+    expect(hrefs.filter((href) => href === '/pr/o/r/21')).toHaveLength(2)
+    // The reviewers are listed the way the PR page lists them: a row each,
+    // requesting a review, with a poke button.
+    const rows = wrapper.findAll('.review-person')
+    expect(rows.map((row) => row.get('a').text())).toEqual(['@alice', '@bob'])
+    expect(rows[0].text()).toContain('Awaiting review')
+    expect(rows[0].text()).toContain('requested')
+    expect(rows.map((row) => row.get('.review-poke').text())).toEqual(['👉', '👉'])
+    await rows[0].get('.review-poke').trigger('click')
+    await flushPromises()
+
+    expect(mocks.myPullsPoke).toHaveBeenCalledWith({
+      repository: 'o/r',
+      number: 21,
+      title: 'Fix the thing',
+      url: 'https://github.com/o/r/pull/21',
+      logins: ['alice']
+    })
+    expect(store.toast).toEqual({ message: 'Poked Alice on Slack', isError: false })
+  })
+
+  it('reports why a reviewer could not be poked', async () => {
+    mocks.inboxGet
+      .mockResolvedValueOnce([
+        {
+          id: 'poke_pr_no_reviews:o/r:21',
+          kind: 'poke_pr_no_reviews',
+          reason: 'No reviews after 2d 6h; the nudge threshold is 1h 30m.',
+          task_id: null,
+          task_title: '',
+          task_status: '',
+          repository: 'o/r',
+          number: 21,
+          title: 'Fix the thing',
+          url: 'https://github.com/o/r/pull/21',
+          reviewers: ['alice'],
+          actions: [
+            {
+              id: 'open:o/r:21',
+              kind: 'open_pr',
+              label: 'Open PR',
+              repository: 'o/r',
+              number: 21,
+              title: 'Fix the thing'
+            }
+          ]
+        }
+      ])
+      .mockResolvedValue([])
+    mocks.myPullsPoke.mockResolvedValue({
+      poked: [],
+      failed: [{ login: 'alice', reason: 'Alice has no Slack user id or handle among their aliases.' }]
+    })
+
+    const wrapper = mount(InboxView, stub)
+    await flushPromises()
+    await wrapper.get('.review-poke').trigger('click')
+    await flushPromises()
+
+    expect(store.toast).toEqual({
+      message: 'Alice has no Slack user id or handle among their aliases.',
+      isError: true
+    })
+  })
+
+  it('offers to find a reviewer for an unreviewed pull request nobody was asked to review', async () => {
+    mocks.inboxGet
+      .mockResolvedValueOnce([
+        {
+          id: 'find_pr_reviewer:o/r:22',
+          kind: 'find_pr_reviewer',
+          reason: 'No reviews after 2d 6h; the nudge threshold is 1h 30m. No reviewer is requested.',
+          task_id: null,
+          task_title: '',
+          task_status: '',
+          repository: 'o/r',
+          number: 22,
+          title: 'Big change',
+          url: 'https://github.com/o/r/pull/22',
+          reviewers: [],
+          actions: [
+            {
+              id: 'open:o/r:22',
+              kind: 'open_pr',
+              label: 'Open PR',
+              repository: 'o/r',
+              number: 22,
+              title: 'Big change'
+            }
+          ]
+        }
+      ])
+      .mockResolvedValue([])
+
+    const wrapper = mount(InboxView, stub)
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Find a reviewer')
+    expect(wrapper.text()).toContain('No reviewer is requested.')
+    // Nobody to poke, so there is no reviewer row and no poke button.
+    expect(wrapper.find('.review-person').exists()).toBe(false)
+    expect(wrapper.find('.review-poke').exists()).toBe(false)
+    expect(wrapper.findAll('.inbox-item a').map((link) => link.attributes('href'))).toEqual([
+      '/pr/o/r/22',
+      '/pr/o/r/22'
+    ])
   })
 })

@@ -33,6 +33,10 @@ class MyPullRead(BaseModel):
     # Unresolved review threads, and every thread the read carried.
     open_threads: int = 0
     threads_total: int = 0
+    # Whether anyone but the author has submitted a review (a comment counts),
+    # and who GitHub still lists as requested reviewers.
+    reviewed: bool = False
+    requested_reviewers: list[str] = []
 
 
 class MyPullsRead(BaseModel):
@@ -43,3 +47,41 @@ class MyPullsRead(BaseModel):
     # Why the list is empty, when GitHub could not be read or no login is set.
     error: str | None = None
     pulls: list[MyPullRead] = []
+
+
+class MyPullPokeRequest(BaseModel):
+    """Ask the API to DM a pull request's reviewers on Slack.
+
+    The pull request is named by its fields rather than by a tracked item, so a
+    pull request the app does not track can still be poked; ``logins`` is the
+    requested reviewers the My PRs read carried.
+    """
+
+    repository: str
+    number: int
+    title: str = ""
+    url: str = ""
+    logins: list[str] = []
+
+
+class MyPullPokeSent(BaseModel):
+    """One reviewer the poke reached."""
+
+    login: str
+    name: str = ""
+    slack_user_id: str
+    ts: str | None = None
+
+
+class MyPullPokeFailure(BaseModel):
+    """One reviewer the poke could not reach, and why."""
+
+    login: str
+    reason: str
+
+
+class MyPullPokeRead(BaseModel):
+    """The outcome of poking a pull request's reviewers."""
+
+    poked: list[MyPullPokeSent] = []
+    failed: list[MyPullPokeFailure] = []

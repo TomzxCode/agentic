@@ -39,8 +39,8 @@ Covered by `backend/tests/test_inbox.py` (pure rules, no database).
 | TC-20 | The review SLO is off when unset | SLO null | none |
 | TC-21 | Reviewed, draft, and merged requests are skipped | three requests | none |
 | TC-22 | A naive first-seen time reads as UTC | naive datetime | suggestion still produced |
-| TC-23 | An unreviewed PR past the nudge threshold is suggested with its reviewers | own PR with two requested reviewers | `poke_pr_no_reviews` with `poke_pr` then `open_url` actions |
-| TC-24 | A PR with no requested reviewer only offers to open | no reviewers | only `open_url` |
+| TC-23 | An unreviewed PR past the nudge threshold is suggested with its reviewers | own PR with two requested reviewers | `poke_pr_no_reviews` carrying the two logins, with an `open_pr` action |
+| TC-24 | A PR with no requested reviewer goes in its own kind | no reviewers | `find_pr_reviewer`, empty `reviewers`, only `open_pr`, reason says no reviewer is requested |
 | TC-25 | Reviewed, draft, unaged, and undated PRs are left alone | four pulls | none |
 | TC-26 | The nudge threshold is off when unset | threshold null | none |
 
@@ -52,22 +52,23 @@ Covered by `backend/tests/test_inbox.py` (TestClient against the app and its dat
 |---|---|---|---|
 | TC-27 | The endpoint lists a close suggestion for a merged PR and drops it after the task is closed | task plus merged PR created through the API | `GET /api/inbox` returns both suggestions, then only the record suggestion after the patch |
 | TC-28 | The endpoint hides a change for a PR the viewer did not author | `github_login` setting set | only the close suggestion |
-| TC-29 | The endpoint offers to poke an unreviewed PR and stops when the nudge is off | My PRs read and nudge SLO monkeypatched | poke suggestion with both actions, then none |
+| TC-29 | The endpoint offers the two unreviewed PR kinds and stops when the nudge is off | My PRs read and nudge SLO monkeypatched, one PR with a reviewer and one without | `poke_pr_no_reviews` with reviewers and `find_pr_reviewer`, then none |
 | TC-30 | The endpoint flags a PR past the review SLO from stored data | stored review request, `review_slo` setting | `review_pr_past_slo` with the task fields empty |
 | TC-31 | The page shows inbox zero when nothing is suggested | empty report | "Inbox zero" text |
 | TC-32 | The page closes a task through its action and reloads | close suggestion mocked | task update called, then inbox zero |
 | TC-33 | The page records a change from the stored merge time | item with `merged_at` | change created accepted with the PR external ref, no refresh call |
 | TC-34 | The page removes a leftover worktree | worktree suggestion mocked | worktree remove called |
-| TC-35 | The page pokes reviewers and reports who was reached | poke report mocked | `myPulls.poke` called, success toast |
-| TC-36 | The page reports reviewers a poke could not reach | partial poke report | error toast carries the failure reasons |
+| TC-35 | The page lists the reviewers with a poke each and pokes one | poke report mocked | `review-person` rows per requested login, `myPulls.poke` called with that login, success toast |
+| TC-36 | The page reports why a reviewer could not be poked | failed poke report | error toast carries the failure reason |
+| TC-37 | The page keeps an unreviewed PR with no reviewer in its own section | `find_pr_reviewer` mocked | "Find a reviewer" section, no reviewer rows and no poke button, both links to the PR page |
 
 ## Edge Cases and Failure Scenarios
 
 | ID | Scenario | Expected Behavior |
 |---|---|---|
-| TC-37 | Naive timestamps from SQLite | read as UTC, suggestion still produced (TC-22) |
-| TC-38 | A pull request the app just found | within the SLO, not suggested (TC-19) |
-| TC-39 | A failed My PRs read | the inbox renders without poke suggestions (router behavior, asserted via TC-29's monkeypatched variants) |
+| TC-38 | Naive timestamps from SQLite | read as UTC, suggestion still produced (TC-22) |
+| TC-39 | A pull request the app just found | within the SLO, not suggested (TC-19) |
+| TC-40 | A failed My PRs read | the inbox renders without poke suggestions (router behavior, asserted via TC-29's monkeypatched variants) |
 
 ## Test Infrastructure
 
@@ -83,7 +84,7 @@ Covered by `backend/tests/test_inbox.py` (TestClient against the app and its dat
 | FR-3 | TC-1, TC-2, TC-3, TC-9, TC-10, TC-11, TC-12, TC-13, TC-27, TC-28, TC-33 |
 | FR-4 | TC-15, TC-16, TC-34 |
 | FR-5 | TC-18, TC-19, TC-20, TC-21, TC-30 |
-| FR-6 | TC-23, TC-24, TC-25, TC-26, TC-29, TC-35, TC-36 |
+| FR-6 | TC-23, TC-24, TC-25, TC-26, TC-29, TC-35, TC-36, TC-37 |
 | FR-7 | TC-27, TC-15 |
 | FR-8 | TC-31, TC-32, TC-34 |
 | FR-9 | TC-33 |

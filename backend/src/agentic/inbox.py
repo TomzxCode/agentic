@@ -1,9 +1,10 @@
 """Inbox: suggestions of things to do, derived from the current state.
 
 The inbox stores nothing. Every suggestion is recomputed from the tasks, the
-items they link, the changes recorded against them, their worktrees, and the
-pull requests the review scan found awaiting the user's review, so acting on one
-changes that state and the suggestion disappears on the next read.
+items they link, the changes recorded against them, their worktrees, the pull
+requests the review scan found awaiting the user's review, and the user's own
+open pull requests that nobody has reviewed yet, so acting on one changes that
+state and the suggestion disappears on the next read.
 
 Each function here is pure and database-free, taking already-loaded rows, so the
 rules can be tested in isolation the way ``metrics.py`` is.
@@ -25,18 +26,25 @@ from .models.tasks import Task
 from .services.parsing import parse_github
 
 # Suggestion kinds. The rank drives the display order, so a review that is past
-# its SLO leads, then a finished task is offered for closing before its
-# bookkeeping (a change record) or its cleanup (a leftover worktree).
+# its SLO leads, then the user's own pull request waiting for anyone's review,
+# starting with the ones whose requested reviewers can be poked and then the
+# ones with no reviewer asked at all, then a finished task is offered for
+# closing before its bookkeeping (a change record) or its cleanup (a leftover
+# worktree).
 REVIEW_PR_PAST_SLO = "review_pr_past_slo"
+POKE_PR_NO_REVIEWS = "poke_pr_no_reviews"
+FIND_PR_REVIEWER = "find_pr_reviewer"
 CLOSE_TASK_FINISHED_ITEMS = "close_task_finished_items"
 RECORD_CHANGE_MERGED_PR = "record_change_merged_pr"
 REMOVE_WORKTREE_DONE_TASK = "remove_worktree_done_task"
 
 KIND_RANK = {
     REVIEW_PR_PAST_SLO: 0,
-    CLOSE_TASK_FINISHED_ITEMS: 1,
-    RECORD_CHANGE_MERGED_PR: 2,
-    REMOVE_WORKTREE_DONE_TASK: 3,
+    POKE_PR_NO_REVIEWS: 1,
+    FIND_PR_REVIEWER: 2,
+    CLOSE_TASK_FINISHED_ITEMS: 3,
+    RECORD_CHANGE_MERGED_PR: 4,
+    REMOVE_WORKTREE_DONE_TASK: 5,
 }
 
 # A task is closed when its status leaves it out of the in-flight set.
@@ -279,6 +287,93 @@ def build_review_suggestions(
     return suggestions
 
 
+def _parse_utc_text(value: Any) -> datetime | None:
+    """An ISO timestamp string (GitHub's ``...Z`` form included) as aware UTC."""
+    if not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(str(value))
+    except ValueError:
+        return None
+    return parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)
+
+
+def _unreviewed_suggestion(pull: dict[str, Any], waited: timedelta, threshold: timedelta) -> dict[str, Any]:
+    """One of the user's own unreviewed pull requests, as an inbox suggestion.
+
+    A pull request with requested reviewers is offered under ``poke_pr_no_reviews``:
+    the reviewers ride on the suggestion so the row can list them with their own
+    poke actions. One with no reviewer requested has nobody to poke, so it is
+    offered under ``find_pr_reviewer`` instead, with only the PR page to open.
+    """
+    repository = str(pull.get("repository") or "")
+    number = int(pull.get("number") or 0)
+    url = str(pull.get("url") or "") or f"https://github.com/{repository}/pull/{number}"
+    title = str(pull.get("title") or "") or f"{repository}#{number}"
+    reason = f"No reviews after {_format_duration(waited)}; the nudge threshold is {_format_duration(threshold)}."
+    reviewers = [str(name) for name in (pull.get("requested_reviewers") or [])]
+    kind = POKE_PR_NO_REVIEWS if reviewers else FIND_PR_REVIEWER
+    if not reviewers:
+        reason += " No reviewer is requested."
+    return {
+        "id": f"{kind}:{repository.lower()}:{number}",
+        "kind": kind,
+        "reason": reason,
+        "task_id": None,
+        "task_title": "",
+        "task_status": "",
+        "repository": repository,
+        "number": number,
+        "title": title,
+        "url": url,
+        "reviewers": reviewers,
+        "actions": [
+            {
+                # The app's own PR page, not GitHub: the inbox row should keep
+                # you in the app, and the page links out to GitHub where needed.
+                "id": f"open:{repository.lower()}:{number}",
+                "kind": "open_pr",
+                "label": "Open PR",
+                "repository": repository,
+                "number": number,
+                "title": title,
+            }
+        ],
+    }
+
+
+def build_poke_suggestions(
+    pulls: Sequence[dict[str, Any]],
+    threshold: timedelta | None,
+    now: datetime,
+) -> list[dict[str, Any]]:
+    """The user's own pull requests that nobody has reviewed, past the threshold.
+
+    ``pulls`` is the My PRs read (one dict per open pull request the configured
+    GitHub login authored). A pull request counts while nobody but its author
+    has submitted a review (a comment review counts as a review; the author's
+    own comments do not) and it is not a draft, since a draft is not asking for
+    reviews yet. The wait runs from when GitHub says the pull request was
+    opened, which is exact here: a pull request without reviews has never had
+    one. With no threshold configured, every pull request is left alone.
+    """
+    if threshold is None:
+        return []
+    reference = _as_utc(now)
+    suggestions: list[dict[str, Any]] = []
+    for pull in pulls:
+        if pull.get("draft") or pull.get("reviewed"):
+            continue
+        opened = _parse_utc_text(pull.get("created_at"))
+        if opened is None:
+            continue
+        waited = reference - _as_utc(opened)
+        if waited <= threshold:
+            continue
+        suggestions.append(_unreviewed_suggestion(pull, waited, threshold))
+    return suggestions
+
+
 def build_suggestions(
     tasks: Sequence[Task],
     items_by_id: dict[str, SourceItem],
@@ -332,10 +427,13 @@ def build_suggestions(
 
 __all__ = [
     "CLOSE_TASK_FINISHED_ITEMS",
+    "FIND_PR_REVIEWER",
     "KIND_RANK",
+    "POKE_PR_NO_REVIEWS",
     "RECORD_CHANGE_MERGED_PR",
     "REMOVE_WORKTREE_DONE_TASK",
     "REVIEW_PR_PAST_SLO",
+    "build_poke_suggestions",
     "build_review_suggestions",
     "build_suggestions",
     "change_references",

@@ -110,7 +110,8 @@ The task representation returns those fields plus `waiting_on_name`.
 
 | Method | Path | Purpose |
 | --- | --- | --- |
-| `GET` | `/api/my-pulls` | The open pull requests the configured GitHub login authored, with each PR's check rollup, review decision, approvers, and unresolved review threads (`?refresh=true` re-queries GitHub instead of the short cache). |
+| `GET` | `/api/my-pulls` | The open pull requests the configured GitHub login authored, with each PR's check rollup, review decision, approvers, unresolved review threads, whether anyone but the author has reviewed it, and the requested reviewers (`?refresh=true` re-queries GitHub instead of the short cache). |
+| `POST` | `/api/my-pulls/poke` | DM each named reviewer of a pull request on Slack, asking for their review. Names the PR by fields (`repository`, `number`, `title`, `url`) and takes `logins`; each login is reported as poked or failed with its reason. |
 
 ## PR feedback
 
@@ -143,7 +144,7 @@ The task representation returns those fields plus `waiting_on_name`.
 | --- | --- | --- |
 | `GET` | `/api/graph` | The whole before/after dependency DAG (nodes and edges). |
 | `GET` | `/api/gantt` | Tasks in flight, one marker per timeline event. |
-| `GET` | `/api/inbox` | Suggested next actions. |
+| `GET` | `/api/inbox` | Suggested next actions: reviews past the SLO, own unreviewed pull requests whose requested reviewers can each be poked (`reviewers`, with an `open_pr` action for the app's PR page), own unreviewed pull requests nobody was asked to review, closable tasks, missing change records, leftover worktrees. |
 | `GET` | `/api/operations` | The provenance audit log. |
 
 ## Changes and metrics

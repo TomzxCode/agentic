@@ -29,7 +29,7 @@ from typing import Any
 
 from .services.parsing import parse_slack
 
-_DURATION_RE = re.compile(r"^(?P<value>\d+(?:\.\d+)?)\s*(?P<unit>[smhdw])$", re.IGNORECASE)
+_DURATION_RE = re.compile(r"(?P<value>\d+(?:\.\d+)?)\s*(?P<unit>[smhdw])", re.IGNORECASE)
 _UNIT_SECONDS = {"s": 1, "m": 60, "h": 3600, "d": 86400, "w": 604800}
 
 # Sources whose content comes from slackx/ghx, so a refresh actually does work.
@@ -68,11 +68,25 @@ class RefreshPolicy:
 
 
 def parse_duration(text: str) -> timedelta | None:
-    """Parse ``30m``/``1h``/``6h``/``1d``/``7d``/``2w``; None when malformed."""
-    match = _DURATION_RE.match((text or "").strip())
-    if not match:
+    """Parse ``30m``/``1h``/``1d``/``2w``, or a combination such as ``1h30m``; None when malformed.
+
+    A combination is one or more value+unit pairs back to back (spaces between
+    them allowed), each unit used at most once per reading of the text. Any
+    other text (an unknown unit, a stray word, a lone number) is malformed.
+    """
+    stripped = (text or "").strip()
+    if not stripped:
         return None
-    return timedelta(seconds=float(match.group("value")) * _UNIT_SECONDS[match.group("unit").lower()])
+    total = 0.0
+    position = 0
+    for match in _DURATION_RE.finditer(stripped):
+        if stripped[position : match.start()].strip():
+            return None
+        total += float(match.group("value")) * _UNIT_SECONDS[match.group("unit").lower()]
+        position = match.end()
+    if stripped[position:].strip() or total <= 0:
+        return None
+    return timedelta(seconds=total)
 
 
 def _parse_interval(text: str) -> timedelta | None:
@@ -81,7 +95,7 @@ def _parse_interval(text: str) -> timedelta | None:
         return None
     duration = parse_duration(cleaned)
     if duration is None:
-        raise PolicyError(f"'{text}' is not a duration (use 30m, 1h, 6h, 1d, 7d, 2w, or never)")
+        raise PolicyError(f"'{text}' is not a duration (use 30m, 1h, 1h30m, 1d, 7d, 2w, or never)")
     return duration
 
 

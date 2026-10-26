@@ -49,6 +49,10 @@ class SettingsUpdate(BaseModel):
     # How long a pull request may await a review before the inbox flags it
     # ("1d", "8h"; empty disables it).
     review_slo: str | None = None
+    # How long a pull request the user authored may wait without any review
+    # before the inbox offers to poke its reviewers ("1h30m", "1d"; empty
+    # disables it).
+    review_nudge_slo: str | None = None
     # A JSON list of user-defined agent prompts (kind, label, template).
     agent_prompts: str | None = None
     # The Slack channel the on-call view scans.

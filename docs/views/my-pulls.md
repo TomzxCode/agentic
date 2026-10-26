@@ -71,19 +71,22 @@ Two failures have their own messages:
 
 ## CLI and agent interface
 
-The page is the only surface for this data: there is no `agentic` command, and the single endpoint is read-only.
-
 | Operation | CLI | HTTP |
 | --- | --- | --- |
 | List your open pull requests | none | `GET /api/my-pulls` |
 | Force a fresh GitHub read | none | `GET /api/my-pulls?refresh=true` |
+| Poke a pull request's reviewers on Slack | none | `POST /api/my-pulls/poke` |
 | Act on one | use the review queue or a task | `POST /api/tasks` with `github_url` |
 
 An agent can reproduce the data with `gh search prs` and `gh pr view`, but the app offers no command that wraps it.
+
+The read carries `reviewed` (whether anyone but the author has submitted a review) and `requested_reviewers` (who GitHub still lists as requested) beside each row's other fields.
+The [Inbox](inbox.md)'s review nudge is built from the same read: a pull request past the nudge SLO with no reviews lists its requested reviewers with a poke each (this endpoint), or, when nobody was asked to review it, takes you to the PR page to find one.
 
 ## Related
 
 - [Review queue](reviews.md) for the pull requests waiting on your review.
 - [PR feedback](feedback.md) for the reviewer comments on these pull requests.
+- [Inbox](inbox.md) for the nudge this read feeds.
 - [Settings](settings.md) for the GitHub login under Identity.
 - [Configuration](../reference/configuration.md) for `AGENTIC_REVIEW_SCAN_*` and `AGENTIC_GITHUB_LOGIN`.

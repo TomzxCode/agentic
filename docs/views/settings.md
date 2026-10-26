@@ -94,6 +94,10 @@ An empty policy disables that source.
 Each repository then has its own `Default`, `Include`, or `Exclude`.
 `Scan now` runs one pass, and the section shows when the scan last ran, how many it found and kept, and any error.
 
+`Review SLO` is how long a pull request may await your review before the inbox flags it, such as `8h` or `1d`; blank turns it off.
+`Review nudge SLO` is how long a pull request of yours may wait without any review from anyone before the inbox offers to poke its reviewers, such as `1h30m` or `1d`; blank turns it off.
+Both accept a combination of units (`1h30m`), and the durations a field takes are the same shapes the scan cadence does.
+
 The queue the scan feeds is the [Review queue](reviews.md).
 
 ### Repository groups

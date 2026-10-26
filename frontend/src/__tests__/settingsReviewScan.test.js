@@ -42,4 +42,26 @@ describe('SettingsReviewScan', () => {
 
     expect(mocks.settingsUpdate).toHaveBeenCalledWith({ review_slo: '2d' })
   })
+
+  it('saves the review nudge SLO on blur', async () => {
+    const wrapper = mount(SettingsReviewScan, {
+      props: {
+        overrides: { review_slo: '', review_nudge_slo: '1h30m' },
+        defaults: { review_nudge_slo: '' },
+        active: true
+      }
+    })
+    await flushPromises()
+
+    const nudge = wrapper.findAll('input[placeholder="1d"]')[1]
+    expect(nudge).toBeTruthy()
+    expect(nudge.element.value).toBe('1h30m')
+
+    await nudge.setValue('2h')
+    await nudge.trigger('blur')
+    await flushPromises()
+
+    expect(mocks.settingsUpdate).toHaveBeenCalledWith({ review_nudge_slo: '2h' })
+    expect(wrapper.text()).toContain('Review nudge SLO')
+  })
 })

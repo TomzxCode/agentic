@@ -31,7 +31,7 @@ from ..schemas.items import (
     ItemUpdate,
 )
 from ..schemas.settings import RefreshDueReport
-from ..services.github import fetch_github_pull_reviewers
+from ..services.github import fetch_github_pull_reviewers, pr_review_request_message
 from ..services.parsing import looks_like_url, parse_github, parse_path
 from ..services.slack import SlackError, resolve_slack_user_id, slack_send_dm, slack_ts_after, slack_ts_datetime
 from ..services.sources import fetch_source, infer_item_source, read_path
@@ -376,14 +376,8 @@ def list_item_github_reviewers(item_id: str, session: Session = Depends(get_sess
 
 
 def _slack_pr_message(item: SourceItem) -> str:
-    """The message a poke sends: a wave, a robot, and the PR's title as a link."""
-    url = str(item.url or "")
-    title = " ".join(str(item.title or "").split())
-    # Slack's link label ends at "|", and the angle brackets delimit the link.
-    for char in ("|", "<", ">"):
-        title = title.replace(char, "-")
-    label = f"<{url}|{title}>" if title else f"<{url}>"
-    return f":wave::robot_face: I would love your review on this PR: {label}"
+    """The message a poke sends, built from the item's PR link."""
+    return pr_review_request_message(str(item.url or ""), str(item.title or ""))
 
 
 @router.post("/{item_id}/poke", response_model=ItemPoke)

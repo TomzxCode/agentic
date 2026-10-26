@@ -69,6 +69,11 @@ def configured_review_slo(session: Session) -> timedelta | None:
     return scan_interval(get_settings(session).get("review_slo", ""))
 
 
+def configured_review_nudge_slo(session: Session) -> timedelta | None:
+    """The review nudge SLO: how long the user's pull request may wait for anyone's review."""
+    return scan_interval(get_settings(session).get("review_nudge_slo", ""))
+
+
 def scan_due(last_run_at: datetime | None, interval: timedelta | None, now: datetime) -> bool:
     """Whether a scan is due: never run yet, or the cadence has elapsed."""
     if interval is None:
