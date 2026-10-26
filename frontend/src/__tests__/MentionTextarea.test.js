@@ -67,6 +67,14 @@ describe('MentionTextarea', () => {
     expect(wrapper.emitted('update:modelValue').at(-1)).toEqual(['@Fix login timeout '])
   })
 
+  it('scopes the item mark class so the Items page card style does not box it', async () => {
+    const wrapper = mount(MentionTextarea, { props: { modelValue: '' } })
+    await type(wrapper, '@login')
+    const mark = wrapper.get('.mention-option .mention-mark')
+    expect(mark.classes()).toContain('kind-item')
+    expect(mark.classes()).not.toContain('item')
+  })
+
   it('references another task by its id with a readable label', async () => {
     const wrapper = mount(MentionTextarea, { props: { modelValue: '' } })
     await type(wrapper, '@release')

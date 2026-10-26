@@ -35,7 +35,7 @@ function groupLabel(kind) {
         @mouseenter="emit('update:highlighted', index)"
         @click="emit('choose', option)"
       >
-        <span class="mention-mark" :class="option.kind" aria-hidden="true">{{
+        <span class="mention-mark" :class="`kind-${option.kind}`" aria-hidden="true">{{
           option.kind === 'item' ? '#' : '@'
         }}</span>
         <span class="ss-option-label">{{ option.label }}</span>

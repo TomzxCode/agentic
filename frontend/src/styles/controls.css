@@ -97,13 +97,15 @@
   color: var(--accent);
   font-family: var(--mono);
 }
-.mention-mark.item {
+/* Kind classes are prefixed so a plain `.item` (the Items page card) never
+   turns the mark into a bordered box. */
+.mention-mark.kind-item {
   color: var(--accent-2);
 }
-.mention-mark.date {
+.mention-mark.kind-date {
   color: var(--warn);
 }
-.mention-mark.task {
+.mention-mark.kind-task {
   color: var(--ok);
 }
 .mention-detail {
