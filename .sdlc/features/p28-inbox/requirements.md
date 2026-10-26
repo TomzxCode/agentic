@@ -34,6 +34,7 @@ The SPA shows the suggestions at `/inbox`, grouped into six sections, with the a
 | FR-7 | Must | The system shall store nothing about suggestions, so a suggestion disappears as soon as the action it offers (or any other change) removes the state it was derived from. |
 | FR-8 | Should | The Inbox page shall group the suggestions into six fixed sections, execute each action kind through the matching endpoint (a reviewer poke included), and reload the inbox after each action. |
 | FR-9 | Should | The Inbox page shall disable the action buttons while an action is in flight, and record a change as already accepted and dated to the pull request's merge time, refreshing the item once when its merge time is unknown. |
+| FR-10 | Should | The Inbox page's header shall show a tab per suggestion kind present, plus `All`, each carrying its count, and selecting a tab shall narrow the list to that section (with `All` the default when none was picked). The picked tab shall be remembered per device in the browser (localStorage, like the other view preferences) and restored on the next visit, falling back to `All` for that visit when the kind has no suggestions. |
 
 ## Non-Functional Requirements
 
@@ -179,6 +180,17 @@ The SPA shows the suggestions at `/inbox`, grouped into six sections, with the a
       When the user clicks "Record change"
       Then the change is created accepted with external_ref set to the pull request URL
       And the item refresh endpoint is not called
+    ```
+
+- [ ] **FR-10**
+
+    ```gherkin
+    @FR-10
+    Scenario: Tabs narrow the inbox to one kind and the choice is remembered
+      Given the inbox lists a review suggestion and a close suggestion
+      When the page renders and the user picks the "Close finished tasks" tab
+      Then only the close section is shown and "All" is no longer selected
+      And the next visit opens on "Close finished tasks"
     ```
 
 - [ ] **NFR-3**

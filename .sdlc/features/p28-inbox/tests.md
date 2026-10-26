@@ -61,6 +61,11 @@ Covered by `backend/tests/test_inbox.py` (TestClient against the app and its dat
 | TC-35 | The page lists the reviewers with a poke each and pokes one | poke report mocked | `review-person` rows per requested login, `myPulls.poke` called with that login, success toast |
 | TC-36 | The page reports why a reviewer could not be poked | failed poke report | error toast carries the failure reason |
 | TC-37 | The page keeps an unreviewed PR with no reviewer in its own section | `find_pr_reviewer` mocked | "Find a reviewer" section, no reviewer rows and no poke button, both links to the PR page |
+| TC-41 | The page shows a tab per kind present, with counts, and narrows the list to the picked one | review and close suggestions mocked | `All`, `Reviews past SLO`, and `Close finished tasks` tabs; picking close leaves only its section and row |
+| TC-42 | The page falls back to All when the picked kind empties | close suggestion, picked tab, then a reload with only a review suggestion | `All` is selected again and the review suggestion renders |
+| TC-43 | The page shows no tabs when the inbox is empty | empty report | no tab bar |
+| TC-44 | The page remembers the picked tab across visits | close suggestion, picked tab, remounted view | stored under `agentic.inboxTab`, the reopened page selects that tab and shows only its section |
+| TC-45 | A stored tab that is not a known kind is ignored | `agentic.inboxTab` set to an unknown string | `All` is selected |
 
 ## Edge Cases and Failure Scenarios
 
@@ -88,5 +93,6 @@ Covered by `backend/tests/test_inbox.py` (TestClient against the app and its dat
 | FR-7 | TC-27, TC-15 |
 | FR-8 | TC-31, TC-32, TC-34 |
 | FR-9 | TC-33 |
+| FR-10 | TC-41, TC-42, TC-43, TC-44, TC-45 |
 | NFR-1 | TC-1 to TC-26 run without a database |
 | NFR-3 | TC-22, TC-29 |

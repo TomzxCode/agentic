@@ -26,7 +26,11 @@ The page has a `Refresh` button and up to six sections, in a fixed order:
 Each row shows the task, the reason, and the actions it offers: a primary button, the reviewer rows with their pokes on an unreviewed pull request, or both.
 A button is disabled while another action is in flight.
 
-There are no filters, no sorting, no bulk actions, no keyboard shortcuts, and nothing is remembered between visits.
+The header carries a tab per kind present in the inbox, each with its count, plus `All`.
+`All` is the default and shows every section; picking a tab narrows the list to that section so a long inbox can be worked one kind at a time, and the page returns to `All` when the picked kind has nothing left.
+The picked tab is remembered per device in the browser (like the sidebar state), so the page opens on it next time; when that kind has no suggestions, the visit shows `All` instead.
+
+There is no sorting, no bulk actions, no keyboard shortcuts, and nothing else is remembered between visits.
 
 `Record change` creates the change already `accepted` and dates it to the pull request's merge time.
 The task page's Items panel does the same for a merged pull request.

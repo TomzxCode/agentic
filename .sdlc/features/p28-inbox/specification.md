@@ -11,7 +11,7 @@ session_link: "http://localhost:10000/?session=ses_ed778bb8affeJQ6f9Tkxe4MjUl"
 
 `inbox.py` holds the suggestion rules as pure, database-free functions in the style of `metrics.py`: each takes already-loaded rows and returns suggestion dicts, and nothing is written anywhere.
 `routers/inbox.py` loads the tasks, items, associations, worktrees, and changes in one pass each, hands them to the rules together with the stored review requests, the configured SLOs, and the viewer's GitHub login, and wraps the result in an `InboxReport`.
-`InboxView.vue` renders the report in six sections and executes each action through the endpoint the action names, then reloads the inbox; an unreviewed pull request's requested reviewers are listed with the same `ReviewPeople.vue` rows the item page shows, each with its own poke.
+`InboxView.vue` renders the report in six sections, with a header tab per kind present (plus `All`) that narrows the list to one section and remembers the choice per device in localStorage, and executes each action through the endpoint the action names, then reloads the inbox; an unreviewed pull request's requested reviewers are listed with the same `ReviewPeople.vue` rows the item page shows, each with its own poke.
 Because nothing is stored, acting on a suggestion changes the state the suggestion was derived from and it disappears on the next read.
 
 ## Architecture
@@ -63,7 +63,7 @@ The sidebar badge and the page share it, so the badge clears as soon as an actio
 - NFR-1: the rules in `inbox.py` are pure functions over loaded rows, so they are tested without a database and the router stays a thin loader.
 - NFR-2: the router executes one query per table and computes in process; the My PRs read behind the nudge suggestions is the same shared, briefly cached read the My PRs page uses.
 - NFR-3: a failed My PRs read carries no pulls, so the inbox renders without poke suggestions instead of guessing; naive stored timestamps are treated as UTC because SQLite drops the zone.
-- NFR-4: the page follows the responsive patterns (sections that stack, buttons that wrap at phone widths) and disables the other actions while one is in flight.
+- NFR-4: the page follows the responsive patterns (sections that stack, buttons that wrap at phone widths, a tab bar that scrolls sideways rather than wrapping) and disables the other actions while one is in flight.
 
 ## Sequences
 

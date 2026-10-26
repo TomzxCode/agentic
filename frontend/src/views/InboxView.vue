@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { api } from '../api'
 import { changeCreateBody } from '../changes'
 import { store } from '../store'
@@ -48,6 +48,50 @@ const sections = computed(() =>
     items: suggestions.value.filter((suggestion) => suggestion.kind === kind)
   })).filter((section) => section.items.length)
 )
+
+// The tabs in the header: one per kind present in the inbox, in the same order
+// the sections are shown. `all` is the default, so a visit still shows
+// everything, and picking a kind narrows the list to that one section. The
+// picked tab is a per-device view preference, remembered in localStorage the
+// way the sidebar's width is, so it survives a reload but never reaches the
+// server.
+const ALL = 'all'
+const TAB_KEY = 'agentic.inboxTab'
+
+function readStoredTab() {
+  try {
+    const stored = localStorage.getItem(TAB_KEY)
+    return stored === ALL || SECTION_ORDER.includes(stored) ? stored : ALL
+  } catch {
+    // Storage can be blocked (private mode); fall back to showing everything.
+    return ALL
+  }
+}
+
+const activeTab = ref(readStoredTab())
+
+function selectTab(kind) {
+  activeTab.value = kind
+  try {
+    localStorage.setItem(TAB_KEY, kind)
+  } catch {
+    // Not fatal: the choice still applies for this session.
+  }
+}
+
+const tabs = computed(() =>
+  sections.value.map((section) => ({ kind: section.kind, label: section.label, count: section.items.length }))
+)
+const visibleSections = computed(() =>
+  activeTab.value === ALL ? sections.value : sections.value.filter((section) => section.kind === activeTab.value)
+)
+
+// Acting on the last suggestion of a kind empties its section, so fall back to
+// showing everything rather than an empty tab. The stored choice is left alone,
+// so the kind comes back when it has suggestions again.
+watch(tabs, (next) => {
+  if (activeTab.value !== ALL && !next.some((tab) => tab.kind === activeTab.value)) activeTab.value = ALL
+})
 
 // The task a suggestion is about, falling back to the copy the API returned
 // when the task is not in the store.
@@ -179,6 +223,29 @@ onMounted(load)
       </span>
     </div>
 
+    <div v-if="suggestions.length" class="row inbox-tabs" role="tablist" aria-label="Inbox suggestion kinds">
+      <button
+        class="btn sm"
+        :class="{ ghost: activeTab !== ALL }"
+        role="tab"
+        :aria-selected="activeTab === ALL"
+        @click="selectTab(ALL)"
+      >
+        All <span class="faint">{{ suggestions.length }}</span>
+      </button>
+      <button
+        v-for="tab in tabs"
+        :key="tab.kind"
+        class="btn sm"
+        :class="{ ghost: activeTab !== tab.kind }"
+        role="tab"
+        :aria-selected="activeTab === tab.kind"
+        @click="selectTab(tab.kind)"
+      >
+        {{ tab.label }} <span class="faint">{{ tab.count }}</span>
+      </button>
+    </div>
+
     <div v-if="loading && !suggestions.length" class="empty"><span class="spinner" aria-hidden="true"></span></div>
 
     <div v-else-if="error" class="panel">
@@ -189,7 +256,7 @@ onMounted(load)
     <div v-else-if="!suggestions.length" class="empty">Inbox zero. Nothing needs a decision right now.</div>
 
     <template v-else>
-      <section v-for="section in sections" :key="section.kind">
+      <section v-for="section in visibleSections" :key="section.kind">
         <h2 class="group-head">
           {{ section.label }} <span class="faint">{{ section.items.length }}</span>
         </h2>
@@ -248,3 +315,20 @@ onMounted(load)
     </template>
   </div>
 </template>
+
+<style scoped>
+.row.inbox-tabs {
+  flex-wrap: nowrap;
+  gap: 6px;
+  margin-bottom: 12px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+.row.inbox-tabs::-webkit-scrollbar {
+  display: none;
+}
+.row.inbox-tabs .btn {
+  flex: 0 0 auto;
+}
+</style>

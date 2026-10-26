@@ -57,6 +57,7 @@ function mergeItem(overrides = {}) {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  localStorage.clear()
   store.tasks = [{ id: 't1', title: 'Do the thing', status: 'open', tags: [] }]
   store.items = []
   store.inbox = []
@@ -337,5 +338,117 @@ describe('InboxView', () => {
       '/pr/o/r/22',
       '/pr/o/r/22'
     ])
+  })
+
+  it('offers a tab per suggestion kind that narrows the list to that section', async () => {
+    mocks.inboxGet.mockResolvedValue([
+      {
+        id: 'review_pr_past_slo:o/r:7',
+        kind: 'review_pr_past_slo',
+        reason: 'Has awaited your review for 2d 3h; the SLO is 1d.',
+        task_id: null,
+        task_title: '',
+        task_status: '',
+        repository: 'o/r',
+        number: 7,
+        title: 'Fix the thing',
+        url: 'https://github.com/o/r/pull/7',
+        actions: [{ id: 'open:o/r:7', kind: 'open_url', label: 'Review PR', url: 'https://github.com/o/r/pull/7' }]
+      },
+      closeSuggestion()
+    ])
+
+    const wrapper = mount(InboxView, stub)
+    await flushPromises()
+
+    // A tab per kind present, in the fixed order the sections are shown, plus All.
+    const tabs = wrapper.findAll('.inbox-tabs [role="tab"]')
+    expect(tabs.map((tab) => tab.text())).toEqual(['All 2', 'Reviews past SLO 1', 'Close finished tasks 1'])
+    expect(tabs[0].attributes('aria-selected')).toBe('true')
+    expect(wrapper.findAll('.inbox-item')).toHaveLength(2)
+
+    await tabs[2].trigger('click')
+
+    expect(tabs[2].attributes('aria-selected')).toBe('true')
+    expect(tabs[0].attributes('aria-selected')).toBe('false')
+    expect(wrapper.findAll('.inbox-item')).toHaveLength(1)
+    expect(wrapper.findAll('.group-head').map((head) => head.text())).toEqual(['Close finished tasks 1'])
+
+    await tabs[0].trigger('click')
+    expect(wrapper.findAll('.inbox-item')).toHaveLength(2)
+  })
+
+  it('falls back to All when the selected kind has nothing left', async () => {
+    mocks.inboxGet.mockResolvedValue([closeSuggestion()])
+
+    const wrapper = mount(InboxView, stub)
+    await flushPromises()
+    await wrapper.findAll('.inbox-tabs [role="tab"]')[1].trigger('click')
+    expect(wrapper.findAll('.inbox-tabs [role="tab"]')[1].attributes('aria-selected')).toBe('true')
+
+    // The only suggestion of that kind is gone on the next read.
+    mocks.inboxGet.mockResolvedValue([
+      {
+        id: 'review_pr_past_slo:o/r:7',
+        kind: 'review_pr_past_slo',
+        reason: 'Has awaited your review for 2d 3h; the SLO is 1d.',
+        task_id: null,
+        task_title: '',
+        task_status: '',
+        repository: 'o/r',
+        number: 7,
+        title: 'Fix the thing',
+        url: 'https://github.com/o/r/pull/7',
+        actions: []
+      }
+    ])
+    await wrapper
+      .findAll('button')
+      .find((button) => button.text() === 'Refresh')
+      .trigger('click')
+    await flushPromises()
+
+    const tabs = wrapper.findAll('.inbox-tabs [role="tab"]')
+    expect(tabs.map((tab) => tab.text())).toEqual(['All 1', 'Reviews past SLO 1'])
+    expect(tabs[0].attributes('aria-selected')).toBe('true')
+    expect(wrapper.text()).toContain('Fix the thing')
+    // Only the view falls back; the picked kind is still remembered for when it
+    // has suggestions again.
+    expect(localStorage.getItem('agentic.inboxTab')).toBe('close_task_finished_items')
+  })
+
+  it('shows no tabs when the inbox is empty', async () => {
+    mocks.inboxGet.mockResolvedValue([])
+    const wrapper = mount(InboxView, stub)
+    await flushPromises()
+    expect(wrapper.find('.inbox-tabs').exists()).toBe(false)
+  })
+
+  it('remembers the picked tab for the next visit', async () => {
+    mocks.inboxGet.mockResolvedValue([closeSuggestion()])
+    const wrapper = mount(InboxView, stub)
+    await flushPromises()
+
+    await wrapper.findAll('.inbox-tabs [role="tab"]')[1].trigger('click')
+    expect(localStorage.getItem('agentic.inboxTab')).toBe('close_task_finished_items')
+
+    wrapper.unmount()
+    const reopened = mount(InboxView, stub)
+    await flushPromises()
+
+    const tabs = reopened.findAll('.inbox-tabs [role="tab"]')
+    expect(tabs[1].attributes('aria-selected')).toBe('true')
+    expect(reopened.findAll('.inbox-item')).toHaveLength(1)
+    expect(reopened.findAll('.group-head').map((head) => head.text())).toEqual(['Close finished tasks 1'])
+  })
+
+  it('ignores a stored tab that is not a known kind', async () => {
+    localStorage.setItem('agentic.inboxTab', 'not_a_kind')
+    mocks.inboxGet.mockResolvedValue([closeSuggestion()])
+
+    const wrapper = mount(InboxView, stub)
+    await flushPromises()
+
+    expect(wrapper.findAll('.inbox-tabs [role="tab"]')[0].attributes('aria-selected')).toBe('true')
   })
 })
