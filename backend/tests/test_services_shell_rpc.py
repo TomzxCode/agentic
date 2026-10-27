@@ -382,7 +382,7 @@ def test_refresh_github_cache_runs_over_typed_cache_refresh(monkeypatch):
 
     def fake_post(url, **kwargs):
         assert kwargs["json"]["method"] == "cache.refresh"
-        assert kwargs["json"]["params"] == {"repo": "o/r", "force": True}
+        assert kwargs["json"]["params"] == {"repo": "o/r", "force": False}
         return _rpc_typed({"repo": "o/r", "issues": 1, "prs": 0})
 
     monkeypatch.setattr(shell.httpx, "post", fake_post)
@@ -630,3 +630,67 @@ def test_get_rpc_overrides_reads_the_setting_table(monkeypatch):
             if row is not None:
                 session.delete(row)
                 session.commit()
+
+
+def test_list_my_open_pulls_passes_the_author_over_the_typed_method(monkeypatch):
+    monkeypatch.setattr(settings, "ghx_backend", "rpc")
+    record = {
+        "number": 3,
+        "title": "Mine",
+        "url": "https://github.com/o/r/pull/3",
+        "isDraft": False,
+        "createdAt": "2026-10-01T00:00:00Z",
+        "updatedAt": "2026-10-02T00:00:00Z",
+        "reviewDecision": "APPROVED",
+        "author": {"login": "tomzx"},
+        "checks": {"state": "SUCCESS", "total": 2},
+        "reviewThreads": {"total": 1, "open": 0},
+        "reviews": [{"author": {"login": "alice"}, "state": "APPROVED"}],
+        "reviewRequests": [],
+    }
+
+    def fake_post(url, **kwargs):
+        body = kwargs["json"]
+        assert body["method"] == "pr.list"
+        # The typed method ignores the --json field list but must not drop the
+        # author filter, or another user's pull requests would read as mine.
+        assert body["params"] == {"repo": "o/r", "state": "open", "author": "tomzx", "limit": 500}
+        return _rpc_typed({"items": [record], "total": 1, "source": "cache"})
+
+    monkeypatch.setattr(shell.httpx, "post", fake_post)
+    pulls = github.list_my_open_pulls(["o/r"], "tomzx")
+
+    assert pulls is not None
+    assert [pull["number"] for pull in pulls] == [3]
+    assert pulls[0]["ci"] == "success"
+    assert pulls[0]["threads_total"] == 1
+
+
+def test_fetch_pull_checks_runs_over_the_typed_method(monkeypatch):
+    monkeypatch.setattr(settings, "ghx_backend", "rpc")
+
+    def fake_post(url, **kwargs):
+        assert kwargs["json"]["method"] == "pr.checks"
+        assert kwargs["json"]["params"] == {"repo": "o/r", "number": 12}
+        return _rpc_typed(
+            {
+                "state": "FAILURE",
+                "total": 1,
+                "checks": [
+                    {
+                        "type": "CheckRun",
+                        "name": "build",
+                        "status": "COMPLETED",
+                        "conclusion": "FAILURE",
+                        "url": "https://ci/1",
+                    }
+                ],
+            }
+        )
+
+    monkeypatch.setattr(shell.httpx, "post", fake_post)
+    report = github.fetch_pull_checks("o", "r", 12)
+
+    assert report is not None
+    assert report["rollup"] == "failure"
+    assert [(check["name"], check["state"]) for check in report["checks"]] == [("build", "failure")]

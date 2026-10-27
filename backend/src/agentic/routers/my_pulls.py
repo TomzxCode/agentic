@@ -1,10 +1,11 @@
 """My PRs: the open pull requests the viewer authored, with their state.
 
 One read answers the whole page (the open threads, the check rollup, the review
-decision and approvers) from a single GraphQL search, cached briefly; this
-router only resolves who "my" is and wraps the result in the response model.
-Nothing is stored, so a pull request that merges leaves the page on the next
-refresh without a bookkeeping step.
+decision and approvers) from ghx, one listing per repository the app knows,
+cached briefly; this router resolves who "my" is, which repositories to read,
+and wraps the result in the response model. Nothing is stored, so a pull
+request that merges leaves the page on the next refresh without a bookkeeping
+step.
 
 The poke sends a pull request's requested reviewers a Slack DM asking for their
 review, the same message the item page's poke sends. It names the pull request
@@ -24,7 +25,7 @@ from ..db import get_session
 from ..models.base import utcnow
 from ..models.items import Association, SourceItem
 from ..models.tasks import Task
-from ..my_pulls import fetch_my_pull_checks, fetch_my_pulls
+from ..my_pulls import fetch_my_pull_checks, fetch_my_pulls, known_github_repositories
 from ..schemas.my_pulls import (
     MyPullChecksRead,
     MyPullPokeFailure,
@@ -96,10 +97,15 @@ def list_my_pulls(refresh: bool = False, session: Session = Depends(get_session)
     """The open pull requests authored by the configured GitHub login.
 
     ``refresh`` re-queries GitHub instead of reusing the short cache, the way
-    the review queue's Refresh works. With no login configured, or with a `gh`
-    that could not run, the response carries an ``error`` and no pull requests.
+    the review queue's Refresh works. With no login configured, no registered
+    GitHub repository, or a `ghx` that could not run, the response carries an
+    ``error`` and no pull requests.
     """
-    report = fetch_my_pulls(resolve_github_login(session), refresh=refresh)
+    report = fetch_my_pulls(
+        resolve_github_login(session),
+        known_github_repositories(session),
+        refresh=refresh,
+    )
     # The cached GitHub read carries no task links, so copy each row and add
     # them here: linking or unlinking a task shows at once, without a re-query.
     tasks = _tasks_by_pull(session, report["pulls"])

@@ -438,7 +438,7 @@ def test_inbox_endpoint_offers_to_poke_an_unreviewed_pull_request(monkeypatch):
     ]
     monkeypatch.setattr(
         "agentic.routers.inbox.fetch_my_pulls",
-        lambda login: {"login": login, "pulls": pulls, "counts": {}, "error": None},
+        lambda login, repositories: {"login": login, "pulls": pulls, "counts": {}, "error": None},
     )
     monkeypatch.setattr("agentic.routers.inbox.resolve_github_login", lambda session: "tomzx")
     monkeypatch.setattr("agentic.routers.inbox.configured_review_nudge_slo", lambda session: timedelta(days=1))

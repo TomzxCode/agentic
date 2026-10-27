@@ -193,7 +193,8 @@ def test_refresh_github_cache(monkeypatch):
     monkeypatch.setattr(shell, "_run_cli", fake)
     assert github.refresh_github_cache("o", "r") is True
     assert seen["cmd"][:2] == ["ghx", "cache"]
-    assert "--force" in seen["cmd"]
+    # A refresh is a delta fetch, never a forced full re-download.
+    assert "--force" not in seen["cmd"]
 
     monkeypatch.setattr(shell, "_run_cli", lambda cmd, timeout=60: None)
     assert github.refresh_github_cache("o", "r") is False
@@ -214,7 +215,7 @@ def test_repository_endpoint(monkeypatch):
         assert client.get("/api/github/repository", params={"owner": "o", "repo": "r"}).status_code == 502
 
 
-def test_repository_endpoint_forces_a_refresh(monkeypatch):
+def test_repository_endpoint_refreshes_the_cache_without_forcing(monkeypatch):
     seen: list[list[str]] = []
 
     def fake(cmd, timeout=60):
@@ -225,6 +226,7 @@ def test_repository_endpoint_forces_a_refresh(monkeypatch):
     with TestClient(app) as client:
         client.get("/api/github/repository", params={"owner": "o", "repo": "r", "refresh": "true"})
     assert seen and seen[0][:2] == ["ghx", "cache"]
+    assert "--force" not in seen[0]
 
 
 def test_repository_endpoint_syncs_the_items_it_names(monkeypatch):

@@ -102,13 +102,14 @@ def list_github_pulls(owner: str, repo: str, state: str = "open", limit: int = 1
 
 
 def refresh_github_cache(owner: str, repo: str, timeout: int = 300) -> bool:
-    """Force ghx to re-fetch a repository's issues and PRs from GitHub.
+    """Refresh a repository's issues and PRs through ghx.
 
-    ``ghx issue list``/``ghx pr list`` serve from the on-disk cache while it is
-    fresh, so a listing on its own is not a refresh. The repository view's
-    "refresh all" runs this first.
+    ``ghx cache`` runs a delta fetch from the last cache write, so an unchanged
+    repository costs a few small requests and a changed one picks up what
+    changed. It is never a full re-fetch: the repository view's "refresh all"
+    and the My PRs read both want current data, not a forced re-download.
     """
-    return shell._run_cli(["ghx", "cache", "--repo", f"{owner}/{repo}", "--force"], timeout=timeout) is not None
+    return shell._run_cli(["ghx", "cache", "--repo", f"{owner}/{repo}"], timeout=timeout) is not None
 
 
 def list_github_repo_items(owner: str, repo: str, state: str = "all", limit: int = 1000) -> dict[str, Any] | None:
@@ -451,46 +452,21 @@ def _paginate_connection(
 
 # --- The viewer's own open pull requests ------------------------------------
 #
-# ghx lists a repository's pull requests but carries neither review threads nor
-# a check rollup, and gh's --json field set exposes no resolved state for a
-# thread, so this read goes to the GraphQL search API through ``gh`` (the same
-# exception the cycle-time reads above make). One search finds every open pull
-# request the login authored, with the thread, check, and review state the My
-# PRs page shows.
+# ghx caches a repository's pull requests with the reviews, review requests,
+# head-commit check rollup, and review-thread counts the My PRs page shows, so
+# this read goes through ghx like every other GitHub read instead of querying
+# GraphQL itself. ghx lists one repository at a time, so the rows come from the
+# repositories the app knows: a pull request in a repository neither side knows
+# is out of scope rather than silently missed.
 
-#: The most open pull requests one lookup reads.
+#: The most open pull requests one repository's lookup reads.
 MY_PULLS_LIMIT = 500
 
-_MY_PULLS_QUERY = """
-query($q: String!, $endCursor: String) {
-  search(query: $q, type: ISSUE, first: 50, after: $endCursor) {
-    pageInfo { hasNextPage endCursor }
-    nodes {
-      ... on PullRequest {
-        number
-        title
-        url
-        isDraft
-        createdAt
-        updatedAt
-        reviewDecision
-        repository { nameWithOwner }
-        commits(last: 1) { nodes { commit { statusCheckRollup { state } } } }
-        reviewThreads(first: 100) {
-          totalCount
-          nodes { isResolved }
-        }
-        latestOpinionatedReviews(first: 50) { nodes { author { login } state } }
-        reviews(first: 30) { totalCount nodes { author { login } } }
-        reviewRequests(first: 10) {
-          totalCount
-          nodes { requestedReviewer { ... on User { login } ... on Team { name } } }
-        }
-      }
-    }
-  }
-}
-"""
+#: The fields a My PRs row reads. ghx's --json takes a field list, so the
+#: payload stays to what the row needs instead of the whole record.
+_MY_PULLS_FIELDS = (
+    "number,title,url,isDraft,createdAt,updatedAt,reviewDecision,author,reviews,reviewRequests,checks,reviewThreads"
+)
 
 #: A check rollup state, as the CI badge reads it. ``EXPECTED`` means a check is
 #: required but has not reported yet, which GitHub shows as pending too.
@@ -503,71 +479,79 @@ _CI_STATES = {
 }
 
 
-def _ci_state(node: dict[str, Any]) -> str:
-    """The head commit's check rollup as success / pending / failure / none."""
-    commits = (node.get("commits") or {}).get("nodes") or []
-    commit = (commits[0] or {}).get("commit") if commits else None
-    rollup = (commit or {}).get("statusCheckRollup") or {}
+def _ci_state(checks: object) -> str:
+    """A ghx check rollup as success / pending / failure / none."""
+    rollup = checks if isinstance(checks, dict) else {}
     return _CI_STATES.get(str(rollup.get("state") or "").upper(), "none")
 
 
-def _thread_counts(node: dict[str, Any]) -> tuple[int, int]:
+def _thread_counts(record: dict[str, Any]) -> tuple[int, int]:
     """The PR's (unresolved, total) review threads.
 
-    GitHub can filter threads by their resolution state but not a connection by
-    it, so the unresolved count comes from the first page of threads; a pull
-    request with more than a hundred threads reports the ones it read. The total
-    comes from the connection itself, so it stays exact.
+    ghx counts the first hundred threads, so a busier pull request undercounts
+    the open ones; the total comes from the connection and stays exact.
     """
-    threads = node.get("reviewThreads") or {}
-    nodes = threads.get("nodes") or []
-    open_threads = sum(1 for thread in nodes if not thread.get("isResolved"))
-    return open_threads, int(threads.get("totalCount") or len(nodes))
+    threads = record.get("reviewThreads") or {}
+    if not isinstance(threads, dict):
+        return 0, 0
+    return int(threads.get("open") or 0), int(threads.get("total") or 0)
 
 
-def _approvers(node: dict[str, Any]) -> list[str]:
-    """The logins whose latest opinionated review approves the pull request.
+def _reviews(record: dict[str, Any]) -> list[dict[str, Any]]:
+    """The pull request's submitted reviews, as ghx reports them."""
+    reviews = record.get("reviews") or []
+    if not isinstance(reviews, list):
+        return []
+    return [review for review in reviews if isinstance(review, dict)]
 
-    Only opinionated reviews are read, so a later plain comment neither drops an
+
+def _approvers(reviews: list[dict[str, Any]]) -> list[str]:
+    """The logins whose latest decisive review approves the pull request.
+
+    Only decisive reviews are read, so a later plain comment neither drops an
     approval nor adds an approver, and a dismissed review drops it.
     """
-    approvers: list[str] = []
-    reviews = (node.get("latestOpinionatedReviews") or {}).get("nodes") or []
+    latest: dict[str, str] = {}
+    order: list[str] = []
     for review in reviews:
-        login = (review.get("author") or {}).get("login")
-        if not login or str(review.get("state") or "").upper() != "APPROVED":
+        login = str((review.get("author") or {}).get("login") or "")
+        state = str(review.get("state") or "").upper()
+        if not login or state not in _DECISIVE_REVIEW_STATES:
             continue
-        if login not in approvers:
-            approvers.append(login)
-    return approvers
+        key = login.lower()
+        if key not in latest:
+            order.append(login)
+        latest[key] = state
+    return [login for login in order if latest[login.lower()] == "APPROVED"]
 
 
-def _was_reviewed(node: dict[str, Any], author: str) -> bool:
+def _was_reviewed(reviews: list[dict[str, Any]], author: str) -> bool:
     """Whether anyone other than the pull request's author submitted a review.
 
-    A review is any submission, a comment included: the plain ``reviews``
-    connection counts them, and only the author's own (a self-comment does not
-    mean the pull request received a review) are left out. A pull request whose
-    reviews overflow the page read counts as reviewed, since that many reviews
-    are never all the author's own.
+    A review is any submission, a comment included. A pending review is not a
+    submission yet, and the author's own comments do not mean the pull request
+    received a review.
     """
-    reviews = node.get("reviews") or {}
-    read = reviews.get("nodes") or []
-    if int(reviews.get("totalCount") or 0) > len(read):
-        return True
     author = author.strip().lower()
-    return any(
-        str((review.get("author") or {}).get("login") or "").strip().lower() not in ("", author) for review in read
-    )
+    for review in reviews:
+        if str(review.get("state") or "").upper() == "PENDING":
+            continue
+        login = str((review.get("author") or {}).get("login") or "").strip().lower()
+        if login and login != author:
+            return True
+    return False
 
 
-def _requested_reviewers(node: dict[str, Any]) -> list[str]:
+def _requested_reviewers(record: dict[str, Any]) -> list[str]:
     """The logins (or team names) GitHub still lists as requested reviewers."""
+    requests = record.get("reviewRequests") or []
+    if not isinstance(requests, list):
+        return []
     names: list[str] = []
-    requests = (node.get("reviewRequests") or {}).get("nodes") or []
     for request in requests:
-        reviewer = request.get("requestedReviewer") or {}
-        name = reviewer.get("login") or reviewer.get("name")
+        if not isinstance(request, dict):
+            continue
+        name = request.get("login") or request.get("name")
         if name and name not in names:
             names.append(str(name))
     return names
@@ -583,105 +567,118 @@ def pr_review_request_message(url: str, title: str) -> str:
     return f":wave::robot_face: I would love your review on this PR: {label}"
 
 
-def _pull_row(node: dict[str, Any], login: str = "") -> dict[str, Any] | None:
-    """One GraphQL search node as the My PRs row, or None when it names no PR."""
-    repository = str((node.get("repository") or {}).get("nameWithOwner") or "")
-    number = node.get("number")
+def _pull_row(record: dict[str, Any], repository: str, login: str = "") -> dict[str, Any] | None:
+    """One ghx pull request record as the My PRs row, or None when it names no PR."""
+    number = record.get("number")
     if not repository or number is None:
         return None
-    decision = str(node.get("reviewDecision") or "")
-    open_threads, total_threads = _thread_counts(node)
+    decision = str(record.get("reviewDecision") or "")
+    reviews = _reviews(record)
+    open_threads, total_threads = _thread_counts(record)
+    author = str((record.get("author") or {}).get("login") or login)
     return {
         "repository": repository,
         "number": int(number),
-        "title": node.get("title") or "",
-        "url": node.get("url") or "",
-        "draft": bool(node.get("isDraft")),
-        "created_at": node.get("createdAt"),
-        "updated_at": node.get("updatedAt"),
+        "title": record.get("title") or "",
+        "url": record.get("url") or "",
+        "draft": bool(record.get("isDraft")),
+        "created_at": record.get("createdAt"),
+        "updated_at": record.get("updatedAt"),
         "review_decision": decision,
         # The decision is APPROVED only once the reviews the branch protection
         # requires are in, which is not the same as having one approval.
         "approved": decision == "APPROVED",
-        "approvers": _approvers(node),
-        "ci": _ci_state(node),
+        "approvers": _approvers(reviews),
+        "ci": _ci_state(record.get("checks")),
         "open_threads": open_threads,
         "threads_total": total_threads,
         # Whether anyone but the author has submitted a review, and who GitHub
         # still lists as requested reviewers; the inbox's review nudge reads both.
-        "reviewed": _was_reviewed(node, login),
-        "requested_reviewers": _requested_reviewers(node),
+        "reviewed": _was_reviewed(reviews, author),
+        "requested_reviewers": _requested_reviewers(record),
     }
 
 
-def search_my_open_pulls(login: str, limit: int = MY_PULLS_LIMIT) -> list[dict[str, Any]] | None:
-    """The open pull requests authored by *login*, newest update first.
+def _updated_at(value: object) -> datetime:
+    """A ghx timestamp as a comparable instant, for the cross-repository sort."""
+    text = str(value or "").replace("Z", "+00:00")
+    try:
+        parsed = datetime.fromisoformat(text)
+    except ValueError:
+        return datetime.min.replace(tzinfo=UTC)
+    return parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)
 
-    None when GitHub could not be read or the search failed. Archived
-    repositories are left out: their pull requests are not work in flight.
+
+def list_my_open_pulls(
+    repositories: list[str] | tuple[str, ...],
+    login: str,
+    limit: int = MY_PULLS_LIMIT,
+) -> list[dict[str, Any]] | None:
+    """The open pull requests authored by *login* across *repositories*.
+
+    *repositories* are ``owner/name`` strings. They are read together, so a
+    slow repository does not add its latency to the others. None when ghx
+    could not read any of them; a repository that could not be read on its own
+    is left out of the rows and named in a warning instead of hiding the rest.
     """
     login = login.strip()
     if not login:
         return None
-    query = f"is:pr is:open archived:false author:{login} sort:updated-desc"
-    nodes = _paginate_connection(
-        _MY_PULLS_QUERY,
-        {"q": query},
-        lambda payload: payload["data"]["search"],
-        limit=max(1, limit),
-    )
-    if nodes is None:
+    wanted = list(dict.fromkeys(repo for repo in repositories if repo))
+    if not wanted:
+        return []
+    listings = run_parallel([lambda repo=repo: _list_my_pulls_in(repo, login, limit) for repo in wanted])
+    failed = [repo for repo, rows in zip(wanted, listings, strict=True) if rows is None]
+    if len(failed) == len(wanted):
         return None
-    rows = [row for node in nodes if (row := _pull_row(node, login)) is not None]
-    rows.sort(key=lambda row: str(row.get("updated_at") or ""), reverse=True)
+    if failed:
+        log.warning("my pulls lookup failed for some repositories", repositories=failed)
+    rows = [row for listing in listings if listing for row in listing]
+    rows.sort(key=lambda row: _updated_at(row.get("updated_at")), reverse=True)
     return rows
+
+
+def _list_my_pulls_in(repository: str, login: str, limit: int) -> list[dict[str, Any]] | None:
+    """One repository's open pull requests by *login*, via ghx.
+
+    ``ghx pr list`` serves from the repository's cache while it is fresh and
+    fetches from GitHub when it is not, and ``--author`` keeps the read to the
+    login's own pull requests. None when ghx could not run the read.
+    """
+    raw = shell._run_cli(
+        [
+            "ghx",
+            "pr",
+            "list",
+            "--repo",
+            repository,
+            "--state",
+            "open",
+            "--author",
+            login,
+            "--limit",
+            str(max(1, limit)),
+            "--json",
+            _MY_PULLS_FIELDS,
+        ],
+        timeout=120,
+    )
+    if not raw:
+        return None
+    try:
+        records = json.loads(raw)
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(records, list):
+        return None
+    return [row for record in records if isinstance(record, dict) and (row := _pull_row(record, repository, login))]
 
 
 # --- A pull request's individual checks -------------------------------------
 #
-# The My PRs row carries only the head commit's rollup state. Which check failed
-# is behind the page's CI badge, so that read happens when the badge's popover
-# opens rather than on every page load: the search can cover 500 pull requests,
-# and reading a hundred checks for each would dwarf the rest of the payload.
-
-#: The most checks one read lists.
-PULL_CHECKS_LIMIT = 100
-
-_PULL_CHECKS_QUERY = """
-query($owner: String!, $repo: String!, $number: Int!) {
-  repository(owner: $owner, name: $repo) {
-    pullRequest(number: $number) {
-      commits(last: 1) {
-        nodes {
-          commit {
-            statusCheckRollup {
-              state
-              contexts(first: __CHECK_LIMIT__) {
-                totalCount
-                nodes {
-                  __typename
-                  ... on CheckRun {
-                    name
-                    status
-                    conclusion
-                    detailsUrl
-                  }
-                  ... on StatusContext {
-                    context
-                    state
-                    description
-                    targetUrl
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-}
-""".replace("__CHECK_LIMIT__", str(PULL_CHECKS_LIMIT))
+# The cached row carries only the head commit's rollup state and the number of
+# checks. Which check failed is behind the page's CI badge, so that read
+# happens when the badge's popover opens rather than on every page load.
 
 #: A finished check with one of these conclusions passed. GitHub treats neutral
 #: and skipped runs as non-blocking, so they read as success here too.
@@ -694,15 +691,15 @@ _CHECK_STATE_ORDER = {"failure": 0, "pending": 1, "success": 2}
 _CHECK_STATE_LABELS = {"failure": "failed", "pending": "running", "success": "passed"}
 
 
-def _check_state(node: dict[str, Any]) -> str:
-    """One check context as failure / pending / success."""
-    if str(node.get("__typename") or "") == "StatusContext":
-        state = str(node.get("state") or "").upper()
+def _check_state(check: dict[str, Any]) -> str:
+    """One ghx check as failure / pending / success."""
+    if str(check.get("type") or "") == "StatusContext":
+        state = str(check.get("state") or "").upper()
     else:
         # A check run that has not finished carries no conclusion to read.
-        if str(node.get("status") or "").upper() not in ("", "COMPLETED"):
+        if str(check.get("status") or "").upper() not in ("", "COMPLETED"):
             return "pending"
-        state = str(node.get("conclusion") or "").upper()
+        state = str(check.get("conclusion") or "").upper()
     if state in _CHECK_SUCCESS_STATES:
         return "success"
     if state in _CHECK_FAILURE_STATES:
@@ -710,61 +707,48 @@ def _check_state(node: dict[str, Any]) -> str:
     return "pending"
 
 
-def _check_row(node: dict[str, Any]) -> dict[str, Any] | None:
-    """One GraphQL check context as the popover's row, or None when it is unnamed."""
-    if str(node.get("__typename") or "") == "StatusContext":
-        name = str(node.get("context") or "")
-        url = str(node.get("targetUrl") or "")
-        description = str(node.get("description") or "")
-    else:
-        name = str(node.get("name") or "")
-        url = str(node.get("detailsUrl") or "")
-        description = ""
+def _check_row(check: dict[str, Any]) -> dict[str, Any] | None:
+    """One ghx check as the popover's row, or None when it is unnamed."""
+    name = str(check.get("name") or "")
     if not name:
         return None
-    state = _check_state(node)
+    state = _check_state(check)
     return {
         "name": name,
         "state": state,
-        "url": url,
-        "description": description or _CHECK_STATE_LABELS[state],
+        "url": str(check.get("url") or ""),
+        "description": str(check.get("description") or "") or _CHECK_STATE_LABELS[state],
     }
 
 
 def fetch_pull_checks(owner: str, repo: str, number: int) -> dict[str, Any] | None:
     """One pull request's head-commit checks, failing first.
 
-    Returns ``{"rollup", "checks", "total"}``, or None when GitHub could not be
-    read. Only the first hundred checks are listed; ``total`` stays exact so the
-    caller can say what it left out. A check run reports its state through a
-    conclusion once it finishes and through its status while it runs, and a
-    commit status reports a state directly, so both shapes reduce to the same
-    failure / pending / success vocabulary as the rollup.
+    Returns ``{"rollup", "checks", "total"}``, or None when ghx could not read
+    them. ghx lists the first hundred checks and keeps ``total`` exact, so the
+    caller can say what it left out.
     """
-    payload = _graphql(
-        _PULL_CHECKS_QUERY,
-        {"owner": owner, "repo": repo, "number": number},
-        typed={"number"},
+    raw = shell._run_cli(
+        ["ghx", "pr", "checks", str(number), "--repo", f"{owner}/{repo}", "--json"],
+        timeout=60,
     )
-    if payload is None:
+    if not raw:
         return None
     try:
-        pull = payload["data"]["repository"]["pullRequest"]
-    except (KeyError, TypeError):
+        data = json.loads(raw)
+    except json.JSONDecodeError:
         return None
-    if not isinstance(pull, dict):
+    if not isinstance(data, dict):
         return None
-    commits = (pull.get("commits") or {}).get("nodes") or []
-    commit = (commits[0] or {}).get("commit") if commits else None
-    rollup = (commit or {}).get("statusCheckRollup") or {}
-    contexts = rollup.get("contexts") or {}
-    nodes = [node for node in contexts.get("nodes") or [] if isinstance(node, dict)]
-    checks = [row for node in nodes if (row := _check_row(node)) is not None]
+    entries = data.get("checks") or []
+    if not isinstance(entries, list):
+        return None
+    checks = [row for entry in entries if isinstance(entry, dict) and (row := _check_row(entry)) is not None]
     checks.sort(key=lambda check: _CHECK_STATE_ORDER[check["state"]])
     return {
-        "rollup": _CI_STATES.get(str(rollup.get("state") or "").upper(), "none"),
+        "rollup": _CI_STATES.get(str(data.get("state") or "").upper(), "none"),
         "checks": checks,
-        "total": int(contexts.get("totalCount") or len(nodes)),
+        "total": int(data.get("total") or len(checks)),
     }
 
 

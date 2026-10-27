@@ -1,5 +1,12 @@
 # Memory
 
+## 2026-10-27: My PRs reads ghx per registered repository, and its refresh is a delta
+
+- The My PRs page and the inbox nudge no longer run a `gh` GraphQL search. `list_my_open_pulls` runs `ghx pr list --author <login> --state open` once per registered GitHub repository and merges the rows newest-update-first. A pull request in a repository neither the app nor ghx knows is deliberately out of scope, not a silent gap; the cache key is (login, repository set), so registering a repository never answers from the previous list.
+- Every refresh uses `ghx cache --repo`, the delta fetch; nothing passes `--force` any more (a forced full re-fetch on each page load or repository refresh is what we are avoiding). `refresh_github_cache` takes no `force` argument.
+- ghx now caches the head commit's check rollup and the review-thread counts on each pull request, so a row needs no second read; the individual checks stay on demand through `ghx pr checks`.
+- In rpc/managed mode the typed adapter answers `pr list` from `pr.list`, which drops flags it does not map. `--author` must be mapped in `_typed_ghx_list`, or the read returns every author's pull requests as if they were the login's own.
+
 ## 2026-10-25: component test mocks must return fresh objects for ref-watching
 
 - A `watch(ref, ...)` in a component under test never fires on the second `mockResolvedValue(sameArray)`: the helper built the array once, every call resolved with the same reference, and Vue's setter skips notification when `Object.is(newValue, oldValue)`. Production code gets fresh JSON (new objects) every fetch, so the watcher fires there. Use `mockImplementation(async () => [makeRow()])` whenever a component watches a ref that a mocked fetch replaces.

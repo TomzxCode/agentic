@@ -10,8 +10,11 @@ Your own pull requests fail quietly: CI goes red, a reviewer asks for changes, a
 Checking each one on GitHub costs a tab per pull request.
 This page answers "which of mine are moving, and which need a nudge" with one row per pull request, carrying its check rollup, review decision, approvers, and open thread count.
 
-The list is read-only over GitHub: nothing is stored, so a merged pull request leaves on the next refresh.
+The list is read-only over GitHub: `ghx` reads each registered GitHub repository, nothing is stored, so a merged pull request leaves on the next refresh.
 A pull request's task link is resolved from the app's own stored items, so linking or unlinking a task shows on the next load without a GitHub refresh.
+
+The read covers the repositories registered in **Repositories** that carry a GitHub remote.
+A pull request in a repository neither the app nor `ghx` knows is not listed, so register a repository before expecting its pull requests here.
 
 ## How to use it
 
@@ -84,21 +87,26 @@ There is no sort control.
 
 ### Caching and failures
 
-The server caches the GitHub answer per login for 60 seconds and retries a failed read after 30 seconds.
+Each read asks `ghx` to refresh every registered repository with a delta fetch (`ghx cache --repo owner/name`), then lists the login's open pull requests from each repository's cache.
+The repositories are read together, and the assembled answer is cached per login and repository set for 60 seconds; a failed read is retried after 30 seconds.
+`Refresh` bypasses that cache and runs the same delta refresh; it never forces a full re-fetch of the repository.
 The checks popover caches each pull request's checks for 30 seconds.
-`Refresh` bypasses the list's cache; the popover's cache is not tied to it.
 
-Two failures have their own messages:
+Three failures have their own messages:
 
 - `No GitHub login is configured; set it in Settings > Identity to list your pull requests.`
-- `Could not read your pull requests from GitHub; check that \`gh\` is installed and authenticated.`
+- `No GitHub repositories are registered; add one in Repositories to list your pull requests.`
+- `Could not read your pull requests from GitHub; check that \`ghx\` is installed and authenticated.`
 
 ### Good to know
 
 - `You have no open pull requests.` is the empty state, not an error.
-- The list is capped at 500 pull requests, newest update first.
-- Approvers come from review decisions on GitHub, so a stale approval shows until GitHub updates it.
-- The checks popover reads GitHub when it opens, so it is not affected by the list's `Refresh`.
+- The list is capped at 500 pull requests per repository, newest update first across all of them.
+- A repository `ghx` cannot list is left out of the rows instead of hiding the readable ones; when every repository fails, the page reports the unreachable error.
+- Approvers come from each pull request's latest decisive review, so a plain comment neither drops an approval nor adds one.
+- The open-thread count covers the first hundred threads of a pull request; the total stays exact.
+- A listing that `ghx` answers from its API fallback (a cache it could not refresh) carries the check rollup but not the thread counts.
+- The checks popover reads GitHub through `ghx pr checks` when it opens, so it is not affected by the list's `Refresh`.
 
 ## CLI and agent interface
 
@@ -110,7 +118,8 @@ Two failures have their own messages:
 | Poke a pull request's reviewers on Slack | none | `POST /api/my-pulls/poke` |
 | Act on one | use the review queue or a task | `POST /api/tasks` with `github_url` |
 
-An agent can reproduce the data with `gh search prs` and `gh pr view`, but the app offers no command that wraps it.
+An agent can reproduce the data with `ghx pr list --author <login> --state open --repo owner/name --json number,title,url,isDraft,createdAt,updatedAt,reviewDecision,author,reviews,reviewRequests,checks,reviewThreads` per registered repository, and `ghx pr checks <number> --repo owner/name --json` for the individual checks.
+The app offers no command that wraps it.
 
 The read carries `reviewed` (whether anyone but the author has submitted a review) and `requested_reviewers` (who GitHub still lists as requested) beside each row's other fields, plus `tasks` for the tasks its stored item is associated with.
 The [Inbox](inbox.md)'s review nudge is built from the same read: a pull request past the nudge SLO with no reviews lists its requested reviewers with a poke each (this endpoint), or, when nobody was asked to review it, takes you to the PR page to find one.

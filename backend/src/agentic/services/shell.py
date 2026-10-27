@@ -200,6 +200,9 @@ def _typed_ghx_list(
     state = _argv_value(args, "--state")
     if state:
         params["state"] = state
+    author = _argv_value(args, "--author")
+    if author:
+        params["author"] = author
     limit = _argv_value(args, "--limit")
     if limit is not None:
         # The CLI would reject a non-numeric limit; fall back to it instead of
@@ -232,11 +235,35 @@ def _typed_ghx_view(endpoint: tuple[str, str], kind: str, args: list[str], timeo
 
 
 def _typed_ghx_cache(endpoint: tuple[str, str], args: list[str], timeout: int) -> tuple[int, str, str] | None:
-    """``cache --repo X --force`` through cache.refresh."""
+    """``cache --repo X [--force]`` through cache.refresh.
+
+    A plain ``ghx cache`` is the delta fetch, so it maps to the same method
+    without ``force``. Any other flag changes what the CLI would fetch, so it
+    stays on cli.run rather than being silently dropped.
+    """
     repo = _argv_value(args, "--repo")
-    if not repo or "--force" not in args:
+    if not repo:
         return None
-    code, result, error = _rpc_post(endpoint, "cache.refresh", {"repo": repo, "force": True}, ["ghx", *args], timeout)
+    for flag in ("--since", "--type", "--cache-duration", "--retries", "--if-stale"):
+        if flag in args:
+            return None
+    force = "--force" in args
+    params = {"repo": repo, "force": force}
+    code, result, error = _rpc_post(endpoint, "cache.refresh", params, ["ghx", *args], timeout)
+    if code != 0:
+        return 1, "", error
+    return 0, json.dumps(result), ""
+
+
+def _typed_ghx_checks(endpoint: tuple[str, str], args: list[str], timeout: int) -> tuple[int, str, str] | None:
+    """``pr checks`` through pr.checks."""
+    repo = _argv_value(args, "--repo")
+    number = args[2] if len(args) > 2 else ""
+    if not repo or "--json" not in args or not number.isdigit():
+        return None
+    code, result, error = _rpc_post(
+        endpoint, "pr.checks", {"repo": repo, "number": int(number)}, ["ghx", *args], timeout
+    )
     if code != 0:
         return 1, "", error
     return 0, json.dumps(result), ""
@@ -287,6 +314,8 @@ def _typed_dispatch(cmd: list[str], endpoint: tuple[str, str], timeout: int) -> 
             return _typed_ghx_list(endpoint, "pr.list", args, timeout)
         if head in (("issue", "view"), ("pr", "view")):
             return _typed_ghx_view(endpoint, head[0], args, timeout)
+        if head == ("pr", "checks"):
+            return _typed_ghx_checks(endpoint, args, timeout)
         if args[:1] == ["cache"]:
             return _typed_ghx_cache(endpoint, args, timeout)
     if tool == "slackx":

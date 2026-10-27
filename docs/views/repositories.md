@@ -64,14 +64,14 @@ Row actions:
 - `New task` appears on an unlinked row with a URL. It imports the issue or pull request into a new task, links it as an item, and stays on the page with the toast `Task created`.
 - `Record change` appears only when the row is merged, exactly one task links it, no change references it yet, and you authored it. It creates the change already accepted and dated to the merge.
 
-`Refresh all` re-reads the whole repository from GitHub through ghx, ignoring its cache, and writes the listing state back onto the items linked to tasks.
+`Refresh all` refreshes the whole repository from GitHub through ghx with a delta fetch (not a forced re-download), and writes the listing state back onto the items linked to tasks.
 `Refresh linked` re-fetches only the items tasks already use, four at a time, and reports how many succeeded and failed.
 
 ### Good to know
 
 - Rows arrive newest number first, and every column header sorts and filters.
 - Loading the list (or pressing `Refresh`) re-reads each checkout's `origin` and takes a changed URL, so a checkout that gained or retargeted its remote reads correctly without being removed and re-added. A name that came from the old remote, or a folder name left on a checkout whose GitHub remote is known, is repaired to `owner/repo`; a name set by hand stays. A checkout that was deleted, or whose `origin` is gone, keeps the values already stored.
-- ghx's own cache serves repeat visits until you press `Refresh all`.
+- ghx's own cache serves repeat visits until you press `Refresh all`, which delta-fetches what changed.
 - A GitHub read failure keeps the items already linked to tasks and shows a banner saying so.
 - The review-scan policy per repository is not edited here; it is a select in **Settings → Review requests**.
 - Bulk add is API-only; the picker is the only UI for it.

@@ -18,7 +18,7 @@ from ..models.changes import Change
 from ..models.items import Association, SourceItem
 from ..models.repositories import Worktree
 from ..models.tasks import Task
-from ..my_pulls import fetch_my_pulls
+from ..my_pulls import fetch_my_pulls, known_github_repositories
 from ..review_scan import configured_review_nudge_slo, configured_review_slo, stored_review_requests
 from ..schemas.inbox import InboxReport
 from ..settings_store import resolve_github_login
@@ -63,7 +63,10 @@ def get_inbox(session: Session = Depends(get_session)) -> InboxReport:
         # uses (shared, briefly cached). A read that failed carries no pull
         # requests, so the inbox renders without the nudge rather than with
         # stale guesses.
-        report = fetch_my_pulls(resolve_github_login(session))
+        report = fetch_my_pulls(
+            resolve_github_login(session),
+            known_github_repositories(session),
+        )
         suggestions += build_poke_suggestions(report["pulls"], nudge_slo, utcnow())
     suggestions.sort(key=lambda suggestion: KIND_RANK.get(suggestion["kind"], 99))
     return InboxReport(generated_at=utcnow(), count=len(suggestions), suggestions=suggestions)

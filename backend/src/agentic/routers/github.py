@@ -105,9 +105,10 @@ def list_repository(
     """List every issue and pull request of a repository (ghx), all states by default.
 
     Backs the repository view, which shows the whole repository rather than only
-    the items already associated to tasks. With ``refresh``, ghx re-fetches the
-    repository from GitHub first, so the call is a real refresh and not just a
-    read of ghx's cache. Either way the listing's state is written back onto the
+    the items already associated to tasks. With ``refresh``, ghx runs a delta
+    fetch against GitHub first, so the call picks up what changed instead of
+    only reading ghx's cache; it does not force a full re-download. Either way
+    the listing's state is written back onto the
     stored items it names, so the associated item is never read as older than the
     repository that shows it.
     """

@@ -27,9 +27,10 @@ import { formatDateTime, store, timeAgo } from '../store'
 import { ghxItemUrl } from '../toolLinks'
 
 // My PRs: the open pull requests the GitHub login in Settings authored, read
-// from one GraphQL search per load. Each row carries the four things that decide
-// whether the pull request is moving: its check rollup, its review decision, who
-// approved it, and how many review threads are still open.
+// from ghx, one listing per registered GitHub repository. Each row carries the
+// four things that decide whether the pull request is moving: its check rollup,
+// its review decision, who approved it, and how many review threads are still
+// open.
 
 const report = ref({ login: '', pulls: [], counts: {}, error: null })
 const loading = ref(true)

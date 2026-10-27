@@ -345,9 +345,10 @@ it has open threads, each chip counting the pull requests it would show. **Group
 by** splits the list into sections (repository, CI status, or review status) and
 remembers the choice on the device, and **Refresh** re-queries GitHub instead of
 reusing the short cache. The list
-comes from one GraphQL search through `gh`, because neither `ghx` nor `gh`'s
-`--json` field set carries a review thread's resolved state, and nothing is
-stored, so a PR that merges leaves the page on the next refresh.
+comes from `ghx`, one cached `ghx pr list --author` per registered GitHub
+repository, read together and merged newest update first; each read refreshes
+those repositories with a delta `ghx cache`, and nothing is stored, so a PR that
+merges leaves the page on the next refresh.
 
 The **PR feedback** page (`/feedback`, the speech-bubble icon) triages the
 reviewer comments on the pull requests you authored. It reads the analysis files

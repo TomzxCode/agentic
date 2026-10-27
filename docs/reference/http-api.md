@@ -110,8 +110,8 @@ The task representation returns those fields plus `waiting_on_name`.
 
 | Method | Path | Purpose |
 | --- | --- | --- |
-| `GET` | `/api/my-pulls` | The open pull requests the configured GitHub login authored, with each PR's check rollup, review decision, approvers, unresolved review threads, whether anyone but the author has reviewed it, the requested reviewers, and the tasks its stored item is associated with (`?refresh=true` re-queries GitHub instead of the short cache). |
-| `GET` | `/api/my-pulls/checks` | One pull request's individual checks, failing first, read on demand for its CI badge's popover (query `repository` as `owner/name` and `number`; `refresh=true` bypasses the 30-second cache); each check carries its name, state, description, and detail URL, plus the rollup and the total check count. A read that could not run returns the error instead of an empty list. |
+| `GET` | `/api/my-pulls` | The open pull requests the configured GitHub login authored across the registered GitHub repositories, with each PR's check rollup, review decision, approvers, unresolved review threads, whether anyone but the author has reviewed it, the requested reviewers, and the tasks its stored item is associated with. Each read refreshes the repositories with `ghx cache --repo` (a delta fetch) and lists them together; `?refresh=true` bypasses the short cache. |
+| `GET` | `/api/my-pulls/checks` | One pull request's individual checks, failing first, read on demand through `ghx pr checks` for its CI badge's popover (query `repository` as `owner/name` and `number`; `refresh=true` bypasses the 30-second cache); each check carries its name, state, description, and detail URL, plus the rollup and the total check count. A read that could not run returns the error instead of an empty list. |
 | `POST` | `/api/my-pulls/poke` | DM each named reviewer of a pull request on Slack, asking for their review. Names the PR by fields (`repository`, `number`, `title`, `url`) and takes `logins`; each login is reported as poked or failed with its reason. |
 
 ## PR feedback
@@ -177,6 +177,6 @@ The task representation returns those fields plus `waiting_on_name`.
 | `GET` | `/api/github/issues` | Issue picker for import. |
 | `POST` | `/api/github/issues` | Create an issue from a title and body. |
 | `GET` | `/api/github/issue` | One issue by URL. |
-| `GET` | `/api/github/repository` | A repository's issues and pull requests (via `ghx`), all states by default. |
+| `GET` | `/api/github/repository` | A repository's issues and pull requests (via `ghx`), all states by default. `?refresh=true` runs a `ghx cache` delta fetch first (never a forced full re-download). |
 | `GET` | `/api/slack/users` | Name the Slack user ids given (via `slackx`), fetching an uncached user from Slack. |
 | `GET` | `/api/fs/list` | Server-side directory picker. |

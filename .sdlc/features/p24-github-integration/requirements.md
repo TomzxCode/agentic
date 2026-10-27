@@ -8,7 +8,7 @@ session_link: "http://localhost:10000/?session=ses_ed778bb8affeJQ6f9Tkxe4MjUl"
 
 ## Overview
 
-The app reads GitHub through the `ghx` CLI for listings and single objects, and through `gh`'s GraphQL API for the review, thread, and check data `ghx` does not carry.
+The app reads GitHub through the `ghx` CLI for listings, single objects, the viewer's own pull requests, and their individual checks, and keeps one `gh` GraphQL exception for the data `ghx` does not carry (a pull request item's reviewer list and the cycle-time reads).
 This feature is the read surface on top of that access: a repository's issue and pull request panels, standalone issue and pull request pages, the task page's issue and PR modes, the My PRs page for the viewer's own open pull requests, and the reviewer reads and Slack pokes that chase a review.
 The My PRs list is read-only over GitHub and stores nothing, so a pull request that merges leaves the page on the next refresh.
 Importing GitHub issues and pull requests as source items is a separate feature (p2) and out of scope here.
@@ -30,9 +30,9 @@ Importing GitHub issues and pull requests as source items is a separate feature 
 | FR-3 | Should | The system shall create an issue in a repository from a title and body through `gh`, returning the new issue's number, url, and state. |
 | FR-4 | Must | The system shall list a repository's complete issue and pull request set through `ghx`, all states by default, each row tagged with its kind, running the two listings together, and reporting each kind that failed instead of reading as an empty section. |
 | FR-5 | Must | The system shall re-fetch a repository through `ghx` before listing when `refresh` is set, and write the listing's state fields back onto the stored items the listing names, so an item never reads staler than the repository view. |
-| FR-6 | Must | The system shall list the open pull requests authored by the configured GitHub login through one paginated GraphQL search, newest update first and archived repositories excluded, each row carrying its check rollup, review decision, approvers, review thread counts, whether anyone but the author reviewed it, the requested reviewers, and the tasks its stored item is associated with. |
-| FR-7 | Must | The system shall report why the My PRs list is empty when no GitHub login is configured or `gh` could not run, rather than reading as no open work. |
-| FR-8 | Should | The system shall cache the My PRs answer per login for 60 seconds (a failed lookup for 30) and bypass the cache on `refresh`. |
+| FR-6 | Must | The system shall list the open pull requests authored by the configured GitHub login through `ghx`, one listing per registered GitHub repository read together, newest update first, each row carrying its repository, check rollup, review decision, approvers, review thread counts, whether anyone but the author reviewed it, the requested reviewers, and the tasks its stored item is associated with. |
+| FR-7 | Must | The system shall report why the My PRs list is empty when no GitHub login is configured, no registered repository carries a GitHub remote, or `ghx` could not read any repository, rather than reading as no open work. |
+| FR-8 | Should | The system shall refresh each registered repository's `ghx` cache with a delta fetch (`ghx cache --repo`, never `--force`) before a My PRs read, cache the answer per login and repository set for 60 seconds (a failed lookup for 30), and bypass the cache on `refresh`. |
 | FR-9 | Should | The system shall send a review-request DM to a pull request's named reviewers on Slack, resolving each GitHub login through the people directory, deduplicating logins, and reporting each reviewer's outcome separately. |
 | FR-10 | Must | The system shall serve a standalone page per issue and per pull request (`/issue/owner/repo/number`, `/pr/owner/repo/number`) that renders the object read fresh from GitHub, falls back to the stored item, offers the agent panel, and adopts an existing linked task when there is one. |
 | FR-11 | Must | The repository view shall list the repository's issues and pull requests as a grid with kind, number, title, state, author, linked tasks, changes, and links out to GitHub, ghx, and the app's own pages (the title opens the app's issue or PR page, and a Links column carries ghx and GitHub), with a refresh that forces `ghx` to re-fetch and a separate refresh of the linked items. |
@@ -140,10 +140,17 @@ Importing GitHub issues and pull requests as source items is a separate feature 
 
     ```gherkin
     @FR-6
-    Scenario: One search answers the page
-      Given a configured GitHub login with open pull requests
+    Scenario: One listing per repository answers the page
+      Given a configured GitHub login and two registered GitHub repositories with open pull requests authored by that login
       When the client asks GET /api/my-pulls
       Then each row carries its repository, number, check rollup state, review decision, approvers, open thread count, reviewed flag, requested reviewers, and linked tasks
+      And the rows are ordered newest update first across both repositories
+
+    @FR-6
+    Scenario: A repository that cannot be read does not hide the rest
+      Given two registered GitHub repositories, one of which ghx cannot list
+      When the client asks GET /api/my-pulls
+      Then the rows of the readable repository return and the failed one is left out
 
     @FR-6
     Scenario: Only opinionated reviews approve
@@ -162,8 +169,14 @@ Importing GitHub issues and pull requests as source items is a separate feature 
       Then the response carries the "no login" message and no pull requests
 
     @FR-7
+    Scenario: No repositories registered
+      Given a login is configured and no registered repository carries a GitHub remote
+      When the client asks GET /api/my-pulls
+      Then the response carries the no-repositories message and no pull requests
+
+    @FR-7
     Scenario: GitHub unreachable
-      Given a login is configured but `gh` cannot run
+      Given a login is configured but `ghx` cannot run
       When the client asks GET /api/my-pulls
       Then the response carries the unreachable message and no pull requests
     ```
@@ -180,7 +193,18 @@ Importing GitHub issues and pull requests as source items is a separate feature 
     @FR-8
     Scenario: Refresh bypasses the cache
       When the client asks GET /api/my-pulls?refresh=true
-      Then GitHub is queried again
+      Then ghx refreshes each repository's cache and the rows are read again
+
+    @FR-8
+    Scenario: A read refreshes with the delta, not a full re-fetch
+      When the client asks GET /api/my-pulls
+      Then each registered repository is refreshed with `ghx cache --repo owner/name` without `--force`
+
+    @FR-8
+    Scenario: Registering a repository bypasses the previous list
+      Given a cached My PRs answer for one repository
+      When a second repository is registered and the client asks again
+      Then both repositories are read instead of answering from the cached list
     ```
 
 - [ ] **FR-9**

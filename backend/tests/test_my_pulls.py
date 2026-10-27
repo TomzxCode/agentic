@@ -1,4 +1,5 @@
 import json
+import threading
 from types import SimpleNamespace
 
 from fastapi.testclient import TestClient
@@ -9,12 +10,13 @@ from agentic import my_pulls
 from agentic.db import create_db_and_tables, engine
 from agentic.main import app
 from agentic.models.items import Association, SourceItem
+from agentic.models.repositories import Repository
 from agentic.models.tasks import Task
 from agentic.services import github, shell
 
 
-def _node(**overrides):
-    node = {
+def _record(**overrides):
+    record = {
         "number": 12,
         "title": "Fix the thing",
         "url": "https://github.com/o/r/pull/12",
@@ -22,136 +24,168 @@ def _node(**overrides):
         "createdAt": "2026-10-01T00:00:00Z",
         "updatedAt": "2026-10-02T00:00:00Z",
         "reviewDecision": "APPROVED",
-        "repository": {"nameWithOwner": "o/r"},
-        "commits": {"nodes": [{"commit": {"statusCheckRollup": {"state": "SUCCESS"}}}]},
-        "reviewThreads": {"totalCount": 2, "nodes": [{"isResolved": False}, {"isResolved": True}]},
-        "latestOpinionatedReviews": {"nodes": [{"author": {"login": "alice"}, "state": "APPROVED"}]},
+        "author": {"login": "tomzx"},
+        "checks": {"state": "SUCCESS", "total": 3},
+        "reviewThreads": {"total": 2, "open": 1},
+        "reviews": [{"author": {"login": "alice"}, "state": "APPROVED", "submittedAt": "2026-10-01T01:00:00Z"}],
+        "reviewRequests": [],
     }
-    node.update(overrides)
-    return node
+    record.update(overrides)
+    return record
 
 
-def _payload(nodes):
-    return json.dumps({"data": {"search": {"pageInfo": {"hasNextPage": False, "endCursor": None}, "nodes": nodes}}})
+def _payload(records):
+    return json.dumps(records)
 
 
-def test_search_my_open_pulls_reduces_a_search_node(monkeypatch):
+def test_list_my_open_pulls_reduces_a_ghx_record(monkeypatch):
     seen: dict = {}
 
     def fake(cmd, timeout=60):
         seen["cmd"] = cmd
-        return _payload([_node()])
+        return _payload([_record()])
 
     monkeypatch.setattr(shell, "_run_cli", fake)
-    pulls = github.search_my_open_pulls("tomzx")
+    pulls = github.list_my_open_pulls(["o/r"], "tomzx")
 
     assert pulls is not None
-    assert pulls[0]["repository"] == "o/r"
-    assert pulls[0]["number"] == 12
-    assert pulls[0]["approved"] is True
-    assert pulls[0]["approvers"] == ["alice"]
-    assert pulls[0]["ci"] == "success"
-    assert pulls[0]["open_threads"] == 1
-    assert pulls[0]["threads_total"] == 2
-    # One GraphQL search through gh, filtered to the login's own open PRs.
-    assert seen["cmd"][:3] == ["gh", "api", "graphql"]
-    assert any("author:tomzx" in part for part in seen["cmd"])
+    pull = pulls[0]
+    assert pull["repository"] == "o/r"
+    assert pull["number"] == 12
+    assert pull["approved"] is True
+    assert pull["approvers"] == ["alice"]
+    assert pull["ci"] == "success"
+    assert pull["open_threads"] == 1
+    assert pull["threads_total"] == 2
+    # One ghx listing per repository, kept to the login's own open PRs, with
+    # the fields the row reads.
+    assert seen["cmd"][:3] == ["ghx", "pr", "list"]
+    assert "--author" in seen["cmd"] and "tomzx" in seen["cmd"]
+    assert "--state" in seen["cmd"] and "open" in seen["cmd"]
+    assert "reviewThreads" in seen["cmd"][-1]
+    assert "checks" in seen["cmd"][-1]
 
 
-def test_search_my_open_pulls_maps_check_states(monkeypatch):
-    nodes = [
-        _node(number=1, commits={"nodes": [{"commit": {"statusCheckRollup": {"state": "FAILURE"}}}]}),
-        _node(number=2, commits={"nodes": [{"commit": {"statusCheckRollup": {"state": "PENDING"}}}]}),
-        _node(number=3, commits={"nodes": [{"commit": {"statusCheckRollup": {"state": "EXPECTED"}}}]}),
-        _node(number=4, commits={"nodes": [{"commit": {"statusCheckRollup": None}}]}),
-        _node(number=5, commits={"nodes": []}),
+def test_list_my_open_pulls_maps_check_states(monkeypatch):
+    records = [
+        _record(number=1, checks={"state": "FAILURE", "total": 1}),
+        _record(number=2, checks={"state": "PENDING", "total": 1}),
+        _record(number=3, checks={"state": "EXPECTED", "total": 1}),
+        _record(number=4, checks={"state": "ERROR", "total": 1}),
+        _record(number=5, checks=None),
     ]
-    monkeypatch.setattr(shell, "_run_cli", lambda cmd, timeout=60: _payload(nodes))
+    monkeypatch.setattr(shell, "_run_cli", lambda cmd, timeout=60: _payload(records))
 
-    pulls = github.search_my_open_pulls("tomzx")
+    pulls = github.list_my_open_pulls(["o/r"], "tomzx")
 
     assert pulls is not None
-    assert [pull["ci"] for pull in pulls] == ["failure", "pending", "pending", "none", "none"]
+    assert [pull["ci"] for pull in pulls] == ["failure", "pending", "pending", "failure", "none"]
 
 
-def test_search_my_open_pulls_only_counts_approved_opinionated_reviews(monkeypatch):
-    node = _node(
+def test_list_my_open_pulls_only_counts_approved_decisive_reviews(monkeypatch):
+    record = _record(
         reviewDecision="CHANGES_REQUESTED",
-        latestOpinionatedReviews={
-            "nodes": [
-                {"author": {"login": "alice"}, "state": "APPROVED"},
-                {"author": {"login": "bob"}, "state": "CHANGES_REQUESTED"},
-                {"author": {"login": "carol"}, "state": "DISMISSED"},
-            ]
-        },
+        reviews=[
+            {"author": {"login": "alice"}, "state": "APPROVED"},
+            {"author": {"login": "bob"}, "state": "CHANGES_REQUESTED"},
+            # A later plain comment does not drop the approval.
+            {"author": {"login": "alice"}, "state": "COMMENTED"},
+            {"author": {"login": "carol"}, "state": "DISMISSED"},
+            # The latest decisive review wins.
+            {"author": {"login": "carol"}, "state": "APPROVED"},
+        ],
     )
-    monkeypatch.setattr(shell, "_run_cli", lambda cmd, timeout=60: _payload([node]))
+    monkeypatch.setattr(shell, "_run_cli", lambda cmd, timeout=60: _payload([record]))
 
-    pulls = github.search_my_open_pulls("tomzx")
+    pulls = github.list_my_open_pulls(["o/r"], "tomzx")
     assert pulls is not None
     pull = pulls[0]
 
-    assert pull["approvers"] == ["alice"]
+    assert pull["approvers"] == ["alice", "carol"]
     assert pull["approved"] is False
     assert pull["review_decision"] == "CHANGES_REQUESTED"
 
 
-def test_search_my_open_pulls_returns_none_when_github_fails(monkeypatch):
+def test_list_my_open_pulls_returns_none_when_every_repository_fails(monkeypatch):
     monkeypatch.setattr(shell, "_run_cli", lambda cmd, timeout=60: None)
-    assert github.search_my_open_pulls("tomzx") is None
-    assert github.search_my_open_pulls("") is None
+    assert github.list_my_open_pulls(["o/r"], "tomzx") is None
+    assert github.list_my_open_pulls(["o/r"], "") is None
+    # No repositories is an empty read, not a failure.
+    assert github.list_my_open_pulls([], "tomzx") == []
 
 
-def test_search_my_open_pulls_reports_reviews_and_requested_reviewers(monkeypatch):
-    # A review by anyone but the author counts, a comment review included;
-    # the requested reviewers ride along for the inbox's poke.
-    node = _node(
+def test_list_my_open_pulls_keeps_a_failed_repository_out_of_the_rows(monkeypatch):
+    def fake(cmd, timeout=60):
+        if "o/broken" in cmd:
+            return None
+        return _payload([_record(number=1)])
+
+    monkeypatch.setattr(shell, "_run_cli", fake)
+    pulls = github.list_my_open_pulls(["o/broken", "o/r"], "tomzx")
+
+    assert pulls is not None
+    assert [pull["number"] for pull in pulls] == [1]
+    assert pulls[0]["repository"] == "o/r"
+
+
+def test_list_my_open_pulls_merges_repositories_newest_update_first(monkeypatch):
+    seen: list[str] = []
+    lock = threading.Lock()
+
+    def fake(cmd, timeout=60):
+        repo = cmd[cmd.index("--repo") + 1]
+        with lock:
+            seen.append(repo)
+        if repo == "o/first":
+            return _payload([_record(number=1, updatedAt="2026-10-05T00:00:00Z")])
+        return _payload([_record(number=2, updatedAt="2026-10-09T00:00:00Z")])
+
+    monkeypatch.setattr(shell, "_run_cli", fake)
+    pulls = github.list_my_open_pulls(["o/first", "o/second"], "tomzx")
+
+    assert pulls is not None
+    assert [pull["number"] for pull in pulls] == [2, 1]
+    assert sorted(seen) == ["o/first", "o/second"]
+
+
+def test_list_my_open_pulls_reports_reviews_and_requested_reviewers(monkeypatch):
+    # A review by anyone but the author counts, a comment review included; a
+    # pending review is not a submission yet; the requested reviewers ride along
+    # for the inbox's poke.
+    record = _record(
         reviewDecision="REVIEW_REQUIRED",
-        latestOpinionatedReviews={"nodes": []},
-        reviews={
-            "totalCount": 1,
-            "nodes": [{"author": {"login": "carol"}}],
-        },
-        reviewRequests={
-            "totalCount": 2,
-            "nodes": [
-                {"requestedReviewer": {"login": "alice"}},
-                {"requestedReviewer": {"name": "platform"}},
-            ],
-        },
+        reviews=[
+            {"author": {"login": "carol"}, "state": "COMMENTED"},
+            {"author": {"login": "dave"}, "state": "PENDING"},
+        ],
+        reviewRequests=[
+            {"type": "User", "login": "alice"},
+            {"type": "Team", "name": "platform"},
+        ],
     )
-    monkeypatch.setattr(shell, "_run_cli", lambda cmd, timeout=60: _payload([node]))
+    monkeypatch.setattr(shell, "_run_cli", lambda cmd, timeout=60: _payload([record]))
 
-    pulls = github.search_my_open_pulls("tomzx")
+    pulls = github.list_my_open_pulls(["o/r"], "tomzx")
     assert pulls is not None
     assert pulls[0]["reviewed"] is True
     assert pulls[0]["requested_reviewers"] == ["alice", "platform"]
 
 
-def test_search_my_open_pulls_ignores_the_author_s_own_reviews(monkeypatch):
+def test_list_my_open_pulls_ignores_the_author_s_own_reviews(monkeypatch):
     # GitHub lets an author leave comment reviews on their own pull request;
     # those are not a review the pull request received.
-    node = _node(
+    record = _record(
         reviewDecision="REVIEW_REQUIRED",
-        latestOpinionatedReviews={"nodes": []},
-        reviews={"totalCount": 2, "nodes": [{"author": {"login": "tomzx"}}, {"author": {"login": "TOMZX"}}]},
+        reviews=[
+            {"author": {"login": "tomzx"}, "state": "COMMENTED"},
+            {"author": {"login": "TOMZX"}, "state": "COMMENTED"},
+        ],
     )
-    monkeypatch.setattr(shell, "_run_cli", lambda cmd, timeout=60: _payload([node]))
+    monkeypatch.setattr(shell, "_run_cli", lambda cmd, timeout=60: _payload([record]))
 
-    pulls = github.search_my_open_pulls("tomzx")
+    pulls = github.list_my_open_pulls(["o/r"], "tomzx")
     assert pulls is not None
     assert pulls[0]["reviewed"] is False
-
-
-def test_search_my_open_pulls_counts_an_overflowing_review_page_as_reviewed(monkeypatch):
-    node = _node(
-        reviews={"totalCount": 40, "nodes": [{"author": {"login": "tomzx"}} for _ in range(30)]},
-    )
-    monkeypatch.setattr(shell, "_run_cli", lambda cmd, timeout=60: _payload([node]))
-
-    pulls = github.search_my_open_pulls("tomzx")
-    assert pulls is not None
-    assert pulls[0]["reviewed"] is True
 
 
 def test_pull_counts_summarizes_the_list():
@@ -178,66 +212,137 @@ def test_pull_counts_summarizes_the_list():
     }
 
 
+def _row(number=1, repository="o/r"):
+    return {
+        "repository": repository,
+        "number": number,
+        "title": "T",
+        "url": "",
+        "draft": False,
+        "created_at": None,
+        "updated_at": None,
+        "review_decision": "APPROVED",
+        "approved": True,
+        "approvers": ["alice"],
+        "ci": "success",
+        "open_threads": 0,
+        "threads_total": 0,
+    }
+
+
 def test_fetch_my_pulls_reuses_the_short_cache(monkeypatch):
-    calls: list[str] = []
+    calls: list[tuple[tuple[str, ...], str]] = []
+    refreshed: list[list[str]] = []
 
-    def fake(login):
-        calls.append(login)
-        return [
-            {
-                "repository": "o/r",
-                "number": 1,
-                "title": "T",
-                "url": "",
-                "draft": False,
-                "created_at": None,
-                "updated_at": None,
-                "review_decision": "APPROVED",
-                "approved": True,
-                "approvers": ["alice"],
-                "ci": "success",
-                "open_threads": 0,
-                "threads_total": 0,
-            }
-        ]
+    def fake(repositories, login):
+        calls.append((tuple(repositories), login))
+        return [_row()]
 
-    monkeypatch.setattr(my_pulls, "search_my_open_pulls", fake)
+    monkeypatch.setattr(my_pulls, "list_my_open_pulls", fake)
+    monkeypatch.setattr(my_pulls, "_refresh_repositories", lambda repositories: refreshed.append(list(repositories)))
     my_pulls._cache.clear()
 
-    first = my_pulls.fetch_my_pulls("tomzx")
-    second = my_pulls.fetch_my_pulls("tomzx")
-    my_pulls.fetch_my_pulls("tomzx", refresh=True)
+    first = my_pulls.fetch_my_pulls("tomzx", ["o/r"])
+    second = my_pulls.fetch_my_pulls("tomzx", ["o/r"])
+    my_pulls.fetch_my_pulls("tomzx", ["o/r"], refresh=True)
 
     assert first["counts"]["total"] == 1
     assert second == first
-    # A reload reuses the cache; an explicit refresh asks GitHub again.
-    assert calls == ["tomzx", "tomzx"]
+    # A reload reuses the cache; an explicit refresh reads again. Both read
+    # paths refresh the repositories' ghx caches first.
+    assert calls == [(("o/r",), "tomzx")] * 2
+    assert refreshed == [["o/r"], ["o/r"]]
+
+
+def test_fetch_my_pulls_refreshes_the_cache_without_forcing(monkeypatch):
+    calls: list[tuple[str, str]] = []
+
+    def fake(owner, repo, timeout=300):
+        calls.append((owner, repo))
+        return True
+
+    monkeypatch.setattr(my_pulls, "refresh_github_cache", fake)
+    monkeypatch.setattr(my_pulls, "list_my_open_pulls", lambda repositories, login: [])
+    my_pulls._cache.clear()
+
+    my_pulls.fetch_my_pulls("tomzx", ["o/r"])
+
+    # A page load reads the delta, not a full re-fetch.
+    assert calls == [("o", "r")]
+
+
+def test_fetch_my_pulls_keeps_a_changed_repository_set_apart(monkeypatch):
+    calls: list[tuple[str, ...]] = []
+
+    def fake(repositories, login):
+        calls.append(tuple(repositories))
+        return [_row()]
+
+    monkeypatch.setattr(my_pulls, "list_my_open_pulls", fake)
+    monkeypatch.setattr(my_pulls, "_refresh_repositories", lambda repositories: None)
+    my_pulls._cache.clear()
+
+    my_pulls.fetch_my_pulls("tomzx", ["o/r"])
+    my_pulls.fetch_my_pulls("tomzx", ["o/r", "o/s"])
+
+    # Registering a repository must not answer from the previous list.
+    assert calls == [("o/r",), ("o/r", "o/s")]
 
 
 def test_fetch_my_pulls_reports_a_failed_lookup(monkeypatch):
-    monkeypatch.setattr(my_pulls, "search_my_open_pulls", lambda login: None)
+    monkeypatch.setattr(my_pulls, "list_my_open_pulls", lambda repositories, login: None)
+    monkeypatch.setattr(my_pulls, "_refresh_repositories", lambda repositories: None)
     my_pulls._cache.clear()
 
-    report = my_pulls.fetch_my_pulls("tomzx")
+    report = my_pulls.fetch_my_pulls("tomzx", ["o/r"])
 
     assert report["pulls"] == []
     assert report["error"] == my_pulls.UNREACHABLE_ERROR
 
 
 def test_fetch_my_pulls_without_a_login():
-    report = my_pulls.fetch_my_pulls("")
+    report = my_pulls.fetch_my_pulls("", ["o/r"])
 
     assert report["login"] == ""
     assert report["pulls"] == []
     assert report["error"] == my_pulls.NO_LOGIN_ERROR
 
 
-def test_my_pulls_endpoint(monkeypatch):
-    row = {
-        "repository": "o/r",
-        "number": 12,
+def test_fetch_my_pulls_without_repositories():
+    report = my_pulls.fetch_my_pulls("tomzx", [])
+
+    assert report["pulls"] == []
+    assert report["error"] == my_pulls.NO_REPOSITORIES_ERROR
+
+
+def test_known_github_repositories_reads_registered_remotes():
+    create_db_and_tables()
+    repositories = [
+        Repository(name="one", path="/tmp/one", remote_url="git@github.com:o/r.git"),
+        Repository(name="again", path="/tmp/again", remote_url="https://github.com/O/R"),
+        Repository(name="other", path="/tmp/other", remote_url="https://gitlab.com/o/s.git"),
+        Repository(name="plain", path="/tmp/plain"),
+    ]
+    with Session(engine) as session:
+        for repository in repositories:
+            session.add(repository)
+        session.commit()
+        try:
+            names = my_pulls.known_github_repositories(session)
+        finally:
+            for repository in repositories:
+                session.delete(repository)
+            session.commit()
+
+    assert names == ["o/r"]
+
+
+def _endpoint_row(number=12, repository="o/r"):
+    return {
+        "repository": repository,
+        "number": number,
         "title": "Fix the thing",
-        "url": "https://github.com/o/r/pull/12",
+        "url": f"https://github.com/{repository}/pull/{number}",
         "draft": False,
         "created_at": "2026-10-01T00:00:00Z",
         "updated_at": "2026-10-02T00:00:00Z",
@@ -248,9 +353,19 @@ def test_my_pulls_endpoint(monkeypatch):
         "open_threads": 1,
         "threads_total": 2,
     }
+
+
+def _with_my_pulls(monkeypatch, rows):
+    """Point the endpoint at one login and one known repository."""
     monkeypatch.setattr("agentic.routers.my_pulls.resolve_github_login", lambda session: "tomzx")
-    monkeypatch.setattr(my_pulls, "search_my_open_pulls", lambda login: [row])
+    monkeypatch.setattr("agentic.routers.my_pulls.known_github_repositories", lambda session: ["o/r"])
+    monkeypatch.setattr(my_pulls, "list_my_open_pulls", lambda repositories, login: rows)
+    monkeypatch.setattr(my_pulls, "_refresh_repositories", lambda repositories: None)
     my_pulls._cache.clear()
+
+
+def test_my_pulls_endpoint(monkeypatch):
+    _with_my_pulls(monkeypatch, [_endpoint_row()])
 
     with TestClient(app) as client:
         payload = client.get("/api/my-pulls").json()
@@ -271,24 +386,7 @@ def test_my_pulls_endpoint_links_each_pull_to_its_tasks(monkeypatch):
     GitHub's ``nameWithOwner`` casing.
     """
     create_db_and_tables()
-    row = {
-        "repository": "O/R",
-        "number": 12,
-        "title": "Fix the thing",
-        "url": "https://github.com/O/R/pull/12",
-        "draft": False,
-        "created_at": "2026-10-01T00:00:00Z",
-        "updated_at": "2026-10-02T00:00:00Z",
-        "review_decision": "APPROVED",
-        "approved": True,
-        "approvers": ["alice"],
-        "ci": "success",
-        "open_threads": 0,
-        "threads_total": 0,
-    }
-    monkeypatch.setattr("agentic.routers.my_pulls.resolve_github_login", lambda session: "tomzx")
-    monkeypatch.setattr(my_pulls, "search_my_open_pulls", lambda login: [row])
-    my_pulls._cache.clear()
+    _with_my_pulls(monkeypatch, [_endpoint_row(repository="O/R")])
 
     with Session(engine) as session:
         task = Task(title="Fix the thing")
@@ -334,6 +432,17 @@ def test_my_pulls_endpoint_without_a_login(monkeypatch):
 
     assert payload["pulls"] == []
     assert payload["error"] == my_pulls.NO_LOGIN_ERROR
+
+
+def test_my_pulls_endpoint_without_repositories(monkeypatch):
+    monkeypatch.setattr("agentic.routers.my_pulls.resolve_github_login", lambda session: "tomzx")
+    monkeypatch.setattr("agentic.routers.my_pulls.known_github_repositories", lambda session: [])
+
+    with TestClient(app) as client:
+        payload = client.get("/api/my-pulls").json()
+
+    assert payload["pulls"] == []
+    assert payload["error"] == my_pulls.NO_REPOSITORIES_ERROR
 
 
 def test_my_pulls_poke_dms_each_requested_reviewer_once(monkeypatch):
@@ -399,72 +508,48 @@ def test_my_pulls_poke_without_logins_is_rejected():
     assert response.status_code == 400
 
 
-def _checks_payload(nodes, rollup="FAILURE", total=None):
-    return json.dumps(
-        {
-            "data": {
-                "repository": {
-                    "pullRequest": {
-                        "commits": {
-                            "nodes": [
-                                {
-                                    "commit": {
-                                        "statusCheckRollup": {
-                                            "state": rollup,
-                                            "contexts": {
-                                                "totalCount": len(nodes) if total is None else total,
-                                                "nodes": nodes,
-                                            },
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    }
-                }
-            }
-        }
-    )
+def _checks_payload(checks, rollup="FAILURE", total=None):
+    return json.dumps({"state": rollup, "total": len(checks) if total is None else total, "checks": checks})
 
 
 def test_fetch_pull_checks_lists_failing_checks_first(monkeypatch):
     seen: dict = {}
-    nodes = [
+    checks = [
         {
-            "__typename": "CheckRun",
+            "type": "CheckRun",
             "name": "lint",
             "status": "COMPLETED",
             "conclusion": "SUCCESS",
-            "detailsUrl": "https://github.com/o/r/runs/1",
+            "url": "https://github.com/o/r/runs/1",
         },
         {
-            "__typename": "CheckRun",
+            "type": "CheckRun",
             "name": "build",
             "status": "COMPLETED",
             "conclusion": "FAILURE",
-            "detailsUrl": "https://github.com/o/r/runs/2",
+            "url": "https://github.com/o/r/runs/2",
         },
         {
-            "__typename": "CheckRun",
+            "type": "CheckRun",
             "name": "integration",
             "status": "IN_PROGRESS",
-            "conclusion": None,
-            "detailsUrl": "",
+            "conclusion": "",
+            "url": "",
         },
         {
-            "__typename": "StatusContext",
-            "context": "ci/verify",
+            "type": "StatusContext",
+            "name": "ci/verify",
             "state": "ERROR",
             "description": "Verification failed",
-            "targetUrl": "https://ci.example/verify",
+            "url": "https://ci.example/verify",
         },
-        {"__typename": "StatusContext", "context": "ci/docs", "state": "SUCCESS", "description": "", "targetUrl": ""},
-        {"__typename": "CheckRun", "name": "", "status": "COMPLETED", "conclusion": "FAILURE"},
+        {"type": "StatusContext", "name": "ci/docs", "state": "SUCCESS", "description": "", "url": ""},
+        {"type": "CheckRun", "name": "", "status": "COMPLETED", "conclusion": "FAILURE"},
     ]
 
     def fake(cmd, timeout=60):
         seen["cmd"] = cmd
-        return _checks_payload(nodes, total=8)
+        return _checks_payload(checks, total=8)
 
     monkeypatch.setattr(shell, "_run_cli", fake)
     report = github.fetch_pull_checks("o", "r", 12)
@@ -486,17 +571,19 @@ def test_fetch_pull_checks_lists_failing_checks_first(monkeypatch):
     # names its detail page.
     assert report["checks"][4]["description"] == "passed"
     assert report["checks"][0]["url"] == "https://github.com/o/r/runs/2"
-    # gh needs a typed literal for the Int, not the string -f would send.
-    assert "-F" in seen["cmd"]
-    assert "number=12" in seen["cmd"]
+    # The checks read goes through ghx, not gh.
+    assert seen["cmd"][:3] == ["ghx", "pr", "checks"]
+    assert "o/r" in seen["cmd"]
 
 
-def test_fetch_pull_checks_returns_none_when_github_fails(monkeypatch):
+def test_fetch_pull_checks_returns_none_when_ghx_fails(monkeypatch):
     monkeypatch.setattr(shell, "_run_cli", lambda cmd, timeout=60: None)
     assert github.fetch_pull_checks("o", "r", 12) is None
 
-    payload = json.dumps({"data": {"repository": {"pullRequest": None}}})
-    monkeypatch.setattr(shell, "_run_cli", lambda cmd, timeout=60: payload)
+    monkeypatch.setattr(shell, "_run_cli", lambda cmd, timeout=60: "not json")
+    assert github.fetch_pull_checks("o", "r", 12) is None
+
+    monkeypatch.setattr(shell, "_run_cli", lambda cmd, timeout=60: json.dumps([1, 2]))
     assert github.fetch_pull_checks("o", "r", 12) is None
 
 

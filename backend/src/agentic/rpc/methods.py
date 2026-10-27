@@ -242,7 +242,7 @@ async def _api_request(ctx: RpcContext, params: dict[str, Any]) -> dict[str, Any
         query = {}
     if not isinstance(query, dict):
         raise RpcError(INVALID_PARAMS, "query must be a JSON object")
-    body = params.get("body", None)
+    body = params.get("body")
     headers = params.get("headers", {})
     if headers is None:
         headers = {}

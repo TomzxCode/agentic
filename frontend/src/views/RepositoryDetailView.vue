@@ -218,8 +218,8 @@ async function load() {
 
 // Fetch the repository's whole issue and PR listing from GitHub (ghx). Because
 // ghx serves a cached listing, the first load reads the cache and the "refresh
-// all" button asks ghx to re-fetch first. A failure leaves the stored items to
-// render on their own.
+// all" button asks ghx for a delta fetch first. A failure leaves the stored
+// items to render on their own.
 async function loadGithub({ refresh = false } = {}) {
   ghxError.value = ''
   if (!canListGithub.value) {
@@ -240,8 +240,9 @@ async function loadGithub({ refresh = false } = {}) {
   }
 }
 
-// Button one: re-fetch the whole repository from GitHub (forcing ghx's cache).
-// The backend writes the listing's state back onto the task-linked items, so
+// Button one: refresh the whole repository from GitHub (ghx's delta fetch, not
+// a forced re-download). The backend writes the listing's state back onto the
+// task-linked items, so
 // reload the items too: the refresh covers the repository and its items.
 async function refreshAll() {
   if (refreshingAll.value || !canListGithub.value) return

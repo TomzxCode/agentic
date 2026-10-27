@@ -20,20 +20,24 @@ Out of scope: real network calls to GitHub or Slack, and the cycle-time reads th
 | TC-3 | A PR fetch carries state, draft flag, merged_at, and review decision, and picks the `pr` subcommand | test_github.py |
 | TC-4 | Parse a `ghx` PR list with a narrow `--json` field set; none when the CLI fails | test_github.py |
 | TC-5 | The combined listing tags kinds, drops issue bodies, reports a one-kind failure, and is none when both fail | test_github.py |
-| TC-6 | `refresh_github_cache` calls `ghx cache --force` and is False when it cannot run | test_github.py |
+| TC-6 | `refresh_github_cache` calls `ghx cache --force` by default and `ghx cache` without `--force` when asked for the delta; False when it cannot run | test_github.py |
 | TC-7 | `_fetch_github` populates title, content, metadata (author and merged_at may be None), and people; it ignores bad URLs and missing issues | test_services_github.py |
 | TC-8 | The issue list clamps its limit to at least 1 and returns none when the CLI fails | test_services_github.py |
-| TC-9 | A My PRs search node reduces to a row with repository, number, approval state, approvers, ci, and thread counts | test_my_pulls.py |
-| TC-10 | Check rollup states map to success, pending (PENDING and EXPECTED), and none | test_my_pulls.py |
-| TC-11 | Approvers come from opinionated reviews only; a decision of CHANGES_REQUESTED is not approved | test_my_pulls.py |
-| TC-12 | `reviewed` counts anyone but the author, ignores the author's own reviews, and treats an overflowing review page as reviewed; requested reviewers carry logins and team names | test_my_pulls.py |
+| TC-9 | A `ghx pr list` record reduces to a row with repository, number, approval state, approvers, ci, and thread counts, and the read asks for the login's own open PRs with the row's field list | test_my_pulls.py |
+| TC-10 | Check rollup states map to success, failure, pending (PENDING and EXPECTED), and none | test_my_pulls.py |
+| TC-11 | Approvers come from decisive reviews only, the latest per author wins, and a decision of CHANGES_REQUESTED is not approved | test_my_pulls.py |
+| TC-12 | `reviewed` counts anyone but the author, ignores the author's own and pending reviews; requested reviewers carry logins and team names | test_my_pulls.py |
 | TC-13 | `pull_counts` totals, attention, approved, failing, open threads, and drafts | test_my_pulls.py |
-| TC-14 | The My PRs cache is reused without refresh, bypassed with refresh, and a failed lookup reports the unreachable error | test_my_pulls.py |
-| TC-15 | `fetch_my_pulls` without a login reports the no-login error | test_my_pulls.py |
+| TC-14 | The My PRs cache is reused without refresh, bypassed with refresh, keyed by the repository set, and a failed lookup reports the unreachable error | test_my_pulls.py |
+| TC-15 | `fetch_my_pulls` without a login reports the no-login error, and without a registered GitHub repository the no-repositories error | test_my_pulls.py |
+| TC-43 | A read refreshes each repository with `ghx cache` without `--force`, and the repositories are listed together, merged newest update first | test_my_pulls.py |
+| TC-44 | A repository that ghx cannot list is left out of the rows while the others return; every repository failing reports unreachable | test_my_pulls.py |
+| TC-45 | A registered repository's GitHub remote resolves to `owner/name`, with case-insensitive deduplication and non-GitHub remotes left out | test_my_pulls.py |
+| TC-46 | The typed `pr.list` path passes the author filter; `cache.refresh` carries `force: false` for a delta; `pr.checks` answers the checks read | test_services_shell_rpc.py |
 | TC-16 | Reviewer parsing keeps each reviewer once, keeps the latest decisive state over a later comment, keeps the last review time, marks a re-requested reviewer PENDING, and skips teams | test_item_github_reviewers.py |
 | TC-17 | My PRs page helpers: labels, attention ranking and the state named for each of the seven ranks, sorting, search, counts, groupings, filter matching, and the per-rank edge with its tooltip | frontend `myPulls.test.js` |
 | TC-18 | `layoutGraph` layers by longest path, stacks independent nodes, drops undrawn edges, and sizes the canvas; `edgePath`; `wrapTitle` | frontend `graph.test.js` |
-| TC-36 | One pull request's checks reduce to name, state, description, and URL, failing first; unnamed checks drop; a failed read is none; the number is sent as a typed literal | test_my_pulls.py |
+| TC-36 | One pull request's checks reduce to name, state, description, and URL, failing first; unnamed checks drop; a failed read is none; the read runs through `ghx pr checks` | test_my_pulls.py |
 | TC-38 | Checks popover helpers: per-check labels and tones, failing-first order, counts, and the summary line | frontend `myPulls.test.js` |
 
 ## Integration Tests
@@ -45,7 +49,7 @@ Out of scope: real network calls to GitHub or Slack, and the cycle-time reads th
 | TC-21 | Create issue endpoint | monkeypatched `create_github_issue` | issue created; 400 for a blank title or unresolvable repository; 502 on failure |
 | TC-22 | Repository endpoint with refresh | monkeypatched `ghx` | `ghx cache --force` runs first; 502 when both kinds fail |
 | TC-23 | Repository listing syncs the items it names | stored item for a listed issue | item's state metadata and author updated; an identical listing writes nothing; other repositories' items untouched |
-| TC-24 | My PRs endpoint | login resolved, search monkeypatched | rows and counts returned; linked tasks resolved per request; the no-login case carries the error |
+| TC-24 | My PRs endpoint | login and repository list resolved, the read monkeypatched | rows and counts returned; linked tasks resolved per request; the no-login and no-repository cases carry their errors |
 | TC-25 | My PRs poke | people and Slack monkeypatched | one DM per deduplicated login; per-reviewer failure reasons; 400 with no logins |
 | TC-26 | Item reviewers endpoint | PR item, monkeypatched `gh` | reviewers listed with a PENDING request; a non-PR item returns an empty list; a failed read carries the error |
 | TC-27 | Item poke | person with Slack aliases, Slack monkeypatched | DM sent without unfurl to the resolved user id; 400 naming the missing person or Slack id; 502 when Slack refuses |
@@ -83,9 +87,9 @@ Out of scope: real network calls to GitHub or Slack, and the cycle-time reads th
 | FR-3 | TC-21 |
 | FR-4 | TC-5, TC-22 |
 | FR-5 | TC-6, TC-22, TC-23 |
-| FR-6 | TC-9, TC-10, TC-11, TC-12, TC-24, TC-42 |
-| FR-7 | TC-14, TC-15, TC-24 |
-| FR-8 | TC-14 |
+| FR-6 | TC-9, TC-10, TC-11, TC-12, TC-24, TC-42, TC-43, TC-44, TC-45 |
+| FR-7 | TC-14, TC-15, TC-24, TC-44 |
+| FR-8 | TC-14, TC-43, TC-46 |
 | FR-9 | TC-25 |
 | FR-10 | TC-28 |
 | FR-11 | TC-29, TC-30 |
