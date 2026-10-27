@@ -109,7 +109,8 @@ sequenceDiagram
     alt cache fresh
         M-->>R: cached rows
     else
-        M->>GH: cache --repo o/r (delta, per repository)
+        M->>GH: repo list --json (which caches are warmable)
+        M->>GH: cache --repo o/r --type prs (delta, warm caches only, per repository)
         M->>S: list_my_open_pulls(repositories, login)
         S->>GH: pr list --author login (per repository, together)
         S-->>M: rows (ci, decision, approvers, threads)
@@ -172,7 +173,8 @@ sequenceDiagram
 | Listings and single objects | `ghx` | Consistent JSON shape, repository selection, and an on-disk cache the refresh can force |
 | My PRs, reviewers, checks, threads | `ghx` | Its cached record carries the reviews, review requests, head-commit check rollup, and review-thread counts the page shows, so the read needs no GraphQL of its own |
 | My PRs source | One `ghx pr list --author` per registered repository, read together | ghx lists one repository at a time; a pull request in a repository neither side knows is out of scope rather than a silent gap |
-| My PRs freshness | `ghx cache --repo X` (delta) before each read, then the listing | The rows carry the state GitHub has now without paying for a full re-fetch; the repository view's refresh still forces |
+| My PRs freshness | `ghx cache --repo X --type prs` (delta) before a read, only for repositories whose cache a full run has completed, at most once per 300 seconds | On a warmed cache a delta is a few small requests; on any other repository `ghx cache` walks the whole history and never finishes inside a page load, so those are left to `ghx pr list` |
+| Warmable repositories | `ghx repo list --json nameWithOwner,cachedAt`; a repository without a `cachedAt` has no completed cache | One local read answers which repositories can be refreshed cheaply; an unreadable answer skips the refresh rather than risking a full walk |
 | My PRs storage | A pull request is not stored; its task links read the stored items | A merged pull request leaves the page on the next refresh, while task links come from the app's own items and stay current |
 | My PRs cache | 60 seconds per login and repository set, 30 for a failure | A reload does not re-query GitHub, a newly registered repository never serves the previous list, and an offline host is retried later rather than on every request |
 | Individual checks | Read on demand through `ghx pr checks` when the CI badge's popover opens, cached 30 seconds | The page needs only the rollup state, and a check list per pull request would dwarf the cached record |
@@ -191,9 +193,10 @@ sequenceDiagram
 
 1. Every read depends on `ghx` or `gh` being installed and authenticated; the failure modes are explicit errors, but nothing works without them.
 2. `open_threads` counts only the first 100 review threads; the total stays exact but the unresolved count under-reports a pull request with more than a hundred threads.
-3. `ghx` serves listings from its cache, so a My PRs read is current only as of the delta fetch it runs first; a slow or failing fetch falls back to the cache the tool has.
-4. A My PRs read costs one `ghx cache` and one `ghx pr list` process per registered repository; the calls run together, bounded by the helper-CLI pool.
-5. A list that ghx answers from its API fallback (a cache it could not refresh) carries the check rollup but not the review-thread counts, which only the full cache record holds.
+3. `ghx` serves listings from its cache, so a My PRs read is current only as of the delta fetch it runs first (or of the cache's own freshness window on a repository the refresh skipped); a slow or failing fetch falls back to the cache the tool has.
+4. A My PRs read costs one `ghx repo list` plus, for each warmable repository due a refresh, one `ghx cache`, and one `ghx pr list` per registered repository; the calls run together, bounded by the helper-CLI pool.
+5. A repository whose cache was never completed stays on `ghx pr list` indefinitely, so its rows are as current as ghx's per-item window and its review-thread counts may be absent until a full `ghx cache` run happens elsewhere (the repository view's refresh, or a manual run).
+6. A list that ghx answers from its API fallback (a cache it could not refresh) carries the check rollup but not the review-thread counts, which only the full cache record holds.
 
 ## Out of Scope
 

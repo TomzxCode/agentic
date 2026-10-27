@@ -3,9 +3,11 @@
 The rows come from ghx (``services.github.list_my_open_pulls``), one listing per
 repository the app knows, because ghx caches one repository at a time and
 carries the check rollup and review-thread counts the page shows. This module
-refreshes those repositories' ghx caches, caches the assembled result for a
-short time, and derives the header's counts, so reloading the page does not
-re-query GitHub. The individual checks behind one pull request's CI badge are
+refreshes the ghx caches a completed run has already warmed, caches the
+assembled result for a short time, and derives the header's counts, so reloading
+the page does not re-query GitHub. A repository ghx has no completed cache for
+is never refreshed here: ``ghx cache`` would walk its whole history, which a
+page load cannot wait for. The individual checks behind one pull request's CI badge are
 read on demand (``fetch_my_pull_checks``), since the page needs only the rollup
 state until the badge's popover opens. Nothing is stored in the database: a
 pull request that merges leaves the list on the next refresh.
@@ -14,7 +16,8 @@ pull request that merges leaves the list on the next refresh.
 from __future__ import annotations
 
 import time
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
+from functools import partial
 from typing import Any
 
 import structlog
@@ -25,6 +28,7 @@ from .parallel import run_parallel
 from .services.github import (
     fetch_pull_checks,
     github_owner_repo,
+    list_cached_repositories,
     list_my_open_pulls,
     refresh_github_cache,
 )
@@ -40,6 +44,18 @@ MY_PULLS_FAILED_TTL = 30
 #: CI popover does not re-query GitHub. Checks move faster than the list, so it
 #: is shorter than the list's own cache.
 PULL_CHECKS_TTL = 30
+#: How long a repository's ghx cache is left alone after it was refreshed, so a
+#: reload runs at most one delta per repository per window rather than one per
+#: request.
+CACHE_REFRESH_INTERVAL = 300
+#: How long a repository whose refresh failed is left alone. Longer than the
+#: success interval: a fetch that could not finish should not be retried on
+#: every reload.
+CACHE_REFRESH_RETRY = 900
+#: How long one repository's cache refresh may take. A delta fetch is quick, so
+#: a call still running here is on a repository larger than the page should wait
+#: for; the listing then answers from the cache the tool already has.
+CACHE_REFRESH_TIMEOUT = 30
 
 #: A message for when no GitHub login is configured at all.
 NO_LOGIN_ERROR = "No GitHub login is configured; set it in Settings > Identity to list your pull requests."
@@ -58,6 +74,10 @@ CHECKS_UNREACHABLE_ERROR = (
 _cache: dict[tuple[str, tuple[str, ...]], tuple[float, list[dict[str, Any]] | None]] = {}
 #: (lowercased repository, number) -> (monotonic fetch time, checks or None).
 _checks_cache: dict[tuple[str, int], tuple[float, dict[str, Any] | None]] = {}
+#: Lowercased repository -> the monotonic time before which it is not refreshed
+#: again. Set when a refresh starts, so a second request does not stack one on
+#: top of a call already in flight, then extended when that call fails.
+_cache_refreshed: dict[str, float] = {}
 
 
 def known_github_repositories(session: Session) -> list[str]:
@@ -107,19 +127,52 @@ def _report(login: str, pulls: list[dict[str, Any]], error: str | None) -> dict[
     return {"login": login, "pulls": pulls, "counts": pull_counts(pulls), "error": error}
 
 
+def _refresh_repository(owner: str, name: str, repository: str) -> None:
+    """Refresh one repository's pull requests, then record when to try again."""
+    key = repository.lower()
+    # Claim the repository before the call, so a concurrent request leaves this
+    # one to finish instead of starting a second fetch for the same cache.
+    _cache_refreshed[key] = time.monotonic() + CACHE_REFRESH_INTERVAL
+    refreshed = refresh_github_cache(owner, name, timeout=CACHE_REFRESH_TIMEOUT, types="prs")
+    if not refreshed:
+        _cache_refreshed[key] = time.monotonic() + CACHE_REFRESH_RETRY
+
+
 def _refresh_repositories(repositories: list[str]) -> None:
     """Bring the repositories' ghx caches up to date before listing.
 
-    ``ghx cache`` runs a delta fetch, which is cheap for an unchanged
-    repository. The repositories run together, so one slow fetch does not add
-    its latency to the others. A failure is left to the listing, which answers
-    from the cache it has or reports the read as unreachable.
+    Only a repository whose cache a ``ghx cache`` run has already completed is
+    refreshed. On any other one, ghx walks the whole history (every issue and
+    pull request, with comments), which takes minutes to hours for a busy
+    repository and never finishes inside a page load, and its resume state
+    makes the next load start the same walk again. A repository without a
+    completed cache is left to ``ghx pr list``, which reads the login's own open
+    pull requests from the API in one paginated query.
+
+    The refresh is a delta limited to pull requests, since the page reads no
+    issues, and each repository is skipped while its window is open, so a reload
+    costs nothing until ``CACHE_REFRESH_INTERVAL`` has passed or the last attempt
+    failed. The repositories run together, so one slow fetch does not add its
+    latency to the others. A failure is left to the listing, which answers from
+    the cache it has or reports the read as unreachable.
     """
-    calls = []
-    for repository in repositories:
+    now = time.monotonic()
+    due = [repository for repository in repositories if _cache_refreshed.get(repository.lower(), 0.0) <= now]
+    if not due:
+        return
+    cached = list_cached_repositories()
+    if cached is None:
+        # ghx could not say which caches can be refreshed cheaply, so refreshing
+        # any of them could start the full walk. The listing still runs.
+        log.warning("ghx repository cache listing failed; skipping the My PRs cache refresh")
+        return
+    calls: list[Callable[[], None]] = []
+    for repository in due:
+        if repository.lower() not in cached:
+            continue
         owner, _, name = repository.partition("/")
         if owner and name:
-            calls.append(lambda owner=owner, name=name: refresh_github_cache(owner, name))
+            calls.append(partial(_refresh_repository, owner, name, repository))
     if calls:
         run_parallel(calls)
 

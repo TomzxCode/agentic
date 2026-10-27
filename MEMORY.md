@@ -185,6 +185,8 @@
 - Task creation can import a GitHub issue: `TaskCreate.github_url` makes `create_task` fetch the issue (via `ghx`), fill title/description, and link it as an item. The New task modal leads with a paste-the-URL field (`GET /api/github/issue?url=` gives a preview via `fetch_github_issue`) and keeps a filterable, number-descending issue list (`GET /api/github/issues`) under "or pick from a repository".
 - All GitHub access goes through **`ghx`** (`ghx issue list`, `ghx issue view`, `ghx pr view`), never `gh`. ghx's `--json` is a boolean that emits the whole object (no field list), and the repo selector is the global `-R/--repo`. Its JSON field names match gh's (`number`, `title`, `state`, `author.login`, `labels[].name`, `url`, `body`).
 
+- Never call `ghx cache` on a repository ghx has no completed cache for from a request path: it walks the entire history (every issue and PR with comments) and its resume state makes each retry start the walk again. `ghx repo list --json nameWithOwner,cachedAt` says which repositories are safe to refresh as a delta; `list_cached_repositories` in `services/github.py` wraps it.
+
 ## 2026-10-25: ty (the type checker) has three sqlmodel quirks
 
 - A model attribute with a bare annotation and no `Field()` (e.g. `Task.title: str`) resolves to plain `str` under ty, so `select(Task.title)` fails `no-matching-overload`; wrap it as `col(Task.title)` (same for `Task.summary`).

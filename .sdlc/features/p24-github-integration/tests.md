@@ -20,7 +20,7 @@ Out of scope: real network calls to GitHub or Slack, and the cycle-time reads th
 | TC-3 | A PR fetch carries state, draft flag, merged_at, and review decision, and picks the `pr` subcommand | test_github.py |
 | TC-4 | Parse a `ghx` PR list with a narrow `--json` field set; none when the CLI fails | test_github.py |
 | TC-5 | The combined listing tags kinds, drops issue bodies, reports a one-kind failure, and is none when both fail | test_github.py |
-| TC-6 | `refresh_github_cache` calls `ghx cache --force` by default and `ghx cache` without `--force` when asked for the delta; False when it cannot run | test_github.py |
+| TC-6 | `refresh_github_cache` runs `ghx cache --repo` without `--force`, adds `--type prs` when asked for pull requests only, and is False when it cannot run; `list_cached_repositories` reads `ghx repo list --json`, keeps only repositories with a completed cache, and is none when the listing cannot be read | test_github.py |
 | TC-7 | `_fetch_github` populates title, content, metadata (author and merged_at may be None), and people; it ignores bad URLs and missing issues | test_services_github.py |
 | TC-8 | The issue list clamps its limit to at least 1 and returns none when the CLI fails | test_services_github.py |
 | TC-9 | A `ghx pr list` record reduces to a row with repository, number, approval state, approvers, ci, and thread counts, and the read asks for the login's own open PRs with the row's field list | test_my_pulls.py |
@@ -30,10 +30,10 @@ Out of scope: real network calls to GitHub or Slack, and the cycle-time reads th
 | TC-13 | `pull_counts` totals, attention, approved, failing, open threads, and drafts | test_my_pulls.py |
 | TC-14 | The My PRs cache is reused without refresh, bypassed with refresh, keyed by the repository set, and a failed lookup reports the unreachable error | test_my_pulls.py |
 | TC-15 | `fetch_my_pulls` without a login reports the no-login error, and without a registered GitHub repository the no-repositories error | test_my_pulls.py |
-| TC-43 | A read refreshes each repository with `ghx cache` without `--force`, and the repositories are listed together, merged newest update first | test_my_pulls.py |
+| TC-43 | A read refreshes only a repository whose cache run has completed, with `ghx cache --type prs` and a bounded timeout, once per window; a repository without a completed cache is left alone, an unreadable cache listing skips the refresh, a failed refresh waits longer, and the repositories are listed together, merged newest update first | test_my_pulls.py |
 | TC-44 | A repository that ghx cannot list is left out of the rows while the others return; every repository failing reports unreachable | test_my_pulls.py |
 | TC-45 | A registered repository's GitHub remote resolves to `owner/name`, with case-insensitive deduplication and non-GitHub remotes left out | test_my_pulls.py |
-| TC-46 | The typed `pr.list` path passes the author filter; `cache.refresh` carries `force: false` for a delta; `pr.checks` answers the checks read | test_services_shell_rpc.py |
+| TC-46 | The typed `pr.list` path passes the author filter; `cache.refresh` carries `force: false` for a delta and the requested `type`; `repo.list` answers the cache listing; `pr.checks` answers the checks read | test_services_shell_rpc.py |
 | TC-16 | Reviewer parsing keeps each reviewer once, keeps the latest decisive state over a later comment, keeps the last review time, marks a re-requested reviewer PENDING, and skips teams | test_item_github_reviewers.py |
 | TC-17 | My PRs page helpers: labels, attention ranking and the state named for each of the seven ranks, sorting, search, counts, groupings, filter matching, and the per-rank edge with its tooltip | frontend `myPulls.test.js` |
 | TC-18 | `layoutGraph` layers by longest path, stacks independent nodes, drops undrawn edges, and sizes the canvas; `edgePath`; `wrapTitle` | frontend `graph.test.js` |

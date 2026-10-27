@@ -389,6 +389,36 @@ def test_refresh_github_cache_runs_over_typed_cache_refresh(monkeypatch):
     assert github.refresh_github_cache("o", "r") is True
 
 
+def test_refresh_github_cache_passes_a_single_type_over_the_typed_method(monkeypatch):
+    monkeypatch.setattr(settings, "ghx_backend", "rpc")
+
+    def fake_post(url, **kwargs):
+        assert kwargs["json"]["method"] == "cache.refresh"
+        assert kwargs["json"]["params"] == {"repo": "o/r", "force": False, "type": "prs"}
+        return _rpc_typed({"repo": "o/r", "issues": 0, "prs": 2})
+
+    monkeypatch.setattr(shell.httpx, "post", fake_post)
+    assert github.refresh_github_cache("o", "r", types="prs") is True
+
+
+def test_list_cached_repositories_runs_over_the_typed_method(monkeypatch):
+    monkeypatch.setattr(settings, "ghx_backend", "rpc")
+
+    def fake_post(url, **kwargs):
+        assert kwargs["json"]["method"] == "repo.list"
+        return _rpc_typed(
+            {
+                "repos": [
+                    {"label": "o/warm", "cachedAt": "2026-10-20T00:00:00Z", "fresh": True},
+                    {"label": "o/cold", "prCount": 2},
+                ]
+            }
+        )
+
+    monkeypatch.setattr(shell.httpx, "post", fake_post)
+    assert github.list_cached_repositories() == {"o/warm"}
+
+
 def test_slack_user_names_run_over_the_typed_method(monkeypatch):
     monkeypatch.setattr(settings, "slackx_backend", "rpc")
     users = [{"id": "U0123ABCDEF", "name": "tomzx", "real_name": "Tom"}]
@@ -510,8 +540,9 @@ def test_ghx_cache_keeps_the_table_path_for_its_hit_rates(monkeypatch):
     monkeypatch.setattr(shell.httpx, "post", fail_post)
 
     def fake_run_cli(cmd, timeout):
-        # ghx repo list is unmapped, so it runs through cli.run; the stub sits
-        # on the diagnostics module's own binding of run_cli_raw.
+        # The table read has no typed method (repo.list returns JSON only), so
+        # it runs through the CLI; the stub sits on the diagnostics module's own
+        # binding of run_cli_raw.
         assert cmd == ["ghx", "repo", "list"]
         return subprocess.CompletedProcess(cmd, 0, stdout="o/r\t2\t1\t15d\tstale", stderr="")
 

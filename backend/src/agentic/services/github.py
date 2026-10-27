@@ -101,15 +101,61 @@ def list_github_pulls(owner: str, repo: str, state: str = "open", limit: int = 1
     return pulls
 
 
-def refresh_github_cache(owner: str, repo: str, timeout: int = 300) -> bool:
+def refresh_github_cache(owner: str, repo: str, timeout: int = 300, types: str = "both") -> bool:
     """Refresh a repository's issues and PRs through ghx.
 
     ``ghx cache`` runs a delta fetch from the last cache write, so an unchanged
     repository costs a few small requests and a changed one picks up what
     changed. It is never a full re-fetch: the repository view's "refresh all"
     and the My PRs read both want current data, not a forced re-download.
+    ``types`` narrows the fetch to ``"issues"`` or ``"prs"`` when the caller
+    reads only one of them.
+
+    That delta only holds for a repository whose cache a run has completed. On
+    any other repository ghx walks the whole history, which takes minutes or
+    hours, so a caller on a request path checks ``list_cached_repositories``
+    first.
     """
-    return shell._run_cli(["ghx", "cache", "--repo", f"{owner}/{repo}"], timeout=timeout) is not None
+    argv = ["ghx", "cache", "--repo", f"{owner}/{repo}"]
+    if types != "both":
+        argv += ["--type", types]
+    return shell._run_cli(argv, timeout=timeout) is not None
+
+
+#: The ``ghx repo list --json`` fields that tell a warmable cache apart.
+_REPO_CACHE_FIELDS = "nameWithOwner,cachedAt"
+
+
+def list_cached_repositories(timeout: int = 30) -> set[str] | None:
+    """The repositories whose ghx cache a ``ghx cache`` run has completed.
+
+    Only these refresh cheaply. A repository with no cache metadata (its items
+    written by list and view reads alone) or a cache record with no completed
+    run makes ``ghx cache`` walk the whole history, which a page load must
+    never start. The result is lowercased ``owner/name`` so a caller can match
+    it against a remote URL whose casing differs. None when ghx could not
+    answer, which callers read as "nothing is warmable", the safe direction.
+    """
+    raw = shell._run_cli(["ghx", "repo", "list", "--json", _REPO_CACHE_FIELDS], timeout=timeout)
+    if not raw:
+        return None
+    try:
+        rows = json.loads(raw)
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(rows, list):
+        return None
+    cached: set[str] = set()
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        name = str(row.get("nameWithOwner") or "").strip()
+        cached_at = str(row.get("cachedAt") or "").strip()
+        # A cache record with no completed run carries the zero instant.
+        if not name or not cached_at or cached_at.startswith("0001-01-01"):
+            continue
+        cached.add(name.lower())
+    return cached
 
 
 def list_github_repo_items(owner: str, repo: str, state: str = "all", limit: int = 1000) -> dict[str, Any] | None:

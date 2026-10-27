@@ -235,24 +235,53 @@ def _typed_ghx_view(endpoint: tuple[str, str], kind: str, args: list[str], timeo
 
 
 def _typed_ghx_cache(endpoint: tuple[str, str], args: list[str], timeout: int) -> tuple[int, str, str] | None:
-    """``cache --repo X [--force]`` through cache.refresh.
+    """``cache --repo X [--force] [--type issues|prs]`` through cache.refresh.
 
     A plain ``ghx cache`` is the delta fetch, so it maps to the same method
-    without ``force``. Any other flag changes what the CLI would fetch, so it
-    stays on cli.run rather than being silently dropped.
+    without ``force``. A flag that changes what the CLI would fetch and that the
+    method cannot express stays on cli.run rather than being silently dropped.
     """
     repo = _argv_value(args, "--repo")
     if not repo:
         return None
-    for flag in ("--since", "--type", "--cache-duration", "--retries", "--if-stale"):
+    for flag in ("--since", "--cache-duration", "--retries", "--if-stale"):
         if flag in args:
             return None
-    force = "--force" in args
-    params = {"repo": repo, "force": force}
+    params: dict[str, Any] = {"repo": repo, "force": "--force" in args}
+    kind = _argv_value(args, "--type")
+    if kind:
+        params["type"] = kind
     code, result, error = _rpc_post(endpoint, "cache.refresh", params, ["ghx", *args], timeout)
     if code != 0:
         return 1, "", error
     return 0, json.dumps(result), ""
+
+
+def _typed_ghx_repos(endpoint: tuple[str, str], args: list[str], timeout: int) -> tuple[int, str, str] | None:
+    """``repo list --json`` through repo.list.
+
+    The CLI prints an array of ``nameWithOwner``-keyed records; the method
+    wraps the same repositories in ``{repos: [...]}`` with its own field names,
+    so the adapter maps back to the CLI's shape for the fields callers read.
+    """
+    if "--json" not in args:
+        return None
+    code, result, error = _rpc_post(endpoint, "repo.list", {}, ["ghx", *args], timeout)
+    if code != 0:
+        return 1, "", error
+    repos = result.get("repos")
+    if not isinstance(repos, list):
+        return 1, "", "ghx rpc server returned an unusable result"
+    rows = [
+        {
+            "nameWithOwner": repo.get("label"),
+            "cachedAt": repo.get("cachedAt"),
+            "status": "fresh" if repo.get("fresh") else "stale",
+        }
+        for repo in repos
+        if isinstance(repo, dict)
+    ]
+    return 0, json.dumps(rows), ""
 
 
 def _typed_ghx_checks(endpoint: tuple[str, str], args: list[str], timeout: int) -> tuple[int, str, str] | None:
@@ -316,6 +345,8 @@ def _typed_dispatch(cmd: list[str], endpoint: tuple[str, str], timeout: int) -> 
             return _typed_ghx_view(endpoint, head[0], args, timeout)
         if head == ("pr", "checks"):
             return _typed_ghx_checks(endpoint, args, timeout)
+        if head == ("repo", "list"):
+            return _typed_ghx_repos(endpoint, args, timeout)
         if args[:1] == ["cache"]:
             return _typed_ghx_cache(endpoint, args, timeout)
     if tool == "slackx":

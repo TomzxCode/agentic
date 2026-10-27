@@ -1,5 +1,6 @@
 import json
 import threading
+import time
 from types import SimpleNamespace
 
 from fastapi.testclient import TestClient
@@ -254,21 +255,69 @@ def test_fetch_my_pulls_reuses_the_short_cache(monkeypatch):
     assert refreshed == [["o/r"], ["o/r"]]
 
 
-def test_fetch_my_pulls_refreshes_the_cache_without_forcing(monkeypatch):
-    calls: list[tuple[str, str]] = []
+def _warm_calls(monkeypatch, cached):
+    """Record cache refreshes and report *cached* as the warmable repositories."""
+    calls: list[dict] = []
 
-    def fake(owner, repo, timeout=300):
-        calls.append((owner, repo))
+    def fake(owner, repo, timeout=300, types="both"):
+        calls.append({"repository": f"{owner}/{repo}", "timeout": timeout, "types": types})
         return True
 
     monkeypatch.setattr(my_pulls, "refresh_github_cache", fake)
+    monkeypatch.setattr(my_pulls, "list_cached_repositories", lambda: cached)
     monkeypatch.setattr(my_pulls, "list_my_open_pulls", lambda repositories, login: [])
     my_pulls._cache.clear()
+    my_pulls._cache_refreshed.clear()
+    return calls
+
+
+def test_fetch_my_pulls_refreshes_a_completed_cache_without_forcing(monkeypatch):
+    calls = _warm_calls(monkeypatch, {"o/r"})
 
     my_pulls.fetch_my_pulls("tomzx", ["o/r"])
 
-    # A page load reads the delta, not a full re-fetch.
-    assert calls == [("o", "r")]
+    # A page load reads a pull-request delta, not a full fetch.
+    assert calls == [{"repository": "o/r", "timeout": my_pulls.CACHE_REFRESH_TIMEOUT, "types": "prs"}]
+
+
+def test_fetch_my_pulls_leaves_a_repository_without_a_cache_alone(monkeypatch):
+    calls = _warm_calls(monkeypatch, set())
+
+    my_pulls.fetch_my_pulls("tomzx", ["o/r"])
+
+    # `ghx cache` on this repository would walk its whole history, so the
+    # listing's own API read has to cover it.
+    assert calls == []
+
+
+def test_fetch_my_pulls_skips_the_refresh_when_the_caches_cannot_be_listed(monkeypatch):
+    calls = _warm_calls(monkeypatch, None)
+
+    my_pulls.fetch_my_pulls("tomzx", ["o/r"])
+
+    assert calls == []
+
+
+def test_fetch_my_pulls_refreshes_one_repository_once_per_window(monkeypatch):
+    calls = _warm_calls(monkeypatch, {"o/r", "o/s"})
+
+    my_pulls.fetch_my_pulls("tomzx", ["o/r", "o/s"])
+    my_pulls.fetch_my_pulls("tomzx", ["o/r", "o/s"], refresh=True)
+
+    # The page cache is bypassed, the repository window still holds, so one
+    # reload does not run a delta per repository again.
+    assert sorted(call["repository"] for call in calls) == ["o/r", "o/s"]
+
+
+def test_fetch_my_pulls_waits_longer_after_a_failed_refresh(monkeypatch):
+    _warm_calls(monkeypatch, {"o/r"})
+    monkeypatch.setattr(my_pulls, "refresh_github_cache", lambda *args, **kwargs: False)
+
+    my_pulls.fetch_my_pulls("tomzx", ["o/r"])
+
+    wait = my_pulls._cache_refreshed["o/r"] - time.monotonic()
+    assert wait > my_pulls.CACHE_REFRESH_INTERVAL
+    assert wait <= my_pulls.CACHE_REFRESH_RETRY
 
 
 def test_fetch_my_pulls_keeps_a_changed_repository_set_apart(monkeypatch):

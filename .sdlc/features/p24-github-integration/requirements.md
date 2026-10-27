@@ -32,7 +32,7 @@ Importing GitHub issues and pull requests as source items is a separate feature 
 | FR-5 | Must | The system shall re-fetch a repository through `ghx` before listing when `refresh` is set, and write the listing's state fields back onto the stored items the listing names, so an item never reads staler than the repository view. |
 | FR-6 | Must | The system shall list the open pull requests authored by the configured GitHub login through `ghx`, one listing per registered GitHub repository read together, newest update first, each row carrying its repository, check rollup, review decision, approvers, review thread counts, whether anyone but the author reviewed it, the requested reviewers, and the tasks its stored item is associated with. |
 | FR-7 | Must | The system shall report why the My PRs list is empty when no GitHub login is configured, no registered repository carries a GitHub remote, or `ghx` could not read any repository, rather than reading as no open work. |
-| FR-8 | Should | The system shall refresh each registered repository's `ghx` cache with a delta fetch (`ghx cache --repo`, never `--force`) before a My PRs read, cache the answer per login and repository set for 60 seconds (a failed lookup for 30), and bypass the cache on `refresh`. |
+| FR-8 | Should | The system shall refresh only those registered repositories whose ghx cache a completed `ghx cache` run has already warmed, using a pull-request-only delta (`ghx cache --repo --type prs`, never `--force`), at most once per repository every 300 seconds (900 after a failed refresh). A repository without a completed cache shall never be refreshed, because `ghx cache` would walk its whole history; its rows come from `ghx pr list` instead. The system shall cache the answer per login and repository set for 60 seconds (a failed lookup for 30) and bypass that cache on `refresh`. |
 | FR-9 | Should | The system shall send a review-request DM to a pull request's named reviewers on Slack, resolving each GitHub login through the people directory, deduplicating logins, and reporting each reviewer's outcome separately. |
 | FR-10 | Must | The system shall serve a standalone page per issue and per pull request (`/issue/owner/repo/number`, `/pr/owner/repo/number`) that renders the object read fresh from GitHub, falls back to the stored item, offers the agent panel, and adopts an existing linked task when there is one. |
 | FR-11 | Must | The repository view shall list the repository's issues and pull requests as a grid with kind, number, title, state, author, linked tasks, changes, and links out to GitHub, ghx, and the app's own pages (the title opens the app's issue or PR page, and a Links column carries ghx and GitHub), with a refresh that forces `ghx` to re-fetch and a separate refresh of the linked items. |
@@ -197,8 +197,21 @@ Importing GitHub issues and pull requests as source items is a separate feature 
 
     @FR-8
     Scenario: A read refreshes with the delta, not a full re-fetch
+      Given a registered repository whose cache a `ghx cache` run has completed
       When the client asks GET /api/my-pulls
-      Then each registered repository is refreshed with `ghx cache --repo owner/name` without `--force`
+      Then the repository is refreshed with `ghx cache --repo owner/name --type prs` without `--force`
+
+    @FR-8
+    Scenario: A repository with no completed cache is never refreshed
+      Given a registered repository that no `ghx cache` run has warmed
+      When the client asks GET /api/my-pulls
+      Then no cache refresh runs for that repository and its rows come from `ghx pr list`
+
+    @FR-8
+    Scenario: A reload does not refresh a repository again within the window
+      Given a repository refreshed by a My PRs read 10 seconds ago
+      When the client asks GET /api/my-pulls?refresh=true
+      Then the repository is not refreshed again
 
     @FR-8
     Scenario: Registering a repository bypasses the previous list

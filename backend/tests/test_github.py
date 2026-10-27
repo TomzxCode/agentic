@@ -195,9 +195,46 @@ def test_refresh_github_cache(monkeypatch):
     assert seen["cmd"][:2] == ["ghx", "cache"]
     # A refresh is a delta fetch, never a forced full re-download.
     assert "--force" not in seen["cmd"]
+    assert "--type" not in seen["cmd"]
+
+    assert github.refresh_github_cache("o", "r", types="prs") is True
+    assert seen["cmd"][-2:] == ["--type", "prs"]
 
     monkeypatch.setattr(shell, "_run_cli", lambda cmd, timeout=60: None)
     assert github.refresh_github_cache("o", "r") is False
+
+
+def test_list_cached_repositories_reads_completed_caches(monkeypatch):
+    seen: dict = {}
+    rows = [
+        {"nameWithOwner": "o/warm", "cachedAt": "2026-10-20T00:00:00Z"},
+        # A record with no completed run carries the zero instant.
+        {"nameWithOwner": "o/partial", "cachedAt": "0001-01-01T00:00:00Z"},
+        # Items written by list and view reads alone carry no cache metadata.
+        {"nameWithOwner": "o/read-through", "cachedAt": None},
+    ]
+
+    def fake(cmd, timeout=60):
+        seen["cmd"] = cmd
+        seen["timeout"] = timeout
+        return json.dumps(rows)
+
+    monkeypatch.setattr(shell, "_run_cli", fake)
+
+    assert github.list_cached_repositories() == {"o/warm"}
+    assert seen["cmd"] == ["ghx", "repo", "list", "--json", "nameWithOwner,cachedAt"]
+    assert seen["timeout"] == 30
+
+
+def test_list_cached_repositories_reports_an_unreadable_cache(monkeypatch):
+    monkeypatch.setattr(shell, "_run_cli", lambda cmd, timeout=60: None)
+    assert github.list_cached_repositories() is None
+
+    monkeypatch.setattr(shell, "_run_cli", lambda cmd, timeout=60: "not json")
+    assert github.list_cached_repositories() is None
+
+    monkeypatch.setattr(shell, "_run_cli", lambda cmd, timeout=60: json.dumps({"repos": []}))
+    assert github.list_cached_repositories() is None
 
 
 def test_repository_endpoint(monkeypatch):
