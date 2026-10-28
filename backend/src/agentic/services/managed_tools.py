@@ -14,12 +14,15 @@ from __future__ import annotations
 
 import contextlib
 import os
+import secrets
 import shutil
+import socket
 import subprocess
 import sys
 import threading
 import time
 from typing import Any
+from urllib.parse import urlsplit, urlunsplit
 
 import structlog
 
@@ -33,17 +36,79 @@ TOOLS = ("ghx", "slackx")
 # The transport value that makes this server run a tool instead of the user.
 MANAGED = "managed"
 
-# The port each tool's serve mode binds on loopback. A managed process is
-# started on it, so its JSON-RPC endpoint is <base>/rpc on that port.
+# The interface a managed serve process binds. Every interface, so the web UI is
+# reachable from another machine, not only from this one. Both tools refuse a
+# non-loopback bind without a token, so the command carries one this server
+# generates and sends on its JSON-RPC calls.
+SERVE_HOST = "0.0.0.0"
+
+# The port each tool's serve mode prefers. A managed process keeps it when it is
+# free, so its JSON-RPC endpoint is <preferred>/rpc; when another process already
+# holds it, the server picks a free port instead, since the port is an
+# implementation detail of a process this server owns.
 SERVE_PORTS = {"ghx": 8080, "slackx": 8280}
+
+# How many ports to try for a tool whose serve process exits while starting. The
+# usual cause is another process taking the port between the check and the bind.
+START_ATTEMPTS = 3
+
+# How long to wait for a started process to answer on its port. A serve process
+# that cannot bind exits at once, so a healthy one answers well inside this.
+START_TIMEOUT = 2.0
+
+
+def _port_available(port: int) -> bool:
+    """Whether this process could bind *port* on the managed interface.
+
+    Racy on its own (another process can take the port before the child binds),
+    so the start loop retries. SO_REUSEADDR matches what the serve processes do,
+    which keeps a port in TIME_WAIT from looking taken on a restart.
+    """
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        try:
+            sock.bind((SERVE_HOST, port))
+        except OSError:
+            return False
+    return True
+
+
+def _free_port(preferred: int, exclude: set[int]) -> int:
+    """A port to run a serve process on.
+
+    The preferred port when it is free (and not in *exclude*), otherwise one the
+    OS assigns. The check is only a hint: the caller retries on another port if
+    the child still exits because it lost the race for it.
+    """
+    if preferred not in exclude and _port_available(preferred):
+        return preferred
+    for _ in range(100):
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            sock.bind((SERVE_HOST, 0))
+            port = sock.getsockname()[1]
+        if port not in exclude:
+            return port
+    raise OSError("no free port")
+
+
+def _answering(port: int) -> bool:
+    """Whether something accepts a loopback connection on *port* yet."""
+    try:
+        with socket.create_connection(("127.0.0.1", port), timeout=0.1):
+            return True
+    except OSError:
+        return False
 
 
 def serve_url(tool: str) -> str:
     """The base URL a managed tool's serve process answers on.
 
-    Its web UI is there and so is its JSON-RPC endpoint, at ``<url>/rpc``.
+    Its web UI is there and so is its JSON-RPC endpoint, at ``<url>/rpc``. That
+    is the port the process actually bound once this server started it, and the
+    tool's preferred port before that (a busy preferred port falls back to a free
+    one).
     """
-    return f"http://127.0.0.1:{SERVE_PORTS[tool]}"
+    return managed_tools.url(tool)
 
 
 def _relay(stream: Any, out: Any, prefix: str) -> None:
@@ -90,10 +155,15 @@ class ManagedToolServer:
 
     def __init__(self, tool: str, spawn: Any = None) -> None:
         self.tool = tool
-        port = SERVE_PORTS[tool]
-        # Loopback only: the endpoint needs no token, and both binaries refuse
-        # a non-loopback bind without one anyway.
-        self.command = [tool, "serve", "--host", "127.0.0.1", "--port", str(port)]
+        self.port = SERVE_PORTS[tool]
+        # The tool refuses a non-loopback bind without a token, because its
+        # JSON-RPC clients can change the cache and run CLI commands. This
+        # server generates one and sends it on every call; it is never put in
+        # the URL, so item links stay usable without it.
+        self.token = secrets.token_urlsafe(32)
+        # Bound on every interface, so the web UI is reachable from another
+        # machine; both binaries refuse that without the token above.
+        self.command = self._serve_command()
         # Every relayed line carries this, so a viewer can tell the tool's own
         # output from the server's.
         self.prefix = f"[{tool}] "
@@ -102,17 +172,71 @@ class ManagedToolServer:
         self.started_at: float | None = None
         self._readers: list[threading.Thread] = []
 
+    def _serve_command(self) -> list[str]:
+        return [
+            self.tool,
+            "serve",
+            "--host",
+            SERVE_HOST,
+            "--port",
+            str(self.port),
+            "--rpc-token",
+            self.token,
+        ]
+
     @property
     def alive(self) -> bool:
         return self.process is not None and getattr(self.process, "poll", lambda: 1)() is None
 
     def start(self) -> bool:
-        """Start the process if its binary is available. Returns whether started."""
+        """Start the process, on a free port. Returns whether it is serving.
+
+        The preferred port is used when nothing holds it. A serve process that
+        cannot bind exits immediately, so the start loop waits for the port to
+        answer and, when the process died first, tries another free port. That
+        covers both a port taken before the start and one lost to another
+        process between the check and the bind.
+        """
         if self.alive:
             return True
         if self._spawn is None and shutil.which(self.tool) is None:
             log.warning("managed tool binary not found", tool=self.tool, binary=self.tool)
             return False
+        tried: set[int] = set()
+        for attempt in range(1, START_ATTEMPTS + 1):
+            try:
+                port = _free_port(SERVE_PORTS[self.tool], tried)
+            except OSError as exc:
+                log.warning("no free port for managed tool", tool=self.tool, error=str(exc))
+                return False
+            tried.add(port)
+            # The port changes the command, so rebuild it for every fresh port.
+            # A caller that supplied its own command keeps it when the port did
+            # not change (tests drive the output relay that way).
+            if port != self.port:
+                self.port = port
+                self.command = self._serve_command()
+            if not self._spawn_process():
+                return False
+            if self._wait_until_answering():
+                self.started_at = time.time()
+                log.info("started managed tool", tool=self.tool, cmd=self.command)
+                return True
+            log.warning(
+                "managed tool exited while starting",
+                tool=self.tool,
+                port=port,
+                attempt=attempt,
+            )
+            self._discard_process()
+        # Nothing is listening, so report the tool as not started and keep the
+        # endpoint on the port it would normally use.
+        self.port = SERVE_PORTS[self.tool]
+        self.command = self._serve_command()
+        return False
+
+    def _spawn_process(self) -> bool:
+        """Spawn the serve process. False when it could not be spawned at all."""
         try:
             if self._spawn is not None:
                 self.process = self._spawn(self.command)
@@ -134,13 +258,45 @@ class ManagedToolServer:
                     env={**os.environ, "PYTHONUNBUFFERED": "1"},
                 )
             self._relay_output()
-            self.started_at = time.time()
-            log.info("started managed tool", tool=self.tool, cmd=self.command)
             return True
         except Exception as exc:  # noqa: BLE001 - a tool that cannot start must not stop the server
             log.warning("could not start managed tool", tool=self.tool, error=str(exc))
             self.process = None
             return False
+
+    def _wait_until_answering(self) -> bool:
+        """Wait for the process to accept a connection on its port.
+
+        Returns False as soon as the process exits first, which is what a failed
+        bind looks like. A process still alive at the deadline counts as started:
+        it may only be slow, and killing and retrying would make that worse.
+        """
+        deadline = time.monotonic() + START_TIMEOUT
+        while time.monotonic() < deadline:
+            if not self.alive:
+                return False
+            if _answering(self.port):
+                # Something answers on the port. Give a child that lost the race
+                # for it the moment it needs to exit, so a connection served by
+                # the process that holds the port is not mistaken for this one.
+                time.sleep(0.05)
+                return self.alive
+            time.sleep(0.02)
+        return self.alive
+
+    def _discard_process(self) -> None:
+        """Forget a process that exited while starting, draining its output."""
+        proc = self.process
+        self.process = None
+        if proc is not None:
+            with contextlib.suppress(Exception):
+                proc.wait(timeout=5)
+        self._drain_readers()
+
+    def _drain_readers(self) -> None:
+        for thread in self._readers:
+            thread.join(timeout=2)
+        self._readers.clear()
 
     def _relay_output(self) -> None:
         """Reprint the process's stdout and stderr, each on its own thread."""
@@ -170,9 +326,7 @@ class ManagedToolServer:
                 proc.wait(timeout=5)
         # Drains whatever the tool wrote before it died, so a stopping tool does
         # not drop its last lines (its error message, typically).
-        for thread in self._readers:
-            thread.join(timeout=2)
-        self._readers.clear()
+        self._drain_readers()
         log.info("stopped managed tool", tool=self.tool)
 
 
@@ -200,14 +354,63 @@ class ManagedToolManager:
         return backend != "rpc" and settings.managed_tools
 
     def endpoint(self, tool: str, backend: str | None = None) -> tuple[str, str] | None:
-        """The (JSON-RPC URL, token) of a managed tool, or None when it is not managed.
+        """The (JSON-RPC URL, bearer token) of a managed tool, or None.
 
-        Nothing comes from the settings: the process this server started is
-        bound on loopback, so there is no URL to configure and no token to send.
+        Nothing comes from the settings: this server generated the token its
+        serve process requires and bound it on the managed interface, so there
+        is no URL or token for the user to configure.
         """
         if not self.manages(tool, backend):
             return None
-        return f"{serve_url(tool)}/rpc", ""
+        server = self.servers.get(tool)
+        token = server.token if server is not None else ""
+        return f"{self.url(tool)}/rpc", token
+
+    def url(self, tool: str) -> str:
+        """The base URL of a tool's serve process.
+
+        The port this manager started it on, or the tool's preferred port when
+        this process does not run it (or has not started it yet).
+        """
+        return f"http://127.0.0.1:{self.port(tool)}"
+
+    def port(self, tool: str) -> int:
+        """The port a managed tool answers on (see :meth:`url`)."""
+        server = self.servers.get(tool)
+        return server.port if server is not None else SERVE_PORTS[tool]
+
+    def link_url(self, tool: str, configured: str = "") -> str:
+        """The URL item links use for a managed tool.
+
+        A configured URL supplies the host, since the user may reach this machine
+        by name from another device; its port is ignored in favour of the one the
+        process actually bound, so links follow a fallback port instead of a
+        stale configured one. The scheme and path are kept.
+        """
+        base = self.url(tool)
+        if not configured:
+            return base
+        parts = urlsplit(configured.strip())
+        host = parts.hostname or ""
+        if not host:
+            return base
+        if ":" in host:
+            host = f"[{host}]"
+        netloc = f"{host}:{self.port(tool)}"
+        return urlunsplit((parts.scheme or "http", netloc, parts.path, parts.query, parts.fragment))
+
+    def status(self) -> list[dict[str, Any]]:
+        """Where each tool this server runs answers, for the Settings page.
+
+        A tool without a server here is not managed by this process, so it is
+        left out: the page shows the URL and port only for tools whose process
+        this server owns. ``running`` is false for one that failed to start, and
+        ``port`` is then the preferred port it will try next.
+        """
+        return [
+            {"tool": tool, "running": server.alive, "port": server.port, "url": self.url(tool)}
+            for tool, server in self.servers.items()
+        ]
 
     def restart(self, tool: str) -> bool | None:
         """Stop and start a managed tool's serve process.

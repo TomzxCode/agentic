@@ -11,25 +11,50 @@ import { store } from '../store'
 // manages; it is read per call, so a change applies without a restart. The
 // server URL and token only apply to rpc, so they are hidden for the other
 // transports. A managed tool's web UI runs on a port this server picks, so its
-// URL is shown as a link to open rather than offered as a field. Like the other
+// URL is shown as a link to open rather than offered as a field, and the port it
+// answers on is shown beside it because item links use that URL. Like the other
 // sections, the page shell owns the single settings read and this component
 // saves each field on blur.
 const props = defineProps({
   overrides: { type: Object, default: () => ({}) },
-  defaults: { type: Object, default: () => ({}) }
+  defaults: { type: Object, default: () => ({}) },
+  effective: { type: Object, default: () => ({}) },
+  // The managed tools this server runs, with the port each answers on.
+  managed: { type: Array, default: () => [] }
 })
 
-// Where a managed tool's serve process answers its web UI, matching the ports
-// the server binds it on (services/managed_tools.py). There is nothing for the
-// user to configure, since the server owns the process.
-const MANAGED_WEB_URLS = { ghx: 'http://127.0.0.1:8080', slackx: 'http://127.0.0.1:8280' }
+const emit = defineEmits(['changed'])
 
-// The URL a managed tool is reachable at: the one item links use (a stored or
-// environment value, which the server keeps) or, when none is set, the one its
-// own serve process answers on.
+// The managed tool's process as the server last reported it: its URL carries
+// the port it actually serves on.
+function managedStatus(tool) {
+  return props.managed.find((status) => status.tool === tool)
+}
+
+// The URL a managed tool's web UI is at. The server reports the port the
+// process actually bound; a configured URL supplies the host, since the user
+// may reach this machine by name from another device. Its own port is ignored:
+// it is usually stale once the process has moved to a free one. Nothing is
+// guessed when the server has not reported a URL yet.
 function webUrl(tool) {
   const key = `${tool}_url`
-  return props.overrides[key]?.trim() || props.defaults[key]?.trim() || MANAGED_WEB_URLS[tool]
+  const configured =
+    store.settings?.[key]?.trim() ||
+    props.effective[key]?.trim() ||
+    props.overrides[key]?.trim() ||
+    props.defaults[key]?.trim()
+  const status = managedStatus(tool)
+  if (status?.url) {
+    if (!configured || !status.port) return status.url
+    try {
+      const url = new URL(configured)
+      url.port = String(status.port)
+      return url.toString().replace(/\/$/, '')
+    } catch {
+      return status.url
+    }
+  }
+  return configured || ''
 }
 
 const form = reactive({
@@ -87,10 +112,16 @@ async function restart(tool) {
   restarting[tool] = true
   try {
     const result = await api.settings.restartTool(tool)
+    const where = result.url ? ` on ${result.url}` : ''
     store.notify(
-      result.running ? `${tool} restarted` : `${tool} did not start: check that its binary is installed`,
+      result.running ? `${tool} restarted${where}` : `${tool} did not start: check that its binary is installed`,
       !result.running
     )
+    // A restart can land on a different port, so the page reloads the settings
+    // (which carry each managed tool's port) instead of showing a stale one.
+    // The store is what item links read, so it reloads too.
+    emit('changed')
+    await store.loadSettings().catch(() => {})
   } catch (e) {
     store.notify(e.message, true)
   } finally {
@@ -122,10 +153,18 @@ async function restart(tool) {
       </select>
     </div>
     <p v-if="form.ghx_backend === 'managed'" class="faint" style="margin: 4px 0 0">
-      The server starts <code>ghx serve</code> on <code>127.0.0.1:8080</code> and stops it when it stops, so there is no
-      server URL or token to set. Its web UI is at
-      <a :href="webUrl('ghx')" target="_blank" rel="noopener">{{ webUrl('ghx') }}</a> while the server runs. Restart it
-      to pick up a new binary or its own configuration.
+      The server starts <code>ghx serve</code> on a free port, listening on all interfaces, and stops it when it stops.
+      The JSON-RPC endpoint uses a token the server generates, so there is no server URL or token to set.
+      <template v-if="managedStatus('ghx') && !managedStatus('ghx').running">
+        It is not running; its next start will serve at <code>{{ webUrl('ghx') }}</code
+        >.
+      </template>
+      <template v-else-if="webUrl('ghx')">
+        Its web UI is at <a :href="webUrl('ghx')" target="_blank" rel="noopener">{{ webUrl('ghx') }}</a> while the
+        server runs.
+      </template>
+      <template v-else> Its web UI address is reported once the server starts the process. </template>
+      Restart it to pick up a new binary or its own configuration.
     </p>
     <div v-if="form.ghx_backend === 'managed'" style="margin: 8px 0 0">
       <button class="btn sm ghost" :disabled="restarting.ghx" @click="restart('ghx')">
@@ -180,9 +219,17 @@ async function restart(tool) {
       </select>
     </div>
     <p v-if="form.slackx_backend === 'managed'" class="faint" style="margin: 4px 0 0">
-      The server starts <code>slackx serve</code> on <code>127.0.0.1:8280</code> and stops it when it stops, so there is
-      no server URL or token to set. Its web UI is at
-      <a :href="webUrl('slackx')" target="_blank" rel="noopener">{{ webUrl('slackx') }}</a> while the server runs.
+      The server starts <code>slackx serve</code> on a free port, listening on all interfaces, and stops it when it
+      stops. The JSON-RPC endpoint uses a token the server generates, so there is no server URL or token to set.
+      <template v-if="managedStatus('slackx') && !managedStatus('slackx').running">
+        It is not running; its next start will serve at <code>{{ webUrl('slackx') }}</code
+        >.
+      </template>
+      <template v-else-if="webUrl('slackx')">
+        Its web UI is at <a :href="webUrl('slackx')" target="_blank" rel="noopener">{{ webUrl('slackx') }}</a> while the
+        server runs.
+      </template>
+      <template v-else> Its web UI address is reported once the server starts the process. </template>
       Restart it to pick up a new binary or its own configuration.
     </p>
     <div v-if="form.slackx_backend === 'managed'" style="margin: 8px 0 0">

@@ -88,6 +88,7 @@ const RouterLinkStub = { props: ['to'], template: '<a><slot /></a>' }
 beforeEach(() => {
   vi.clearAllMocks()
   store.toast = null
+  store.settings = {}
   store.harnesses = []
   store.repositories = []
   store.people = []
@@ -201,6 +202,20 @@ describe('SettingsView', () => {
 
   it('hides the rpc and web UI fields for the managed transport, and shows its URL', async () => {
     mocks.settingsUpdate.mockResolvedValue({})
+    mocks.settingsGet.mockResolvedValue({
+      defaults: {},
+      overrides: {},
+      effective: {
+        ghx_backend: 'managed',
+        ghx_url: 'http://127.0.0.1:18081',
+        slackx_backend: 'managed',
+        slackx_url: 'http://127.0.0.1:18082'
+      },
+      managed_tools: [
+        { tool: 'ghx', running: true, port: 18081, url: 'http://127.0.0.1:18081' },
+        { tool: 'slackx', running: true, port: 18082, url: 'http://127.0.0.1:18082' }
+      ]
+    })
     const wrapper = mountView()
     await flushPromises()
 
@@ -224,19 +239,62 @@ describe('SettingsView', () => {
     expect(wrapper.find('input[placeholder="http://127.0.0.1:8090"]').exists()).toBe(false)
     expect(wrapper.find('input[placeholder="only when the server is bound beyond loopback"]').exists()).toBe(false)
     expect(wrapper.find('input[placeholder="http://localhost:8080"]').exists()).toBe(false)
-    const managedLink = wrapper.get('a[href="http://127.0.0.1:8080"]')
-    expect(managedLink.text()).toBe('http://127.0.0.1:8080')
+    const managedLink = wrapper.get('a[href="http://127.0.0.1:18081"]')
+    expect(managedLink.text()).toBe('http://127.0.0.1:18081')
 
     const slackxTransport = wrapper.findAll('select').find((s) => s.text().includes('slackx server you run'))
     await slackxTransport.setValue('managed')
     await flushPromises()
     expect(wrapper.find('input[placeholder="http://localhost:8280"]').exists()).toBe(false)
-    expect(wrapper.get('a[href="http://127.0.0.1:8280"]').text()).toBe('http://127.0.0.1:8280')
+    expect(wrapper.get('a[href="http://127.0.0.1:18082"]').text()).toBe('http://127.0.0.1:18082')
+  })
+
+  it('updates a managed tool link to the port the server reports', async () => {
+    // The stored URL is for item links and can be stale; the link here follows
+    // the port the process actually bound, keeping the stored host.
+    mocks.settingsGet.mockResolvedValue({
+      defaults: {},
+      overrides: { ghx_backend: 'managed', ghx_url: 'http://squirtle:8010' },
+      effective: { ghx_backend: 'managed', ghx_url: 'http://squirtle:8010' },
+      managed_tools: [{ tool: 'ghx', running: true, port: 18081, url: 'http://127.0.0.1:18081' }]
+    })
+    const wrapper = mountView()
+    await flushPromises()
+
+    const nav = wrapper.findAll('.settings-nav-item').find((b) => b.text() === 'Local tools')
+    await nav.trigger('click')
+    await flushPromises()
+
+    const managedLink = wrapper.get('a[href="http://squirtle:18081"]')
+    expect(managedLink.text()).toBe('http://squirtle:18081')
+    expect(wrapper.text()).not.toContain('squirtle:8010')
+  })
+
+  it('shows where a managed tool that is not running will serve', async () => {
+    mocks.settingsGet.mockResolvedValue({
+      defaults: {},
+      overrides: { ghx_backend: 'managed' },
+      effective: { ghx_backend: 'managed', ghx_url: 'http://127.0.0.1:8080' },
+      managed_tools: [{ tool: 'ghx', running: false, port: 8080, url: 'http://127.0.0.1:8080' }]
+    })
+    const wrapper = mountView()
+    await flushPromises()
+
+    const nav = wrapper.findAll('.settings-nav-item').find((b) => b.text() === 'Local tools')
+    await nav.trigger('click')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('It is not running; its next start will serve at http://127.0.0.1:8080.')
   })
 
   it('restarts a managed tool from its section', async () => {
     mocks.settingsUpdate.mockResolvedValue({})
-    mocks.settingsRestartTool.mockResolvedValue({ tool: 'ghx', running: true })
+    mocks.settingsRestartTool.mockResolvedValue({
+      tool: 'ghx',
+      running: true,
+      port: 18081,
+      url: 'http://127.0.0.1:18081'
+    })
     const notify = vi.spyOn(store, 'notify').mockImplementation(() => {})
     const wrapper = mountView()
     await flushPromises()
@@ -257,7 +315,7 @@ describe('SettingsView', () => {
     await restartButtons()[0].trigger('click')
     await flushPromises()
     expect(mocks.settingsRestartTool).toHaveBeenCalledWith('ghx')
-    expect(notify).toHaveBeenCalledWith('ghx restarted', false)
+    expect(notify).toHaveBeenCalledWith('ghx restarted on http://127.0.0.1:18081', false)
   })
 
   it('reports a managed tool that fails to restart', async () => {

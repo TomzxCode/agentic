@@ -14,7 +14,7 @@ from .models.base import utcnow
 from .models.system import Setting
 from .refresh import REFRESHABLE_SOURCES
 from .services.github import detect_github_login
-from .services.managed_tools import managed_tools, serve_url
+from .services.managed_tools import managed_tools
 
 log = structlog.get_logger(__name__)
 
@@ -154,13 +154,13 @@ def get_settings(session: Session) -> dict[str, str]:
     effective = env_defaults()
     effective.update(get_overrides(session))
     # A managed tool's serve process answers its web UI on a port this server
-    # picks, so its URL stands in for one the user would otherwise type: items
-    # link into the UI the server is already running.
+    # picks, so the effective URL follows that port: a configured URL keeps its
+    # host (how you reach this machine) but not a stale port. Item links use it.
     for tool in ("ghx", "slackx"):
         key = f"{tool}_url"
         backend = (effective.get(f"{tool}_backend") or "").strip().lower()
-        if not effective.get(key, "").strip() and managed_tools.manages(tool, backend):
-            effective[key] = serve_url(tool)
+        if managed_tools.manages(tool, backend):
+            effective[key] = managed_tools.link_url(tool, effective.get(key, ""))
     # No login configured anywhere? Fall back to the authenticated `gh` account,
     # so the identity works without the user setting anything.
     if not effective.get("github_login", "").strip():

@@ -84,6 +84,9 @@ onMounted(load)
           v-show="active === 'tools'"
           :overrides="settings.overrides"
           :defaults="settings.defaults"
+          :effective="settings.effective"
+          :managed="settings.managed_tools || []"
+          @changed="loadSettings"
         />
         <SettingsIdentity
           v-show="active === 'identity'"

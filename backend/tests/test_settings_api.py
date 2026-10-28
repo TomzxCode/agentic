@@ -138,9 +138,11 @@ def test_managed_transport_supplies_the_web_ui_url(monkeypatch):
             # The transport is per tool: slackx is still the CLI's business.
             assert saved["effective"]["slackx_url"] == ""
 
-            # An explicit URL still wins over the managed one.
-            explicit = client.patch("/api/settings", json={"ghx_url": "http://ghx.local:8080"}).json()
+            # An explicit URL still supplies the host, but the port follows the
+            # process this server runs (8080 is the preferred one here).
+            explicit = client.patch("/api/settings", json={"ghx_url": "http://ghx.local:9000"}).json()
             assert explicit["effective"]["ghx_url"] == "http://ghx.local:8080"
+            assert explicit["overrides"]["ghx_url"] == "http://ghx.local:9000"
     finally:
         with Session(engine) as session:
             for key in ("ghx_backend", "ghx_url", "slackx_backend", "slackx_url"):
@@ -159,7 +161,12 @@ def test_restart_tool_route(monkeypatch):
     with TestClient(app) as client:
         started = client.post("/api/settings/tools/ghx/restart")
         assert started.status_code == 200
-        assert started.json() == {"tool": "ghx", "running": True}
+        assert started.json() == {
+            "tool": "ghx",
+            "running": True,
+            "port": 8080,
+            "url": "http://127.0.0.1:8080",
+        }
         assert restarted == ["ghx"]
 
         # A tool this server does not know, and one it does not run, are

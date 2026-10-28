@@ -232,10 +232,15 @@ def test_rpc_mode_answers_available_without_the_local_binary(monkeypatch):
 
 def test_managed_mode_calls_the_endpoint_the_server_supplies(monkeypatch):
     monkeypatch.setattr(settings, "ghx_backend", "managed")
-    # The rpc settings do not apply: the server starts the tool on loopback, so
-    # there is no URL to configure and no token to send.
+    # The rpc settings do not apply: the server starts the tool itself and
+    # generates the token its process requires. A configured token is ignored.
     monkeypatch.setattr(settings, "ghx_rpc_url", "http://127.0.0.1:9999")
     monkeypatch.setattr(settings, "ghx_rpc_token", "configured-but-unused")
+    monkeypatch.setattr(
+        shell.managed_tools,
+        "endpoint",
+        lambda tool, backend=None: ("http://127.0.0.1:8080/rpc", "generated"),
+    )
     calls = {}
 
     def fake_post(url, **kwargs):
@@ -245,7 +250,7 @@ def test_managed_mode_calls_the_endpoint_the_server_supplies(monkeypatch):
     monkeypatch.setattr(shell.httpx, "post", fake_post)
     assert shell._run_cli(["ghx", "repo", "list"]) == "out"
     assert calls["url"] == "http://127.0.0.1:8080/rpc"
-    assert calls["headers"] == {}
+    assert calls["headers"] == {"Authorization": "Bearer generated"}
 
 
 def test_managed_mode_still_needs_the_local_binary(monkeypatch):

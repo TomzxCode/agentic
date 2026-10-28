@@ -11,6 +11,7 @@ from ..refresh import POLICY_SETTING_KEYS, PolicyError, describe_policy, parse_p
 from ..review_scan import scan_interval
 from ..schemas.settings import (
     DiagnosticsRead,
+    ManagedToolRead,
     RefreshPolicyPreview,
     RefreshPolicyPreviewRequest,
     RefreshStatusRead,
@@ -36,6 +37,7 @@ def _read(session: Session) -> SettingsRead:
         effective=get_settings(session),
         overrides=get_overrides(session),
         defaults=env_defaults(),
+        managed_tools=[ManagedToolRead(**status) for status in managed_tools.status()],
     )
 
 
@@ -106,7 +108,12 @@ def restart_tool(tool: str) -> ToolRestartRead:
     running = managed_tools.restart(tool)
     if running is None:
         raise HTTPException(status_code=409, detail=f"{tool}: not managed by this server")
-    return ToolRestartRead(tool=tool, running=running)
+    return ToolRestartRead(
+        tool=tool,
+        running=running,
+        port=managed_tools.port(tool),
+        url=managed_tools.url(tool),
+    )
 
 
 @router.post("/refresh-policy/preview", response_model=RefreshPolicyPreview)

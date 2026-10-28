@@ -4,13 +4,26 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+
+
+class ManagedToolRead(BaseModel):
+    """Where a managed tool's serve process answers, and whether it runs."""
+
+    tool: str
+    running: bool
+    port: int
+    url: str
 
 
 class SettingsRead(BaseModel):
     effective: dict[str, str]
     overrides: dict[str, str]
     defaults: dict[str, str]
+    # The tools this server runs itself, with the port each answers on. Item
+    # links use those URLs, so the Settings page shows the port rather than
+    # leaving it implicit in a URL.
+    managed_tools: list[ManagedToolRead] = Field(default_factory=list)
 
 
 class SettingsUpdate(BaseModel):
@@ -67,6 +80,8 @@ class ToolRestartRead(BaseModel):
 
     tool: str
     running: bool
+    port: int
+    url: str
 
 
 class RefreshTierRead(BaseModel):

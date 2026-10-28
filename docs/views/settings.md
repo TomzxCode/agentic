@@ -44,7 +44,8 @@ Fields save when they lose focus, and the panel shows `saving…` then `saved`.
 When one is set, GitHub and Slack items gain an **Open in ghx** or **Open in slackx** link.
 Leaving a field blank hides that link.
 
-A tool on the `managed` transport has no URL field: the server starts that tool's serve process itself, so the page shows the URL it answers on as a link to open, and uses it for the item links.
+A tool on the `managed` transport has no URL field: the server starts that tool's serve process itself, so the page shows a link to its web UI with the port the process actually bound (a configured URL keeps its host, since that is how you reach this machine), and whether the process is running.
+The process listens on all interfaces, so the same port works from another machine.
 
 ### Identity
 
