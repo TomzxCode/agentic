@@ -50,3 +50,11 @@ class GithubRepoListing(BaseModel):
 
     items: list[GithubRepoItem] = []
     failed: list[str] = []
+
+
+class GithubPullPokeRequest(BaseModel):
+    """Ask the API to send a pull request reviewer a Slack message, addressed by URL."""
+
+    url: str
+    title: str = ""
+    login: str

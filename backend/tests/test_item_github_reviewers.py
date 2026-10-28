@@ -5,7 +5,7 @@ import json
 from fastapi.testclient import TestClient
 
 from agentic.main import app
-from agentic.routers import items as items_router
+from agentic.routers import review_pokes
 from agentic.services import github, shell, slack
 
 
@@ -120,7 +120,7 @@ def test_poke_sends_the_review_request_to_the_mapped_slack_user(monkeypatch):
         sent.update(user_id=user_id, text=text, **kwargs)
         return {"ok": True, "ts": "1700000000.000000"}
 
-    monkeypatch.setattr(items_router, "slack_send_dm", fake_send)
+    monkeypatch.setattr(review_pokes, "slack_send_dm", fake_send)
     with TestClient(app) as client:
         item = _pr(client)
         person = client.post(
@@ -151,7 +151,7 @@ def test_poke_resolves_a_slack_handle_alias(monkeypatch):
         "_run_cli",
         lambda cmd, timeout=60: json.dumps({"users": [{"id": "U0HANDLE1", "name": "alice-slack-handle"}]}),
     )
-    monkeypatch.setattr(items_router, "slack_send_dm", lambda user_id, text, **kwargs: {"ok": True, "ts": "1.0"})
+    monkeypatch.setattr(review_pokes, "slack_send_dm", lambda user_id, text, **kwargs: {"ok": True, "ts": "1.0"})
     with TestClient(app) as client:
         item = _pr(client)
         person = client.post(
@@ -191,7 +191,7 @@ def test_poke_explains_what_is_missing(monkeypatch):
 
 def test_poke_reports_slack_refusing_the_message(monkeypatch):
     monkeypatch.setattr(
-        items_router,
+        review_pokes,
         "slack_send_dm",
         lambda user_id, text, **kwargs: (_ for _ in ()).throw(
             slack.SlackError("Slack refused the message: channel_not_found")
@@ -207,3 +207,70 @@ def test_poke_reports_slack_refusing_the_message(monkeypatch):
         assert "channel_not_found" in response.json()["detail"]
         client.delete(f"/api/people/{person}")
         client.delete(f"/api/items/{item['id']}")
+
+
+def test_url_reviewers_endpoint_lists_reviews(monkeypatch):
+    monkeypatch.setattr(shell, "_run_cli", lambda cmd, timeout=60: _reviews_payload())
+    with TestClient(app) as client:
+        body = client.get("/api/github/pull/reviewers", params={"url": "https://github.com/acme/api/pull/42"}).json()
+        assert [review["login"] for review in body["reviewers"]] == ["alice", "bob", "carol"]
+        assert body["reviewers"][2]["requested"] is True
+        assert body["error"] is None
+
+
+def test_url_reviewers_endpoint_reports_a_failed_read(monkeypatch):
+    monkeypatch.setattr(shell, "_run_cli", lambda cmd, timeout=60: None)
+    with TestClient(app) as client:
+        body = client.get("/api/github/pull/reviewers", params={"url": "https://github.com/acme/api/pull/42"}).json()
+        assert body["reviewers"] == []
+        assert "gh" in body["error"]
+
+
+def test_url_reviewers_endpoint_rejects_an_issue_url():
+    with TestClient(app) as client:
+        response = client.get("/api/github/pull/reviewers", params={"url": "https://github.com/acme/api/issues/7"})
+        assert response.status_code == 400
+
+
+def test_url_poke_sends_the_review_request(monkeypatch):
+    sent: dict = {}
+
+    def fake_send(user_id, text, **kwargs):
+        sent.update(user_id=user_id, text=text, **kwargs)
+        return {"ok": True, "ts": "1700000000.000000"}
+
+    monkeypatch.setattr(review_pokes, "slack_send_dm", fake_send)
+    with TestClient(app) as client:
+        person = client.post(
+            "/api/people",
+            json={"name": "Alice Urlpoke", "aliases": ["alice-urlpoke", "U0123ABCDEH"]},
+        ).json()["id"]
+        body = client.post(
+            "/api/github/pull/poke",
+            json={
+                "url": "https://github.com/acme/api/pull/42",
+                "title": "Fix the parser",
+                "login": "alice-urlpoke",
+            },
+        ).json()
+        assert body == {
+            "login": "alice-urlpoke",
+            "slack_user_id": "U0123ABCDEH",
+            "name": "Alice Urlpoke",
+            "ts": "1700000000.000000",
+        }
+        assert sent["unfurl"] is False
+        assert sent["text"] == (
+            ":wave::robot_face: I would love your review on this PR: "
+            "<https://github.com/acme/api/pull/42|Fix the parser>"
+        )
+        client.delete(f"/api/people/{person}")
+
+
+def test_url_poke_rejects_an_issue_url():
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/github/pull/poke",
+            json={"url": "https://github.com/acme/api/issues/7", "login": "ghost"},
+        )
+        assert response.status_code == 400

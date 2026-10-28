@@ -8,7 +8,7 @@ import { renderMarkdown } from '../markdown'
 import { groupReviewFiles, reviewLabel, stripReportMarker } from '../reviews'
 import EditableText from '../components/EditableText.vue'
 import ItemToolLinks from '../components/ItemToolLinks.vue'
-import ReviewPeople from '../components/ReviewPeople.vue'
+import PullRequestReviewers from '../components/PullRequestReviewers.vue'
 import TaskLink from '../components/TaskLink.vue'
 
 const props = defineProps({ id: { type: String, required: true } })
@@ -30,13 +30,6 @@ const selectedReview = ref(null)
 const reviewContent = ref(null)
 const reviewTruncated = ref(false)
 const reviewLoading = ref(false)
-
-// The PR's reviewers on GitHub, read live through `gh`, and the reviewer whose
-// Slack poke is in flight. Each row is one reviewer, rendered by ReviewPeople.
-const reviewers = ref([])
-const reviewersError = ref(null)
-const reviewersLoading = ref(false)
-const poking = ref(null)
 
 // The reports of one reviewed commit belong together, so the list is grouped by
 // the commit in each report's name.
@@ -249,37 +242,6 @@ async function openReview(name) {
   }
 }
 
-async function loadReviewers() {
-  reviewers.value = []
-  reviewersError.value = null
-  if (!isPullRequest.value) return
-  reviewersLoading.value = true
-  try {
-    const data = await api.items.reviewers(props.id)
-    reviewers.value = data.reviewers || []
-    reviewersError.value = data.error || null
-  } catch (e) {
-    reviewersError.value = e.message
-  } finally {
-    reviewersLoading.value = false
-  }
-}
-
-// Ask a reviewer for their review through Slack. The emoji itself is the
-// action; the toast reports who the message reached, or why it could not go.
-async function poke(reviewer) {
-  if (poking.value) return
-  poking.value = reviewer.login
-  try {
-    const sent = await api.items.poke(props.id, reviewer.login)
-    store.notify(`Poked ${sent.name || `@${reviewer.login}`} on Slack`)
-  } catch (e) {
-    store.notify(e.message, true)
-  } finally {
-    poking.value = null
-  }
-}
-
 async function remove() {
   const linked = linkedTasks.value.length
   const message = linked
@@ -298,7 +260,7 @@ async function remove() {
 onMounted(async () => {
   await Promise.all([store.loadTasks().catch(() => {}), store.loadPeople().catch(() => {})])
   await load()
-  await Promise.all([loadReviews(), loadReviewers(), loadPathPreview()])
+  await Promise.all([loadReviews(), loadPathPreview()])
 })
 </script>
 
@@ -407,13 +369,7 @@ onMounted(async () => {
         </div>
         <!-- The PR's reviewers, read live from GitHub. The ones still owing a
              review are listed too, since those are the ones to poke. -->
-        <div v-if="isPullRequest" class="field">
-          <label>Reviewers</label>
-          <div v-if="reviewersLoading" class="empty"><span class="spinner"></span></div>
-          <p v-else-if="reviewersError" class="faint" style="margin: 0">{{ reviewersError }}</p>
-          <p v-else-if="!reviewers.length" class="faint" style="margin: 0">No reviewers yet.</p>
-          <ReviewPeople v-else :reviewers="reviewers" :poking="poking" @poke="poke" />
-        </div>
+        <PullRequestReviewers v-if="isPullRequest" :item-id="id" />
         <!-- The description is Markdown, rendered with the shared renderer and
              sanitized before it reaches v-html. -->
         <!-- eslint-disable-next-line vue/no-v-html -->

@@ -177,6 +177,8 @@ The task representation returns those fields plus `waiting_on_name`.
 | `GET` | `/api/github/issues` | Issue picker for import. |
 | `POST` | `/api/github/issues` | Create an issue from a title and body. |
 | `GET` | `/api/github/issue` | One issue by URL. |
+| `GET` | `/api/github/pull/reviewers` | A pull request's reviewers, read from its `?url=` the way the item read does. Backs the standalone pull request page, which has no stored item to address. |
+| `POST` | `/api/github/pull/poke` | Send a reviewer a Slack DM asking for their review, addressed by URL. The body is `{"url": "...", "title": "...", "login": "<github login>"}`. |
 | `GET` | `/api/github/repository` | A repository's issues and pull requests (via `ghx`), all states by default. `?refresh=true` runs a `ghx cache` delta fetch first (never a forced full re-download). |
 | `GET` | `/api/slack/users` | Name the Slack user ids given (via `slackx`), fetching an uncached user from Slack. |
 | `GET` | `/api/fs/list` | Server-side directory picker. |

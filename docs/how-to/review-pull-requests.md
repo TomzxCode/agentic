@@ -47,6 +47,7 @@ The reports live under `AGENTIC_SDLC_DIR` (`~/.sdlc` by default), at `{owner}/{r
    A step that is running right now shows a spinner instead, and its tooltip says when it started; the spinner appears even before the step has written a report.
    A step with no report shows a dash.
 6. Click a cell to open that step's report.
+   The PR view (a task's PR mode or the pull request page) shows a `Description` / `Review` / `Reports` switch under the pull request's title: `Reports` lists one tab per step that wrote a report, and clicking a step cell there opens it in that pane.
 7. Use the row's **📝** to open the linked task in its PR view, or **➕** to import the pull request into a new task, the same as the repository view's **New task**.
 8. Use **Share** to pick the must/should/may findings the skills recorded and hand the selection to an agent run on the task, whose skills post them inline on the pull request (one review comment per finding, on the file and line it is about).
    Each check or uncheck writes your decision (`include` or `skip`) onto that finding in its skill's state file, so the selection is still there when you come back.
@@ -72,7 +73,8 @@ The section shows when the scan last ran, how many it found and kept, and any er
 ## Request a review from a reviewer
 
 Open a pull request item: from a row's **📝** in the queue, a task's PR view, or the Resources list.
-Its **Pull request** panel lists the reviewers assigned to the pull request: the ones who already reviewed (with their latest state and when they last reviewed), and the ones a review is still requested from, shown as **Awaiting review**.
+Its **Description** tab lists the reviewers under the author line: the ones who already reviewed (with their latest state and when they last reviewed), and the ones a review is still requested from, shown as **Awaiting review**.
+The standalone pull request page (opened from a repository's issue and PR grid) shows the same list on its Description tab.
 
 Click the **👉** beside a reviewer to send them a Slack DM asking for their review.
 The message reads `:wave::robot_face: I would love your review on this PR: <title linking to GitHub>`.

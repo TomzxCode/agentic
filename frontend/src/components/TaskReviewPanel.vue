@@ -135,14 +135,55 @@ const error = ref(false)
 // per field.
 const items = computed(() => linked.value.map((pr) => ({ pr, row: queueRowFor(queue.value.prs, pr) })))
 
-// The report open in the viewer: its PR row, its name, and content.
-const openPr = ref(null)
+// Which pane each PR panel shows: "review" (the step row and the findings
+// selector) or "reports" (the reports the steps wrote, one tab per step). A
+// task may link several pull requests, so the choice is kept per PR.
+const activeTabs = ref({})
+
+function rowKey(row) {
+  return `${row.repository}#${row.number}`
+}
+
+function tabFor(row) {
+  return activeTabs.value[rowKey(row)] || 'review'
+}
+
+// The reports a row's steps wrote, in the queue's step order. One tab per step
+// that has a report, carrying its verdict and the commit it covers.
+function stepReports(row) {
+  const reports = []
+  for (const column of QUEUE_STEPS) {
+    const step = row.steps?.[column.key]
+    if (step?.report) reports.push({ ...step, key: column.key, label: column.label })
+  }
+  return reports
+}
+
+// The report open in the viewer: the PR it belongs to, its name, and content.
+const openKey = ref('')
 const openName = ref('')
 const reportContent = ref(null)
 const reportLoading = ref(false)
 const reportTruncated = ref(false)
 
 const reportHtml = computed(() => renderMarkdown(stripReportMarker(reportContent.value)))
+
+// Switch panes, opening the newest report so the reports pane is never blank
+// when it has something to show.
+function showTab(row, tab) {
+  activeTabs.value = { ...activeTabs.value, [rowKey(row)]: tab }
+  if (tab !== 'reports') return
+  const first = stepReports(row)[0]
+  if (first && (openKey.value !== rowKey(row) || !openName.value)) openReport(row, first)
+}
+
+// A report tab's tooltip: its step, its verdict, and the commit it covers.
+function reportTabTitle(entry) {
+  const parts = [entry.label]
+  if (entry.verdict) parts.push(entry.verdict)
+  if (entry.commit) parts.push(entry.stale ? `${shortCommit(entry.commit)} (stale)` : shortCommit(entry.commit))
+  return parts.join(' · ')
+}
 
 // The agent panel at the bottom of this view, so a run started by the findings
 // selector below a PR shows up there right away.
@@ -209,9 +250,12 @@ function runningTitle(row, key) {
   return marker.started_at ? `${label}: running since ${formatDateTime(marker.started_at)}` : `${label}: running`
 }
 
+// Read a report and show it in the PR's reports pane. A step cell in the review
+// pane calls this too, so clicking a verdict reads its report in place.
 async function openReport(row, step) {
   if (!step?.report || !row) return
-  openPr.value = row
+  activeTabs.value = { ...activeTabs.value, [rowKey(row)]: 'reports' }
+  openKey.value = rowKey(row)
   openName.value = step.report
   reportContent.value = null
   reportTruncated.value = false
@@ -222,16 +266,10 @@ async function openReport(row, step) {
     reportTruncated.value = !!data.truncated
   } catch (e) {
     store.notify(e.message, true)
-    openPr.value = null
+    openKey.value = ''
   } finally {
     reportLoading.value = false
   }
-}
-
-function closeReport() {
-  openPr.value = null
-  openName.value = ''
-  reportContent.value = null
 }
 
 onMounted(load)
@@ -245,6 +283,8 @@ watch(signature, () => load())
       :key="`${pr.owner}/${pr.repo}#${pr.number}`"
       :url="pr.url"
       :item="pr.item"
+      :show-body="!row || tabFor(row) === 'description'"
+      :show-reviewers="row ? tabFor(row) === 'description' : !loading"
     >
       <template #head>
         <span v-if="row && READINESS_LIGHTS[row.readiness]" class="task-pr-readiness" :title="readinessTitle(row)">{{
@@ -255,6 +295,42 @@ watch(signature, () => load())
         </button>
       </template>
 
+      <!-- The panes sit at the top of the pull request, right under its title,
+           so the description, the step verdicts, and the reports are one click
+           apart instead of stacked. -->
+      <template #tabs>
+        <div v-if="row" class="row review-tabs pr-panel-tabs" role="tablist" aria-label="Pull request view">
+          <button
+            class="btn sm"
+            role="tab"
+            :class="{ ghost: tabFor(row) !== 'description' }"
+            :aria-selected="tabFor(row) === 'description'"
+            @click="showTab(row, 'description')"
+          >
+            Description
+          </button>
+          <button
+            class="btn sm"
+            role="tab"
+            :class="{ ghost: tabFor(row) !== 'review' }"
+            :aria-selected="tabFor(row) === 'review'"
+            @click="showTab(row, 'review')"
+          >
+            Review
+          </button>
+          <button
+            v-if="stepReports(row).length"
+            class="btn sm"
+            role="tab"
+            :class="{ ghost: tabFor(row) !== 'reports' }"
+            :aria-selected="tabFor(row) === 'reports'"
+            @click="showTab(row, 'reports')"
+          >
+            Reports <span class="faint">{{ stepReports(row).length }}</span>
+          </button>
+        </div>
+      </template>
+
       <div v-if="loading && !queue.prs.length" class="empty"><span class="spinner" aria-hidden="true"></span></div>
 
       <div v-else-if="error">
@@ -263,86 +339,123 @@ watch(signature, () => load())
       </div>
 
       <template v-else-if="row">
-        <div class="task-item-meta">
-          <span v-if="row.last_comment_at">
-            last comment <span class="mono">{{ timeAgo(row.last_comment_at) }}</span>
-          </span>
-          <span v-if="row.head_commit" class="task-pr-reviewed">
-            reviewed
-            <a
-              v-if="commitUrl(row)"
-              class="mono"
-              :href="commitUrl(row)"
-              target="_blank"
-              rel="noopener"
-              :title="`Reviewed commit ${row.head_commit}`"
-              >{{ shortCommit(row.head_commit) }}</a
-            >
-            <code v-else>{{ shortCommit(row.head_commit) }}</code>
-          </span>
-        </div>
-
-        <div class="task-pr-steps">
-          <div v-for="column in QUEUE_STEPS" :key="column.key" class="task-pr-step">
-            <span class="task-pr-step-label">{{ column.label }}</span>
-            <span
-              v-if="runningStep(row, column.key)"
-              class="review-step-running"
-              role="status"
-              :title="runningTitle(row, column.key)"
-              :aria-label="runningTitle(row, column.key)"
-              ><span class="spinner" aria-hidden="true"></span
-            ></span>
-            <template v-else-if="row.steps?.[column.key]">
-              <button
-                class="review-step"
-                :title="stepTitle(column.key, row.steps[column.key])"
-                @click="openReport(row, row.steps[column.key])"
+        <!-- The review pane: when the pull request was last discussed and
+             reviewed, its verdict per step, and the findings selector. -->
+        <template v-if="tabFor(row) === 'review'">
+          <div class="task-item-meta">
+            <span v-if="row.last_comment_at">
+              last comment <span class="mono">{{ timeAgo(row.last_comment_at) }}</span>
+            </span>
+            <span v-if="row.head_commit" class="task-pr-reviewed">
+              reviewed
+              <a
+                v-if="commitUrl(row)"
+                class="mono"
+                :href="commitUrl(row)"
+                target="_blank"
+                rel="noopener"
+                :title="`Reviewed commit ${row.head_commit}`"
+                >{{ shortCommit(row.head_commit) }}</a
               >
-                <template v-if="column.key === 'assess-pr-risk'">
+              <code v-else>{{ shortCommit(row.head_commit) }}</code>
+            </span>
+          </div>
+
+          <div class="task-pr-steps">
+            <div v-for="column in QUEUE_STEPS" :key="column.key" class="task-pr-step">
+              <span class="task-pr-step-label">{{ column.label }}</span>
+              <span
+                v-if="runningStep(row, column.key)"
+                class="review-step-running"
+                role="status"
+                :title="runningTitle(row, column.key)"
+                :aria-label="runningTitle(row, column.key)"
+                ><span class="spinner" aria-hidden="true"></span
+              ></span>
+              <template v-else-if="row.steps?.[column.key]">
+                <button
+                  class="review-step"
+                  :title="stepTitle(column.key, row.steps[column.key])"
+                  @click="openReport(row, row.steps[column.key])"
+                >
+                  <template v-if="column.key === 'assess-pr-risk'">
+                    <span
+                      v-if="row.steps[column.key].risk"
+                      class="review-risk"
+                      :class="`tone-${riskTone(row.steps[column.key].risk)}`"
+                      >{{ row.steps[column.key].risk[0].toUpperCase() }}</span
+                    ><span class="faint"
+                      >/{{
+                        row.steps[column.key].confidence ? row.steps[column.key].confidence[0].toUpperCase() : '—'
+                      }}</span
+                    >
+                  </template>
                   <span
-                    v-if="row.steps[column.key].risk"
-                    class="review-risk"
-                    :class="`tone-${riskTone(row.steps[column.key].risk)}`"
-                    >{{ row.steps[column.key].risk[0].toUpperCase() }}</span
-                  ><span class="faint"
-                    >/{{
-                      row.steps[column.key].confidence ? row.steps[column.key].confidence[0].toUpperCase() : '—'
+                    v-if="row.steps[column.key].verdict"
+                    :class="
+                      column.key === 'assess-pr-risk'
+                        ? `tone-${verdictTone(row.steps[column.key].verdict)}`
+                        : 'review-verdict'
+                    "
+                    >{{
+                      column.key === 'assess-pr-risk'
+                        ? row.steps[column.key].verdict
+                        : verdictLabel(row.steps[column.key].verdict)
                     }}</span
                   >
-                </template>
-                <span
-                  v-if="row.steps[column.key].verdict"
-                  :class="
-                    column.key === 'assess-pr-risk'
-                      ? `tone-${verdictTone(row.steps[column.key].verdict)}`
-                      : 'review-verdict'
-                  "
-                  >{{
-                    column.key === 'assess-pr-risk'
-                      ? row.steps[column.key].verdict
-                      : verdictLabel(row.steps[column.key].verdict)
-                  }}</span
-                >
-                <span v-else-if="column.key !== 'assess-pr-risk'" class="faint">local</span>
-                <span v-if="row.steps[column.key].stale && row.steps[column.key].commit" class="review-stale">{{
-                  shortCommit(row.steps[column.key].commit)
-                }}</span>
-              </button>
-            </template>
-            <span v-else class="faint task-pr-step-empty">—</span>
+                  <span v-else-if="column.key !== 'assess-pr-risk'" class="faint">local</span>
+                  <span v-if="row.steps[column.key].stale && row.steps[column.key].commit" class="review-stale">{{
+                    shortCommit(row.steps[column.key].commit)
+                  }}</span>
+                </button>
+              </template>
+              <span v-else class="faint task-pr-step-empty">—</span>
+            </div>
           </div>
-        </div>
 
-        <FindingsSelector
-          :repository="row.repository"
-          :number="row.number"
-          :url="pr.url"
-          :task-id="resolvedTask?.id || null"
-          :task-label="resolvedTask?.title || ''"
-          @shared="onFindingsShared"
-          @imported="onImported"
-        />
+          <FindingsSelector
+            :repository="row.repository"
+            :number="row.number"
+            :url="pr.url"
+            :task-id="resolvedTask?.id || null"
+            :task-label="resolvedTask?.title || ''"
+            @shared="onFindingsShared"
+            @imported="onImported"
+          />
+        </template>
+
+        <!-- The reports pane: one tab per step that wrote a report, read in
+             place instead of a modal. -->
+        <template v-else-if="tabFor(row) === 'reports'">
+          <div class="row review-tabs pr-report-tabs">
+            <button
+              v-for="entry in stepReports(row)"
+              :key="entry.report"
+              class="btn sm"
+              :class="{ ghost: !(openKey === rowKey(row) && openName === entry.report) }"
+              :title="reportTabTitle(entry)"
+              @click="openReport(row, entry)"
+            >
+              {{ entry.label }}
+            </button>
+          </div>
+          <p v-if="openKey === rowKey(row) && openName" class="faint review-path">{{ openName }}</p>
+          <div v-if="openKey === rowKey(row) && reportLoading" class="empty">
+            <span class="spinner" aria-hidden="true"></span>
+          </div>
+          <!-- The report's marker comment is stripped and its HTML sanitized by
+               the renderer before it reaches v-html. -->
+          <!-- eslint-disable vue/no-v-html -->
+          <div
+            v-else-if="openKey === rowKey(row) && reportContent !== null"
+            class="review-content md"
+            v-html="reportHtml"
+          ></div>
+          <!-- eslint-enable vue/no-v-html -->
+          <p v-if="openKey === rowKey(row) && reportTruncated" class="faint">
+            Showing the first part of a large report.
+          </p>
+        </template>
       </template>
 
       <p v-else class="faint" style="margin: 8px 0 0">
@@ -361,22 +474,5 @@ watch(signature, () => load())
       @changed="emit('changed')"
       @task-created="adoptTask"
     />
-
-    <div v-if="openPr" class="modal-backdrop" @click.self="closeReport">
-      <div class="modal review-modal">
-        <div class="row" style="justify-content: space-between; align-items: baseline">
-          <h2 style="margin: 0">
-            {{ openPr.repository }}#{{ openPr.number }} <span class="faint review-modal-path">{{ openName }}</span>
-          </h2>
-          <button class="btn sm ghost" aria-label="Close report" @click="closeReport">Close</button>
-        </div>
-        <div v-if="reportLoading" class="empty"><span class="spinner" aria-hidden="true"></span></div>
-        <!-- The report's marker comment is stripped and its HTML sanitized by
-             the renderer before it reaches v-html. -->
-        <!-- eslint-disable-next-line vue/no-v-html -->
-        <div v-else-if="reportContent !== null" class="review-content md" v-html="reportHtml"></div>
-        <p v-if="reportTruncated" class="faint">Showing the first part of a large report.</p>
-      </div>
-    </div>
   </div>
 </template>

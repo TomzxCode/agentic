@@ -8,10 +8,12 @@ from sqlmodel import Session
 from ..crud import get_or_404
 from ..db import get_session
 from ..models.repositories import Repository
-from ..schemas.github import GithubIssue, GithubIssueCreate, GithubRepoListing
+from ..schemas.github import GithubIssue, GithubIssueCreate, GithubPullPokeRequest, GithubRepoListing
+from ..schemas.items import ItemGithubReviewer, ItemGithubReviewers, ItemPoke
 from ..services.github import (
     create_github_issue,
     fetch_github_issue,
+    fetch_github_pull_reviewers,
     github_owner_repo,
     list_github_issues,
     list_github_repo_items,
@@ -19,6 +21,7 @@ from ..services.github import (
 )
 from ..services.parsing import parse_github
 from .items_refresh import sync_github_listing
+from .review_pokes import poke_pull_request_reviewer as send_pull_review_poke
 
 router = APIRouter(prefix="/api/github", tags=["github"])
 
@@ -36,6 +39,38 @@ def get_issue(url: str) -> GithubIssue:
             detail="Could not read the issue (is `ghx` installed and authenticated?)",
         )
     return GithubIssue.model_validate(issue)
+
+
+def _pull_request_fields(url: str) -> tuple[str, str, str]:
+    """The (owner, repo, number) a pull request URL names, or a 400."""
+    parsed = parse_github(url)
+    if not parsed or parsed["kind"] != "pull_request":
+        raise HTTPException(status_code=400, detail="Not a GitHub pull request URL")
+    return parsed["owner"], parsed["repo"], parsed["number"]
+
+
+@router.get("/pull/reviewers", response_model=ItemGithubReviewers)
+def get_pull_request_reviewers(url: str) -> ItemGithubReviewers:
+    """List a pull request's reviewers from its URL, read live through ``gh``.
+
+    The standalone pull request view has no stored item to address, so this is
+    the item endpoint's read keyed by the URL instead. A read that could not run
+    reports its error rather than reading as "no reviewers".
+    """
+    owner, repo, number = _pull_request_fields(url)
+    reviews = fetch_github_pull_reviewers(owner, repo, number)
+    if reviews is None:
+        return ItemGithubReviewers(
+            error="Could not read this pull request's reviewers (is `gh` installed and authenticated?)"
+        )
+    return ItemGithubReviewers(reviewers=[ItemGithubReviewer.model_validate(review) for review in reviews])
+
+
+@router.post("/pull/poke", response_model=ItemPoke)
+def poke_reviewer_by_url(payload: GithubPullPokeRequest, session: Session = Depends(get_session)) -> ItemPoke:
+    """Send a reviewer of a pull request a Slack message, addressed by URL."""
+    _pull_request_fields(payload.url)
+    return send_pull_review_poke(session, payload.url, payload.title, payload.login)
 
 
 def _resolve_owner_repo(

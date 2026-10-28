@@ -31,14 +31,15 @@ from ..schemas.items import (
     ItemUpdate,
 )
 from ..schemas.settings import RefreshDueReport
-from ..services.github import fetch_github_pull_reviewers, pr_review_request_message
+from ..services.github import fetch_github_pull_reviewers
 from ..services.parsing import looks_like_url, parse_github, parse_path
-from ..services.slack import SlackError, resolve_slack_user_id, slack_send_dm, slack_ts_after, slack_ts_datetime
+from ..services.slack import slack_ts_after, slack_ts_datetime
 from ..services.sources import fetch_source, infer_item_source, read_path
 from ..settings_store import get_settings
 from .items_refresh import _apply_fetch, force_refresh_source, refresh_due_items
 from .people_links import link_people_to_item
-from .people_service import item_person_ids, person_aliases, person_for_alias
+from .people_service import item_person_ids
+from .review_pokes import poke_pull_request_reviewer
 
 router = APIRouter(prefix="/api/items", tags=["items"])
 
@@ -375,54 +376,13 @@ def list_item_github_reviewers(item_id: str, session: Session = Depends(get_sess
     return ItemGithubReviewers(reviewers=[ItemGithubReviewer.model_validate(review) for review in reviews])
 
 
-def _slack_pr_message(item: SourceItem) -> str:
-    """The message a poke sends, built from the item's PR link."""
-    return pr_review_request_message(str(item.url or ""), str(item.title or ""))
-
-
 @router.post("/{item_id}/poke", response_model=ItemPoke)
 def poke_reviewer(item_id: str, payload: ItemPokeRequest, session: Session = Depends(get_session)) -> ItemPoke:
-    """Send a reviewer of a pull request a Slack message asking for their review.
-
-    The GitHub login resolves through the people directory: the person carrying
-    that alias supplies the Slack user id (or handle) the message goes to. The
-    DM is sent with Slack's ``chat.postMessage``, which opens it if needed.
-    """
+    """Send a reviewer of a pull request a Slack message asking for their review."""
     item = get_or_404(session, SourceItem, item_id, "Item not found")
     if _pull_request_location(item) is None:
         raise HTTPException(status_code=400, detail="This item is not a GitHub pull request")
-    login = (payload.login or "").strip()
-    if not login:
-        raise HTTPException(status_code=400, detail="Provide the reviewer's GitHub login")
-    person = person_for_alias(session, login)
-    if person is None:
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                f"No person carries the GitHub login @{login}. Create them in People with that login "
-                "and their Slack user id as aliases, then poke again."
-            ),
-        )
-    slack_user_id = resolve_slack_user_id(person_aliases(session, person.id))
-    if slack_user_id is None:
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                f"{person.name} has no Slack user id or handle among their aliases. "
-                "Add one on their person page, then poke again."
-            ),
-        )
-    try:
-        # The PR link is the whole message, so no preview: the DM stays one line.
-        sent = slack_send_dm(slack_user_id, _slack_pr_message(item), unfurl=False)
-    except SlackError as exc:
-        raise HTTPException(status_code=502, detail=str(exc)) from exc
-    return ItemPoke(
-        login=login,
-        slack_user_id=slack_user_id,
-        name=person.name,
-        ts=str(sent["ts"]) if sent.get("ts") else None,
-    )
+    return poke_pull_request_reviewer(session, str(item.url or ""), str(item.title or ""), payload.login)
 
 
 @router.get("/{item_id}/reviews/{name:path}", response_model=ItemReviewContent)

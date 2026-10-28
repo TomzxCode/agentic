@@ -380,7 +380,11 @@ export const api = {
       qs.set('limit', String(limit))
       if (refresh) qs.set('refresh', 'true')
       return request(`/github/repository?${qs.toString()}`)
-    }
+    },
+    // A pull request's reviewers, for the standalone PR view (which has no
+    // stored item to address), and the Slack poke that asks one for a review.
+    pullReviewers: (url) => request(`/github/pull/reviewers?${new URLSearchParams({ url }).toString()}`),
+    pokePull: (body) => request('/github/pull/poke', { method: 'POST', body })
   },
 
   onCall: {

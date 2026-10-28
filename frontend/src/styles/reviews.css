@@ -316,6 +316,16 @@
 .task-item-panel .task-item-head {
   flex-wrap: wrap;
 }
+/* The head's actions (a readiness light, Refresh, and the links out) stay in
+   one group at the end of the row, rather than each taking a share of the
+   space between the title and the right edge. */
+.task-item-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-left: auto;
+}
 .task-item-title {
   display: flex;
   align-items: center;
@@ -352,6 +362,15 @@
 .task-pr-readiness {
   flex: none;
   cursor: help;
+}
+/* The PR panel's panes (description, review row, reports), at the top of the
+   pull request right under its title. */
+.pr-panel-tabs {
+  margin: 2px 0 10px;
+}
+/* The reports pane's one tab per report, each opening its report in place. */
+.pr-report-tabs {
+  margin-top: 12px;
 }
 /* One labelled cell per review step, wrapping to as many rows as the width
    needs. */
@@ -488,4 +507,9 @@
 }
 .review-person .badge {
   font-size: 11px;
+}
+
+/* A pull request's reviewers, listed under its author line in the panel. */
+.task-item-panel .field {
+  margin-top: 10px;
 }

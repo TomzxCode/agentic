@@ -703,6 +703,8 @@ GET                 /api/stack/current                   (the current task)
 GET/POST/PATCH      /api/harnesses   /api/repositories   /api/items
 GET                 /api/items/{id}/reviewers       (a PR's reviewers, live from GitHub)
 POST                /api/items/{id}/poke                (DM a reviewer on Slack)
+GET                 /api/github/pull/reviewers           (a PR's reviewers by URL, for the PR page)
+POST                /api/github/pull/poke                (DM a reviewer on Slack, by PR URL)
 GET/POST            /api/changes
 GET/PATCH/DELETE    /api/changes/{id}
 POST                /api/changes/{id}/status             (lifecycle transition)
