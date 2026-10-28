@@ -20,9 +20,7 @@ import ReviewsView from '../views/ReviewsView.vue'
 import { store, formatDateTime } from '../store'
 
 const RouterLinkStub = { props: ['to'], template: '<a :href="to"><slot /></a>' }
-const stub = {
-  global: { stubs: { RouterLink: RouterLinkStub, ShareFindingsModal: { template: '<div class="share-stub" />' } } }
-}
+const stub = { global: { stubs: { RouterLink: RouterLinkStub } } }
 
 // The state word and count a tri-state kind filter shows.
 function filterState(wrapper, kind) {
@@ -123,6 +121,7 @@ beforeEach(() => {
   store.people = []
   store.repositories = []
   store.tasks = []
+  store.settings = {}
   vi.spyOn(store, 'loadPeople').mockResolvedValue()
   vi.spyOn(store, 'loadRepositories').mockResolvedValue()
   vi.spyOn(store, 'loadTasks').mockResolvedValue()
@@ -155,7 +154,7 @@ describe('ReviewsView', () => {
     expect(wrapper.text()).toContain('#42')
     expect(wrapper.text()).toContain('alice')
     // The readiness light is the row's tooltip; the status column is gone.
-    expect(wrapper.get('.review-pr-cell a').attributes('title')).toContain('Still needs attention')
+    expect(wrapper.get('.review-readiness').attributes('title')).toContain('Still needs attention')
     expect(wrapper.text()).not.toContain('Needs review')
     // Nobody in the directory carries alice or bob, so both read grey and link
     // to the prefilled creation page rather than a person page.
@@ -164,6 +163,56 @@ describe('ReviewsView', () => {
     expect(wrapper.get('.review-reviewed-at').text()).toBe(formatDateTime('2026-01-12T06:20:00Z'))
     // The validate step is stale, so its reviewed commit is shown in red.
     expect(wrapper.get('.review-stale').text()).toBe('abc1234')
+  })
+
+  it('links each pull request to ghx, GitHub, and the app, in that order', async () => {
+    store.settings = { ghx_url: 'http://ghx:8080/' }
+    mocks.queue.mockResolvedValue({ root: null, counts: { total: 1 }, prs: [pr()] })
+
+    const wrapper = mount(ReviewsView, stub)
+    await flushPromises()
+
+    // The title is the app link, not the number; the two external copies come
+    // before it.
+    const appLink = wrapper.get('.review-pr-link')
+    expect(appLink.text()).toBe('Do the thing')
+    expect(appLink.attributes('href')).toBe('/pr/TomzxCode/agentic/42')
+    // The number still names the PR, but no longer opens anything.
+    expect(wrapper.get('.review-number').text()).toBe('#42')
+    expect(wrapper.get('.review-number').element.closest('a')).toBeNull()
+
+    const ghx = wrapper.get('a[title="Open in ghx"]')
+    expect(ghx.text()).toBe('ghx')
+    expect(ghx.attributes('href')).toBe('http://ghx:8080/#/TomzxCode/agentic/pulls/42')
+
+    const github = wrapper.get('a[title="Open on GitHub"]')
+    expect(github.text()).toBe('gh')
+    expect(github.attributes('href')).toBe('https://github.com/TomzxCode/agentic/pull/42')
+
+    expect(
+      wrapper
+        .get('.review-pr-cell')
+        .findAll('a')
+        .map((link) => link.attributes('href'))
+    ).toEqual([
+      'http://ghx:8080/#/TomzxCode/agentic/pulls/42',
+      'https://github.com/TomzxCode/agentic/pull/42',
+      '/pr/TomzxCode/agentic/42'
+    ])
+  })
+
+  it('drops the ghx link when no ghx server is configured', async () => {
+    mocks.queue.mockResolvedValue({ root: null, counts: { total: 1 }, prs: [pr()] })
+
+    const wrapper = mount(ReviewsView, stub)
+    await flushPromises()
+
+    expect(wrapper.find('a[title="Open in ghx"]').exists()).toBe(false)
+    // The GitHub copy and the app link stay, so the row still has both.
+    expect(wrapper.get('a[title="Open on GitHub"]').attributes('href')).toBe(
+      'https://github.com/TomzxCode/agentic/pull/42'
+    )
+    expect(wrapper.get('.review-pr-link').attributes('href')).toBe('/pr/TomzxCode/agentic/42')
   })
 
   it('shows a spinner for a review step that is running', async () => {
@@ -352,19 +401,6 @@ describe('ReviewsView', () => {
     expect(mocks.createTask).toHaveBeenCalledWith({ github_url: 'https://github.com/TomzxCode/agentic/pull/42' })
     expect(wrapper.get('a[href="/task/t2?view=pr"]').text()).toBe('📝')
     expect(wrapper.find('.review-task-new').exists()).toBe(false)
-  })
-
-  it('offers a share action that opens the findings modal for the PR', async () => {
-    mocks.queue.mockResolvedValue({ root: null, counts: { total: 1 }, prs: [pr({ task_ids: ['t1'] })] })
-    store.tasks = [{ id: 't1', title: 'Land the PR', status: 'in_progress' }]
-
-    const wrapper = mount(ReviewsView, stub)
-    await flushPromises()
-
-    expect(wrapper.find('.share-stub').exists()).toBe(false)
-    await wrapper.get('.review-share').trigger('click')
-    await flushPromises()
-    expect(wrapper.find('.share-stub').exists()).toBe(true)
   })
 
   it('shows only open pull requests by default, with a count per status', async () => {

@@ -36,9 +36,9 @@ import {
   verdictTone
 } from '../reviews'
 import { store, timeAgo, formatDateTime } from '../store'
+import { ghxItemUrl } from '../toolLinks'
 import { parseRemote, personLink } from '../repositories/parse'
 import SearchSelect from '../components/SearchSelect.vue'
-import ShareFindingsModal from '../components/ShareFindingsModal.vue'
 
 // The review queue: every pull request with review reports in the user-global
 // store the review skills write to, one row per PR with a column per review
@@ -50,8 +50,6 @@ const loading = ref(true)
 const error = ref(false)
 // The PR whose task is being created, so its button shows a spinner.
 const creatingKey = ref('')
-// The PR whose review findings are being shared.
-const sharing = ref(null)
 
 // The filters: a PR's status (open by default, so the queue shows the pull
 // requests still awaiting a review), one or more repositories, one or more
@@ -342,13 +340,6 @@ function personLinkFor(login) {
   return personLink(store.people, login)
 }
 
-// After the share modal imports a task for a PR, reflect it on the row so it
-// reads as linked, like the import button does.
-function onImported(task) {
-  if (sharing.value) sharing.value.task_ids = [task.id]
-  store.loadTasks().catch(() => {})
-}
-
 // Registered repositories keyed by their lowercased "owner/name", so a store
 // repository can be linked to its page in the app. The store keys by canonical
 // casing, which can differ from the remote's.
@@ -365,6 +356,18 @@ const repositoryIds = computed(() => {
 // the app does not track it (there is then nothing in the app to link to).
 function repositoryLink(repository) {
   return repositoryIds.value.get(String(repository || '').toLowerCase()) || null
+}
+
+// The app's own page for the PR, the row's primary link. It is deliberately not
+// GitHub: the queue is where the review work happens, and the app's PR view is
+// what runs it.
+function pullPath(pr) {
+  return `/pr/${pr.repository}/${pr.number}`
+}
+
+// The PR's page in the local ghx web UI, when one is configured.
+function ghxLink(pr) {
+  return ghxItemUrl(pr, store.settings?.ghx_url)
 }
 
 // The step state for a column, or null when the step has no report.
@@ -629,15 +632,31 @@ onMounted(load)
                     <span v-else aria-hidden="true">➕</span>
                   </button>
                   <a
-                    class="review-pr-link"
+                    v-if="ghxLink(pr)"
+                    class="review-tool-link"
+                    :href="ghxLink(pr)"
+                    target="_blank"
+                    rel="noopener"
+                    title="Open in ghx"
+                    >ghx</a
+                  >
+                  <a
+                    v-if="pr.url"
+                    class="review-tool-link"
                     :href="pr.url"
                     target="_blank"
                     rel="noopener"
-                    :title="[pr.title, readinessTitle(pr)].filter(Boolean).join(' — ')"
+                    title="Open on GitHub"
+                    >gh</a
                   >
-                    <span aria-hidden="true">{{ READINESS_LIGHTS[pr.readiness] }}</span>
-                    #{{ pr.number }}
-                  </a>
+                  <span
+                    class="review-readiness"
+                    role="img"
+                    :title="readinessTitle(pr)"
+                    :aria-label="readinessTitle(pr)"
+                    >{{ READINESS_LIGHTS[pr.readiness] }}</span
+                  >
+                  <span class="review-number">#{{ pr.number }}</span>
                   <span
                     v-if="isApproved(pr)"
                     class="review-approved"
@@ -655,14 +674,15 @@ onMounted(load)
                     :aria-label="sourceTitle(pr)"
                     >{{ sourceBadge(pr) }}</span
                   >
-                  <span v-if="pr.title" class="review-title" :title="pr.title">{{ pr.title }}</span>
-                  <button
-                    class="btn sm ghost review-share"
-                    :title="`Share PR #${pr.number}'s review findings with its author`"
-                    @click="sharing = pr"
+                  <router-link
+                    class="review-pr-link"
+                    :to="pullPath(pr)"
+                    :title="pr.title"
+                    :aria-label="
+                      pr.title ? `Open PR #${pr.number} in the app: ${pr.title}` : `Open PR #${pr.number} in the app`
+                    "
+                    >{{ pr.title || `#${pr.number}` }}</router-link
                   >
-                    Share
-                  </button>
                 </td>
                 <td class="faint">
                   <router-link
@@ -793,16 +813,5 @@ onMounted(load)
         <p v-if="reportTruncated" class="faint">Showing the first part of a large report.</p>
       </div>
     </div>
-
-    <ShareFindingsModal
-      v-if="sharing"
-      :repository="sharing.repository"
-      :number="sharing.number"
-      :url="sharing.url"
-      :task-id="taskFor(sharing)?.id || null"
-      :task-label="taskFor(sharing)?.title || ''"
-      @close="sharing = null"
-      @imported="onImported"
-    />
   </div>
 </template>

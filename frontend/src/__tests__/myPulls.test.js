@@ -318,7 +318,7 @@ describe('MyPullsView', () => {
     expect(wrapper.text()).toContain('alice')
     expect(wrapper.text()).toContain('bob')
     // The failing PR needs attention, so it sorts above the other one.
-    const numbers = wrapper.findAll('.my-pulls-link').map((link) => link.text())
+    const numbers = wrapper.findAll('.my-pulls-number').map((link) => link.text())
     expect(numbers).toEqual(['#7', '#42'])
   })
 
@@ -369,11 +369,14 @@ describe('MyPullsView', () => {
     const wrapper = mount(MyPullsView, { global: { stubs: { RouterLink: RouterLinkStub } } })
     await flushPromises()
 
-    // The number opens the app's PR view, not GitHub; the two external copies
+    // The title opens the app's PR view, not GitHub; the two external copies
     // come before it.
-    const appLink = wrapper.get('.my-pulls-link')
-    expect(appLink.text()).toBe('#42')
+    const appLink = wrapper.get('.my-pulls-title')
+    expect(appLink.text()).toBe('Add the My PRs page')
     expect(appLink.attributes('href')).toBe('/pr/TomzxCode/agentic/42')
+    // The number names the pull request, but no longer opens anything.
+    expect(wrapper.get('.my-pulls-number').text()).toBe('#42')
+    expect(wrapper.get('.my-pulls-number').element.closest('a')).toBeNull()
 
     const ghx = wrapper.get('a[title="Open in ghx"]')
     expect(ghx.text()).toBe('ghx')
@@ -464,7 +467,7 @@ describe('MyPullsView', () => {
     const stateHeads = wrapper.findAll('.my-pulls-group-head')
     expect(stateHeads.map((head) => head.element.firstElementChild.textContent)).toEqual(['Failing', 'Passing'])
     expect(stateHeads.map((head) => head.find('.my-pulls-group-count').text())).toEqual(['1', '1'])
-    expect(wrapper.findAll('.my-pulls-link').map((link) => link.text())).toEqual(['#7', '#42'])
+    expect(wrapper.findAll('.my-pulls-number').map((link) => link.text())).toEqual(['#7', '#42'])
     expect(localStorage.getItem('agentic.myPullsGroupBy')).toBe('ci')
 
     await select.setValue('repository')
@@ -487,7 +490,7 @@ describe('MyPullsView', () => {
     const wrapper = mount(MyPullsView, { global: { stubs: { RouterLink: RouterLinkStub } } })
     await flushPromises()
 
-    const numbers = () => wrapper.findAll('.my-pulls-link').map((link) => link.text())
+    const numbers = () => wrapper.findAll('.my-pulls-number').map((link) => link.text())
     const rows = wrapper.findAll('.my-pulls-filter-row')
     expect(rows).toHaveLength(3)
     // Each chip states how many pull requests it would show, over the whole list.
@@ -528,7 +531,7 @@ describe('MyPullsView', () => {
     const wrapper = mount(MyPullsView, { global: { stubs: { RouterLink: RouterLinkStub } } })
     await flushPromises()
 
-    const numbers = () => wrapper.findAll('.my-pulls-link').map((link) => link.text())
+    const numbers = () => wrapper.findAll('.my-pulls-number').map((link) => link.text())
     expect(numbers()).toEqual(['#42', '#7', '#9'])
 
     // Each option carries how many pull requests it would show.
@@ -560,7 +563,7 @@ describe('MyPullsView', () => {
     await flushPromises()
 
     await wrapper.find('.my-pulls-search').setValue('other')
-    expect(wrapper.findAll('.my-pulls-link').map((link) => link.text())).toEqual(['#7'])
+    expect(wrapper.findAll('.my-pulls-number').map((link) => link.text())).toEqual(['#7'])
 
     await wrapper.find('.my-pulls-search').setValue('nothing matches')
     expect(wrapper.text()).toContain('No pull requests match')

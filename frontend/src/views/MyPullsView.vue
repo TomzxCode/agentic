@@ -367,9 +367,7 @@ onMounted(load)
                       title="Open on GitHub"
                       >gh</a
                     >
-                    <router-link class="my-pulls-link" :to="pullPath(pull)" :title="`Open #${pull.number} in the app`"
-                      >#{{ pull.number }}</router-link
-                    >
+                    <span class="my-pulls-number">#{{ pull.number }}</span>
                     <span v-if="pull.draft" class="badge st-draft">draft</span>
                     <!-- The heading already names the repository when the list is
                          grouped by it, so the row does not repeat it. -->
@@ -383,7 +381,17 @@ onMounted(load)
                       >
                       <span v-else class="my-pulls-repository faint">{{ pull.repository }}</span>
                     </template>
-                    <span class="my-pulls-title" :title="pull.title">{{ pull.title }}</span>
+                    <router-link
+                      class="my-pulls-title"
+                      :to="pullPath(pull)"
+                      :title="pull.title"
+                      :aria-label="
+                        pull.title
+                          ? `Open PR #${pull.number} in the app: ${pull.title}`
+                          : `Open PR #${pull.number} in the app`
+                      "
+                      >{{ pull.title || `#${pull.number}` }}</router-link
+                    >
                     <TaskLink
                       v-for="task in pull.tasks"
                       :key="task.id"

@@ -197,9 +197,10 @@
   gap: 6px;
   min-width: 0;
 }
-.my-pulls-link {
+/* The number names the pull request without opening anything: the title is the
+   row's link, and the external copies sit before it. */
+.my-pulls-number {
   flex: none;
-  color: var(--accent);
   white-space: nowrap;
 }
 /* The row's external links, beside the app link: compact so the repository and
@@ -237,14 +238,15 @@
 a.my-pulls-repository:hover {
   color: var(--accent);
 }
-/* The title takes the rest of the cell and truncates; the tooltip carries it. */
+/* The title is the row's link into the app: it takes the rest of the cell and
+   truncates, and the tooltip carries it. */
 .my-pulls-title {
   flex: 1 1 auto;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: var(--muted);
+  color: var(--accent);
   font-size: 12px;
 }
 /* A task the pull request is linked to, after the title: the shared task chip,

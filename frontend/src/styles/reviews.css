@@ -177,6 +177,22 @@
   white-space: nowrap;
   flex: none;
 }
+/* The row's external links, beside the app link: ghx and GitHub, compact so the
+   title keeps its room. Neither is where the review work happens, so they read
+   faint until hovered. */
+.review-pr-cell .review-tool-link {
+  padding: 0 5px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--faint);
+  font-size: 10px;
+  line-height: 1.6;
+}
+.review-pr-cell .review-tool-link:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+  text-decoration: none;
+}
 /* The draft badge sits after the number, with a little air. */
 .review-pr-cell .badge {
   flex: none;
@@ -218,23 +234,20 @@
   opacity: 0.6;
   cursor: not-allowed;
 }
-/* The PR title follows its number on the same line, truncating when the column
-   cannot hold it; the tooltip carries the full title. */
-.review-title {
-  flex: 1 1 auto;
+/* The readiness light and the number stay at the row's start and never shrink;
+   the title comes after the marks and takes what room is left. */
+.review-pr-cell .review-readiness,
+.review-pr-cell .review-number {
+  flex: none;
+}
+/* The PR title is the row's link into the app: it truncates when the column
+   cannot hold it, and its tooltip carries the full title. */
+.review-pr-cell .review-pr-link {
+  flex: 0 1 auto;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--muted);
   font-size: 12px;
-}
-/* The share action that forwards a PR's findings to its author, kept at the end
-   of the PR cell so a long title truncates before it. */
-.review-pr-cell .review-share {
-  flex: none;
-  font-size: 11px;
-  padding: 2px 8px;
 }
 /* A review step cell is a button so the report opens on click; when the step
    has no report it reads as plain text. */
