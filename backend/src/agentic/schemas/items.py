@@ -162,6 +162,10 @@ class ReviewStepRead(BaseModel):
     verdict: str = ""
     risk: str = ""
     confidence: str = ""
+    #: The counts an adversarial-pr-review marker carries: how many failures it
+    #: reproduced and how many scenarios it could not run.
+    reproduced_count: int = 0
+    unproven_count: int = 0
     stale: bool = False
     report: str | None = None
     modified_at: datetime | None = None

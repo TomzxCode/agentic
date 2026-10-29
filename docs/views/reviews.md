@@ -7,7 +7,7 @@
 ## Problem
 
 A review is not one decision: it is several steps, each with its own report and its own commit, and a pull request can be waiting on you without any of them having run.
-The queue puts one row per pull request, a column per review step, and a merge-readiness light beside the number, so you can see what is done, what is stale, and what still blocks a merge.
+The queue puts one row per pull request, a column per review step, one shared column for the conditional surface reviews, and a merge-readiness light beside the number, so you can see what is done, what is stale, and what still blocks a merge.
 It reads the reports your review skills wrote under `AGENTIC_SDLC_DIR`, plus the pull requests GitHub says are waiting for you.
 
 ## How to use it
@@ -54,19 +54,24 @@ The readiness light:
 | 🟡 yellow | Something still needs attention, including a pull request with no report yet. |
 | 🔴 red | A signal blocks approval. |
 
-Green needs a non-draft pull request, no stale steps, a passing review, coverage not failing, and a risk verdict that is not `decide` or `investigate`.
-Red follows any failing step in the chain, or a risk verdict of `block` or `hold`.
+Green needs a non-draft pull request, no stale steps, a passing review, coverage not failing, no failing surface review, an adversarial verdict that is not `unproven`, and a risk verdict that is not `decide` or `investigate`.
+Red follows any failing step in the chain, a risk verdict of `block` or `hold`, or an adversarial verdict of `breaks`.
 The light reads the reviewed commits, not the head commit.
 
 ### The step columns
 
-The columns are **Behavior**, **Risk**, **Coverage**, **Validate**, **Verify**, and **Review**, one per review skill.
+The columns are **Behavior**, **Risk**, **Adversarial**, **Coverage**, **Validate**, **Verify**, and **Review**, one per review step, followed by **Surfaces** for the conditional surface reviews.
 
-A cell shows the step's verdict, or a mark when the report carries one.
+A cell shows the step's verdict, or a mark when the report carries one; the adversarial verdict marks are `holds` ✅, `unproven` ⚠️, and `breaks` ❌, and its tooltip also names how many failures it reproduced.
 A report that does not cover the newest reviewed commit shows the commit it does cover underneath, in red.
 A step that is running now shows a spinner with the time it started, even before it has written a report.
 A step with no report shows a dash.
 Click any cell to read that report; a large one is truncated with a note (`Showing the first part of a large report.`).
+
+The surface reviews are conditional: one only runs when the diff touches its surface.
+The **Surfaces** cell therefore carries one compact token per surface that ran (**CLI**, **SDK**, **API**, **DB**), each with its verdict mark and opening its own report when clicked.
+A report that does not cover the newest reviewed commit shows its short commit in red after the token.
+A pull request that touches no surface shows a dash, and a surface with no report is never counted as stale.
 
 ### Actions per row
 

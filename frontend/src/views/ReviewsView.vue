@@ -32,6 +32,8 @@ import {
   shortCommit,
   stateFilterCounts,
   stripReportMarker,
+  SURFACE_STEPS,
+  surfaceSteps,
   verdictLabel,
   verdictTone
 } from '../reviews'
@@ -396,12 +398,20 @@ function sourceBadge(pr) {
   return REQUEST_SOURCE_BADGES[pr.request_source] || pr.request_source
 }
 
+// A step's column label, for a tooltip. The surface reviews live in their own
+// list because the table folds them into one column.
+function stepLabel(key) {
+  const step = QUEUE_STEPS.find((entry) => entry.key === key) || SURFACE_STEPS.find((entry) => entry.key === key)
+  return step?.label || key
+}
+
 // A step cell's tooltip: its verdict, its reviewed commit, and whether it is
-// stale (does not cover the newest reviewed commit).
+// stale (does not cover the newest reviewed commit). The adversarial review
+// also names what it reproduced.
 function stepTitle(pr, key, step) {
-  const label = QUEUE_STEPS.find((entry) => entry.key === key)?.label || key
-  const parts = [label]
+  const parts = [stepLabel(key)]
   if (step.verdict) parts.push(step.verdict)
+  if (key === 'adversarial-pr-review' && step.reproduced_count) parts.push(`${step.reproduced_count} reproduced`)
   if (step.commit) parts.push(step.stale ? `${shortCommit(step.commit)} (stale)` : shortCommit(step.commit))
   return parts.join(' · ')
 }
@@ -409,9 +419,19 @@ function stepTitle(pr, key, step) {
 // A running step's tooltip: when its marker was written.
 function runningTitle(pr, key) {
   const marker = runningStep(pr, key)
-  const label = QUEUE_STEPS.find((entry) => entry.key === key)?.label || key
+  const label = stepLabel(key)
   if (!marker) return label
   return marker.started_at ? `${label}: running since ${formatDateTime(marker.started_at)}` : `${label}: running`
+}
+
+// A surface token's tooltip, built from the surface's own entry so the label is
+// its short name (CLI, SDK, API, DB) rather than the full skill.
+function surfaceTitle(pr, entry) {
+  return stepTitle(pr, entry.key, entry.step)
+}
+
+function surfaceRunningTitle(pr, entry) {
+  return runningTitle(pr, entry.key)
 }
 
 async function openReport(pr, step) {
@@ -607,6 +627,7 @@ onMounted(load)
                 <th v-for="column in QUEUE_STEPS" :key="column.key" class="review-col-step">
                   {{ column.label }}
                 </th>
+                <th class="review-col-step">Surfaces</th>
               </tr>
             </thead>
             <tbody>
@@ -787,6 +808,39 @@ onMounted(load)
                         >{{ shortCommit(stepFor(pr, column.key).commit) }}</span
                       >
                     </button>
+                  </template>
+                  <span v-else class="faint">—</span>
+                </td>
+                <td class="review-col-step">
+                  <template v-if="surfaceSteps(pr).length">
+                    <span v-for="entry in surfaceSteps(pr)" :key="entry.key" class="review-surface">
+                      <span
+                        v-if="runningStep(pr, entry.key)"
+                        class="review-step-running"
+                        role="status"
+                        :title="surfaceRunningTitle(pr, entry)"
+                        :aria-label="surfaceRunningTitle(pr, entry)"
+                        ><span class="spinner" aria-hidden="true"></span
+                      ></span>
+                      <button
+                        v-else
+                        class="review-step"
+                        :title="surfaceTitle(pr, entry)"
+                        @click="openReport(pr, entry.step)"
+                      >
+                        <span class="review-surface-label">{{ entry.label }}</span>
+                        <span
+                          v-if="entry.step.verdict"
+                          class="review-verdict"
+                          :class="`tone-${verdictTone(entry.step.verdict)}`"
+                          >{{ verdictLabel(entry.step.verdict) }}</span
+                        >
+                        <span v-else class="faint">·</span>
+                        <span v-if="entry.step.stale && entry.step.commit" class="review-stale">{{
+                          shortCommit(entry.step.commit)
+                        }}</span>
+                      </button>
+                    </span>
                   </template>
                   <span v-else class="faint">—</span>
                 </td>

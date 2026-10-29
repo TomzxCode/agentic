@@ -292,7 +292,9 @@ The **Review queue** page (`/reviews`, the clipboard icon) reads the review
 reports the review skills write under `~/.sdlc/{owner}/{repo}/pull-requests/`
 and shows one row per pull request, grouped by repository, with its author, age,
 last comment, reviewed commit, and the time of its last review event, then a
-column per review step (Behavior, Risk, Coverage, Validate, Verify, Review).
+column per review step (Behavior, Risk, Adversarial, Coverage, Validate, Verify,
+Review) and one shared Surfaces column for the conditional CLI, SDK, API, and
+database reviews.
 Each cell shows the step's verdict, in red when its report does not cover the
 newest reviewed commit, and opens the report when clicked. A step that is
 running right now shows a spinner until it writes its report. A merge-readiness light

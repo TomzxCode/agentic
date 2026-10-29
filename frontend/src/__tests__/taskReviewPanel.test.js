@@ -294,6 +294,53 @@ describe('TaskReviewPanel', () => {
     expect(wrapper.get('.review-content').text()).toContain('review-pr.abc1234.md')
   })
 
+  it('shows the adversarial step and the surface reports in the review pane', async () => {
+    mocks.taskReviews.mockResolvedValue({
+      root: null,
+      counts: { total: 1 },
+      prs: [
+        pr({
+          steps: {
+            'review-pr': step(),
+            'adversarial-pr-review': step({
+              step: 'adversarial-pr-review',
+              verdict: 'breaks',
+              reproduced_count: 2,
+              report: 'adversarial-pr-review.abc1234.md'
+            }),
+            'review-api-changes': step({
+              step: 'review-api-changes',
+              verdict: 'fail',
+              report: 'review-api-changes.abc1234.md'
+            })
+          }
+        })
+      ]
+    })
+    mocks.report.mockResolvedValue({ name: 'report.md', content: '# Report', truncated: false })
+
+    const wrapper = mount(TaskReviewPanel, { props: { task }, ...stub })
+    await flushPromises()
+
+    // The adversarial step is its own labeled cell.
+    const labels = wrapper.findAll('.task-pr-step-label').map((label) => label.text())
+    expect(labels).toContain('Adversarial')
+    expect(labels).toContain('Surfaces')
+    const adversarial = wrapper
+      .findAll('.task-pr-step .review-step')
+      .find((cell) => cell.attributes('title').startsWith('Adversarial'))
+    expect(adversarial.text()).toContain('❌')
+    expect(adversarial.attributes('title')).toContain('2 reproduced')
+
+    // The surfaces share one cell, one token per report.
+    expect(wrapper.findAll('.review-surface-badges .review-step').map((cell) => cell.text())).toEqual(['API❌'])
+
+    await wrapper.get('.pr-panel-tabs button:nth-of-type(3)').trigger('click')
+    await flushPromises()
+    const tabs = wrapper.findAll('.pr-report-tabs button')
+    expect(tabs.map((tab) => tab.text())).toEqual(['Adversarial', 'Review', 'API'])
+  })
+
   it('switches from a report back to the review pane', async () => {
     mocks.report.mockResolvedValue({ name: 'review-pr.abc1234.md', content: '# Review', truncated: false })
     const wrapper = mount(TaskReviewPanel, { props: { task }, ...stub })

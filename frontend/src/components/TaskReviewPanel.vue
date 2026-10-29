@@ -12,6 +12,8 @@ import {
   runningStep,
   shortCommit,
   stripReportMarker,
+  SURFACE_STEPS,
+  surfaceSteps,
   taskPullRequests,
   verdictLabel,
   verdictTone
@@ -148,11 +150,12 @@ function tabFor(row) {
   return activeTabs.value[rowKey(row)] || 'review'
 }
 
-// The reports a row's steps wrote, in the queue's step order. One tab per step
-// that has a report, carrying its verdict and the commit it covers.
+// The reports a row's steps wrote, in the queue's step order, with the
+// conditional surface reviews after the chain. One tab per step that has a
+// report, carrying its verdict and the commit it covers.
 function stepReports(row) {
   const reports = []
-  for (const column of QUEUE_STEPS) {
+  for (const column of [...QUEUE_STEPS, ...SURFACE_STEPS]) {
     const step = row.steps?.[column.key]
     if (step?.report) reports.push({ ...step, key: column.key, label: column.label })
   }
@@ -232,12 +235,20 @@ function readinessTitle(row) {
   return READINESS_TITLES[row?.readiness] || ''
 }
 
+// A step's column label, for a tooltip. The surface reviews live in their own
+// list because the review pane folds them into one row.
+function stepLabel(key) {
+  const step = QUEUE_STEPS.find((entry) => entry.key === key) || SURFACE_STEPS.find((entry) => entry.key === key)
+  return step?.label || key
+}
+
 // A step cell's tooltip: its verdict, its reviewed commit, and whether it is
-// stale (does not cover the newest reviewed commit).
+// stale (does not cover the newest reviewed commit). The adversarial review
+// also names what it reproduced.
 function stepTitle(key, step) {
-  const label = QUEUE_STEPS.find((entry) => entry.key === key)?.label || key
-  const parts = [label]
+  const parts = [stepLabel(key)]
   if (step.verdict) parts.push(step.verdict)
+  if (key === 'adversarial-pr-review' && step.reproduced_count) parts.push(`${step.reproduced_count} reproduced`)
   if (step.commit) parts.push(step.stale ? `${shortCommit(step.commit)} (stale)` : shortCommit(step.commit))
   return parts.join(' · ')
 }
@@ -245,7 +256,7 @@ function stepTitle(key, step) {
 // A running step's tooltip: when its marker was written.
 function runningTitle(row, key) {
   const marker = runningStep(row, key)
-  const label = QUEUE_STEPS.find((entry) => entry.key === key)?.label || key
+  const label = stepLabel(key)
   if (!marker) return label
   return marker.started_at ? `${label}: running since ${formatDateTime(marker.started_at)}` : `${label}: running`
 }
@@ -409,6 +420,40 @@ watch(signature, () => load())
                   }}</span>
                 </button>
               </template>
+              <span v-else class="faint task-pr-step-empty">—</span>
+            </div>
+            <div class="task-pr-step">
+              <span class="task-pr-step-label">Surfaces</span>
+              <span v-if="surfaceSteps(row).length" class="review-surface-badges">
+                <template v-for="entry in surfaceSteps(row)" :key="entry.key">
+                  <span
+                    v-if="runningStep(row, entry.key)"
+                    class="review-step-running"
+                    role="status"
+                    :title="runningTitle(row, entry.key)"
+                    :aria-label="runningTitle(row, entry.key)"
+                    ><span class="spinner" aria-hidden="true"></span
+                  ></span>
+                  <button
+                    v-else
+                    class="review-step"
+                    :title="stepTitle(entry.key, entry.step)"
+                    @click="openReport(row, entry.step)"
+                  >
+                    <span class="review-surface-label">{{ entry.label }}</span>
+                    <span
+                      v-if="entry.step.verdict"
+                      class="review-verdict"
+                      :class="`tone-${verdictTone(entry.step.verdict)}`"
+                      >{{ verdictLabel(entry.step.verdict) }}</span
+                    >
+                    <span v-else class="faint">·</span>
+                    <span v-if="entry.step.stale && entry.step.commit" class="review-stale">{{
+                      shortCommit(entry.step.commit)
+                    }}</span>
+                  </button>
+                </template>
+              </span>
               <span v-else class="faint task-pr-step-empty">—</span>
             </div>
           </div>

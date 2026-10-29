@@ -367,6 +367,77 @@ describe('ReviewsView', () => {
     expect(wrapper.html()).not.toContain('step&quot;:&quot;review-pr')
   })
 
+  it('shows the adversarial review and folds the surface reviews into one column', async () => {
+    mocks.queue.mockResolvedValue({
+      root: null,
+      counts: { total: 1 },
+      prs: [
+        pr({
+          steps: {
+            'review-pr': step(),
+            'adversarial-pr-review': step({
+              step: 'adversarial-pr-review',
+              verdict: 'breaks',
+              reproduced_count: 2,
+              report: 'adversarial-pr-review.abc1234.md'
+            }),
+            'review-api-changes': step({
+              step: 'review-api-changes',
+              verdict: 'fail',
+              report: 'review-api-changes.abc1234.md'
+            }),
+            'review-db-changes': step({
+              step: 'review-db-changes',
+              verdict: 'pass',
+              report: 'review-db-changes.abc1234.md'
+            })
+          }
+        })
+      ]
+    })
+    mocks.report.mockResolvedValue({ name: 'report.md', content: '# Report', truncated: false })
+
+    const wrapper = mount(ReviewsView, stub)
+    await flushPromises()
+
+    const headers = wrapper.findAll('.review-table th').map((head) => head.text())
+    expect(headers).toContain('Adversarial')
+    expect(headers).toContain('Surfaces')
+
+    const adversarial = wrapper
+      .findAll('.review-col-step .review-step')
+      .find((cell) => cell.attributes('title').startsWith('Adversarial'))
+    expect(adversarial.text()).toContain('❌')
+    expect(adversarial.attributes('title')).toContain('2 reproduced')
+
+    // One token per surface that has a report, in CLI, SDK, API, DB order.
+    const surfaces = wrapper.findAll('.review-surface')
+    expect(surfaces.map((entry) => entry.text())).toEqual(['API❌', 'DB✅'])
+
+    await surfaces[0].get('button').trigger('click')
+    await flushPromises()
+    expect(mocks.report).toHaveBeenCalledWith('TomzxCode/agentic', 42, 'review-api-changes.abc1234.md')
+  })
+
+  it('shows a running surface review in the surfaces column', async () => {
+    mocks.queue.mockResolvedValue({
+      root: null,
+      counts: { total: 1 },
+      prs: [
+        pr({
+          steps: { 'review-pr': step() },
+          in_progress: { 'review-cli-changes': { sha: 'abc1234', started_at: '2026-01-12T08:00:00Z' } }
+        })
+      ]
+    })
+    const wrapper = mount(ReviewsView, stub)
+    await flushPromises()
+
+    const surfaces = wrapper.get('.review-surface')
+    expect(surfaces.find('.review-step-running').exists()).toBe(true)
+    expect(surfaces.get('.review-step-running').attributes('title')).toContain('CLI: running since')
+  })
+
   it('emojis a link to a PR task before the readiness light', async () => {
     store.tasks = [{ id: 't1', title: 'Land the PR', status: 'in_progress' }]
     mocks.queue.mockResolvedValue({ root: null, counts: { total: 1 }, prs: [pr({ task_ids: ['t1'] })] })

@@ -11,6 +11,13 @@ per pull request with the state of every review step, mirroring what the
 from GitHub; the app reads the same store the skills wrote, so the set of rows
 is whatever the store holds.
 
+Every step ``review-pr-full`` dispatches has a report here: the three parallel
+assessments (risk, behavior changes, adversarial), the conditional surface
+reviews (CLI, SDK, API, database), and the chain (coverage, validate, verify,
+review). The surface reviews only apply to a diff that touches their surface,
+so a PR with no report for one is not stale; one that does have a report is
+stale when it lags the newest reviewed commit.
+
 A pull request's own fields (its title, state, author, and creation time) come
 from ghx, which is the same source the rest of the app reads GitHub through; the
 store's ``gh-pr-view.md`` cache stands in only when ghx cannot answer. A field
@@ -49,15 +56,31 @@ GITHUB_METADATA_FAILED_TTL = 60
 #: (owner, repo, number) -> (monotonic fetch time, ghx metadata or None).
 _metadata_cache: dict[tuple[str, str, int], tuple[float, dict[str, Any] | None]] = {}
 
-#: The review steps, in the order the script weighs them: the two parallel steps
-#: first, then the chain (coverage advisory, then validate -> verify -> review).
+#: The review steps, in the order review-pr-full dispatches them: the three
+#: parallel steps first, then the conditional surface reviews, then the chain
+#: (coverage advisory, then validate -> verify -> review).
 STEPS: tuple[str, ...] = (
     "assess-pr-risk",
     "summarize-behavior-changes",
+    "adversarial-pr-review",
+    "review-cli-changes",
+    "review-sdk-changes",
+    "review-api-changes",
+    "review-db-changes",
     "analyze-test-coverage",
     "validate-pr",
     "verify-pr",
     "review-pr",
+)
+
+#: The conditional surface reviews, in dispatch order. A surface step is only
+#: relevant when the diff touches its surface, so a PR with no report for one
+#: says nothing about that surface and must not be marked stale for it.
+SURFACE_STEPS: tuple[str, ...] = (
+    "review-cli-changes",
+    "review-sdk-changes",
+    "review-api-changes",
+    "review-db-changes",
 )
 
 #: The assess-pr-risk routes that block a merge, and the ones that only ask the
@@ -182,6 +205,11 @@ def _step_state(directory: Path) -> tuple[dict[str, dict[str, Any]], str]:
         }
         if step == "assess-pr-risk":
             state["risk"], state["confidence"] = _assess_fields(text, marker)
+        if step == "adversarial-pr-review":
+            # The marker counts what the review reproduced and what it could not
+            # run; the queue shows them beside the verdict.
+            state["reproduced_count"] = _marker_count(marker, "reproduced_count")
+            state["unproven_count"] = _marker_count(marker, "unproven_count")
         steps[step] = state
         if commit and modified >= reference_mtime:
             reference = commit
@@ -223,6 +251,14 @@ def in_progress_steps(directory: Path, head: str) -> dict[str, dict[str, Any]]:
     return markers
 
 
+def _marker_count(marker: dict[str, Any], key: str) -> int:
+    """A marker's integer count, or 0 when it is missing or not a number."""
+    try:
+        return int(marker.get(key, 0) or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
 def _assess_fields(text: str, marker: dict[str, Any]) -> tuple[str, str]:
     """The risk and confidence of an assess-pr-risk report.
 
@@ -244,9 +280,10 @@ def determine_stale_steps(steps: dict[str, dict[str, Any]], reference: str) -> l
     """The review steps that do not cover the newest reviewed commit.
 
     Mirrors the script's staleness rule against the newest reviewed commit
-    instead of the PR's head: the two parallel steps are stale independently of
-    the chain, and a chain step that does not cover the commit makes every step
-    after it stale too.
+    instead of the PR's head: the three parallel steps are stale independently
+    of the chain, the surface reviews are stale only where they have a report,
+    and a chain step that does not cover the commit makes every step after it
+    stale too.
     """
 
     def stale(step: str) -> bool:
@@ -257,6 +294,14 @@ def determine_stale_steps(steps: dict[str, dict[str, Any]], reference: str) -> l
         result.append("assess-pr-risk")
     if stale("summarize-behavior-changes"):
         result.append("summarize-behavior-changes")
+    if stale("adversarial-pr-review"):
+        result.append("adversarial-pr-review")
+    # A surface review only applies to a diff that touches its surface, which a
+    # store-only read cannot tell. With no report it is left out; with a report
+    # it is stale when that report lags the newest reviewed commit.
+    for step in SURFACE_STEPS:
+        if step in steps and stale(step):
+            result.append(step)
     if stale("analyze-test-coverage"):
         result.append("analyze-test-coverage")
     if stale("validate-pr"):
@@ -271,10 +316,11 @@ def determine_stale_steps(steps: dict[str, dict[str, Any]], reference: str) -> l
 def readiness_signal(steps: dict[str, dict[str, Any]], stale_steps: list[str], draft: bool) -> str:
     """Classify a PR's merge readiness from its review-step state.
 
-    ``red`` when a chain verdict fails or the assess step routes to a blocking
-    route; ``green`` when nothing is stale, the review passed, coverage did not
-    fail, and the assess route is not one asking for a closer look; ``yellow``
-    otherwise.
+    ``red`` when a chain verdict fails, the assess step routes to a blocking
+    route, or the adversarial review reproduced a failure; ``green`` when
+    nothing is stale, the review passed, coverage did not fail, no surface
+    review requested changes, the adversarial review is not ``unproven``, and
+    the assess route is not one asking for a closer look; ``yellow`` otherwise.
     """
 
     def verdict(step: str) -> str:
@@ -284,11 +330,15 @@ def readiness_signal(steps: dict[str, dict[str, Any]], stale_steps: list[str], d
         return "red"
     if verdict("assess-pr-risk") in BLOCKING_ROUTES:
         return "red"
+    if verdict("adversarial-pr-review") == "breaks":
+        return "red"
     if (
         not draft
         and not stale_steps
         and verdict("review-pr") == "pass"
         and verdict("analyze-test-coverage") != "fail"
+        and verdict("adversarial-pr-review") != "unproven"
+        and all(verdict(step) != "fail" for step in SURFACE_STEPS)
         and verdict("assess-pr-risk") not in SLOW_ROUTES
     ):
         return "green"

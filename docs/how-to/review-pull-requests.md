@@ -42,10 +42,12 @@ The reports live under `AGENTIC_SDLC_DIR` (`~/.sdlc` by default), at `{owner}/{r
    - 🟢 green: the collected signals could be approved automatically.
    - 🟡 yellow: something still needs attention.
    - 🔴 red: a signal blocks approval.
-5. Read the per-step columns, one per review skill: **Behavior**, **Risk**, **Coverage**, **Validate**, **Verify**, and **Review**.
+5. Read the per-step columns, one per review step: **Behavior**, **Risk**, **Adversarial**, **Coverage**, **Validate**, **Verify**, and **Review**.
    A cell shows the step's verdict (a mark when it has one, otherwise the verdict word), and a report that does not cover the newest reviewed commit shows the commit it covers in red underneath.
    A step that is running right now shows a spinner instead, and its tooltip says when it started; the spinner appears even before the step has written a report.
    A step with no report shows a dash.
+   **Surfaces** folds the four conditional surface reviews into one cell: one token per surface that ran (**CLI**, **SDK**, **API**, **DB**) with its verdict, each opening its own report.
+   A surface the diff did not touch leaves no token and is not counted as stale.
 6. Click a cell to open that step's report.
    The PR view (a task's PR mode or the pull request page) shows a `Description` / `Review` / `Reports` switch under the pull request's title: `Reports` lists one tab per step that wrote a report, and clicking a step cell there opens it in that pane.
 7. Use the row's **📝** to open the linked task in its PR view, or **➕** to import the pull request into a new task, the same as the repository view's **New task**.

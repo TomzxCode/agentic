@@ -29,6 +29,7 @@ import {
   shortCommit,
   stateFilterCounts,
   stripReportMarker,
+  surfaceSteps,
   taskIssues,
   taskPullRequests,
   verdictLabel,
@@ -106,13 +107,53 @@ describe('verdictLabel and verdictTone', () => {
     expect(verdictLabel('')).toBe('')
   })
 
+  it('marks the adversarial review vocabulary the same way', () => {
+    expect(verdictLabel('holds')).toBe('✅')
+    expect(verdictLabel('unproven')).toBe('⚠️')
+    expect(verdictLabel('breaks')).toBe('❌')
+  })
+
   it('tones a verdict by what it asks of the reviewer', () => {
     expect(verdictTone('pass')).toBe('ok')
     expect(verdictTone('fail')).toBe('danger')
     expect(verdictTone('hold')).toBe('danger')
     expect(verdictTone('decide')).toBe('warn')
     expect(verdictTone('informational')).toBe('info')
+    expect(verdictTone('holds')).toBe('ok')
+    expect(verdictTone('unproven')).toBe('warn')
+    expect(verdictTone('breaks')).toBe('danger')
     expect(verdictTone('')).toBe('')
+  })
+})
+
+describe('surfaceSteps', () => {
+  const surface = (step, over = {}) => ({
+    step,
+    commit: 'abc1234',
+    verdict: 'pass',
+    stale: false,
+    report: `${step}.abc1234.md`,
+    ...over
+  })
+
+  it('returns only the surfaces with a report or a running marker, in order', () => {
+    const row = {
+      steps: {
+        'review-api-changes': surface('review-api-changes'),
+        'review-db-changes': surface('review-db-changes')
+      },
+      in_progress: { 'review-cli-changes': { sha: 'abc1234', started_at: null } }
+    }
+    expect(surfaceSteps(row).map((entry) => [entry.label, entry.key, !!entry.step])).toEqual([
+      ['CLI', 'review-cli-changes', false],
+      ['API', 'review-api-changes', true],
+      ['DB', 'review-db-changes', true]
+    ])
+  })
+
+  it('returns nothing when no surface applies', () => {
+    expect(surfaceSteps({ steps: {}, in_progress: {} })).toEqual([])
+    expect(surfaceSteps(null)).toEqual([])
   })
 })
 

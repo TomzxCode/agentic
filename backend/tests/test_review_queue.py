@@ -39,6 +39,7 @@ ALL_STEPS = {
     "analyze-test-coverage": "pass",
     "summarize-behavior-changes": "informational",
     "assess-pr-risk": "fast-track",
+    "adversarial-pr-review": "holds",
 }
 
 
@@ -106,6 +107,70 @@ def test_the_view_cache_review_line_reads_as_the_review_decision(tmp_path, monke
     # The queue endpoint carries the decision, so the view can mark the row.
     with TestClient(app) as client:
         assert client.get("/api/reviews").json()["prs"][0]["review_decision"] == "APPROVED"
+
+
+def test_adversarial_review_is_read_with_its_counts(tmp_path, monkeypatch):
+    monkeypatch.setattr(settings, "sdlc_dir", tmp_path)
+    directory = _write_pr(tmp_path, "TomzxCode", "agentic", 42, sha="abc1234", steps=ALL_STEPS)
+    (directory / "adversarial-pr-review.abc1234.md").write_text(
+        '<!-- {"step":"adversarial-pr-review","sha":"abc1234","verdict":"breaks",'
+        '"reproduced_count":2,"unproven_count":1} -->\n# Report\n'
+    )
+
+    pr = collect_review_prs()[0]
+    step = pr["steps"]["adversarial-pr-review"]
+    assert step["verdict"] == "breaks"
+    assert step["reproduced_count"] == 2
+    assert step["unproven_count"] == 1
+    # A reproduced failure is a red light, even though the chain passed.
+    assert pr["readiness"] == "red"
+
+
+def test_surface_reviews_are_read_and_missing_ones_are_not_stale(tmp_path, monkeypatch):
+    monkeypatch.setattr(settings, "sdlc_dir", tmp_path)
+    directory = _write_pr(tmp_path, "TomzxCode", "agentic", 42, sha="abc1234", steps=ALL_STEPS)
+    (directory / "review-api-changes.abc1234.md").write_text(_marker("review-api-changes", "abc1234", "pass"))
+
+    pr = collect_review_prs()[0]
+    assert pr["steps"]["review-api-changes"]["verdict"] == "pass"
+    assert pr["steps"]["review-api-changes"]["stale"] is False
+    # A surface with no report is not applicable, not stale.
+    assert "review-db-changes" not in pr["stale_steps"]
+    assert pr["stale_steps"] == []
+    assert pr["readiness"] == "green"
+
+
+def test_a_failing_surface_review_keeps_the_light_yellow(tmp_path, monkeypatch):
+    monkeypatch.setattr(settings, "sdlc_dir", tmp_path)
+    directory = _write_pr(tmp_path, "TomzxCode", "agentic", 42, sha="abc1234", steps=ALL_STEPS)
+    (directory / "review-db-changes.abc1234.md").write_text(_marker("review-db-changes", "abc1234", "fail"))
+
+    pr = collect_review_prs()[0]
+    # A surface fail never blocks on its own; it only keeps the PR out of green.
+    assert pr["readiness"] == "yellow"
+
+
+def test_a_surface_report_at_an_older_commit_is_stale(tmp_path, monkeypatch):
+    monkeypatch.setattr(settings, "sdlc_dir", tmp_path)
+    directory = _write_pr(tmp_path, "TomzxCode", "agentic", 7, sha="aaaaaaa", steps={"validate-pr": "pass"})
+    (directory / "review-cli-changes.aaaaaaa.md").write_text(_marker("review-cli-changes", "aaaaaaa", "pass"))
+    (directory / "review-pr.bbbbbbb.md").write_text(_marker("review-pr", "bbbbbbb", "pass"))
+    os.utime(directory / "validate-pr.aaaaaaa.md", (1000, 1000))
+    os.utime(directory / "review-cli-changes.aaaaaaa.md", (1000, 1000))
+    os.utime(directory / "review-pr.bbbbbbb.md", (2000, 2000))
+
+    pr = collect_review_prs()[0]
+    assert pr["steps"]["review-cli-changes"]["stale"] is True
+    assert "review-cli-changes" in pr["stale_steps"]
+    assert pr["status"] == "needs-review"
+
+
+def test_a_running_surface_review_marks_its_step_running(tmp_path, monkeypatch):
+    monkeypatch.setattr(settings, "sdlc_dir", tmp_path)
+    directory = _write_pr(tmp_path, "TomzxCode", "agentic", 42, sha="abc1234", steps=ALL_STEPS)
+    (directory / "review-api-changes.abc1234.in-progress").touch()
+
+    assert set(collect_review_prs()[0]["in_progress"]) == {"review-api-changes"}
 
 
 def test_an_in_progress_marker_marks_its_step_running(tmp_path, monkeypatch):
@@ -212,12 +277,31 @@ def test_determine_stale_steps_gates_the_chain():
     steps = {
         "assess-pr-risk": {"commit": "abc"},
         "summarize-behavior-changes": {"commit": "abc"},
+        "adversarial-pr-review": {"commit": "abc"},
         "analyze-test-coverage": {"commit": "abc"},
         "validate-pr": {"commit": "old"},
     }
     assert determine_stale_steps(steps, "abc") == ["validate-pr", "verify-pr", "review-pr"]
     steps["verify-pr"] = {"commit": "abc"}
     assert determine_stale_steps(steps, "abc") == ["validate-pr", "verify-pr", "review-pr"]
+
+
+def test_determine_stale_steps_reads_the_advisory_steps_independently():
+    steps = {
+        "assess-pr-risk": {"commit": "abc"},
+        "summarize-behavior-changes": {"commit": "abc"},
+        "analyze-test-coverage": {"commit": "abc"},
+        "validate-pr": {"commit": "abc"},
+        "verify-pr": {"commit": "abc"},
+        "review-pr": {"commit": "abc"},
+    }
+    # The adversarial review is always applicable, so a missing one is stale.
+    assert determine_stale_steps(steps, "abc") == ["adversarial-pr-review"]
+    steps["adversarial-pr-review"] = {"commit": "abc"}
+    assert determine_stale_steps(steps, "abc") == []
+    # A surface review is stale only when a report exists for an older commit.
+    steps["review-db-changes"] = {"commit": "old"}
+    assert determine_stale_steps(steps, "abc") == ["review-db-changes"]
 
 
 def test_readiness_signal_red_yellow_green():
@@ -227,6 +311,17 @@ def test_readiness_signal_red_yellow_green():
     assert readiness_signal(steps("review-pr", "pass"), [], False) == "green"
     assert readiness_signal(steps("review-pr", "fail"), [], False) == "red"
     assert readiness_signal(steps("assess-pr-risk", "hold"), [], False) == "red"
+    assert readiness_signal(steps("adversarial-pr-review", "breaks"), [], False) == "red"
+
+    def ready(**extra):
+        return {"review-pr": {"verdict": "pass"}, **extra}
+
+    # An unproven adversarial review or a failing surface keeps green off but
+    # does not block.
+    assert readiness_signal(ready(), [], False) == "green"
+    assert readiness_signal(ready(**{"adversarial-pr-review": {"verdict": "unproven"}}), [], False) == "yellow"
+    assert readiness_signal(ready(**{"review-api-changes": {"verdict": "fail"}}), [], False) == "yellow"
+    assert readiness_signal(ready(**{"review-api-changes": {"verdict": "pass"}}), [], False) == "green"
     # A stale step or a draft keeps a passing review yellow.
     assert readiness_signal(steps("review-pr", "pass"), ["review-pr"], False) == "yellow"
     assert readiness_signal(steps("review-pr", "pass"), [], True) == "yellow"

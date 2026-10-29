@@ -49,18 +49,38 @@ export function stripReportMarker(text) {
 // PR, with a column per review step. Everything here is pure: the view hands it
 // the response the reviews endpoint returned.
 
-// The review steps the queue table shows, in display order: the two parallel
-// steps first (behavior, then risk), then the chain (coverage, validate,
+// The review steps the queue table shows, in display order: the three parallel
+// steps first (behavior, risk, adversarial), then the chain (coverage, validate,
 // verify, review). `label` is the column header, matching the names the
 // review_requested_prs script prints.
 export const QUEUE_STEPS = [
   { key: 'summarize-behavior-changes', label: 'Behavior' },
   { key: 'assess-pr-risk', label: 'Risk' },
+  { key: 'adversarial-pr-review', label: 'Adversarial' },
   { key: 'analyze-test-coverage', label: 'Coverage' },
   { key: 'validate-pr', label: 'Validate' },
   { key: 'verify-pr', label: 'Verify' },
   { key: 'review-pr', label: 'Review' }
 ]
+
+// The conditional surface reviews, in dispatch order. They only have a report
+// when the diff touched that surface, so the queue folds them into a single
+// Surfaces column instead of four mostly empty ones.
+export const SURFACE_STEPS = [
+  { key: 'review-cli-changes', label: 'CLI' },
+  { key: 'review-sdk-changes', label: 'SDK' },
+  { key: 'review-api-changes', label: 'API' },
+  { key: 'review-db-changes', label: 'DB' }
+]
+
+// The surface reviews a pull request has a report for, or is running now, in
+// SURFACE_STEPS order. A surface with neither is not applicable (the diff did
+// not touch it), so it is left out rather than shown as an empty cell.
+export function surfaceSteps(pr) {
+  return SURFACE_STEPS.map((entry) => ({ ...entry, step: pr?.steps?.[entry.key] || null })).filter(
+    (entry) => entry.step || runningStep(pr, entry.key)
+  )
+}
 
 // The merge-readiness light shown beside each PR number: green when the PR
 // could be approved automatically, yellow when something still needs attention,
@@ -91,8 +111,17 @@ export function runningStep(pr, key) {
 }
 
 // A verdict rendered as its mark when it has one; a route or a "partial"
-// verdict has no mark and shows its own word.
-const VERDICT_MARKS = { pass: '✅', fail: '❌', informational: 'ℹ️' }
+// verdict has no mark and shows its own word. The adversarial review's
+// vocabulary reads the same way: a reproduced failure is a cross, a scenario it
+// could not run is a warning, and a held review is a check.
+const VERDICT_MARKS = {
+  pass: '✅',
+  fail: '❌',
+  informational: 'ℹ️',
+  holds: '✅',
+  unproven: '⚠️',
+  breaks: '❌'
+}
 
 export function verdictLabel(verdict) {
   return VERDICT_MARKS[verdict] || verdict || ''
@@ -100,9 +129,20 @@ export function verdictLabel(verdict) {
 
 // The tone a verdict reads in, so a pass/fail looks the same everywhere.
 export function verdictTone(verdict) {
-  if (verdict === 'pass' || verdict === 'fast-track' || verdict === 'confirm') return 'ok'
-  if (verdict === 'fail' || verdict === 'block' || verdict === 'hold') return 'danger'
-  if (verdict === 'decide' || verdict === 'investigate' || verdict === 'partial') return 'warn'
+  if (verdict === 'pass' || verdict === 'fast-track' || verdict === 'confirm' || verdict === 'holds') return 'ok'
+  if (
+    verdict === 'fail' ||
+    verdict === 'block' ||
+    verdict === 'hold' ||
+    verdict === 'breaks' ||
+    verdict === 'changes-requested' ||
+    verdict === 'rejected'
+  ) {
+    return 'danger'
+  }
+  if (verdict === 'decide' || verdict === 'investigate' || verdict === 'partial' || verdict === 'unproven') {
+    return 'warn'
+  }
   if (verdict === 'informational') return 'info'
   return ''
 }

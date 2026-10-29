@@ -86,7 +86,7 @@
   width: 100%;
   /* A floor keeps every column legible (and the title column readable);
      narrower viewports scroll instead. */
-  min-width: 1180px;
+  min-width: 1320px;
   /* Fixed layout gives every repository table the same column widths, so the
      columns line up down the page instead of each table sizing to its own
      content. */
@@ -95,41 +95,46 @@
 }
 /* One width per column, shared by every table. The order matches the header:
    PR (its task marker, readiness light, number and title), Author, Age, Last
-   comment, Reviewed, Last review, then the six review steps (Behavior, Risk,
-   Coverage, Validate, Verify, Review). */
+   comment, Reviewed, Last review, then the seven review steps (Behavior, Risk,
+   Adversarial, Coverage, Validate, Verify, Review) and the one Surfaces column
+   the conditional surface reviews share. */
 .review-table th:nth-child(1) {
-  width: 30%;
+  width: 25%;
 }
 .review-table th:nth-child(2) {
-  width: 6%;
+  width: 5%;
 }
 .review-table th:nth-child(3) {
-  width: 7%;
+  width: 6%;
 }
 .review-table th:nth-child(4) {
-  width: 8%;
-}
-.review-table th:nth-child(5) {
-  width: 6%;
-}
-.review-table th:nth-child(6) {
-  width: 9%;
-}
-.review-table th:nth-child(7) {
-  width: 5.5%;
-}
-.review-table th:nth-child(8) {
   width: 7%;
 }
-.review-table th:nth-child(9) {
+.review-table th:nth-child(5) {
+  width: 5%;
+}
+.review-table th:nth-child(6) {
+  width: 7%;
+}
+.review-table th:nth-child(7) {
   width: 6%;
+}
+.review-table th:nth-child(8) {
+  width: 6.5%;
+}
+.review-table th:nth-child(9) {
+  width: 5.5%;
 }
 .review-table th:nth-child(10) {
   width: 5.5%;
 }
 .review-table th:nth-child(11),
-.review-table th:nth-child(12) {
-  width: 5%;
+.review-table th:nth-child(12),
+.review-table th:nth-child(13) {
+  width: 4.5%;
+}
+.review-table th:nth-child(14) {
+  width: 8%;
 }
 .review-table th {
   text-align: left;
@@ -270,6 +275,26 @@
 .review-step:hover {
   border-color: var(--border);
   background: var(--bg-2);
+}
+/* The Surfaces column folds the conditional surface reviews into one cell: a
+   compact token per surface that ran, each opening its own report. */
+.review-surface {
+  display: inline-flex;
+  align-items: center;
+}
+.review-surface .review-step {
+  gap: 1px;
+  padding: 2px 2px;
+}
+.review-surface-label {
+  color: var(--muted);
+  font-size: 10px;
+  text-transform: uppercase;
+}
+.review-surface-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
 }
 /* A step that is running for the PR's head: the spinner replaces its verdict
    until the step finishes and writes its report. */
