@@ -6,12 +6,12 @@ import { h } from 'vue'
 // stroke icon, rendered with a render function so no v-html lands in templates.
 const ICONS = {
   // Pages: the sidebar's bottom nav. Each page keeps one silhouette that the
-  // others do not use, so the sixteen stay apart at 18px: Tasks a checklist,
-  // Inbox a mail tray, Reviews a document, My PRs a pull-request glyph, Feedback
-  // a speech bubble, Decisions a signpost, Stack layers, Gantt and Metrics a
-  // chart (bars against a trend line), Items a box, Graph a node network, Events
-  // a stream, People a pair, Repositories a book, Schedules a clock, Settings a
-  // gear.
+  // others do not use, so they stay apart at nav size: Tasks a checklist, Inbox
+  // a mail tray, Reviews a document, My PRs a pull-request glyph, Feedback a
+  // speech bubble, Decisions a signpost, Stack layers, Gantt and Metrics a chart
+  // (bars against a trend line), Items a box, Graph a node network, Events a
+  // stream, People a pair, Repositories a book, Scheduled tasks a clock, Time a
+  // pie timer, Settings a gear.
   tasks: [
     ['path', { d: 'M10 5.5h9.5M10 12h9.5M10 18.5h9.5' }],
     ['path', { d: 'M3.5 5.2l1.6 1.6 3-3.2' }],
@@ -84,6 +84,12 @@ const ICONS = {
   schedule: [
     ['circle', { cx: 12, cy: 12, r: 8.5 }],
     ['path', { d: 'M12 6.8V12l3.5 2.2' }]
+  ],
+  // Time: a pie timer, a clock face with a filled quarter, so the page stays
+  // apart from Scheduled tasks' clock.
+  time: [
+    ['circle', { cx: 12, cy: 12, r: 8.3 }],
+    ['path', { d: 'M12 12V3.7A8.3 8.3 0 0 1 20.3 12z', fill: 'currentColor', stroke: 'none' }]
   ],
   // Execution graphs: a flow of two boxes joined by an arrow, distinct from
   // the task Graph's node network.

@@ -452,7 +452,7 @@ onUnmounted(() => {
             :aria-label="item.label"
             @click="sidebarOpen = false"
           >
-            <Icon :name="item.icon" />
+            <Icon :name="item.icon" :size="20" />
             <span v-if="item.badge === 'inbox' && store.inboxCount" class="nav-badge" aria-hidden="true">{{
               store.inboxCount
             }}</span>

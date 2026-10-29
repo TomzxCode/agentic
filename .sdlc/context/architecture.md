@@ -361,6 +361,7 @@ The full schema with types, constraints, and indexes lives in [`schema.dbml`](sc
 | On-call | Scan a Slack channel and prepare replies | `routers/on_call.py` |
 | Process and cycle time | The task lifecycle read as a production line (station inventory, flows, Little's law) and cycle-time metrics over GitHub issue and PR events | `process_flow.py`, `cycle_time.py`, `routers/process.py` |
 | Operations audit | Every mutating request recorded with its client (web/cli/api) and actor (human/agent), exposed to handlers as request provenance | `provenance.py` (middleware), `routers/operations.py` |
+| Page time | The web client's foreground visits per page, recorded from the router and read back as a window report per page, place, and local day | `page_time.py`, `routers/page_visits.py`, Vue TimeView |
 | Tiered item refresh | Age-band refresh policies for Slack and GitHub items, applied by a background loop and on demand | `refresh.py`, `routers/items_refresh.py` |
 | Managed tools | ghx and slackx run in serve mode as processes the server starts and stops, replacing a user-supplied URL and token | `services/managed_tools.py` |
 | Task links | Before/after edges between tasks, refused when they would close a cycle, symmetric related pairs, plus the whole-graph view | `dependencies.py`, `routers/task_dependencies.py`, `routers/graph.py` |

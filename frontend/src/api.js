@@ -296,6 +296,27 @@ export const api = {
     }
   },
 
+  pageVisits: {
+    // Where the app's foreground time went over the window, bucketed per local
+    // day: tzOffset is the browser's offset from UTC in minutes (east positive).
+    report: ({ days, tzOffset } = {}) => {
+      const qs = new URLSearchParams()
+      if (days) qs.set('days', String(days))
+      if (tzOffset !== undefined && tzOffset !== null) qs.set('tz_offset', String(tzOffset))
+      const query = qs.toString()
+      return request(`/page-visits/report${query ? `?${query}` : ''}`)
+    },
+    // Every visit overlapping a time range, oldest first, for the timeline.
+    visits: ({ start, end, tzOffset } = {}) => {
+      const qs = new URLSearchParams()
+      if (start) qs.set('start', start)
+      if (end) qs.set('end', end)
+      if (tzOffset !== undefined && tzOffset !== null) qs.set('tz_offset', String(tzOffset))
+      const query = qs.toString()
+      return request(`/page-visits/visits${query ? `?${query}` : ''}`)
+    }
+  },
+
   process: {
     // The production-line report: station inventory, flows, and cycle times.
     get: ({ days } = {}) => {

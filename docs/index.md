@@ -47,6 +47,7 @@ The web app is organized into these pages:
 | [Repositories](views/repositories.md) (`/repositories`) | Registered checkouts and their issues and pull requests. |
 | [Repository](views/repositories.md) (`/repositories/:id`) | One repository's issues and pull requests, read fresh from GitHub. |
 | [Scheduled tasks](views/schedules.md) (`/schedules`) | Cron-scheduled shell tasks, with run history and output. |
+| [Time](views/time.md) (`/time`) | Where the app's foreground time went, as a day timeline, page shares, and a daily trend. |
 | [Settings](views/settings.md) (`/settings`) | Harnesses, repository groups, refresh policies, link templates, the sidebar layout, and dependency and cache diagnostics. |
 
 The order matches the sidebar's default order, with each detail route listed under the page that owns it.

@@ -266,6 +266,7 @@ export function buildPaletteItems({ route, router, showNew, sidebarHidden, toggl
       icon: 'graphs',
       run: () => router.push('/graphs')
     },
+    { id: 'go-time', label: 'Go to time', group: 'Navigation', icon: 'time', run: () => router.push('/time') },
     {
       id: 'go-settings',
       label: 'Go to settings',

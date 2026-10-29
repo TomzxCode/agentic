@@ -40,6 +40,25 @@ class Operation(SQLModel, table=True):
     created_at: datetime = Field(default_factory=utcnow)
 
 
+class PageVisit(SQLModel, table=True):
+    """One stretch of time a page stayed open and visible in the web app.
+
+    The client records these itself: navigation ends one visit and starts the
+    next, and a tab that goes to the background closes its visit, so time the
+    app spent behind another window is not counted. ``route_name`` is the
+    grouping key (``task``, ``inbox``) and ``path`` is the exact page (one task,
+    one pull request), which is what the Time page drills into.
+    """
+
+    id: str = Field(default_factory=new_id, primary_key=True)
+    path: str = Field(index=True)
+    route_name: str = Field(default="", index=True)
+    title: str = ""
+    started_at: datetime = Field(default_factory=utcnow, index=True)
+    ended_at: datetime = Field(default_factory=utcnow)
+    duration_ms: int = 0
+
+
 class MetricBaseline(SQLModel, table=True):
     """The comparison point a metric's direction is measured against.
 

@@ -32,6 +32,10 @@ ACTOR_HEADER = "x-agentic-actor"
 
 MUTATING_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
 
+# Telemetry the web app posts on its own behalf (page visits) would swamp the
+# audit log with rows nobody asked for, so it is stored but not audited.
+NOT_AUDITED_PATHS = frozenset({"/api/page-visits"})
+
 _context: ContextVar[tuple[OperationClient, OperationActor]] = ContextVar(
     "agentic_provenance", default=(OperationClient.api, OperationActor.human)
 )
@@ -120,5 +124,5 @@ class ProvenanceMiddleware:
 
         method = scope.get("method", "GET")
         path = scope.get("path", "")
-        if method in MUTATING_METHODS and path.startswith("/api/"):
+        if method in MUTATING_METHODS and path.startswith("/api/") and path not in NOT_AUDITED_PATHS:
             _record(method, path, status["code"], client, actor)

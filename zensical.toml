@@ -43,6 +43,7 @@ nav = [
     { "People" = "views/people.md" },
     { "Repositories" = "views/repositories.md" },
     { "Scheduled tasks" = "views/schedules.md" },
+    { "Time" = "views/time.md" },
     { "Settings" = "views/settings.md" },
   ] },
   { "Reference" = [

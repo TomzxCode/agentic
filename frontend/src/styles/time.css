@@ -1,0 +1,419 @@
+/* The Time page: where the app's foreground time went. */
+
+.time-window {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.time-window .input {
+  width: auto;
+  padding: 5px 8px;
+  font-size: 12px;
+  background: var(--bg-2);
+}
+
+/* The window's headline numbers. */
+.time-stats {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+.time-stats .stat {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  background: var(--bg-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 6px 12px;
+  min-width: 0;
+}
+.time-stats .n {
+  font-size: 20px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.time-stats .l {
+  font-size: 11px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.time-stats .time-stat-top .n {
+  font-size: 15px;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.time-hint {
+  margin: 0 0 10px;
+}
+
+/* The range picker: two wall-clock fields and a couple of shortcuts. */
+.time-range-tools {
+  margin-bottom: 8px;
+}
+.time-range-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.time-range-field .input {
+  width: auto;
+  font-size: 12px;
+  padding: 5px 8px;
+  background: var(--bg-2);
+}
+.time-range-error {
+  margin: 0 0 8px;
+  font-size: 12px;
+  color: var(--danger);
+}
+
+/* One lane per page over the 24 hours of a local day. */
+.time-timeline {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-2);
+  padding: 8px 10px 10px;
+}
+.time-axis,
+.time-lane {
+  display: grid;
+  grid-template-columns: 132px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+}
+.time-axis {
+  margin-bottom: 6px;
+}
+.time-axis-track {
+  position: relative;
+  height: 14px;
+}
+.time-axis-tick {
+  position: absolute;
+  font-size: 10px;
+  color: var(--faint);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.time-tick-middle {
+  transform: translateX(-50%);
+}
+.time-tick-start {
+  transform: none;
+}
+.time-tick-end {
+  transform: translateX(-100%);
+}
+.time-lane {
+  padding: 2px 0;
+}
+.time-lane-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+.time-lane-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.time-lane-track {
+  position: relative;
+  height: 16px;
+  border-radius: 4px;
+  overflow: hidden;
+  background: var(--bg);
+}
+/* One line per tick, so the lanes agree with the axis above them. */
+.time-grid-line {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--border);
+}
+.time-block {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  min-width: 2px;
+  border-radius: 3px;
+  background: var(--time-color, var(--muted));
+  opacity: 0.85;
+}
+.time-block:hover {
+  opacity: 1;
+}
+.time-timeline-empty {
+  margin: 4px 0 0;
+}
+
+/* A page's dot and bar share one palette entry. */
+.time-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex: none;
+  background: var(--time-color, var(--muted));
+}
+.time-bar {
+  height: 8px;
+  border-radius: 4px;
+  overflow: hidden;
+  background: var(--bg-2);
+}
+.time-bar-fill {
+  display: block;
+  height: 100%;
+  border-radius: 4px;
+  background: var(--time-color, var(--muted));
+}
+.time-amount {
+  text-align: right;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.time-share {
+  text-align: right;
+  font-size: 11px;
+  color: var(--faint);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.time-ellipsis {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Pages beside the daily trend on wider screens. */
+.time-columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+  gap: 16px;
+  align-items: stretch;
+}
+/* The trend grows to the height of the pages list beside it, so the pair reads
+   as one row rather than a tall panel and a short one. */
+.time-columns > .panel {
+  display: flex;
+  flex-direction: column;
+}
+.time-columns .time-trend {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+.time-columns .time-trend-bars {
+  flex: 1;
+  height: auto;
+  min-height: 120px;
+}
+.time-page-row {
+  display: grid;
+  grid-template-columns: 150px minmax(0, 1fr) 72px 40px;
+  gap: 10px;
+  align-items: center;
+  padding: 5px 0;
+  font-size: 13px;
+}
+.time-page-name {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+
+/* Daily columns; the tallest day is the full height. */
+.time-trend-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 132px;
+}
+.time-trend-col {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 4px;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+.time-trend-bar-wrap {
+  flex: 1;
+  display: flex;
+  align-items: flex-end;
+}
+.time-trend-bar {
+  width: 100%;
+  border-radius: 3px 3px 0 0;
+  background: var(--accent-2);
+  opacity: 0.7;
+}
+.time-trend-col:hover .time-trend-bar {
+  opacity: 1;
+}
+.time-trend-selected .time-trend-bar {
+  background: var(--accent);
+  opacity: 1;
+}
+.time-trend-label {
+  height: 13px;
+  font-size: 10px;
+  color: var(--faint);
+  text-align: center;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.time-trend-today .time-trend-label {
+  color: var(--text);
+}
+
+/* The exact pages behind the page totals. */
+.time-place-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 220px) 72px 40px;
+  gap: 10px;
+  align-items: center;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+}
+.time-place-row:last-child {
+  border-bottom: none;
+}
+.time-place-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.time-place-title {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.time-place-path {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--faint);
+}
+
+/* One visit of the selected day. */
+.time-visit-row {
+  display: grid;
+  grid-template-columns: 104px minmax(0, 1fr) 72px;
+  gap: 10px;
+  align-items: center;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+}
+.time-visit-row:last-child {
+  border-bottom: none;
+}
+.time-visit-when {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.time-visit-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.time-visit-main .faint {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Palette: one entry per page, stable for a page key (see pageTiming.js). */
+.time-color-1 {
+  --time-color: #6ee7b7;
+}
+.time-color-2 {
+  --time-color: #60a5fa;
+}
+.time-color-3 {
+  --time-color: #fbbf24;
+}
+.time-color-4 {
+  --time-color: #f87171;
+}
+.time-color-5 {
+  --time-color: #c084fc;
+}
+.time-color-6 {
+  --time-color: #22d3ee;
+}
+.time-color-7 {
+  --time-color: #fb923c;
+}
+.time-color-8 {
+  --time-color: #a3e635;
+}
+
+@media (max-width: 760px) {
+  .time-columns {
+    grid-template-columns: 1fr;
+  }
+  .time-axis,
+  .time-lane {
+    grid-template-columns: 88px minmax(0, 1fr);
+    gap: 8px;
+  }
+  .time-axis-tick {
+    font-size: 9px;
+  }
+  /* On a phone, half the labels when there are too many to fit; a two-day
+     range keeps both because it only has two. */
+  .time-timeline-dense .time-axis-tick:nth-child(even) {
+    display: none;
+  }
+  .time-page-row {
+    grid-template-columns: minmax(0, 1fr) 72px 40px;
+    row-gap: 4px;
+  }
+  .time-page-row .time-bar {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+  .time-place-row {
+    grid-template-columns: minmax(0, 1fr) 72px 40px;
+    row-gap: 2px;
+  }
+  .time-place-path {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+  .time-visit-row {
+    grid-template-columns: 88px minmax(0, 1fr) auto;
+    gap: 8px;
+  }
+  .time-stats .time-stat-top .n {
+    max-width: 120px;
+  }
+}

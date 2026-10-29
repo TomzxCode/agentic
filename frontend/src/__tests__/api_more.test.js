@@ -83,6 +83,15 @@ describe('api endpoints', () => {
     expect(fetchMock.mock.calls[0][0]).toContain('/api/github/issue?url=')
   })
 
+  it('sends the page visit range as start and end', async () => {
+    const fetchMock = mockFetch({ body: '{}' })
+    await api.pageVisits.visits({ start: '2026-10-28T00:00:00.000Z', end: '2026-10-29T00:00:00.000Z' })
+    const url = fetchMock.mock.calls[0][0]
+    expect(url).toContain('/api/page-visits/visits?')
+    expect(url).toContain('start=2026-10-28T00%3A00%3A00.000Z')
+    expect(url).toContain('end=2026-10-29T00%3A00%3A00.000Z')
+  })
+
   it('falls back to statusText when there is no error detail', async () => {
     global.fetch = vi.fn().mockResolvedValue({
       status: 500,

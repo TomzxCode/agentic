@@ -149,6 +149,14 @@ The task representation returns those fields plus `waiting_on_name`.
 | `GET` | `/api/inbox` | Suggested next actions: reviews past the SLO, own unreviewed pull requests whose requested reviewers can each be poked (`reviewers`, with an `open_pr` action for the app's PR page), own unreviewed pull requests nobody was asked to review, closable tasks, missing change records, leftover worktrees. |
 | `GET` | `/api/operations` | The provenance audit log. |
 
+## Page visits
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| `POST` | `/api/page-visits` | Record a batch of page visits (`{ "visits": [...] }`, each with `path`, `route_name`, `title`, `started_at`, and `ended_at`). Visits under a second or over a day are dropped, and recording one does not write an operations audit row. |
+| `GET` | `/api/page-visits/report` | Time per page, per place, and per local day over a window. Accepts `days` (default 7) and `tz_offset` (the client's offset from UTC in minutes, east positive). |
+| `GET` | `/api/page-visits/visits` | Every visit overlapping a time range, oldest first. Accepts `start` and `end` as ISO instants (defaulting to today's local day) and `tz_offset` for that default. A range may not exceed 366 days. |
+
 ## Changes and metrics
 
 | Method | Path | Purpose |

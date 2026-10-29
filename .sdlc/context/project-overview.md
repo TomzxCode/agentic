@@ -45,6 +45,7 @@ It solves the problem of scattered context: the threads, issues, and checkouts r
 - A people directory, with people linked to tasks and to items.
 - An inbox of derived suggestions (reviews overdue past the SLO, unreviewed pull requests to poke, closable tasks, missing change records, leftover worktrees), recomputed on every read.
 - An events feed: every task's timeline as one stream, grouped by day with a timeline chart per day.
+- A time page: the web app records its own foreground visits per page and shows where the hours went, as a day timeline, page shares, and a daily trend.
 - A decisions page: colleague-decision reports read from the notes tree, read-only.
 - An on-call view: a Slack channel scan that prepares replies to a channel's threads.
 - ACP agent runs with a live, persisted transcript and cancellation.
