@@ -12,6 +12,9 @@ const mocks = vi.hoisted(() => ({
   peopleUpdate: vi.fn(),
   peopleRemove: vi.fn(),
   peopleMerge: vi.fn(),
+  addNote: vi.fn(),
+  updateNote: vi.fn(),
+  removeNote: vi.fn(),
   linkTask: vi.fn(),
   unlinkTask: vi.fn(),
   linkRequester: vi.fn(),
@@ -34,6 +37,9 @@ vi.mock('../api', () => ({
       update: mocks.peopleUpdate,
       remove: mocks.peopleRemove,
       merge: mocks.peopleMerge,
+      addNote: mocks.addNote,
+      updateNote: mocks.updateNote,
+      removeNote: mocks.removeNote,
       linkTask: mocks.linkTask,
       unlinkTask: mocks.unlinkTask,
       linkRequester: mocks.linkRequester,
@@ -99,6 +105,83 @@ describe('PersonView', () => {
     const wrapper = mount(PersonView, { props: { id: 'p1' }, ...stub })
     await flushPromises()
     expect(wrapper.text()).toContain(`Created ${formatDateTime('2026-01-02T03:04:00Z')}`)
+  })
+
+  it('shows notes as separate timestamped entries', async () => {
+    mocks.peopleGet.mockResolvedValue({
+      id: 'p1',
+      name: 'Ada',
+      aliases: [],
+      notes: [
+        { id: 'n1', person_id: 'p1', content: 'first note', created_at: '2026-01-02T03:04:00Z' },
+        { id: 'n2', person_id: 'p1', content: 'second note', created_at: '2026-01-03T03:04:00Z' }
+      ],
+      task_ids: [],
+      involved_task_ids: [],
+      requester_task_ids: [],
+      item_ids: []
+    })
+    const wrapper = mount(PersonView, { props: { id: 'p1' }, ...stub })
+    await flushPromises()
+    const cards = wrapper.findAll('.item')
+    expect(cards.map((card) => card.text())).toEqual([
+      expect.stringContaining('first note'),
+      expect.stringContaining('second note')
+    ])
+    expect(wrapper.text()).toContain(`added ${formatDateTime('2026-01-02T03:04:00Z')}`)
+    expect(wrapper.text()).toContain('Notes 2')
+  })
+
+  it('adds a note', async () => {
+    mocks.addNote.mockResolvedValue({})
+    const wrapper = mount(PersonView, { props: { id: 'p1' }, ...stub })
+    await flushPromises()
+    await wrapper.get('textarea.textarea').setValue('a fresh note')
+    await wrapper.get('.btn.primary').trigger('click')
+    await flushPromises()
+    expect(mocks.addNote).toHaveBeenCalledWith('p1', { content: 'a fresh note' })
+    expect(mocks.peopleGet).toHaveBeenCalledTimes(2)
+  })
+
+  it('edits a note in place', async () => {
+    mocks.peopleGet.mockResolvedValue({
+      id: 'p1',
+      name: 'Ada',
+      aliases: [],
+      notes: [{ id: 'n1', person_id: 'p1', content: 'first note', created_at: '2026-01-02T03:04:00Z' }],
+      task_ids: [],
+      involved_task_ids: [],
+      requester_task_ids: [],
+      item_ids: []
+    })
+    mocks.updateNote.mockResolvedValue({})
+    const wrapper = mount(PersonView, { props: { id: 'p1' }, ...stub })
+    await flushPromises()
+    await wrapper.get('.item .inline-edit').trigger('click')
+    const textarea = wrapper.get('textarea.inline-input')
+    await textarea.setValue('edited note')
+    await textarea.trigger('blur')
+    await flushPromises()
+    expect(mocks.updateNote).toHaveBeenCalledWith('p1', 'n1', { content: 'edited note' })
+  })
+
+  it('removes a note', async () => {
+    mocks.peopleGet.mockResolvedValue({
+      id: 'p1',
+      name: 'Ada',
+      aliases: [],
+      notes: [{ id: 'n1', person_id: 'p1', content: 'first note', created_at: '2026-01-02T03:04:00Z' }],
+      task_ids: [],
+      involved_task_ids: [],
+      requester_task_ids: [],
+      item_ids: []
+    })
+    mocks.removeNote.mockResolvedValue(null)
+    const wrapper = mount(PersonView, { props: { id: 'p1' }, ...stub })
+    await flushPromises()
+    await wrapper.get('button[title="Remove"]').trigger('click')
+    await flushPromises()
+    expect(mocks.removeNote).toHaveBeenCalledWith('p1', 'n1')
   })
 
   it('shows the aliases and relationships of a person', async () => {

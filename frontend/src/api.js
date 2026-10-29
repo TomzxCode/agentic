@@ -154,6 +154,9 @@ export const api = {
     remove: (id) => request(`/people/${id}`, { method: 'DELETE' }),
     merge: (targetId, sourceId) =>
       request(`/people/${targetId}/merge`, { method: 'POST', body: { source_id: sourceId } }),
+    addNote: (id, body) => request(`/people/${id}/notes`, { method: 'POST', body }),
+    updateNote: (id, noteId, body) => request(`/people/${id}/notes/${noteId}`, { method: 'PATCH', body }),
+    removeNote: (id, noteId) => request(`/people/${id}/notes/${noteId}`, { method: 'DELETE' }),
     linkTask: (taskId, body) => request(`/tasks/${taskId}/people`, { method: 'POST', body }),
     unlinkTask: (taskId, personId) => request(`/tasks/${taskId}/people/${personId}`, { method: 'DELETE' }),
     linkRequester: (taskId, body) => request(`/tasks/${taskId}/requesters`, { method: 'POST', body }),

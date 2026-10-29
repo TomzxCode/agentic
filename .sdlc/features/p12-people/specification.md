@@ -40,11 +40,26 @@ flowchart LR
 |---|---|---|---|
 | id | string | PK, 12-char hex | The person's identifier |
 | name | string | required | The display name; not unique |
-| notes | string | default `""` | Free-form notes |
 | created_at | datetime | default now | Creation time |
 | updated_at | datetime | default now | Last update time |
 
 Email and handle are aliases (see below), not columns.
+Notes are separate timestamped rows (see `PersonNote` below), not one text block.
+The old `person.notes` column is left in place but emptied by a startup migration, since SQLite column drops are disruptive.
+
+### PersonNote (new table `personnote`)
+
+| Field | Type | Constraints | Description |
+|---|---|---|---|
+| id | string | PK | The note's identifier |
+| person_id | string | FK `person.id`, indexed | The person the note belongs to |
+| content | string | default `""` | The note itself |
+| created_at | datetime | default now | When the note was written |
+| updated_at | datetime | default now | When the note was last edited |
+
+Notes are ordered oldest first, so the newest reads at the bottom.
+`POST /api/people/{person_id}/notes` adds one, `PATCH`/`DELETE /api/people/{person_id}/notes/{note_id}` edits or removes one, and `GET /api/people/{person_id}` returns them all.
+A blank content is rejected with 400.
 
 ### PersonAlias (new table `personalias`)
 
@@ -109,11 +124,12 @@ Merging into itself is 400; an unknown source or target is 404.
 `merge_people(session, target, source)` in `routers/people.py` performs the move:
 
 1. Aliases: reassign each `personalias` row of the source to the target; when the target already carries the same value (case-insensitive), delete the source row instead.
-2. Task links: reassign each `taskperson` row of the source to the target; when the target is already linked to that task, delete the source row instead. Record a `person_added` event on the task.
-3. Item links: the same as task links, with no timeline (items have none).
-4. Delete the source `person` row and bump the target's `updated_at`.
+2. Notes: reassign each `personnote` row of the source to the target, keeping its own timestamp.
+3. Task links: reassign each `taskperson` row of the source to the target; when the target is already linked to that task, delete the source row instead. Record a `person_added` event on the task.
+4. Item links: the same as task links, with no timeline (items have none).
+5. Delete the source `person` row and bump the target's `updated_at`.
 
-The target keeps its own name and notes; only the source's aliases and links move.
+The target keeps its own name; the source's aliases, notes, and links move.
 Each moved row is checked against the target first, so the `uq_person_alias`, `uq_task_person`, and `uq_item_person` constraints hold and no duplicate survives (NFR-8).
 
 ## Auto-population from sources
@@ -145,7 +161,7 @@ Error codes shared with the rest of the API:
 |---|---|---|
 | `PeoplePanel.vue` (new) | On the task page: the task's people as chips with a remove control, plus a picker to link an existing person or create a new one | FR-6 |
 | `PeopleView.vue` (new) | Route `/people`: one row per person with their counts, links to their tasks, and a rename/delete control | FR-8 |
-| `PersonView.vue` (new) | Route `/person/:id`: a person's aliases, notes, and relationships, a delete control, and a "Merge" picker of the other people | FR-8, FR-18 |
+| `PersonView.vue` (new) | Route `/person/:id`: a person's aliases, timestamped notes, and relationships, a delete control, and a "Merge" picker of the other people | FR-8, FR-18 |
 | `ItemsView.vue` | Each item shows its people chips and a `SearchSelect` to link a person | FR-7 |
 | `TaskView.vue` | Renders `PeoplePanel` under `ItemsPanel` | FR-6 |
 | `App.vue` | Sidebar and command palette gain a "People" entry | FR-8 |
@@ -264,7 +280,7 @@ sequenceDiagram
 | Auto-population failure | Best effort, never blocks the fetch | `fetch_source` already swallows CLI failures; people are an addition, not a requirement (NFR-6) |
 | Merge direction | The person in the path survives; `source_id` is absorbed | Keeps the endpoint and the CLI (`--into`) reading as "merge SOURCE into TARGET" |
 | Merge on a shared alias or link | Drop the source's row when the target already holds it | The alias and join tables are unique per pair, and a merge must not fail or duplicate on a task linked to both (NFR-8) |
-| Merge fields | The target keeps its own name and notes | The user chose which person survives; renaming stays a separate update |
+| Merge fields | The target keeps its own name; the source's notes move too | The user chose which person survives; renaming stays a separate update |
 | Merge event | `person_added` for a task that gains the target | Reuses the existing event type, mirroring `link_item_people_to_task` |
 
 ## Risks and Unknowns
@@ -278,7 +294,7 @@ sequenceDiagram
 
 - Resolving a GitHub login to a real name and email via a profile lookup.
 - A "primary" or owner person on a task.
-- Adopting the source's name, notes, or contact fields onto the target during a merge (the target keeps its own).
+- Adopting the source's name or contact fields onto the target during a merge (the target keeps its own).
 - A distinct `person_merged` timeline event, a merge preview, batched merges, or auto-detecting duplicates.
 - Per-person metrics or work measurements.
 - Removing a task's people when the item that brought them is unlinked.

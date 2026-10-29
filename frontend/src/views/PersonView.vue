@@ -5,6 +5,7 @@ import { api } from '../api'
 import { aliasLabel, formatDateTime, resolveSlackNames, SOURCE_ORDER, sourceLabel, store } from '../store'
 import EditableText from '../components/EditableText.vue'
 import ItemLink from '../components/ItemLink.vue'
+import NotesPanel from '../components/NotesPanel.vue'
 import SearchSelect from '../components/SearchSelect.vue'
 import TaskLink from '../components/TaskLink.vue'
 
@@ -22,6 +23,7 @@ const slackNames = ref({})
 const itemById = computed(() => Object.fromEntries(items.value.map((item) => [item.id, item])))
 const taskById = computed(() => Object.fromEntries(store.tasks.map((task) => [task.id, task])))
 const aliases = computed(() => person.value?.aliases || [])
+const notes = computed(() => person.value?.notes || [])
 // The person's linked tasks and items, skipping any id that no longer resolves.
 const linkedTasks = computed(() => (person.value?.task_ids || []).map((id) => taskById.value[id]).filter(Boolean))
 const linkedItems = computed(() => (person.value?.item_ids || []).map((id) => itemById.value[id]).filter(Boolean))
@@ -78,7 +80,7 @@ async function load() {
   }
 }
 
-// Rename the person, or change their aliases or notes.
+// Rename the person or change their aliases.
 async function save(field, value) {
   if (field === 'name' && !String(value).trim()) {
     await load()
@@ -110,6 +112,19 @@ async function removeAlias(value) {
     'aliases',
     aliases.value.filter((alias) => alias !== value)
   )
+}
+
+// Notes are separate entries: one call each to add, edit, or remove one.
+async function addNote(content) {
+  await api.people.addNote(props.id, { content })
+}
+
+async function saveNote(noteId, content) {
+  await api.people.updateNote(props.id, noteId, { content })
+}
+
+async function removeNote(noteId) {
+  await api.people.removeNote(props.id, noteId)
 }
 
 // Fold this person into another: their aliases and links move to the target,
@@ -205,19 +220,7 @@ onMounted(async () => {
         </div>
       </section>
 
-      <section class="panel">
-        <div class="panel-head">
-          <h2>Notes</h2>
-        </div>
-        <EditableText
-          as="div"
-          multiline
-          markdown
-          :value="person.notes || ''"
-          placeholder="No notes. Use @ to mention a person, an item, a task, or a date."
-          @save="(value) => save('notes', value)"
-        />
-      </section>
+      <NotesPanel :notes="notes" :add="addNote" :save="saveNote" :remove="removeNote" @changed="load" />
 
       <section class="panel">
         <div class="panel-head">

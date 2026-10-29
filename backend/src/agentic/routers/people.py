@@ -21,9 +21,19 @@ from ..crud import add_timeline, get_task_or_404
 from ..db import get_session
 from ..events import bus
 from ..models.base import utcnow
-from ..models.items import ItemPerson, Person, PersonAlias, SourceItem, TaskPerson, TaskRequester
+from ..models.items import ItemPerson, Person, PersonAlias, PersonNote, SourceItem, TaskPerson, TaskRequester
 from ..models.tasks import Task
-from ..schemas.people import PersonCreate, PersonDetail, PersonLink, PersonMerge, PersonRead, PersonUpdate
+from ..schemas.people import (
+    PersonCreate,
+    PersonDetail,
+    PersonLink,
+    PersonMerge,
+    PersonNoteCreate,
+    PersonNoteRead,
+    PersonNoteUpdate,
+    PersonRead,
+    PersonUpdate,
+)
 from .people_links import _link_item, _link_requester, _link_task, merge_people
 from .people_service import (
     _create_person,
@@ -34,6 +44,7 @@ from .people_service import (
     get_person_or_404,
     normalize_aliases,
     person_involved_task_ids,
+    person_notes,
     person_requester_task_ids,
     person_task_ids,
     task_person_ids,
@@ -69,6 +80,7 @@ def get_person(person_id: str, session: Session = Depends(get_session)) -> Perso
     ]
     return PersonDetail(
         **data.model_dump(),
+        notes=[PersonNoteRead.model_validate(note) for note in person_notes(session, person.id)],
         task_ids=task_ids,
         involved_task_ids=involved_task_ids,
         requester_task_ids=requester_task_ids,
@@ -81,6 +93,7 @@ def update_person(person_id: str, payload: PersonUpdate, session: Session = Depe
     person = get_person_or_404(session, person_id)
     data = payload.model_dump(exclude_unset=True)
     aliases = data.pop("aliases", None)
+    notes = data.pop("notes", None)
     if "name" in data:
         name = (data["name"] or "").strip()
         if not name:
@@ -88,6 +101,10 @@ def update_person(person_id: str, payload: PersonUpdate, session: Session = Depe
         data["name"] = name
     for key, value in data.items():
         setattr(person, key, value)
+    content = (notes or "").strip()
+    if content:
+        # An update with notes adds an entry; earlier notes stay as they were.
+        session.add(PersonNote(person_id=person.id, content=content))
     person.updated_at = utcnow()
     session.add(person)
     session.commit()
@@ -111,6 +128,7 @@ def delete_person(person_id: str, session: Session = Depends(get_session)) -> No
     session.exec(sa_delete(TaskRequester).where(col(TaskRequester.person_id) == person.id))
     session.exec(sa_delete(ItemPerson).where(col(ItemPerson.person_id) == person.id))
     session.exec(sa_delete(PersonAlias).where(col(PersonAlias.person_id) == person.id))
+    session.exec(sa_delete(PersonNote).where(col(PersonNote.person_id) == person.id))
     session.exec(sa_delete(Person).where(col(Person.id) == person.id))
     session.commit()
 
@@ -127,6 +145,55 @@ async def merge_person(person_id: str, payload: PersonMerge, session: Session = 
     for task_id in affected_tasks:
         await bus.publish(f"task:{task_id}", {"kind": "task", "action": "people_changed"})
     return _person_read(session, target)
+
+
+# --- notes -----------------------------------------------------------------
+def _get_note_or_404(session: Session, person_id: str, note_id: str) -> PersonNote:
+    note = session.get(PersonNote, note_id)
+    if note is None or note.person_id != person_id:
+        raise HTTPException(status_code=404, detail="Note not found")
+    return note
+
+
+@router.post("/{person_id}/notes", response_model=PersonNoteRead, status_code=201)
+def add_person_note(
+    person_id: str, payload: PersonNoteCreate, session: Session = Depends(get_session)
+) -> PersonNoteRead:
+    person = get_person_or_404(session, person_id)
+    content = payload.content.strip()
+    if not content:
+        raise HTTPException(status_code=400, detail="Note content is required")
+    note = PersonNote(person_id=person.id, content=content)
+    session.add(note)
+    person.updated_at = utcnow()
+    session.add(person)
+    session.commit()
+    session.refresh(note)
+    return PersonNoteRead.model_validate(note)
+
+
+@router.patch("/{person_id}/notes/{note_id}", response_model=PersonNoteRead)
+def update_person_note(
+    person_id: str, note_id: str, payload: PersonNoteUpdate, session: Session = Depends(get_session)
+) -> PersonNoteRead:
+    note = _get_note_or_404(session, person_id, note_id)
+    if payload.content is not None:
+        content = payload.content.strip()
+        if not content:
+            raise HTTPException(status_code=400, detail="Note content is required")
+        note.content = content
+    note.updated_at = utcnow()
+    session.add(note)
+    session.commit()
+    session.refresh(note)
+    return PersonNoteRead.model_validate(note)
+
+
+@router.delete("/{person_id}/notes/{note_id}", status_code=204)
+def delete_person_note(person_id: str, note_id: str, session: Session = Depends(get_session)) -> None:
+    note = _get_note_or_404(session, person_id, note_id)
+    session.delete(note)
+    session.commit()
 
 
 # --- task links ------------------------------------------------------------

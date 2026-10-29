@@ -15,7 +15,7 @@ from sqlalchemy import func
 from sqlmodel import Session, col, select
 
 from ..crud import get_or_404
-from ..models.items import ItemPerson, Person, PersonAlias, TaskPerson, TaskRequester
+from ..models.items import ItemPerson, Person, PersonAlias, PersonNote, TaskPerson, TaskRequester
 from ..schemas.people import PersonCreate, PersonLink, PersonRead
 
 
@@ -35,6 +35,17 @@ def normalize_aliases(values: list[str] | None) -> list[str]:
         seen.add(key)
         result.append(text)
     return result
+
+
+def person_notes(session: Session, person_id: str) -> list[PersonNote]:
+    """A person's notes, oldest first, so the newest reads at the bottom."""
+    return list(
+        session.exec(
+            select(PersonNote)
+            .where(PersonNote.person_id == person_id)
+            .order_by(col(PersonNote.created_at), col(PersonNote.id))
+        ).all()
+    )
 
 
 def person_aliases(session: Session, person_id: str) -> list[str]:
@@ -136,11 +147,15 @@ def _create_person(session: Session, payload: PersonCreate) -> Person:
     name = (payload.name or "").strip()
     if not name:
         raise HTTPException(status_code=400, detail="Name is required")
-    person = Person(name=name, notes=payload.notes or "")
+    person = Person(name=name)
     session.add(person)
     session.commit()
     session.refresh(person)
     _add_aliases(session, person.id, normalize_aliases(payload.aliases))
+    content = (payload.notes or "").strip()
+    if content:
+        session.add(PersonNote(person_id=person.id, content=content))
+        session.commit()
     return person
 
 

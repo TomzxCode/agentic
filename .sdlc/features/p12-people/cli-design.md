@@ -101,7 +101,7 @@ agentic person create --name TEXT [--aliases TEXT ...] [--notes TEXT]
 |---|---|---|---|
 | `--name` | text | (required) | The display name |
 | `--aliases` | text (repeatable) | | A handle (GitHub login, Slack user id) or an email |
-| `--notes` | text | | Free-form notes |
+| `--notes` | text | | A first note, saved as its own timestamped entry |
 
 **Examples:**
 
@@ -123,6 +123,7 @@ agentic person update PERSON_ID [--name TEXT] [--aliases TEXT ...] [--notes TEXT
 ```
 
 `--aliases` replaces the whole alias list.
+A non-empty `--notes` adds a new timestamped note; `person get` shows every note with its time.
 
 ### `agentic person delete`
 

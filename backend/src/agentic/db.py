@@ -54,6 +54,7 @@ def create_db_and_tables() -> None:
     SQLModel.metadata.create_all(engine)
     _migrate_task_repositories()
     _migrate_person_aliases()
+    _migrate_person_notes()
     _ensure_columns()
     _initialized = True
 
@@ -104,6 +105,31 @@ def _migrate_person_aliases() -> None:
                 )
             )
             connection.execute(text(f"UPDATE person SET {column} = NULL"))
+
+
+def _migrate_person_notes() -> None:
+    """Move a person's old single notes block into one timestamped note.
+
+    Notes are now separate rows so each keeps its own time. The old column is
+    emptied so the text is not shown twice; a fresh database never has text
+    there.
+    """
+    tables = set(inspect(engine).get_table_names())
+    if "person" not in tables or "personnote" not in tables:
+        return
+    columns = {column["name"] for column in inspect(engine).get_columns("person")}
+    if "notes" not in columns:
+        return
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                "INSERT INTO personnote (id, person_id, content, created_at, updated_at) "
+                "SELECT lower(hex(randomblob(6))), id, notes, "
+                "COALESCE(created_at, CURRENT_TIMESTAMP), COALESCE(updated_at, created_at, CURRENT_TIMESTAMP) "
+                "FROM person WHERE notes IS NOT NULL AND trim(notes) <> ''"
+            )
+        )
+        connection.execute(text("UPDATE person SET notes = ''"))
 
 
 def _migrate_problem_to_task() -> None:

@@ -65,6 +65,20 @@ class Person(SQLModel, table=True):
     updated_at: datetime = Field(default_factory=utcnow)
 
 
+class PersonNote(SQLModel, table=True):
+    """One timestamped note kept on a person.
+
+    Notes are separate entries rather than one text block, so each keeps the
+    time it was written (and edited) and can be changed or removed on its own.
+    """
+
+    id: str = Field(default_factory=new_id, primary_key=True)
+    person_id: str = Field(foreign_key="person.id", index=True)
+    content: str = ""
+    created_at: datetime = Field(default_factory=utcnow)
+    updated_at: datetime = Field(default_factory=utcnow)
+
+
 class PersonAlias(SQLModel, table=True):
     """An identifier for a person: a handle (GitHub login, Slack user id) or an email.
 

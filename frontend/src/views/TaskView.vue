@@ -52,6 +52,14 @@ const linkedPrs = computed(() => taskPullRequests(task.value))
 // The GitHub issues the task is linked to, for the issue mode.
 const linkedIssues = computed(() => taskIssues(task.value))
 
+// A task's notes are its note-source items, normalized to the fields the shared
+// NotesPanel renders for both tasks and people.
+const notes = computed(() =>
+  (task.value?.associations || [])
+    .filter((a) => a.item?.source === 'note')
+    .map((a) => ({ id: a.item.id, content: a.item.content, created_at: a.created_at }))
+)
+
 // The view modes the switch offers, in order. Each names the title it shows
 // when it is available and the hint it shows when it is not.
 const MODES = [
@@ -238,6 +246,20 @@ function startCreateIssue() {
     return
   }
   showCreateIssue.value = true
+}
+
+// Notes take no URL: the backend infers a note from the bare content, so its
+// title falls back to the content and the text is the note's only value.
+async function addNote(content) {
+  await api.tasks.associate(props.id, { item: { title: '', content, fetch: false } })
+}
+
+async function saveNote(itemId, content) {
+  await api.items.update(itemId, { content })
+}
+
+async function removeNote(itemId) {
+  await api.tasks.unassociate(props.id, itemId)
 }
 
 function onChanged() {
@@ -445,7 +467,7 @@ watch(
             ref="snoozeRef"
             :model-value="task.snoozed_until"
             title="Snoozed until"
-            placeholder="Snooze"
+            placeholder="Snooze until"
             :show-state="false"
             @update:model-value="(value) => update('snoozed_until', value)"
           />
@@ -456,13 +478,13 @@ watch(
             ref="tagRef"
             :model-value="task.tags || []"
             :suggestions="store.tags"
-            placeholder="+ add tag"
+            placeholder="+ Add tag"
             @update:model-value="(value) => update('tags', value)"
           />
         </div>
         <div class="prop">
           <span class="prop-label">People</span>
-          <PeopleSelect ref="peopleRef" :task="task" empty-label="None" link-to-detail @changed="onChanged" />
+          <PeopleSelect ref="peopleRef" :task="task" link-to-detail @changed="onChanged" />
         </div>
         <div class="prop">
           <span class="prop-label">Requested by</span>
@@ -470,7 +492,6 @@ watch(
             ref="requesterRef"
             kind="requesters"
             :task="task"
-            empty-label="None"
             link-to-detail
             @changed="onChanged"
           />
@@ -481,7 +502,6 @@ watch(
             ref="repositoryRef"
             :model-value="task.repository_ids"
             :repositories="store.repositories"
-            empty-label="None"
             link-to-detail
             @update:model-value="setRepositories"
           />
@@ -529,7 +549,7 @@ watch(
       <div class="grid-2">
         <div>
           <ChecklistPanel :task="task" @changed="onChanged" />
-          <NotesPanel :task="task" @changed="onChanged" />
+          <NotesPanel :notes="notes" :add="addNote" :save="saveNote" :remove="removeNote" @changed="onChanged" />
           <AgentPanel :task="task" :harnesses="store.harnesses" @changed="onChanged" />
           <SessionsPanel :task="task" @changed="onChanged" />
           <TimelinePanel :events="task.timeline" :task="task" />

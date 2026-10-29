@@ -1,20 +1,21 @@
 <script setup>
-import { computed, ref } from 'vue'
-import { api } from '../api'
+import { ref } from 'vue'
 import { store, formatDateTime } from '../store'
 import EditableText from './EditableText.vue'
 import EntityCard from './EntityCard.vue'
 import MentionTextarea from './MentionTextarea.vue'
 
-const props = defineProps({ task: { type: Object, required: true } })
+// Notes are shown the same way wherever they live: one card per note, its own
+// timestamp, edited in place. The owner (a task or a person) supplies the notes
+// and the calls that add, save, and remove one.
+const props = defineProps({
+  notes: { type: Array, default: () => [] },
+  add: { type: Function, required: true },
+  save: { type: Function, required: true },
+  remove: { type: Function, required: true }
+})
 const emit = defineEmits(['changed'])
 const busy = ref(false)
-
-// Notes are the items whose source is 'note' (plain text kept with the task).
-// They live in their own section under Context rather than in the Items panel,
-// which groups the external sources (Slack, GitHub, Drive, URLs, …).
-const notes = computed(() => (props.task.associations || []).filter((a) => a.item?.source === 'note'))
-
 const draft = ref('')
 
 async function addNote() {
@@ -22,9 +23,7 @@ async function addNote() {
   if (!content) return
   busy.value = true
   try {
-    // No URL: the backend infers a note from the bare content, and the content
-    // is the note's only value (its title falls back to it).
-    await api.tasks.associate(props.task.id, { item: { title: '', content, fetch: false } })
+    await props.add(content)
     draft.value = ''
     emit('changed')
   } catch (e) {
@@ -43,18 +42,22 @@ function onAddKeydown(event) {
   }
 }
 
-async function saveContent(itemId, value) {
+async function saveContent(noteId, value) {
   try {
-    await api.items.update(itemId, { content: value })
+    await props.save(noteId, value)
     emit('changed')
   } catch (e) {
     store.notify(e.message, true)
   }
 }
 
-async function remove(itemId) {
-  await api.tasks.unassociate(props.task.id, itemId)
-  emit('changed')
+async function removeNote(noteId) {
+  try {
+    await props.remove(noteId)
+    emit('changed')
+  } catch (e) {
+    store.notify(e.message, true)
+  }
 }
 </script>
 
@@ -88,21 +91,21 @@ async function remove(itemId) {
     <!-- A note reads as a comment: one value, the text itself, edited in place.
          The remove button sits beside the text so the text starts at the top of
          the card rather than below a header row. -->
-    <EntityCard v-for="assoc in notes" :key="assoc.id">
+    <EntityCard v-for="note in notes" :key="note.id">
       <div class="row" style="align-items: flex-start; gap: 8px">
         <EditableText
           class="grow"
           multiline
           markdown
           as="div"
-          :value="assoc.item.content"
+          :value="note.content"
           placeholder="Empty note. Click to write."
-          @save="(value) => saveContent(assoc.item.id, value)"
+          @save="(value) => saveContent(note.id, value)"
         />
-        <button class="btn sm danger" title="Remove" @click="remove(assoc.item.id)">✕</button>
+        <button class="btn sm danger" title="Remove" @click="removeNote(note.id)">✕</button>
       </div>
       <template #meta>
-        <div class="faint" style="margin-top: 4px">added {{ formatDateTime(assoc.created_at) }}</div>
+        <div class="faint" style="margin-top: 4px">added {{ formatDateTime(note.created_at) }}</div>
       </template>
     </EntityCard>
   </section>

@@ -127,15 +127,96 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+  /api/people/{person_id}/notes:
+    post:
+      summary: Add a timestamped note to a person
+      operationId: addPersonNote
+      tags: [people]
+      parameters:
+        - $ref: "#/components/parameters/PersonId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PersonNoteCreate"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PersonNote"
+        "400":
+          description: Note content is required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Person not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /api/people/{person_id}/notes/{note_id}:
+    patch:
+      summary: Edit one of a person's notes
+      operationId: updatePersonNote
+      tags: [people]
+      parameters:
+        - $ref: "#/components/parameters/PersonId"
+        - $ref: "#/components/parameters/NoteId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PersonNoteUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PersonNote"
+        "400":
+          description: Note content is required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Person or note not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    delete:
+      summary: Remove one of a person's notes
+      operationId: deletePersonNote
+      tags: [people]
+      parameters:
+        - $ref: "#/components/parameters/PersonId"
+        - $ref: "#/components/parameters/NoteId"
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Person or note not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
   /api/people/{person_id}/merge:
     post:
       summary: Merge a source person into the person in the path
       description: >
         The person named by `person_id` survives; the person named by
-        `source_id` is absorbed (aliases and links move to the survivor) and
-        then deleted. A task that gains the survivor records a `person_added`
-        timeline event. Merging a person into themselves is rejected, and an
-        unknown source or target returns 404.
+        `source_id` is absorbed (aliases, notes, and links move to the survivor)
+        and then deleted. A task that gains the survivor records a
+        `person_added` timeline event. Merging a person into themselves is
+        rejected, and an unknown source or target returns 404.
       operationId: mergePerson
       tags: [people]
       parameters:
@@ -275,6 +356,12 @@ components:
       required: true
       schema:
         type: string
+    NoteId:
+      name: note_id
+      in: path
+      required: true
+      schema:
+        type: string
     TaskId:
       name: task_id
       in: path
@@ -302,8 +389,6 @@ components:
           description: Identifiers (a handle or an email), used to de-duplicate people across sources.
           items:
             type: string
-        notes:
-          type: string
         task_count:
           type: integer
           description: How many tasks the person is linked to.
@@ -315,6 +400,10 @@ components:
         - $ref: "#/components/schemas/Person"
         - type: object
           properties:
+            notes:
+              type: array
+              items:
+                $ref: "#/components/schemas/PersonNote"
             task_ids:
               type: array
               items:
@@ -336,6 +425,7 @@ components:
             type: string
         notes:
           type: string
+          description: A first note, saved as its own timestamped entry.
     PersonUpdate:
       type: object
       additionalProperties: true
@@ -348,6 +438,36 @@ components:
             type: string
         notes:
           type: string
+          description: A non-empty value adds a new timestamped note; earlier notes stay.
+    PersonNoteCreate:
+      type: object
+      additionalProperties: true
+      properties:
+        content:
+          type: string
+    PersonNoteUpdate:
+      type: object
+      additionalProperties: true
+      properties:
+        content:
+          type: string
+    PersonNote:
+      type: object
+      additionalProperties: true
+      required: [id, person_id, content, created_at, updated_at]
+      properties:
+        id:
+          type: string
+        person_id:
+          type: string
+        content:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
     PersonLink:
       type: object
       additionalProperties: true

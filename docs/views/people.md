@@ -44,7 +44,7 @@ Values are trimmed and duplicate values (ignoring case) are dropped.
 | --- | --- |
 | Name | Editable in place. `Delete` removes the person and their links, after a confirmation. |
 | Aliases | `✕` removes one; `Add a handle or email…` and `Add` append. A duplicate is ignored silently. |
-| Notes | Free text, saved on blur. |
+| Notes | One card per note, each with the time it was added. Write in the field above the list and pick `Add note` (or Ctrl/Cmd+Enter); a note is edited in place, and `✕` removes it. |
 | Relationships | The tasks they are on (as `people` or `requested by`) and the items they are linked to, grouped by source. Each chip opens the task or item. |
 | Merge | `Merge into…` picks another person; the confirmation names how many aliases and links move; the page then redirects to the target. |
 
@@ -52,7 +52,7 @@ Merging is the fix for a duplicate person: it absorbs the source person's aliase
 
 ### Good to know
 
-- People are a flat directory: a name, a set of aliases, and notes. A handle and an email are the same kind of value.
+- People are a flat directory: a name, a set of aliases, and separate timestamped notes. A handle and an email are the same kind of value.
 - Deleting a person removes their links, so a task waiting on them shows no person afterwards.
 - New people start with no links, so the list sort and the relationship panels stay empty until you attach them.
 - There is no Refresh button; each save reloads the person and the list.
@@ -63,7 +63,7 @@ Merging is the fix for a duplicate person: it absorbs the source person's aliase
 | --- | --- | --- |
 | List and read | `agentic person list`, `agentic person get <person>` | `GET /api/people`, `GET /api/people/{id}` |
 | Create | `agentic person create --name "Ada Lovelace" --aliases ada --aliases ada@example.com` | `POST /api/people` |
-| Update | `agentic person update <person> --name … --aliases … --notes …` | `PATCH /api/people/{id}` |
+| Update | `agentic person update <person> --name … --aliases … --notes …` (a non-empty `--notes` adds a note) | `PATCH /api/people/{id}`, `POST /api/people/{id}/notes`, `PATCH`/`DELETE /api/people/{id}/notes/{note}` |
 | Delete | `agentic person delete <person>` | `DELETE /api/people/{id}` |
 | Merge | `agentic person merge <person> --into <other>` | `POST /api/people/{target}/merge` |
 | Link to a task | `agentic person link <person> --task <task>` | `POST /api/tasks/{id}/people` |

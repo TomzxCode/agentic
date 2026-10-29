@@ -16,7 +16,7 @@ from sqlmodel import Session, col, select
 from ..checklists import apply_task_templates
 from ..crud import add_timeline
 from ..models.base import utcnow
-from ..models.items import ItemPerson, Person, PersonAlias, TaskPerson, TaskRequester
+from ..models.items import ItemPerson, Person, PersonAlias, PersonNote, TaskPerson, TaskRequester
 from ..models.tasks import Task
 from .people_service import (
     _add_aliases,
@@ -115,6 +115,12 @@ def merge_people(session: Session, target: Person, source: Person) -> Person:
             target_values.add(alias.value.lower())
     session.commit()
 
+    # Notes are separate entries, so all of the source's notes move to the target.
+    for note in session.exec(select(PersonNote).where(PersonNote.person_id == source.id)).all():
+        note.person_id = target.id
+        session.add(note)
+    session.commit()
+
     # Tasks whose person links change may match a different checklist template.
     affected_task_ids: set[str] = set()
 
@@ -173,6 +179,7 @@ def merge_people(session: Session, target: Person, source: Person) -> Person:
     target.updated_at = utcnow()
     session.add(target)
     session.exec(sa_delete(PersonAlias).where(col(PersonAlias.person_id) == source.id))
+    session.exec(sa_delete(PersonNote).where(col(PersonNote.person_id) == source.id))
     session.exec(sa_delete(TaskRequester).where(col(TaskRequester.person_id) == source.id))
     session.exec(sa_delete(Person).where(col(Person.id) == source.id))
     session.commit()

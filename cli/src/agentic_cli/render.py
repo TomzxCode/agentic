@@ -130,8 +130,9 @@ def _person_text(person: dict) -> str:
     lines = [_person_line(person)]
     if person.get("aliases"):
         lines.append("  aliases: " + ", ".join(person["aliases"]))
-    if person.get("notes"):
-        lines.append(f"  notes: {person['notes']}")
+    for note in person.get("notes") or []:
+        stamp = str(note.get("created_at") or "")[:19].replace("T", " ")
+        lines.append(f"  note {stamp}: {note.get('content') or ''}".rstrip())
     if person.get("task_ids"):
         lines.append("  tasks: " + ", ".join(person["task_ids"]))
     if person.get("item_ids"):

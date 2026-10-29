@@ -41,6 +41,47 @@ def test_update_person_fields_and_reject_blank_name():
         client.delete(f"/api/people/{person}")
 
 
+def test_person_notes_are_separate_timestamped_entries():
+    with TestClient(app) as client:
+        person = _person(client)
+        first = client.post(f"/api/people/{person}/notes", json={"content": "  first  "})
+        assert first.status_code == 201
+        first = first.json()
+        assert first["content"] == "first"
+        assert first["created_at"]
+
+        second = client.post(f"/api/people/{person}/notes", json={"content": "second"}).json()
+        detail = client.get(f"/api/people/{person}").json()
+        assert [note["content"] for note in detail["notes"]] == ["first", "second"]
+        assert detail["notes"][0]["created_at"] == first["created_at"]
+
+        edited = client.patch(f"/api/people/{person}/notes/{first['id']}", json={"content": "changed"}).json()
+        assert edited["content"] == "changed"
+
+        assert client.delete(f"/api/people/{person}/notes/{first['id']}").status_code == 204
+        detail = client.get(f"/api/people/{person}").json()
+        assert [note["content"] for note in detail["notes"]] == ["second"]
+
+        assert client.post(f"/api/people/{person}/notes", json={"content": "   "}).status_code == 400
+        assert client.patch(f"/api/people/{person}/notes/{second['id']}", json={"content": ""}).status_code == 400
+        assert client.patch(f"/api/people/{person}/notes/missing", json={"content": "x"}).status_code == 404
+
+        client.delete(f"/api/people/{person}")
+
+
+def test_create_and_update_notes_become_separate_entries():
+    with TestClient(app) as client:
+        person = client.post("/api/people", json={"name": "Ada", "notes": "first"}).json()
+        assert client.patch(f"/api/people/{person['id']}", json={"notes": "second"}).status_code == 200
+        detail = client.get(f"/api/people/{person['id']}").json()
+        assert [note["content"] for note in detail["notes"]] == ["first", "second"]
+        # A blank update adds nothing.
+        assert client.patch(f"/api/people/{person['id']}", json={"notes": "   "}).status_code == 200
+        detail = client.get(f"/api/people/{person['id']}").json()
+        assert [note["content"] for note in detail["notes"]] == ["first", "second"]
+        client.delete(f"/api/people/{person['id']}")
+
+
 def test_a_person_carries_many_aliases():
     with TestClient(app) as client:
         person = client.post(
@@ -60,8 +101,12 @@ def test_a_person_carries_many_aliases():
 
 def test_merge_moves_aliases_and_links_and_deletes_the_source():
     with TestClient(app) as client:
-        target = client.post("/api/people", json={"name": "Ada Lovelace", "aliases": ["ada"]}).json()["id"]
-        source = client.post("/api/people", json={"name": "ada", "aliases": ["ada-l", "U1"]}).json()["id"]
+        target = client.post(
+            "/api/people", json={"name": "Ada Lovelace", "aliases": ["ada"], "notes": "target note"}
+        ).json()["id"]
+        source = client.post(
+            "/api/people", json={"name": "ada", "aliases": ["ada-l", "U1"], "notes": "source note"}
+        ).json()["id"]
         shared = _task(client, "Shared")
         source_only = _task(client, "Source only")
         item = _item(client)
@@ -91,6 +136,9 @@ def test_merge_moves_aliases_and_links_and_deletes_the_source():
         assert "person_added" in [event["type"] for event in source_detail["timeline"]]
         # The item link moved too.
         assert client.get(f"/api/items/{item}").json()["person_ids"] == [target]
+        # Notes are separate entries, so both survive on the target.
+        merged_notes = {note["content"] for note in client.get(f"/api/people/{target}").json()["notes"]}
+        assert merged_notes == {"target note", "source note"}
 
         for task_id in (shared, source_only):
             client.delete(f"/api/tasks/{task_id}")

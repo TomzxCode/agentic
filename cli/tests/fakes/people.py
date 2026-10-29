@@ -12,7 +12,7 @@ class PeopleFake:
             "task_count": 1,
             "item_count": 1,
             "aliases": ["ada", "ada@example.com"],
-            "notes": "n",
+            "notes": [{"id": "n1", "person_id": person_id, "content": "n", "created_at": "2026-01-02T03:04:00Z"}],
             "task_ids": ["t1"],
             "item_ids": ["i1"],
         }

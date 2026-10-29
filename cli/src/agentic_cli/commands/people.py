@@ -65,7 +65,7 @@ def person_update(
     aliases: list[str] | None = None,
     notes: str | None = None,
 ) -> str:
-    """Update a person's fields. --aliases replaces the whole list."""
+    """Update a person's fields. --aliases replaces the whole list; --notes adds a note."""
     with runtime._client() as client:
         person = client.update_person(person_id, name=name, aliases=aliases, notes=notes)
     return emit(person, f"updated {person['id']}  {_person_line(person)}")

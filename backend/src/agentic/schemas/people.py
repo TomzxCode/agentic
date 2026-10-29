@@ -12,20 +12,38 @@ from .base import ORMModel
 class PersonCreate(BaseModel):
     name: str = ""
     aliases: list[str] = []
+    # A first note, saved as its own timestamped entry.
     notes: str = ""
 
 
 class PersonUpdate(BaseModel):
     name: str | None = None
     aliases: list[str] | None = None
+    # A non-empty value adds a new timestamped note rather than replacing the
+    # person's earlier notes; use the note endpoints to edit or remove one.
     notes: str | None = None
+
+
+class PersonNoteCreate(BaseModel):
+    content: str = ""
+
+
+class PersonNoteUpdate(BaseModel):
+    content: str | None = None
+
+
+class PersonNoteRead(ORMModel):
+    id: str
+    person_id: str
+    content: str
+    created_at: datetime
+    updated_at: datetime
 
 
 class PersonRead(ORMModel):
     id: str
     name: str
     aliases: list[str] = []
-    notes: str
     created_at: datetime
     updated_at: datetime
     task_count: int = 0
@@ -33,13 +51,14 @@ class PersonRead(ORMModel):
 
 
 class PersonDetail(PersonRead):
-    """A person with the tasks and items they are attached to.
+    """A person with their notes and the tasks and items they are attached to.
 
     ``task_ids`` is every task the person is attached to; ``involved_task_ids``
     and ``requester_task_ids`` split that set by how they are attached (as a
     person on the task, as the requester, or both).
     """
 
+    notes: list[PersonNoteRead] = []
     task_ids: list[str] = []
     involved_task_ids: list[str] = []
     requester_task_ids: list[str] = []

@@ -102,6 +102,10 @@
   font-size: 13px;
   line-height: 1.55;
   overflow-wrap: anywhere;
+  /* A card body keeps plain-text newlines (`pre-wrap`), but Markdown HTML has
+     a newline between its block tags; inheriting that would render it as a
+     blank line, so Markdown owns its own whitespace. */
+  white-space: normal;
 }
 .md > :first-child {
   margin-top: 0;
