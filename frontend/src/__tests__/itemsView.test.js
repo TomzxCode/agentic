@@ -164,7 +164,7 @@ describe('ItemsView', () => {
     // A note has no source to re-fetch and no author, so the list offers
     // neither a refresh nor a person linker for it.
     expect(wrapper.find('button[title="Refresh"]').exists()).toBe(false)
-    expect(wrapper.text()).not.toContain('Link a person')
+    expect(wrapper.text()).not.toContain('Link person')
   })
 
   it('marks a Slack conversation done, indicates later messages, and reopens it', async () => {

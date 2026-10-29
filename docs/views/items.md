@@ -29,7 +29,7 @@ Per card:
 - `ghx` and `slackx` links open the item in those tools when their URLs are configured.
 - `↻` re-fetches the item's metadata and content.
 - `▸` expands the body.
-- `＋ Link to a task…` attaches the item to a task, and `＋ Link a person…` to a person. Person chips show `✕` to unlink.
+- `+ Link task` attaches the item to a task, and `+ Link person` to a person. Person chips show `✕` to unlink.
 - `✕` deletes the item and says how many tasks it will unlink first.
 - `not linked to a task` marks an item nothing uses yet.
 

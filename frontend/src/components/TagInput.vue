@@ -6,7 +6,7 @@ const props = defineProps({
   modelValue: { type: Array, default: () => [] },
   // Existing tags to offer in the picker; accepts ["name"] or [{ name, count }].
   suggestions: { type: Array, default: () => [] },
-  placeholder: { type: String, default: '+ add tag' }
+  placeholder: { type: String, default: '+ Add tag' }
 })
 const emit = defineEmits(['update:modelValue'])
 

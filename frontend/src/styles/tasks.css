@@ -280,6 +280,47 @@
   letter-spacing: 0.06em;
   color: var(--faint);
 }
+/* The strip's controls are compact chips, so they use tighter corners than the
+   pill-shaped chips elsewhere in the app. */
+.properties .chip,
+.properties .badge,
+.properties .search-select.inline .ss-trigger,
+.properties .inline-input {
+  border-radius: 4px;
+}
+/* Deadline and snooze are values like the rest of the strip, so they take the
+   chip look instead of the borderless text button's negative-margin hit area. */
+.properties .deadline-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 2px 8px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--text);
+}
+.properties .deadline-btn.is-empty {
+  color: var(--muted);
+}
+.properties .deadline-btn:hover {
+  background: var(--bg-2);
+  border-color: var(--muted);
+  box-shadow: none;
+  color: var(--text);
+}
+/* The field that replaces the chip when it is opened keeps the chip's type size
+   and padding, so the row does not grow or reflow mid-edit. */
+.properties .deadline-input {
+  margin: 0;
+  padding: 2px 8px;
+  font-size: 11px;
+  line-height: 16px;
+  background: var(--bg-2);
+}
 /* Header actions match the metadata shape instead of the ghost-button look. */
 .task-actions .session-links.compact .btn {
   background: var(--bg-2);

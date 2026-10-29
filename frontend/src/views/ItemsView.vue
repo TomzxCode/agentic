@@ -230,7 +230,7 @@ onMounted(async () => {
           <SearchSelect
             v-if="linkableTasks(item).length"
             variant="inline"
-            placeholder="＋ Link to a task…"
+            placeholder="+ Link task"
             title="Link this item to a task"
             :model-value="linkChoice[item.id] || ''"
             :options="linkableTasks(item)"
@@ -245,7 +245,7 @@ onMounted(async () => {
           <SearchSelect
             v-if="linkablePeople(item).length"
             variant="inline"
-            placeholder="＋ Link a person…"
+            placeholder="+ Link person"
             title="Link a person to this item"
             :model-value="personChoice[item.id] || ''"
             :options="linkablePeople(item)"

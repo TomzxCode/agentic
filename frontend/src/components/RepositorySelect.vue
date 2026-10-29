@@ -6,7 +6,7 @@ import SearchSelect from './SearchSelect.vue'
 const props = defineProps({
   modelValue: { type: Array, default: () => [] },
   repositories: { type: Array, default: () => [] },
-  placeholder: { type: String, default: '+ add repository' },
+  placeholder: { type: String, default: '+ Link repository' },
   emptyLabel: { type: String, default: 'no repositories' },
   // When true, each selected repository's name links to its detail page.
   linkToDetail: { type: Boolean, default: false }

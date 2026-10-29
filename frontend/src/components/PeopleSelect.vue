@@ -93,7 +93,7 @@ defineExpose({ activate: () => select.value?.activate?.() })
       title="Link this person to the task"
       @click="link(person.id)"
     >
-      ＋ {{ person.name }}
+      + {{ person.name }}
     </button>
     <SearchSelect
       v-if="linkable.length"
@@ -102,7 +102,7 @@ defineExpose({ activate: () => select.value?.activate?.() })
       keep-open
       :model-value="''"
       :options="linkable"
-      :placeholder="isRequesters ? '＋ Link a requester…' : '＋ Link a person…'"
+      :placeholder="isRequesters ? '+ Link requester' : '+ Link person'"
       :title="isRequesters ? 'Link a person who requested this task' : 'Link a person to this task'"
       @update:model-value="link"
     />

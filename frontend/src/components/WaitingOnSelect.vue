@@ -46,7 +46,7 @@ const selectedName = computed(
       variant="inline"
       :model-value="''"
       :options="options"
-      placeholder="＋ Waiting on a person…"
+      placeholder="+ Link person"
       title="Wait on a person"
       @update:model-value="(value) => emit('person', value)"
     />
@@ -55,7 +55,7 @@ const selectedName = computed(
       <DeadlinePicker
         :model-value="followUpAt"
         title="Check back"
-        placeholder="set a date"
+        placeholder="Set date"
         :show-state="false"
         @update:model-value="(value) => emit('follow-up', value)"
       />

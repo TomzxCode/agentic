@@ -98,7 +98,7 @@ defineExpose({ activate: () => beforeSelect.value?.activate?.() })
           keep-open
           :model-value="''"
           :options="candidates"
-          placeholder="＋ link…"
+          placeholder="+ Link task"
           title="Link a task that must be done before this one"
           @update:model-value="(id) => link(id, 'before')"
         />
@@ -118,7 +118,7 @@ defineExpose({ activate: () => beforeSelect.value?.activate?.() })
           keep-open
           :model-value="''"
           :options="candidates"
-          placeholder="＋ link…"
+          placeholder="+ Link task"
           title="Link a task that follows this one"
           @update:model-value="(id) => link(id, 'after')"
         />
@@ -138,7 +138,7 @@ defineExpose({ activate: () => beforeSelect.value?.activate?.() })
           keep-open
           :model-value="''"
           :options="candidates"
-          placeholder="＋ link…"
+          placeholder="+ Link task"
           title="Link a task related to this one, in either direction"
           @update:model-value="(id) => link(id, 'related')"
         />
