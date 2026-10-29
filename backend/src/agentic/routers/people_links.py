@@ -13,6 +13,7 @@ from sqlalchemy import func
 from sqlalchemy import update as sa_update
 from sqlmodel import Session, col, select
 
+from ..checklists import apply_task_templates
 from ..crud import add_timeline
 from ..models.base import utcnow
 from ..models.items import ItemPerson, Person, PersonAlias, TaskPerson, TaskRequester
@@ -114,9 +115,13 @@ def merge_people(session: Session, target: Person, source: Person) -> Person:
             target_values.add(alias.value.lower())
     session.commit()
 
+    # Tasks whose person links change may match a different checklist template.
+    affected_task_ids: set[str] = set()
+
     # Tasks: move the links the target lacks, drop duplicates, record the gain.
     for link in session.exec(select(TaskPerson).where(TaskPerson.person_id == source.id)).all():
         task_id = link.task_id
+        affected_task_ids.add(task_id)
         existing = session.exec(
             select(TaskPerson).where(TaskPerson.task_id == task_id, TaskPerson.person_id == target.id)
         ).first()
@@ -131,6 +136,7 @@ def merge_people(session: Session, target: Person, source: Person) -> Person:
     # Requesters: the same, as a link set of its own.
     for link in session.exec(select(TaskRequester).where(TaskRequester.person_id == source.id)).all():
         task_id = link.task_id
+        affected_task_ids.add(task_id)
         existing = session.exec(
             select(TaskRequester).where(TaskRequester.task_id == task_id, TaskRequester.person_id == target.id)
         ).first()
@@ -157,6 +163,9 @@ def merge_people(session: Session, target: Person, source: Person) -> Person:
         session.commit()
 
     # A task waiting on the source now waits on the target.
+    affected_task_ids.update(
+        task.id for task in session.exec(select(Task).where(col(Task.waiting_on_person_id) == source.id)).all()
+    )
     session.exec(
         sa_update(Task).where(col(Task.waiting_on_person_id) == source.id).values(waiting_on_person_id=target.id)
     )
@@ -167,6 +176,10 @@ def merge_people(session: Session, target: Person, source: Person) -> Person:
     session.exec(sa_delete(TaskRequester).where(col(TaskRequester.person_id) == source.id))
     session.exec(sa_delete(Person).where(col(Person.id) == source.id))
     session.commit()
+    for task_id in affected_task_ids:
+        task = session.get(Task, task_id)
+        if task is not None:
+            apply_task_templates(session, task)
     session.refresh(target)
     return target
 

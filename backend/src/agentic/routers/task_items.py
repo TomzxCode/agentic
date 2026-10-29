@@ -11,6 +11,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
 
 from ..auto_changes import record_merged_pr_changes
+from ..checklists import apply_task_templates
 from ..crud import add_timeline, get_or_404, get_task_or_404
 from ..db import get_session
 from ..events import bus
@@ -26,7 +27,7 @@ router = APIRouter(prefix="/api/tasks", tags=["tasks"])
 async def associate_item(
     task_id: str, payload: AssociateRequest, session: Session = Depends(get_session)
 ) -> AssociationDetail:
-    get_task_or_404(session, task_id)
+    task = get_task_or_404(session, task_id)
     if payload.item is not None:
         # Fetching (network/CLI) happens here; keep it off the event loop.
         item = await anyio.to_thread.run_sync(_upsert_item, session, payload.item)
@@ -50,6 +51,7 @@ async def associate_item(
         f"Associated [{item.source}] {item.title or item.url or item.id}",
         {"item_id": item.id},
     )
+    apply_task_templates(session, task)
     await bus.publish(f"task:{task_id}", {"kind": "task", "action": "items_changed"})
     return AssociationDetail(
         id=assoc.id, note=assoc.note, created_at=assoc.created_at, item=ItemRead.model_validate(item)

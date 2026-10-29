@@ -15,6 +15,7 @@ from sqlalchemy import delete as sa_delete
 from sqlmodel import Session, col, select
 
 from ..auto_changes import record_merged_pr_changes
+from ..checklists import apply_task_templates, delete_task_checklist
 from ..crud import add_timeline, field_label, get_task_or_404, jsonable, normalize_tags
 from ..db import get_session
 from ..events import bus
@@ -142,6 +143,9 @@ async def create_task(payload: TaskCreate, session: Session = Depends(get_sessio
             f"Associated [{item.source}] {item.title or item.url or item.id}",
             {"item_id": item.id},
         )
+    # Apply the checklist templates the new task matches, now that its tags,
+    # repositories, and any people brought in by an imported item are in place.
+    apply_task_templates(session, task)
     add_timeline(session, task.id, "created", f"Task created: {task.title}")
     if slack_import and slack_thread:
         await start_slack_summary(session, task, thread=slack_thread)
@@ -211,6 +215,10 @@ async def _apply_task_update(
                 "from_label": ", ".join(_repository_names(session, before_repos)) or None,
                 "to_label": ", ".join(_repository_names(session, after_repos)) or None,
             }
+
+    # A rule may match on the field just changed (or on a repository that came
+    # with it), so run the templates before returning the fresh read.
+    apply_task_templates(session, task)
 
     if changes and (set(changes) - {"summary", "next_steps"}):
         add_timeline(
@@ -340,6 +348,8 @@ async def _delete_task(session: Session, task: Task) -> None:
     session.exec(sa_delete(TaskRepository).where(col(TaskRepository.task_id) == task.id))
     session.exec(sa_delete(TaskPerson).where(col(TaskPerson.task_id) == task.id))
     session.exec(sa_delete(TaskRequester).where(col(TaskRequester.task_id) == task.id))
+    # Checklist items and the record of applied templates belong to the task.
+    delete_task_checklist(session, task.id)
     # Before/after and related links point at the task from either side; drop
     # them first.
     session.exec(

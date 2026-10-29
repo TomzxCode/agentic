@@ -10,6 +10,7 @@ export const SETTINGS_SECTIONS = [
   { id: 'slack', label: 'Slack', icon: 'server' },
   { id: 'harnesses', label: 'Agent harnesses', icon: 'harness' },
   { id: 'prompts', label: 'Agent prompts', icon: 'prompt' },
+  { id: 'checklists', label: 'Checklists', icon: 'tasks' },
   { id: 'refresh', label: 'Refresh', icon: 'refresh' },
   { id: 'review-scan', label: 'Review requests', icon: 'search' },
   { id: 'groups', label: 'Repository groups', icon: 'group' },

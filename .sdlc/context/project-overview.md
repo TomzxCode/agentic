@@ -25,6 +25,7 @@ It solves the problem of scattered context: the threads, issues, and checkouts r
 
 **In scope:**
 - Task tracking (status, priority, tags, deadlines, inline editing, search, timeline).
+- Checklists: reusable templates whose rules (status, priority, waiting on, tags, people, requesters, repositories, before/after/related tasks) decide which tasks receive their items; each task's items are editable and stay visible but disabled when the template no longer matches.
 - A focus stack: an ordered queue of tasks with the current one on top, per-entry session timing (execution count, duration), and soft-deleted history.
 - An optional native launcher (tray icon plus global hotkey) for the stack.
 - An upcoming-deadlines view on the tasks page, in-flight tasks soonest first with overdue tasks leading.

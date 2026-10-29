@@ -38,6 +38,7 @@ def create_db_and_tables() -> None:
         agents,
         base,
         changes,
+        checklists,
         graphs,
         items,
         repositories,

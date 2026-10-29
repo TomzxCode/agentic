@@ -33,6 +33,7 @@ import structlog
 from sqlalchemy import or_
 from sqlmodel import Session, col, select
 
+from .checklists import apply_task_templates
 from .config import settings
 from .db import engine
 from .models.agents import AgentEvent, AgentRun
@@ -446,6 +447,7 @@ async def start_execution(session: Session, graph: ExecutionGraph, *, trigger: s
     session.add(graph)
     session.commit()
     session.refresh(execution)
+    apply_task_templates(session, task)
     add_timeline(session, task.id, "graph_started", f"Execution graph: {graph.name}", {"execution_id": execution.id})
 
     # The orchestrator opens its own short sessions, like the scheduled-task

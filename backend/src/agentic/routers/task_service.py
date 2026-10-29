@@ -6,6 +6,7 @@ from sqlalchemy import case
 from sqlalchemy import delete as sa_delete
 from sqlmodel import Session, col, select
 
+from ..checklists import checklist_items
 from ..links import run_read, session_read
 from ..models.agents import AgentRun, AgentSession
 from ..models.base import WorktreeStatus
@@ -233,6 +234,7 @@ def _detail(session: Session, task: Task) -> TaskDetail:
         runs=[run_read(session, r) for r in runs],
         sessions=[session_read(session, s) for s in sessions],
         changes=[ChangeRead.model_validate(c) for c in changes],
+        checklist=checklist_items(session, task),
         timeline=[TimelineRead.model_validate(t) for t in timeline],
     )
 

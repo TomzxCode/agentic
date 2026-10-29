@@ -16,6 +16,20 @@ def test_renderers():
     text = render._task_text(task)
     assert "summary: s" in text and "[ ] a" in text and "[x] b" in text
 
+    # Checklist items render with their done mark, and a stale item says why.
+    checklist_text = render._task_text(
+        {
+            **task,
+            "checklist": [
+                {"text": "Announce", "done": True, "applicable": True},
+                {"text": "Docs", "done": False, "applicable": False},
+            ],
+        }
+    )
+    assert "checklist:" in checklist_text
+    assert "[x] Announce" in checklist_text
+    assert "[ ] Docs (no longer applies)" in checklist_text
+
     # A waiting task names the person and its check-back date; an active snooze
     # is shown, while one in the past is not.
     waiting = {

@@ -10,6 +10,7 @@ from pydantic import BaseModel
 from ..models.base import DependencyRelation, TaskStatus
 from .base import ORMModel, UtcDateTime
 from .changes import ChangeRead
+from .checklists import ChecklistItemRead
 from .items import AssociationDetail
 from .people import PersonRead
 from .runs import RunRead, SessionRead
@@ -144,6 +145,7 @@ class TaskDetail(TaskRead):
     runs: list[RunRead] = []
     sessions: list[SessionRead] = []
     changes: list[ChangeRead] = []
+    checklist: list[ChecklistItemRead] = []
     timeline: list[TimelineRead] = []
 
 

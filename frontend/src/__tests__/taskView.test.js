@@ -249,6 +249,7 @@ describe('TaskView', () => {
         stubs: {
           ...stubs,
           ContextPanel: { template: '<section class="context" />' },
+          ChecklistPanel: { template: '<section class="checklist" />' },
           NotesPanel: { template: '<section class="notes" />' }
         }
       }
@@ -258,8 +259,10 @@ describe('TaskView', () => {
     expect(band.element.children).toHaveLength(2)
     expect(band.findAll('.et')).toHaveLength(1)
     expect(band.get('.context').exists()).toBe(true)
-    // Notes opens the left column of the panels below the band.
-    expect(wrapper.get('.grid-2').element.children[0].firstElementChild.classList.contains('notes')).toBe(true)
+    // Checklist opens the left column of the panels below the band, then notes.
+    const left = wrapper.get('.grid-2').element.children[0]
+    expect(left.firstElementChild.classList.contains('checklist')).toBe(true)
+    expect(left.children[1].classList.contains('notes')).toBe(true)
   })
 
   it('puts the properties strip above the description and the description band above the panels', async () => {

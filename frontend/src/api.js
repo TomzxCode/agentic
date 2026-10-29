@@ -87,7 +87,19 @@ export const api = {
     unassociate: (id, itemId) => request(`/tasks/${id}/items/${itemId}`, { method: 'DELETE' }),
     dependencies: (id) => request(`/tasks/${id}/dependencies`),
     addDependency: (id, body) => request(`/tasks/${id}/dependencies`, { method: 'POST', body }),
-    removeDependency: (id, relatedId) => request(`/tasks/${id}/dependencies/${relatedId}`, { method: 'DELETE' })
+    removeDependency: (id, relatedId) => request(`/tasks/${id}/dependencies/${relatedId}`, { method: 'DELETE' }),
+    addChecklistItem: (id, body) => request(`/tasks/${id}/checklist`, { method: 'POST', body }),
+    updateChecklistItem: (id, itemId, body) => request(`/tasks/${id}/checklist/${itemId}`, { method: 'PATCH', body }),
+    removeChecklistItem: (id, itemId) => request(`/tasks/${id}/checklist/${itemId}`, { method: 'DELETE' }),
+    applyChecklists: (id) => request(`/tasks/${id}/checklist/apply`, { method: 'POST' })
+  },
+
+  checklistTemplates: {
+    list: () => request('/checklist-templates'),
+    create: (body) => request('/checklist-templates', { method: 'POST', body }),
+    update: (id, body) => request(`/checklist-templates/${id}`, { method: 'PATCH', body }),
+    remove: (id) => request(`/checklist-templates/${id}`, { method: 'DELETE' }),
+    apply: (id) => request(`/checklist-templates/${id}/apply`, { method: 'POST' })
   },
 
   events: {

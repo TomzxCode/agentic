@@ -9,6 +9,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
 
+from ..checklists import apply_task_templates
 from ..crud import add_timeline, get_or_404, get_task_or_404
 from ..db import get_session
 from ..dependencies import (
@@ -89,6 +90,8 @@ async def add_dependency(
                 f"Related: {task.title}",
                 {"related_id": task.id, "related_title": task.title},
             )
+            apply_task_templates(session, task)
+            apply_task_templates(session, related)
             await _publish_changed(task_id, related.id)
         return _dependency_read(session, task_id)
 
@@ -112,6 +115,8 @@ async def add_dependency(
             f"Follows: {before.title}",
             {"before_id": before.id, "after_id": after.id, "before_title": before.title},
         )
+        apply_task_templates(session, before)
+        apply_task_templates(session, after)
         await _publish_changed(task_id, related.id)
     return _dependency_read(session, task_id)
 
@@ -141,6 +146,9 @@ async def remove_dependency(task_id: str, related_id: str, session: Session = De
                 f"No longer related: {task.title}",
                 {"related_id": task.id, "related_title": task.title},
             )
+        apply_task_templates(session, task)
+        if other is not None:
+            apply_task_templates(session, other)
         await _publish_changed(task_id, related_id)
         return
 
@@ -172,6 +180,10 @@ async def remove_dependency(task_id: str, related_id: str, session: Session = De
             f"No longer follows: {before.title}",
             {"before_id": before.id, "after_id": after.id, "before_title": before.title},
         )
+    if before is not None:
+        apply_task_templates(session, before)
+    if after is not None:
+        apply_task_templates(session, after)
     await _publish_changed(task_id, related_id)
 
 

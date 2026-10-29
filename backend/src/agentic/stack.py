@@ -20,6 +20,7 @@ from typing import TypedDict, overload
 from sqlalchemy import or_
 from sqlmodel import Session, col, select
 
+from .checklists import apply_task_templates
 from .crud import add_timeline
 from .models.base import TaskStatus, utcnow
 from .models.tasks import StackEntry, Task, TaskSession
@@ -308,6 +309,7 @@ def push(
     _set_current(session, entries, now)
     session.commit()
     add_timeline(session, task.id, "stack_pushed", "Added to the stack")
+    apply_task_templates(session, task)
     return active_entries(session)
 
 
@@ -329,6 +331,7 @@ def pop(session: Session, now: datetime | None = None) -> list[StackEntry]:
     session.commit()
     if task is not None:
         add_timeline(session, task.id, "stack_popped", "Completed and popped from the stack")
+        apply_task_templates(session, task)
     return active_entries(session)
 
 

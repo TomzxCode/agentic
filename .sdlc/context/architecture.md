@@ -62,6 +62,10 @@ erDiagram
     TASK ||--o{ TASKDEPENDENCY : "blocks"
     TASK ||--o{ TASKDEPENDENCY : "depends on"
     TASK ||--o{ TASKRELATION : "related to"
+    CHECKLISTTEMPLATE ||--o{ CHECKLISTTEMPLATEAPPLICATION : "applied as"
+    TASK ||--o{ CHECKLISTTEMPLATEAPPLICATION : "receives"
+    CHECKLISTTEMPLATE ||--o{ CHECKLISTITEM : "contributes"
+    TASK ||--o{ CHECKLISTITEM : "holds"
     REPOSITORYGROUP ||--o{ REPOSITORYGROUPMEMBER : "contains"
     REPOSITORY ||--o{ REPOSITORYGROUPMEMBER : "belongs to"
     TASK ||--o{ TASKREPOSITORY : "draws on"
@@ -229,6 +233,27 @@ erDiagram
         string id PK
         string before_id FK
         string after_id FK
+    }
+    CHECKLISTTEMPLATE {
+        string id PK
+        string name
+        string description
+        json rules
+        json items
+    }
+    CHECKLISTTEMPLATEAPPLICATION {
+        string id PK
+        string task_id FK
+        string template_id FK
+    }
+    CHECKLISTITEM {
+        string id PK
+        string task_id FK
+        string template_id FK
+        string text
+        int position
+        bool done
+        datetime done_at
     }
     SETTING {
         string key PK

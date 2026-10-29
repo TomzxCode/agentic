@@ -53,6 +53,13 @@ def _task_text(task: dict) -> str:
         lines.append(f"  summary: {task['summary']}")
     for step in task.get("next_steps") or []:
         lines.append(f"  [{'x' if step.get('done') else ' '}] {step.get('text')}")
+    checklist = task.get("checklist") or []
+    if checklist:
+        lines.append("  checklist:")
+        for item in checklist:
+            mark = "x" if item.get("done") else " "
+            suffix = "" if item.get("applicable", True) else " (no longer applies)"
+            lines.append(f"    [{mark}] {item['text']}{suffix}")
     return "\n".join(lines)
 
 

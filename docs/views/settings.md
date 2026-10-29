@@ -24,6 +24,7 @@ All sections stay mounted, so switching back and forth does not lose what you ty
 | `Slack` | The Slack recipient ids, the bot token, and `Send test notification`. |
 | `Agent harnesses` | Per harness: its resume command, its model, and which harness is the default. Also adds a harness. |
 | `Agent prompts` | The prompt buttons the agent panel shows, their item kind, their label, and their template. |
+| `Checklists` | Reusable task checklists and the rules that decide which tasks they apply to. |
 | `Refresh` | The Slack and GitHub refresh policies, their live preview, and a per-source force refresh. |
 | `Review requests` | The review-scan cadence, the default repository policy, each repository's own policy, `Scan now`, and the last scan's result. |
 | `Repository groups` | Named sets of repositories, with a description. |
@@ -78,6 +79,17 @@ The template uses the task and item variables listed in [Configuration](../refer
 
 A prompt appears in the agent panel only when the task links exactly one item of that kind.
 Every edit saves the whole list, and a row with an empty template is skipped until you fill it.
+
+### Checklists
+
+A checklist template has a name, an optional description, a set of rules, and a list of items.
+A rule matches one task property: status, priority, waiting-on person, tags, people, requesters, repositories, or before/after/related tasks.
+Every rule has to match.
+`Add rule` appends a rule, `✕` removes one, and the items are one per line.
+
+When a task matches, its items are copied onto the task once.
+`Apply now` adds any missing items to the tasks that currently match, which is how a newly added item reaches tasks that already had the checklist.
+Removing a template also removes the items it put on tasks; the task page keeps the items when a rule stops matching, shown disabled.
 
 ### Refresh
 

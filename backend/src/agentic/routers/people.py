@@ -16,6 +16,7 @@ from sqlalchemy import func
 from sqlalchemy import update as sa_update
 from sqlmodel import Session, col, select
 
+from ..checklists import apply_task_templates
 from ..crud import add_timeline, get_task_or_404
 from ..db import get_session
 from ..events import bus
@@ -131,17 +132,18 @@ async def merge_person(person_id: str, payload: PersonMerge, session: Session = 
 # --- task links ------------------------------------------------------------
 @link_router.post("/api/tasks/{task_id}/people", response_model=PersonRead, status_code=201)
 async def link_task_person(task_id: str, payload: PersonLink, session: Session = Depends(get_session)) -> PersonRead:
-    get_task_or_404(session, task_id)
+    task = get_task_or_404(session, task_id)
     person = _resolve_person(session, payload)
     if _link_task(session, task_id, person):
         add_timeline(session, task_id, "person_added", f"Person added: {person.name}", {"person_id": person.id})
+    apply_task_templates(session, task)
     await bus.publish(f"task:{task_id}", {"kind": "task", "action": "people_changed"})
     return _person_read(session, person)
 
 
 @link_router.delete("/api/tasks/{task_id}/people/{person_id}", status_code=204)
 async def unlink_task_person(task_id: str, person_id: str, session: Session = Depends(get_session)) -> None:
-    get_task_or_404(session, task_id)
+    task = get_task_or_404(session, task_id)
     link = session.exec(
         select(TaskPerson).where(TaskPerson.task_id == task_id, TaskPerson.person_id == person_id)
     ).first()
@@ -157,6 +159,7 @@ async def unlink_task_person(task_id: str, person_id: str, session: Session = De
         f"Person removed: {person.name if person else person_id}",
         {"person_id": person_id},
     )
+    apply_task_templates(session, task)
     await bus.publish(f"task:{task_id}", {"kind": "task", "action": "people_changed"})
 
 
@@ -164,17 +167,18 @@ async def unlink_task_person(task_id: str, person_id: str, session: Session = De
 @link_router.post("/api/tasks/{task_id}/requesters", response_model=PersonRead, status_code=201)
 async def link_task_requester(task_id: str, payload: PersonLink, session: Session = Depends(get_session)) -> PersonRead:
     """Link a person who requested the task, separately from the people it involves."""
-    get_task_or_404(session, task_id)
+    task = get_task_or_404(session, task_id)
     person = _resolve_person(session, payload)
     if _link_requester(session, task_id, person):
         add_timeline(session, task_id, "requester_added", f"Requester added: {person.name}", {"person_id": person.id})
+    apply_task_templates(session, task)
     await bus.publish(f"task:{task_id}", {"kind": "task", "action": "requesters_changed"})
     return _person_read(session, person)
 
 
 @link_router.delete("/api/tasks/{task_id}/requesters/{person_id}", status_code=204)
 async def unlink_task_requester(task_id: str, person_id: str, session: Session = Depends(get_session)) -> None:
-    get_task_or_404(session, task_id)
+    task = get_task_or_404(session, task_id)
     link = session.exec(
         select(TaskRequester).where(TaskRequester.task_id == task_id, TaskRequester.person_id == person_id)
     ).first()
@@ -190,6 +194,7 @@ async def unlink_task_requester(task_id: str, person_id: str, session: Session =
         f"Requester removed: {person.name if person else person_id}",
         {"person_id": person_id},
     )
+    apply_task_templates(session, task)
     await bus.publish(f"task:{task_id}", {"kind": "task", "action": "requesters_changed"})
 
 

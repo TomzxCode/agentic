@@ -13,6 +13,8 @@
 | Autonomy rate | The share of accepted changes that reached production with no human intervention. One of the two primary factory metrics. |
 | Change | A unit of factory output, recorded against a task with a lifecycle, a start and end time, and a human-intervened flag; the input the metrics are computed from. |
 | Change class | The kind of a change: feature, bugfix, refactor, chore, docs, test, or trivial. |
+| Checklist item | One item on a task's checklist, either copied from a matching template or added by hand; a derived item stays but is disabled once its template no longer matches. |
+| Checklist template | A reusable list of checklist items plus the rules over task properties that decide which tasks receive them. |
 | Colleague decision report | A daily Markdown report the extract-colleague-decisions skill writes under the notes tree, naming each colleague's decisions (Decided, Deferred, Open, or Committed), who supported or opposed them, and a Slack permalink. |
 | Context refresh | A special agent run that reads a task and its items and rewrites the task's summary and next steps. |
 | Cumulative flow diagram | A diagram plotted as stacked areas from daily snapshots of every station's inventory plus cumulative completions, showing work entering and leaving each station over time. |

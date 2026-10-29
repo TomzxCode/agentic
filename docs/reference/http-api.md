@@ -29,6 +29,32 @@ There is no authentication, so expose it only on a trusted network.
 `POST` and `PATCH` accept `waiting_on_person_id`, `follow_up_at`, and `snoozed_until`; a waiting task is marked blocked, and a task with an active snooze or wait is parked off the stack until the date passes.
 The task representation returns those fields plus `waiting_on_name`.
 
+The task detail (`GET /api/tasks/{id}`) also returns `checklist`, a list of the task's checklist items.
+
+## Checklists
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| `GET` / `POST` | `/api/checklist-templates` | List and create checklist templates. |
+| `PATCH` / `DELETE` | `/api/checklist-templates/{id}` | Update or delete a template. Deleting a template also removes the items it put on tasks. |
+| `POST` | `/api/checklist-templates/{id}/apply` | Add the template's missing items to every task that currently matches it. |
+| `POST` | `/api/tasks/{id}/checklist` | Add a manual item. |
+| `POST` | `/api/tasks/{id}/checklist/apply` | Add missing items from templates already applied to the task. |
+| `PATCH` / `DELETE` | `/api/tasks/{id}/checklist/{item_id}` | Check or uncheck, rename, or remove an item. |
+
+A template has a `name`, an optional `description`, a list of `rules`, and a list of `items`.
+Every rule must match for the template to apply.
+A rule is `{"field": ..., "op": ..., "values": [...]}`.
+
+- Fields: `status`, `priority`, `waiting_on`, `tags`, `people`, `requested_by`, `repositories`, `before`, `after`, `related`.
+- Operators: `is_any` / `is_not_any` for `status` and `priority`; `has_any` / `has_all` / `has_none` for the list fields; `is_set` / `is_not_set` for `waiting_on`.
+- `before` means the task has a prerequisite task in `values`; `after` means it has a following task in `values`; `related` means a related task in `values`.
+
+The first time a task matches, the template's items are copied onto it and recorded, so editing the task later does not duplicate them.
+Each item in the task detail carries `applicable`, which is false when its template no longer matches the task; the item stays but the UI disables it.
+A manual item has no template and always applies.
+
+
 ## Events
 
 | Method | Path | Purpose |

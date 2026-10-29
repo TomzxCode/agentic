@@ -125,7 +125,7 @@ describe('SettingsView', () => {
 
   const mountView = () =>
     mount(SettingsView, {
-      global: { stubs: { RepositoryGroupsPanel: true, RouterLink: RouterLinkStub } }
+      global: { stubs: { RepositoryGroupsPanel: true, SettingsChecklists: true, RouterLink: RouterLinkStub } }
     })
 
   it('shows an icon on every settings nav item', async () => {
@@ -133,7 +133,7 @@ describe('SettingsView', () => {
     await flushPromises()
 
     const items = wrapper.findAll('.settings-nav-item')
-    expect(items.length).toBe(11)
+    expect(items.length).toBe(12)
     for (const item of items) {
       expect(item.find('svg').exists()).toBe(true)
     }

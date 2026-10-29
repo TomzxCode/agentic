@@ -64,6 +64,55 @@ Table taskrelation {
   }
 }
 
+// A reusable checklist plus the rules that decide which tasks receive its
+// items. Rules is a JSON list of {field, op, values}; all rules must match.
+// Fields: status, priority, waiting_on, tags, people, requested_by,
+// repositories, before, after, related.
+Table checklisttemplate {
+  id varchar [pk]
+  name varchar [not null]
+  description text [not null, default: '']
+  rules json [not null]
+  items json [not null] // ordered item texts copied onto a matching task
+  created_at datetime [not null]
+  updated_at datetime [not null]
+}
+
+// One task's record that a template was applied. It keeps a later edit from
+// duplicating the items, and a re-match from re-adding an item the user deleted.
+Table checklisttemplateapplication {
+  id varchar [pk]
+  task_id varchar [not null, ref: > task.id]
+  template_id varchar [not null, ref: > checklisttemplate.id]
+  created_at datetime [not null]
+
+  Indexes {
+    task_id
+    template_id
+    (task_id, template_id) [unique, name: 'uq_checklist_application']
+  }
+}
+
+// One checklist item on a task. template_id is null for a manual item; a
+// derived item follows the template's current match state (shown disabled when
+// it no longer matches) but is edited and removed independently.
+Table checklistitem {
+  id varchar [pk]
+  task_id varchar [not null, ref: > task.id]
+  template_id varchar [ref: > checklisttemplate.id]
+  text text [not null]
+  position integer [not null, default: 0]
+  done boolean [not null, default: false]
+  done_at datetime
+  created_at datetime [not null]
+  updated_at datetime [not null]
+
+  Indexes {
+    task_id
+    template_id
+  }
+}
+
 Table sourceitem {
   id varchar [pk]
   source varchar // slack | github | gdrive | url | note | commit | file

@@ -176,6 +176,13 @@ only expose this on a trusted network.
    Tasks page but leaves the focus stack until the date passes, then rejoins it.
    Waiting marks an open task blocked and names the person on its row; a snooze
    leaves the status alone.
+   A task page also shows a **Checklist** panel. Checklists are defined in
+   **Settings → Checklists**: each template has rules over the task's properties
+   (status, priority, waiting on, tags, people, requesters, repositories, and
+   before/after/related tasks) plus the items it contributes. A task matching
+   every rule receives the items once, and you can tick, rename, add, or remove
+   them on that task. Items whose template no longer matches stay visible but
+   disabled.
 2. **Associate items**: paste a Slack thread permalink, a GitHub issue/PR URL, a
    Drive doc, a path to a local file or directory, or write a note. The source
    (Slack/GitHub/Drive/URL/path/note) is inferred from what you paste. GitHub and
