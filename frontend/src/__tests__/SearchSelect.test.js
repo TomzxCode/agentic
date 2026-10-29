@@ -191,4 +191,40 @@ describe('SearchSelect', () => {
       expect(multi.find('.ss-bulk').exists()).toBe(false)
     })
   })
+
+  describe('creatable', () => {
+    const creatable = (props = {}) =>
+      mount(SearchSelect, { props: { modelValue: '', options, creatable: true, keepOpen: true, ...props } })
+
+    it('offers the typed text as a new value when no option matches', async () => {
+      const wrapper = creatable()
+      await open(wrapper)
+      await wrapper.get('.ss-search').setValue('Gamma')
+
+      const create = wrapper.get('.ss-option.create')
+      expect(create.text()).toBe('Create "Gamma"')
+      await create.trigger('click')
+
+      expect(wrapper.emitted('update:modelValue')).toEqual([['Gamma']])
+      // The list stays open and the filter clears for the next value.
+      expect(wrapper.find('.ss-panel').exists()).toBe(true)
+      expect(wrapper.get('.ss-search').element.value).toBe('')
+    })
+
+    it('does not offer a duplicate of an existing option, whatever the case', async () => {
+      const wrapper = creatable()
+      await open(wrapper)
+      await wrapper.get('.ss-search').setValue('alpha')
+
+      expect(wrapper.find('.ss-option.create').exists()).toBe(false)
+      expect(wrapper.findAll('.ss-option').map((option) => option.text())).toEqual(['Alpha'])
+    })
+
+    it('offers no create entry when the list is not creatable', async () => {
+      const wrapper = mount(SearchSelect, { props: { modelValue: '', options } })
+      await open(wrapper)
+      await wrapper.get('.ss-search').setValue('Gamma')
+      expect(wrapper.find('.ss-option.create').exists()).toBe(false)
+    })
+  })
 })

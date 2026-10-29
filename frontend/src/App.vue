@@ -576,7 +576,7 @@ onUnmounted(() => {
         </div>
         <div class="field">
           <label>Tags (optional)</label>
-          <TagInput v-model="draft.tags" :suggestions="store.tags" placeholder="Add tags…" />
+          <TagInput v-model="draft.tags" :suggestions="store.tags" placeholder="+ add tag" />
         </div>
         <div class="field">
           <label>Repository group (optional)</label>

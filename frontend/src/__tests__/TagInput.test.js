@@ -2,6 +2,10 @@ import { describe, expect, it } from 'vitest'
 import { mount } from '@vue/test-utils'
 import TagInput from '../components/TagInput.vue'
 
+async function openPicker(wrapper) {
+  await wrapper.get('.ss-trigger').trigger('click')
+}
+
 describe('TagInput', () => {
   it('renders a removable chip per tag', async () => {
     const wrapper = mount(TagInput, { props: { modelValue: ['bug', 'ui'] } })
@@ -12,41 +16,7 @@ describe('TagInput', () => {
     expect(wrapper.emitted('update:modelValue')[0][0]).toEqual(['ui'])
   })
 
-  it('adds a tag on Enter and clears the field', async () => {
-    const wrapper = mount(TagInput, { props: { modelValue: ['bug'] } })
-    await wrapper.get('.tag-entry').setValue('urgent')
-    await wrapper.get('.tag-entry').trigger('keydown', { key: 'Enter' })
-    expect(wrapper.emitted('update:modelValue')[0][0]).toEqual(['bug', 'urgent'])
-    expect(wrapper.get('.tag-entry').element.value).toBe('')
-  })
-
-  it('adds a tag on comma and ignores blanks', async () => {
-    const wrapper = mount(TagInput, { props: { modelValue: [] } })
-    const entry = wrapper.get('.tag-entry')
-
-    await entry.setValue('   ')
-    await entry.trigger('keydown', { key: 'Enter' })
-    expect(wrapper.emitted('update:modelValue')).toBeUndefined()
-
-    await entry.setValue('ui')
-    await entry.trigger('keydown', { key: ',' })
-    expect(wrapper.emitted('update:modelValue')[0][0]).toEqual(['ui'])
-  })
-
-  it('ignores a tag that is already applied', async () => {
-    const wrapper = mount(TagInput, { props: { modelValue: ['ui'] } })
-    await wrapper.get('.tag-entry').setValue('ui')
-    await wrapper.get('.tag-entry').trigger('keydown', { key: 'Enter' })
-    expect(wrapper.emitted('update:modelValue')).toBeUndefined()
-  })
-
-  it('removes the last tag on Backspace when the field is empty', async () => {
-    const wrapper = mount(TagInput, { props: { modelValue: ['bug', 'ui'] } })
-    await wrapper.get('.tag-entry').trigger('keydown', { key: 'Backspace' })
-    expect(wrapper.emitted('update:modelValue')[0][0]).toEqual(['bug'])
-  })
-
-  it('offers existing tags as quick picks, excluding those already applied', async () => {
+  it('offers the existing tags in the picker, excluding those already applied', async () => {
     const wrapper = mount(TagInput, {
       props: {
         modelValue: ['bug'],
@@ -56,18 +26,57 @@ describe('TagInput', () => {
         ]
       }
     })
-    const picks = wrapper.findAll('.chip-add')
-    expect(picks).toHaveLength(1)
-    expect(picks[0].text()).toContain('urgent')
+    await openPicker(wrapper)
+    expect(wrapper.findAll('.ss-option').map((option) => option.text())).toEqual(['urgent'])
 
-    await picks[0].trigger('click')
+    await wrapper.get('.ss-option').trigger('click')
     expect(wrapper.emitted('update:modelValue')[0][0]).toEqual(['bug', 'urgent'])
+    // The picker stays open for the next tag.
+    expect(wrapper.find('.ss-panel').exists()).toBe(true)
   })
 
-  it('commits a typed tag on blur', async () => {
-    const wrapper = mount(TagInput, { props: { modelValue: [] } })
-    await wrapper.get('.tag-entry').setValue('infra')
-    await wrapper.get('.tag-entry').trigger('blur')
+  it('filters the offered tags as the user types', async () => {
+    const wrapper = mount(TagInput, {
+      props: { suggestions: [{ name: 'bug' }, { name: 'urgent' }] }
+    })
+    await openPicker(wrapper)
+    await wrapper.get('.ss-search').setValue('urg')
+    // The close match comes first, so Enter picks it; the typed text is still
+    // offered as a new tag after it.
+    expect(wrapper.findAll('.ss-option').map((option) => option.text())).toEqual(['urgent', 'Create "urg"'])
+  })
+
+  it('creates a tag that does not exist yet', async () => {
+    const wrapper = mount(TagInput, { props: { suggestions: [{ name: 'bug' }] } })
+    await openPicker(wrapper)
+    await wrapper.get('.ss-search').setValue('infra')
+
+    const create = wrapper.get('.ss-option.create')
+    expect(create.text()).toContain('Create "infra"')
+    await create.trigger('click')
     expect(wrapper.emitted('update:modelValue')[0][0]).toEqual(['infra'])
+  })
+
+  it('does not offer to create a tag that already exists', async () => {
+    const wrapper = mount(TagInput, { props: { suggestions: [{ name: 'bug' }] } })
+    await openPicker(wrapper)
+    await wrapper.get('.ss-search').setValue('bug')
+
+    expect(wrapper.find('.ss-option.create').exists()).toBe(false)
+    expect(wrapper.findAll('.ss-option').map((option) => option.text())).toEqual(['bug'])
+  })
+
+  it('removes the last tag on Backspace when the picker filter is empty', async () => {
+    const wrapper = mount(TagInput, { props: { modelValue: ['bug', 'ui'] } })
+    await openPicker(wrapper)
+    await wrapper.get('.ss-search').trigger('keydown', { key: 'Backspace' })
+    expect(wrapper.emitted('update:modelValue')[0][0]).toEqual(['bug'])
+  })
+
+  it('opens the picker through activate() for the command palette', async () => {
+    const wrapper = mount(TagInput, { props: { modelValue: [] } })
+    wrapper.vm.activate()
+    await wrapper.vm.$nextTick()
+    expect(wrapper.find('.ss-panel').exists()).toBe(true)
   })
 })

@@ -17,7 +17,10 @@ const props = defineProps({
   // Above the option list's choices, offer "Select all" and "Deselect all" so a
   // long multi-select can be taken or cleared in one click. Only used in
   // multiple mode.
-  bulkActions: { type: Boolean, default: false }
+  bulkActions: { type: Boolean, default: false },
+  // Offer the search text as a new value when it matches no option (free-text
+  // lists like tags): first when nothing matches, after the close matches else.
+  creatable: { type: Boolean, default: false }
 })
 const emit = defineEmits(['update:modelValue'])
 
@@ -65,7 +68,15 @@ function isSelected(option) {
 
 const filtered = computed(() => {
   const q = query.value.trim().toLowerCase()
-  return q ? normalized.value.filter((option) => option.label.toLowerCase().includes(q)) : normalized.value
+  const matches = q ? normalized.value.filter((option) => option.label.toLowerCase().includes(q)) : normalized.value
+  const text = query.value.trim()
+  if (!props.creatable || !text) return matches
+  // An exact match is the existing option, not a new value spelled the same way.
+  if (normalized.value.some((option) => option.label.toLowerCase() === text.toLowerCase())) return matches
+  // A close match stays first so Enter takes it; the new value follows it, and
+  // is the only entry when nothing matches at all.
+  const create = { value: text, label: `Create "${text}"`, create: true }
+  return [...matches, create]
 })
 
 // The bulk actions' values: every real option currently listed, ignoring the
@@ -201,7 +212,7 @@ defineExpose({ activate: show })
           :key="option.value"
           type="button"
           class="ss-option"
-          :class="{ active: index === highlighted, selected: isSelected(option) }"
+          :class="{ active: index === highlighted, selected: isSelected(option), create: option.create }"
           :aria-pressed="multiple ? isSelected(option) : undefined"
           @mouseenter="highlighted = index"
           @click="choose(option)"

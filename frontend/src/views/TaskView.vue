@@ -456,7 +456,7 @@ watch(
             ref="tagRef"
             :model-value="task.tags || []"
             :suggestions="store.tags"
-            placeholder="Add a tag…"
+            placeholder="+ add tag"
             @update:model-value="(value) => update('tags', value)"
           />
         </div>

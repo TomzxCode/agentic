@@ -328,8 +328,8 @@ onMounted(() => {
           placeholder="Set priority…"
           title="Set the priority of the selected tasks"
         />
-        <TagInput v-model="addTags" :suggestions="store.tags" :suggestion-limit="0" placeholder="Add tags…" />
-        <TagInput v-model="removeTags" :suggestions="store.tags" :suggestion-limit="0" placeholder="Remove tags…" />
+        <TagInput v-model="addTags" :suggestions="store.tags" placeholder="+ add tag" />
+        <TagInput v-model="removeTags" :suggestions="store.tags" placeholder="+ remove tag" />
         <button class="btn primary sm" type="button" :disabled="!canApply || applying || deleting" @click="applyBulk">
           {{ applying ? 'Applying…' : 'Apply' }}
         </button>

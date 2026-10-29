@@ -165,25 +165,12 @@ button.status-badge.active {
   width: auto;
 }
 
-/* Tags: removable chips plus an inline entry field, and read-only pills. */
+/* Tags: removable chips plus the shared inline picker, and read-only pills. */
 .tag-input {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 6px;
-}
-.tag-entry {
-  flex: 1 1 90px;
-  min-width: 70px;
-  background: transparent;
-  border: none;
-  outline: none;
-  color: var(--text);
-  font-size: 13px;
-  padding: 3px 2px;
-}
-.tag-entry::placeholder {
-  color: var(--faint);
 }
 .tag-chip {
   display: inline-flex;

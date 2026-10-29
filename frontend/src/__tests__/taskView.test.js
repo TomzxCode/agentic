@@ -419,13 +419,19 @@ describe('TaskView', () => {
   })
 
   it('blurs the focused field on Escape', async () => {
+    // The real EditableText renders the only free-standing input in the view;
+    // the other fields are stubbed out for this suite.
+    const withoutEditable = { ...stubs }
+    delete withoutEditable.EditableText
     const wrapper = mount(TaskView, {
       props: { id: 't1' },
       attachTo: document.body,
-      global: { stubs }
+      global: { stubs: withoutEditable }
     })
     await flushPromises()
-    const entry = wrapper.get('.tag-entry')
+    await wrapper.get('.task-title').trigger('click')
+    await flushPromises()
+    const entry = wrapper.get('.task-title')
     entry.element.focus()
     expect(document.activeElement).toBe(entry.element)
     await entry.trigger('keydown', { key: 'Escape' })

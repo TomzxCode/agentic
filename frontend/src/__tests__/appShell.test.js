@@ -143,14 +143,13 @@ describe('App', () => {
 
   it('creates a task with tags from the modal', async () => {
     mocks.tasksCreate.mockResolvedValue({ id: 'new3' })
+    store.tags = [{ name: 'bug', count: 1 }]
     const wrapper = mountApp()
     await flushPromises()
 
     await wrapper.get('.new-task').trigger('click')
     await wrapper.get('input[placeholder="What needs to be solved?"]').setValue('Tagged')
-    const entry = wrapper.get('.modal .tag-entry')
-    await entry.setValue('bug')
-    await entry.trigger('keydown', { key: 'Enter' })
+    await wrapper.get('.modal .tag-input .ss-opt').trigger('click')
     await wrapper.get('.modal .btn.primary').trigger('click')
     await flushPromises()
 

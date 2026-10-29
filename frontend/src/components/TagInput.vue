@@ -1,31 +1,29 @@
 <script setup>
-import { computed, ref, useId } from 'vue'
+import { computed, ref } from 'vue'
+import SearchSelect from './SearchSelect.vue'
 
 const props = defineProps({
   modelValue: { type: Array, default: () => [] },
-  // Existing tags to offer as quick picks; accepts ["name"] or [{ name, count }].
+  // Existing tags to offer in the picker; accepts ["name"] or [{ name, count }].
   suggestions: { type: Array, default: () => [] },
-  placeholder: { type: String, default: 'Add a tag…' },
-  // Cap the number of quick-pick chips shown.
-  suggestionLimit: { type: Number, default: 6 }
+  placeholder: { type: String, default: '+ add tag' }
 })
 const emit = defineEmits(['update:modelValue'])
 
-const draft = ref('')
-const input = ref(null)
+const select = ref(null)
 
 const tags = computed(() => props.modelValue || [])
 const suggestionNames = computed(() =>
   props.suggestions.map((s) => (typeof s === 'string' ? s : s.name)).filter(Boolean)
 )
-// Every existing tag not yet applied feeds the datalist; the quick-pick chips
-// show only the first few so the control stays compact.
-const available = computed(() => suggestionNames.value.filter((name) => !tags.value.includes(name)))
-const remaining = computed(() => available.value.slice(0, props.suggestionLimit))
+// Every existing tag not yet applied feeds the picker, which filters them as the
+// user types and also offers to create a tag that does not exist yet.
+const addOptions = computed(() =>
+  suggestionNames.value.filter((name) => !tags.value.includes(name)).map((name) => ({ value: name, label: name }))
+)
 
 function add(name) {
-  const value = String(name ?? draft.value ?? '').trim()
-  draft.value = ''
+  const value = String(name ?? '').trim()
   if (!value || tags.value.includes(value)) return
   emit('update:modelValue', [...tags.value, value])
 }
@@ -37,48 +35,35 @@ function remove(name) {
   )
 }
 
+// Backspace on the picker's empty filter removes the last tag, like an entry
+// field would.
 function onKeydown(event) {
-  if (event.key === 'Enter' || event.key === ',') {
-    event.preventDefault()
-    add()
-  } else if (event.key === 'Backspace' && !draft.value && tags.value.length) {
+  const fromFilter = event.target?.classList?.contains('ss-search')
+  if (fromFilter && event.key === 'Backspace' && !event.target.value && tags.value.length) {
     remove(tags.value[tags.value.length - 1])
   }
 }
 
-// Let a parent (e.g. the command palette) jump straight into adding a tag.
-defineExpose({ activate: () => input.value?.focus() })
-
-const listId = `tag-suggestions-${useId()}`
+// Let a parent (e.g. the command palette) open the tag picker directly.
+defineExpose({ activate: () => select.value?.activate?.() })
 </script>
 
 <template>
-  <div class="tag-input">
+  <div class="tag-input" @keydown="onKeydown">
     <span v-for="tag in tags" :key="tag" class="chip">
       {{ tag }}
       <button class="chip-x" type="button" :aria-label="`Remove tag ${tag}`" @click="remove(tag)">×</button>
     </span>
-    <input
-      ref="input"
-      v-model="draft"
-      class="tag-entry"
-      :placeholder="tags.length ? 'Add…' : placeholder"
-      :list="available.length ? listId : undefined"
-      @keydown="onKeydown"
-      @blur="draft.trim() && add()"
+    <SearchSelect
+      ref="select"
+      variant="inline"
+      keep-open
+      creatable
+      :model-value="''"
+      :options="addOptions"
+      :placeholder="placeholder"
+      title="Add a tag"
+      @update:model-value="add"
     />
-    <datalist :id="listId">
-      <option v-for="name in available" :key="name" :value="name" />
-    </datalist>
-    <button
-      v-for="name in remaining"
-      :key="name"
-      type="button"
-      class="chip chip-add"
-      :title="`Add tag ${name}`"
-      @click="add(name)"
-    >
-      + {{ name }}
-    </button>
   </div>
 </template>
