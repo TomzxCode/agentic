@@ -24,7 +24,7 @@ Their status badges still count them, so you can pull either back into view in o
 | Status badges | `Open`, `In progress`, `Blocked`, `Done`, `Archived`, each with a count. This is the status filter. |
 | `Group by` | Splits the list into sections. |
 | `Upcoming deadlines` | A `Within` window and the tasks due in it, overdue first. Hidden while a status filter is active. |
-| Bulk bar | Appears once you tick a row: `N selected`, `Set status…`, `Add tags…`, `Remove tags…`, `Apply`, `Clear`. |
+| Bulk bar | Floats at the bottom of the page once you tick a row: `N selected`, `Set status…`, `Set priority…`, `Add tags…`, `Remove tags…`, `Apply`, `Clear`, `Delete`. |
 | Task rows | One flat list, or one section per group with a heading and count. |
 
 ### Filters and grouping
@@ -48,7 +48,8 @@ The status badges ignore the status filter but respect the tag and person filter
 | Status icon on a row | Opens the status picker. Saves immediately. |
 | Priority icon on a row | Opens the priority picker. Saves immediately. |
 | Row checkbox | Starts a bulk edit. |
-| `Apply` in the bulk bar | Sends the chosen status and tag additions and removals for every selected task. |
+| `Apply` in the bulk bar | Sends the chosen status, priority, and tag additions and removals for every selected task. |
+| `Delete` in the bulk bar | Deletes every selected task after a confirmation, including its runs and worktrees. |
 
 Inline status and priority changes show first and roll back with an error toast if the save fails.
 Selection is dropped whenever you change a filter, so a bulk edit never reaches a row you can no longer see.
@@ -88,6 +89,7 @@ Everything the page reads is one endpoint, and the writes map onto the task comm
 | Change a status | `agentic task update <task> --status done` | `PATCH /api/tasks/{id}` |
 | Change a priority | `agentic task update <task> --priority 2` | `PATCH /api/tasks/{id}` |
 | Edit many tasks at once | none | `POST /api/tasks/bulk` |
+| Delete many tasks at once | none | `DELETE /api/tasks/bulk` |
 | Ways to narrow the list | `--status`, `--tag` (repeatable, AND), `--q` | same as query parameters |
 
 `--tags` on `agentic task create` and `agentic task update` sets the whole tag list, so an agent replaces tags rather than adding one.

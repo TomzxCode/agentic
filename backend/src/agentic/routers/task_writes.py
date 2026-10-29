@@ -21,11 +21,14 @@ from ..events import bus
 from ..models.agents import AgentEvent, AgentRun, AgentSession, Harness
 from ..models.base import TaskStatus, utcnow
 from ..models.changes import Change, ChangeIntervention
+from ..models.graphs import GraphExecution
 from ..models.items import Association, Person, SourceItem, TaskPerson, TaskRequester
 from ..models.repositories import Repository, RepositoryGroup, TaskRepository, Worktree
 from ..models.tasks import StackEntry, Task, TaskDependency, TaskRelation, TaskSession, TimelineEvent
 from ..schemas.items import ItemCreate
 from ..schemas.tasks import (
+    TaskBulkDelete,
+    TaskBulkDeleteResult,
     TaskBulkResult,
     TaskBulkUpdate,
     TaskCreate,
@@ -235,15 +238,15 @@ async def update_task(task_id: str, payload: TaskUpdate, session: Session = Depe
 
 @router.post("/bulk", response_model=TaskBulkResult)
 async def bulk_update_tasks(payload: TaskBulkUpdate, session: Session = Depends(get_session)) -> TaskBulkResult:
-    """Apply one status and/or tag edit to many tasks at once.
+    """Apply one status, priority, and/or tag edit to many tasks at once.
 
     Tags are additive/removable here (unlike PATCH, which replaces the whole
     list), and each task keeps its own timeline entry.
     """
     if not payload.ids:
         raise HTTPException(status_code=400, detail="Provide at least one task id")
-    if payload.status is None and not payload.add_tags and not payload.remove_tags:
-        raise HTTPException(status_code=400, detail="Provide a status or a tag change")
+    if payload.status is None and payload.priority is None and not payload.add_tags and not payload.remove_tags:
+        raise HTTPException(status_code=400, detail="Provide a status, priority, or tag change")
 
     remove = set(normalize_tags(payload.remove_tags))
     add = normalize_tags(payload.add_tags)
@@ -263,6 +266,8 @@ async def bulk_update_tasks(payload: TaskBulkUpdate, session: Session = Depends(
         data: dict[str, Any] = {}
         if payload.status is not None and payload.status != task.status:
             data["status"] = payload.status
+        if payload.priority is not None and payload.priority != task.priority:
+            data["priority"] = payload.priority
         next_tags = normalize_tags([tag for tag in (task.tags or []) if tag not in remove] + add)
         if next_tags != (task.tags or []):
             data["tags"] = next_tags
@@ -276,10 +281,35 @@ async def bulk_update_tasks(payload: TaskBulkUpdate, session: Session = Depends(
     return TaskBulkResult(updated=updated, missing=missing)
 
 
-@router.delete("/{task_id}", status_code=204)
-async def delete_task(task_id: str, session: Session = Depends(get_session)) -> None:
-    task = get_task_or_404(session, task_id)
+@router.delete("/bulk")
+async def bulk_delete_tasks(payload: TaskBulkDelete, session: Session = Depends(get_session)) -> TaskBulkDeleteResult:
+    """Delete many tasks at once, skipping ids that no longer exist.
 
+    Each task is removed with the same ordered child cleanup as the single-task
+    delete, and each removal is announced on its own.
+    """
+    if not payload.ids:
+        raise HTTPException(status_code=400, detail="Provide at least one task id")
+
+    deleted: list[str] = []
+    missing: list[str] = []
+    seen: set[str] = set()
+    for task_id in payload.ids:
+        if task_id in seen:
+            continue
+        seen.add(task_id)
+        task = session.get(Task, task_id)
+        if task is None:
+            missing.append(task_id)
+            continue
+        await _delete_task(session, task)
+        deleted.append(task_id)
+
+    return TaskBulkDeleteResult(deleted=deleted, missing=missing)
+
+
+async def _delete_task(session: Session, task: Task) -> None:
+    """Remove one task and everything that references it."""
     # Remove worktrees from disk (best effort) before dropping their rows.
     repo_cache: dict[str, Repository] = {}
     for worktree in session.exec(select(Worktree).where(Worktree.task_id == task.id)).all():
@@ -327,6 +357,15 @@ async def delete_task(task_id: str, session: Session = Depends(get_session)) -> 
     if entry_ids:
         session.exec(sa_delete(TaskSession).where(col(TaskSession.stack_entry_id).in_(entry_ids)))
     session.exec(sa_delete(StackEntry).where(col(StackEntry.task_id) == task.id))
+    # A graph execution keeps the task its run nodes attached to; it has no
+    # cascade, so it must go before the task row or SQLite rejects the delete.
+    session.exec(sa_delete(GraphExecution).where(col(GraphExecution.task_id) == task.id))
     session.exec(sa_delete(Task).where(col(Task.id) == task.id))
     session.commit()
-    await bus.publish("tasks", {"kind": "task", "action": "deleted", "id": task_id})
+    await bus.publish("tasks", {"kind": "task", "action": "deleted", "id": task.id})
+
+
+@router.delete("/{task_id}", status_code=204)
+async def delete_task(task_id: str, session: Session = Depends(get_session)) -> None:
+    task = get_task_or_404(session, task_id)
+    await _delete_task(session, task)

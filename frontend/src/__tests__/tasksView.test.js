@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   tasksAssociate: vi.fn(),
   tasksUpdate: vi.fn(),
   tasksBulkUpdate: vi.fn(),
+  tasksBulkRemove: vi.fn(),
   ganttGet: vi.fn(),
   peopleList: vi.fn(),
   push: vi.fn()
@@ -18,7 +19,12 @@ const mocks = vi.hoisted(() => ({
 vi.mock('../api', () => ({
   api: {
     items: { list: mocks.itemsList, refresh: mocks.itemsRefresh, remove: mocks.itemsRemove },
-    tasks: { associate: mocks.tasksAssociate, update: mocks.tasksUpdate, bulkUpdate: mocks.tasksBulkUpdate },
+    tasks: {
+      associate: mocks.tasksAssociate,
+      update: mocks.tasksUpdate,
+      bulkUpdate: mocks.tasksBulkUpdate,
+      bulkRemove: mocks.tasksBulkRemove
+    },
     gantt: { get: mocks.ganttGet },
     people: { list: mocks.peopleList }
   }
@@ -299,7 +305,11 @@ describe('TasksView', () => {
     await wrapper.find('input[aria-label="Select every shown task"]').setValue(true)
     expect(wrapper.text()).toContain('2 selected')
 
-    await wrapper.get('select.bulk-status').setValue('done')
+    await wrapper.get('.bulk-bar .bulk-status .ss-trigger').trigger('click')
+    await wrapper
+      .findAll('.ss-option')
+      .find((o) => o.text().includes('Done'))
+      .trigger('click')
     await wrapper
       .findAll('button')
       .find((b) => b.text() === 'Apply')
@@ -309,6 +319,107 @@ describe('TasksView', () => {
     expect(mocks.tasksBulkUpdate).toHaveBeenCalledWith({ ids: ['t1', 't2'], status: 'done' })
     expect(store.loadTasks).toHaveBeenCalled()
     expect(store.toast).toEqual({ message: 'Updated 2 tasks', isError: false })
+  })
+
+  it('bulk edits the priority of selected in-flight tasks', async () => {
+    store.tasks = [
+      { id: 't1', status: 'open', priority: 2, title: 'One', next_steps: [], updated_at: null },
+      { id: 't2', status: 'blocked', priority: 1, title: 'Two', next_steps: [], updated_at: null }
+    ]
+    mocks.tasksBulkUpdate.mockResolvedValue({ updated: [{ id: 't1' }, { id: 't2' }], missing: [] })
+
+    const wrapper = mount(TasksView, stub)
+    await flushPromises()
+
+    await wrapper.findAll('.select-item .row-check')[0].setValue(true)
+    await wrapper.find('input[aria-label="Select every shown task"]').setValue(true)
+
+    await wrapper.get('.bulk-bar .bulk-priority .ss-trigger').trigger('click')
+    await wrapper
+      .findAll('.ss-option')
+      .find((o) => o.text().includes('Urgent'))
+      .trigger('click')
+    await wrapper
+      .findAll('button')
+      .find((b) => b.text() === 'Apply')
+      .trigger('click')
+    await flushPromises()
+
+    // Priority 0 is a real value, so a chosen 0 must still be sent.
+    expect(mocks.tasksBulkUpdate).toHaveBeenCalledWith({ ids: ['t1', 't2'], priority: 3 })
+    expect(store.toast).toEqual({ message: 'Updated 2 tasks', isError: false })
+  })
+
+  it('bulk sends priority 0 when low is chosen', async () => {
+    store.tasks = [{ id: 't1', status: 'open', priority: 3, title: 'One', next_steps: [], updated_at: null }]
+    mocks.tasksBulkUpdate.mockResolvedValue({ updated: [{ id: 't1' }], missing: [] })
+
+    const wrapper = mount(TasksView, stub)
+    await flushPromises()
+
+    await wrapper.findAll('.select-item .row-check')[0].setValue(true)
+    await wrapper.get('.bulk-bar .bulk-priority .ss-trigger').trigger('click')
+    await wrapper
+      .findAll('.ss-option')
+      .find((o) => o.text().includes('Low'))
+      .trigger('click')
+    await wrapper
+      .findAll('button')
+      .find((b) => b.text() === 'Apply')
+      .trigger('click')
+    await flushPromises()
+
+    expect(mocks.tasksBulkUpdate).toHaveBeenCalledWith({ ids: ['t1'], priority: 0 })
+  })
+
+  it('deletes the selected tasks after confirmation', async () => {
+    vi.stubGlobal(
+      'confirm',
+      vi.fn(() => true)
+    )
+    store.tasks = [
+      { id: 't1', status: 'open', priority: 2, title: 'One', next_steps: [], updated_at: null },
+      { id: 't2', status: 'blocked', priority: 1, title: 'Two', next_steps: [], updated_at: null }
+    ]
+    mocks.tasksBulkRemove.mockResolvedValue({ deleted: ['t1', 't2'], missing: [] })
+
+    const wrapper = mount(TasksView, stub)
+    await flushPromises()
+
+    await wrapper.findAll('.select-item .row-check')[0].setValue(true)
+    await wrapper.find('input[aria-label="Select every shown task"]').setValue(true)
+    await wrapper
+      .findAll('button')
+      .find((b) => b.text() === 'Delete')
+      .trigger('click')
+    await flushPromises()
+
+    expect(global.confirm).toHaveBeenCalledWith('Delete 2 selected tasks? This cannot be undone.')
+    expect(mocks.tasksBulkRemove).toHaveBeenCalledWith(['t1', 't2'])
+    expect(store.loadTasks).toHaveBeenCalled()
+    expect(store.toast).toEqual({ message: 'Deleted 2 tasks', isError: false })
+    expect(wrapper.find('.bulk-bar').exists()).toBe(false)
+  })
+
+  it('keeps the selection when the delete confirmation is declined', async () => {
+    vi.stubGlobal(
+      'confirm',
+      vi.fn(() => false)
+    )
+    store.tasks = [{ id: 't1', status: 'open', priority: 2, title: 'One', next_steps: [], updated_at: null }]
+
+    const wrapper = mount(TasksView, stub)
+    await flushPromises()
+
+    await wrapper.findAll('.select-item .row-check')[0].setValue(true)
+    await wrapper
+      .findAll('button')
+      .find((b) => b.text() === 'Delete')
+      .trigger('click')
+    await flushPromises()
+
+    expect(mocks.tasksBulkRemove).not.toHaveBeenCalled()
+    expect(wrapper.text()).toContain('1 selected')
   })
 
   it('changes a task status inline from its row, like the sidebar', async () => {

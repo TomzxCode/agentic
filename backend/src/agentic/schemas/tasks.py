@@ -54,12 +54,26 @@ class TaskUpdate(BaseModel):
 
 
 class TaskBulkUpdate(BaseModel):
-    """Apply one status and/or tag edit to many tasks at once."""
+    """Apply one status, priority, and/or tag edit to many tasks at once."""
 
     ids: list[str]
     status: TaskStatus | None = None
+    priority: int | None = None
     add_tags: list[str] = []
     remove_tags: list[str] = []
+
+
+class TaskBulkDelete(BaseModel):
+    """Delete many tasks at once."""
+
+    ids: list[str]
+
+
+class TaskBulkDeleteResult(BaseModel):
+    """The task ids a bulk delete removed, plus any ids that no longer exist."""
+
+    deleted: list[str] = []
+    missing: list[str] = []
 
 
 class TaskRead(ORMModel):

@@ -17,7 +17,8 @@ There is no authentication, so expose it only on a trusted network.
 | `GET` | `/api/tasks` | List tasks. Accepts `status`, `tag` (repeatable, AND), and `q`. |
 | `GET` | `/api/tasks/deadlines` | Tasks with a deadline, overdue first, within a window. |
 | `POST` | `/api/tasks` | Create a task. |
-| `POST` | `/api/tasks/bulk` | Create or update several tasks at once. |
+| `POST` | `/api/tasks/bulk` | Update several tasks at once (status, priority, tags). |
+| `DELETE` | `/api/tasks/bulk` | Delete several tasks at once, by `ids`. |
 | `GET` / `PATCH` / `DELETE` | `/api/tasks/{id}` | Read, update, and delete a task. |
 | `POST` | `/api/tasks/{id}/items` | Associate an item, by `item_id` or URL. |
 | `DELETE` | `/api/tasks/{id}/items/{item_id}` | Remove an association. |

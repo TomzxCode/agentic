@@ -2,11 +2,10 @@
 import { computed, onUnmounted, ref, watch } from 'vue'
 import { api } from '../api'
 import { formatTimestamp, moveItem, targetIndexAt } from '../stack'
-import { deadlineInfo, formatDeadline, priorityLabel as priorityName, store } from '../store'
+import { deadlineInfo, formatDeadline, store } from '../store'
 import EditableText from './EditableText.vue'
 import MentionTextarea from './MentionTextarea.vue'
-import PriorityIcon from './PriorityIcon.vue'
-import SearchSelect from './SearchSelect.vue'
+import PrioritySelect from './PrioritySelect.vue'
 import StatusSelect from './StatusSelect.vue'
 
 // The stack table: one row per entry plus the selected row's description, with
@@ -37,18 +36,6 @@ const emit = defineEmits([
 
 // The stack table's columns, used by the description row's colspan.
 const COLUMN_COUNT = 13
-
-// 0 = low, 1 = medium, 2 = high, 3 = urgent. The icon-only picker reuses the
-// priority icon, so the level can be changed in place from the stack row.
-const priorityOptions = [0, 1, 2, 3].map((value) => {
-  const name = priorityName(value)
-  return {
-    value,
-    label: name.charAt(0).toUpperCase() + name.slice(1),
-    icon: PriorityIcon,
-    iconProps: { priority: value, label: `Priority: ${name}` }
-  }
-})
 
 // A local copy of the rows so a drag can reorder live and read its own result on
 // release, before the shell's prop round-trips back.
@@ -256,12 +243,8 @@ onUnmounted(() => {
             />
           </td>
           <td class="stack-priority-cell" @click.stop @keydown.stop>
-            <SearchSelect
-              class="task-priority-select"
-              variant="icon"
+            <PrioritySelect
               :model-value="entry.task?.priority ?? 2"
-              :options="priorityOptions"
-              :sort="false"
               title="Change priority"
               @update:model-value="(value) => changePriority(entry, Number(value))"
             />

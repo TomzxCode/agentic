@@ -24,6 +24,9 @@ const emit = defineEmits(['update:modelValue'])
 const open = ref(false)
 const query = ref('')
 const highlighted = ref(0)
+// Set when the panel would run off the bottom of the viewport (a picker in the
+// floating bulk bar), so it opens above the trigger instead.
+const opensUp = ref(false)
 const root = ref(null)
 const input = ref(null)
 
@@ -99,6 +102,9 @@ function toggle() {
 function show() {
   open.value = true
   query.value = ''
+  const rect = root.value?.getBoundingClientRect()
+  // The panel's search box plus its tallest option list is about 300px.
+  opensUp.value = rect ? window.innerHeight - rect.bottom < 300 : false
   highlighted.value = Math.max(
     0,
     filtered.value.findIndex((option) => option.value === current.value)
@@ -180,7 +186,7 @@ defineExpose({ activate: show })
       </template>
     </button>
 
-    <div v-if="open" class="ss-panel">
+    <div v-if="open" class="ss-panel" :class="{ up: opensUp }">
       <input ref="input" v-model="query" class="ss-search" placeholder="Filter…" @keydown="onKeydown" />
       <div v-if="multiple && bulkActions" class="ss-bulk">
         <button type="button" class="ss-bulk-action" :disabled="allSelected" @click="selectAll">Select all</button>

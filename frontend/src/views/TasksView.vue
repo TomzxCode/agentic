@@ -4,6 +4,8 @@ import { store, statusLabel, taskHasPerson, taskHasTag } from '../store'
 import { TASK_GROUPINGS, groupTasks } from '../taskGroups'
 import { api } from '../api'
 import StatusIcon from '../components/StatusIcon.vue'
+import PrioritySelect from '../components/PrioritySelect.vue'
+import StatusSelect from '../components/StatusSelect.vue'
 import TagInput from '../components/TagInput.vue'
 import TaskCard from '../components/TaskCard.vue'
 
@@ -64,8 +66,6 @@ const upcomingDeadlines = computed(() => {
     .sort((a, b) => new Date(a.deadline) - new Date(b.deadline))
 })
 
-const STATUS_VALUES = ['open', 'in_progress', 'blocked', 'done', 'archived']
-
 // The status badges at the top double as filters: click one to show only the
 // tasks in that status, click it again to return to the in-flight list.
 const STATUS_BADGES = [
@@ -107,19 +107,26 @@ async function changePriority(task, priority) {
 
 const selected = ref([])
 const bulkStatus = ref('')
+// '' means "leave the priority alone"; 0 is a real priority, so this cannot be
+// checked for truthiness.
+const bulkPriority = ref('')
 const addTags = ref([])
 const removeTags = ref([])
 const applying = ref(false)
+const deleting = ref(false)
 
 const selectedSet = computed(() => new Set(selected.value))
 const allSelected = computed(() => visible.value.length > 0 && selected.value.length === visible.value.length)
 const canApply = computed(
-  () => selected.value.length > 0 && (bulkStatus.value || addTags.value.length || removeTags.value.length)
+  () =>
+    selected.value.length > 0 &&
+    (bulkStatus.value || bulkPriority.value !== '' || addTags.value.length || removeTags.value.length)
 )
 
 function resetBulk() {
   selected.value = []
   bulkStatus.value = ''
+  bulkPriority.value = ''
   addTags.value = []
   removeTags.value = []
 }
@@ -142,6 +149,7 @@ async function applyBulk() {
   try {
     const body = { ids: selected.value }
     if (bulkStatus.value) body.status = bulkStatus.value
+    if (bulkPriority.value !== '') body.priority = Number(bulkPriority.value)
     if (addTags.value.length) body.add_tags = addTags.value
     if (removeTags.value.length) body.remove_tags = removeTags.value
     const result = await api.tasks.bulkUpdate(body)
@@ -156,6 +164,25 @@ async function applyBulk() {
   }
 }
 
+// Deleting is irreversible, so it asks first and reports how many tasks went.
+async function deleteSelected() {
+  if (!selected.value.length || deleting.value) return
+  const n = selected.value.length
+  if (!confirm(`Delete ${n} selected task${n === 1 ? '' : 's'}? This cannot be undone.`)) return
+  deleting.value = true
+  try {
+    const result = await api.tasks.bulkRemove(selected.value)
+    await store.loadTasks()
+    const gone = result?.deleted?.length ?? n
+    store.notify(`Deleted ${gone} task${gone === 1 ? '' : 's'}`)
+    resetBulk()
+  } catch (e) {
+    store.notify(e.message, true)
+  } finally {
+    deleting.value = false
+  }
+}
+
 onMounted(() => {
   store.loadTasks()
   store.loadPeople().catch(() => {})
@@ -163,7 +190,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <div>
+  <div class="tasks-page" :class="{ 'has-bulk-bar': selected.length }">
     <h1 style="margin-bottom: 16px">Tasks in flight</h1>
 
     <div v-if="store.tags.length" class="tag-filters" aria-label="Filter by tag">
@@ -287,22 +314,44 @@ onMounted(() => {
           <input type="checkbox" :checked="allSelected" aria-label="Select every shown task" @change="toggleAll" />
           {{ selected.length }} selected
         </label>
-        <select v-model="bulkStatus" class="select bulk-status" aria-label="Set status">
-          <option value="">Set status…</option>
-          <option v-for="s in STATUS_VALUES" :key="s" :value="s">{{ statusLabel(s) }}</option>
-        </select>
+        <StatusSelect
+          v-model="bulkStatus"
+          class="bulk-status"
+          variant="field"
+          placeholder="Set status…"
+          title="Set the status of the selected tasks"
+        />
+        <PrioritySelect
+          v-model="bulkPriority"
+          class="bulk-status bulk-priority"
+          variant="field"
+          placeholder="Set priority…"
+          title="Set the priority of the selected tasks"
+        />
         <TagInput v-model="addTags" :suggestions="store.tags" :suggestion-limit="0" placeholder="Add tags…" />
         <TagInput v-model="removeTags" :suggestions="store.tags" :suggestion-limit="0" placeholder="Remove tags…" />
-        <button class="btn primary sm" type="button" :disabled="!canApply || applying" @click="applyBulk">
+        <button class="btn primary sm" type="button" :disabled="!canApply || applying || deleting" @click="applyBulk">
           {{ applying ? 'Applying…' : 'Apply' }}
         </button>
         <button
           class="btn sm ghost"
           type="button"
-          :disabled="!selected.length && !bulkStatus && !addTags.length && !removeTags.length"
+          :disabled="
+            deleting ||
+            (!selected.length && !bulkStatus && bulkPriority === '' && !addTags.length && !removeTags.length)
+          "
           @click="resetBulk"
         >
           Clear
+        </button>
+        <button
+          class="btn sm danger bulk-delete"
+          type="button"
+          title="Delete the selected tasks"
+          :disabled="deleting"
+          @click="deleteSelected"
+        >
+          {{ deleting ? 'Deleting…' : 'Delete' }}
         </button>
       </div>
     </div>

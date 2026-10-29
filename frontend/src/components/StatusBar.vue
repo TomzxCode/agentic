@@ -1,5 +1,6 @@
 <template>
   <div
+    ref="statusBarEl"
     class="status-bar statusbar page-load-status performance-status-bar"
     :class="{ mobile: isMobile }"
     data-testid="status-bar"
@@ -250,6 +251,10 @@ const isMobile = ref(typeof window !== 'undefined' && window.innerWidth <= 760)
 const collapsedCalls = ref(new Set())
 const sortBy = ref('recent')
 const filter = ref(localStorage.getItem('agentic.debugFilter') || '')
+// Published as --status-bar-height so floating chrome (the tasks bulk bar) can
+// sit above the status bar however tall it grows.
+const statusBarEl = ref(null)
+let statusBarObserver
 
 watch(filter, (value) => {
   localStorage.setItem('agentic.debugFilter', value)
@@ -333,6 +338,12 @@ onMounted(() => {
   if (Number.isFinite(stored) && stored >= 80 && stored <= 600) storedDetailsHeight.value = stored
   updateMobile()
   window.addEventListener('resize', updateMobile)
+  if (statusBarEl.value && typeof ResizeObserver !== 'undefined') {
+    statusBarObserver = new ResizeObserver(() => {
+      document.documentElement.style.setProperty('--status-bar-height', `${statusBarEl.value?.offsetHeight ?? 0}px`)
+    })
+    statusBarObserver.observe(statusBarEl.value)
+  }
 })
 
 function startResize(event) {
@@ -375,6 +386,8 @@ onMounted(() => {
 onUnmounted(() => {
   clearTimeout(refreshTimer)
   window.removeEventListener('resize', updateMobile)
+  statusBarObserver?.disconnect()
+  document.documentElement.style.removeProperty('--status-bar-height')
 })
 </script>
 

@@ -1,6 +1,10 @@
 from fastapi.testclient import TestClient
+from sqlmodel import Session
 
+from agentic.db import create_db_and_tables, engine
 from agentic.main import app
+from agentic.models.graphs import ExecutionGraph, GraphExecution
+from agentic.models.tasks import Task
 
 
 def test_task_lifecycle():
@@ -167,7 +171,7 @@ def test_tags_are_normalized_filtered_and_listed():
             client.delete(f"/api/tasks/{task['id']}")
 
 
-def test_bulk_update_tasks_changes_status_and_tags():
+def test_bulk_update_tasks_changes_status_tags_and_priority():
     with TestClient(app) as client:
         first = client.post("/api/tasks", json={"title": "Bulk A", "tags": ["bug"]}).json()
         second = client.post("/api/tasks", json={"title": "Bulk B", "tags": ["bug", "ui"]}).json()
@@ -177,6 +181,7 @@ def test_bulk_update_tasks_changes_status_and_tags():
             json={
                 "ids": [first["id"], second["id"], "missing"],
                 "status": "done",
+                "priority": 0,
                 "add_tags": ["shipped", " ui "],
                 "remove_tags": ["bug"],
             },
@@ -191,10 +196,11 @@ def test_bulk_update_tasks_changes_status_and_tags():
         detail = client.get(f"/api/tasks/{second['id']}").json()
         assert detail["tags"] == ["ui", "shipped"]
         assert detail["status"] == "done"
+        assert detail["priority"] == 0
 
         # Each task records its own timeline event.
         event = next(e for e in detail["timeline"] if e["type"] == "updated")
-        assert set(event["data_json"]["changes"]) == {"status", "tags"}
+        assert set(event["data_json"]["changes"]) == {"status", "priority", "tags"}
 
         # A bulk edit with nothing to change is rejected.
         assert client.post("/api/tasks/bulk", json={"ids": [first["id"]]}).status_code == 400
@@ -202,6 +208,59 @@ def test_bulk_update_tasks_changes_status_and_tags():
 
         for task in (first, second):
             client.delete(f"/api/tasks/{task['id']}")
+
+
+def test_bulk_delete_tasks_removes_tasks_and_skips_missing_ids():
+    with TestClient(app) as client:
+        first = client.post("/api/tasks", json={"title": "Delete A"}).json()
+        second = client.post("/api/tasks", json={"title": "Delete B"}).json()
+        kept = client.post("/api/tasks", json={"title": "Keep"}).json()
+
+        result = client.request(
+            "DELETE",
+            "/api/tasks/bulk",
+            json={"ids": [first["id"], second["id"], "missing", first["id"]]},
+        )
+        assert result.status_code == 200
+        body = result.json()
+        # A repeated id is deleted once, and a missing id is reported, not fatal.
+        assert body["deleted"] == [first["id"], second["id"]]
+        assert body["missing"] == ["missing"]
+
+        assert client.get(f"/api/tasks/{first['id']}").status_code == 404
+        assert client.get(f"/api/tasks/{second['id']}").status_code == 404
+        assert client.get(f"/api/tasks/{kept['id']}").status_code == 200
+
+        assert client.request("DELETE", "/api/tasks/bulk", json={"ids": []}).status_code == 400
+
+        client.delete(f"/api/tasks/{kept['id']}")
+
+
+def test_bulk_delete_removes_graph_executions_referencing_the_task():
+    create_db_and_tables()
+    with Session(engine) as session:
+        graph = ExecutionGraph(name="Bulk delete graph", definition={"nodes": [], "edges": []})
+        task = Task(title="Ran a graph")
+        session.add(graph)
+        session.add(task)
+        session.flush()
+        execution = GraphExecution(graph_id=graph.id, task_id=task.id, state={})
+        session.add(execution)
+        session.commit()
+        task_id, graph_id, execution_id = task.id, graph.id, execution.id
+
+    with TestClient(app) as client:
+        response = client.request("DELETE", "/api/tasks/bulk", json={"ids": [task_id]})
+        assert response.status_code == 200
+        assert response.json()["deleted"] == [task_id]
+        assert client.get(f"/api/tasks/{task_id}").status_code == 404
+
+    with Session(engine) as session:
+        assert session.get(GraphExecution, execution_id) is None
+        kept_graph = session.get(ExecutionGraph, graph_id)
+        assert kept_graph is not None
+        session.delete(kept_graph)
+        session.commit()
 
 
 def test_harnesses_are_seeded():

@@ -1,8 +1,37 @@
 /* Tasks styles. */
 
 /* Bulk select on the tasks dashboard */
+/* The editor floats above the status bar, so a selection can be acted on
+   without scrolling back to the top of the list. */
 .bulk-bar {
+  position: fixed;
+  z-index: 55;
+  left: var(--sidebar-width, 300px);
+  right: 0;
+  bottom: calc(var(--status-bar-height, 28px) + 12px);
+  margin: 0 24px;
+  padding: 10px 12px;
   background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45);
+}
+/* Room to scroll the last task clear of the floating bar. */
+.tasks-page.has-bulk-bar {
+  padding-bottom: 96px;
+}
+.app.sidebar-hidden .bulk-bar {
+  left: 0;
+}
+@media (max-width: 760px) {
+  .bulk-bar {
+    left: 0;
+    bottom: calc(var(--status-bar-height, 28px) + 12px);
+    margin: 0 12px;
+  }
+  .tasks-page.has-bulk-bar {
+    padding-bottom: 128px;
+  }
 }
 .bulk-count {
   display: inline-flex;
@@ -17,9 +46,13 @@
   width: 16px;
   height: 16px;
 }
-.bulk-status {
-  width: auto;
+.bulk-bar .bulk-status {
+  flex: 0 1 140px;
   min-width: 130px;
+}
+/* Destructive action sits apart from the edit controls. */
+.bulk-delete {
+  margin-left: auto;
 }
 /* The "Group by" control above the tasks list: a label with a compact select. */
 .group-by {
@@ -32,8 +65,8 @@
   min-width: 130px;
 }
 .bulk-bar .tag-input {
-  flex: 1 1 160px;
-  min-width: 140px;
+  flex: 1 1 120px;
+  min-width: 120px;
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 5px 8px;

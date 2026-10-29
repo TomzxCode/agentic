@@ -168,6 +168,10 @@
   box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5);
   padding: 6px;
 }
+.ss-panel.up {
+  top: auto;
+  bottom: calc(100% + 4px);
+}
 .ss-search {
   width: 100%;
   padding: 6px 8px;
