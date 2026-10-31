@@ -300,6 +300,16 @@ export function reviewedFilterCount(prs) {
   return (prs || []).filter((pr) => isReviewedByMe(pr)).length
 }
 
+// Whether the queue shows a row at rest: open, not a draft, and not already
+// approved. This is what the Review queue nav badge counts.
+export function awaitingReview(pr) {
+  return matchesStateFilter(pr, 'open') && matchesDraftFilter(pr, 'hide') && matchesApprovedFilter(pr, 'hide')
+}
+
+export function awaitingReviewCount(prs) {
+  return (prs || []).filter(awaitingReview).length
+}
+
 // Whether a row matches the search text: its repository, number, title, or
 // author. An empty query matches every row.
 export function matchesQueueSearch(pr, query) {

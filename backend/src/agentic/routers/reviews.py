@@ -11,8 +11,8 @@ from ..db import get_session
 from ..models.base import utcnow
 from ..models.items import Association, SourceItem
 from ..review_findings import DECISIONS, collect_findings, record_decisions
-from ..review_queue import collect_review_prs, enrich_from_github
-from ..review_scan import ReviewRequest, review_scan_state, run_review_scan, stored_review_requests
+from ..review_queue import collect_review_prs, enrich_from_github, scan_row
+from ..review_scan import review_scan_state, run_review_scan, stored_review_requests
 from ..reviews import read_report
 from ..schemas.items import (
     ItemReviewContent,
@@ -90,37 +90,6 @@ def _key(pr: dict) -> tuple[str, str, int]:
     return (str(pr["owner"]).lower(), str(pr["name"]).lower(), int(pr["number"]))
 
 
-def _scan_row(recorded: ReviewRequest) -> dict:
-    """A pull request the review scan found, as a queue row.
-
-    It has no report yet, so every step is empty and the readiness light is
-    yellow: nothing clears it for approval, and nothing blocks it either.
-    """
-    owner, _, name = recorded.repository.partition("/")
-    return {
-        "owner": owner,
-        "name": name or recorded.repository,
-        "repository": recorded.repository,
-        "number": recorded.number,
-        "title": recorded.title,
-        "url": recorded.url,
-        "author": recorded.author,
-        "state": recorded.state,
-        "draft": recorded.draft,
-        "created_at": recorded.created_at,
-        "labels": [],
-        "review_decision": "",
-        "head_commit": "",
-        "steps": {},
-        "in_progress": {},
-        "stale_steps": [],
-        "reviewed_steps": 0,
-        "readiness": "yellow",
-        "status": "unreviewed",
-        "request_source": recorded.source,
-    }
-
-
 def _collect_enriched_rows(
     session: Session,
     keys: set[tuple[str, str, int]] | None = None,
@@ -148,7 +117,7 @@ def _collect_enriched_rows(
 
     # The scan's finds ride along: a PR it reports is awaiting a review whether
     # or not a report already exists for it, so a store row takes the source too.
-    scanned = {_key(_scan_row(recorded)): recorded for recorded in stored_review_requests(session)}
+    scanned = {_key(scan_row(recorded)): recorded for recorded in stored_review_requests(session)}
     seen = set()
     for pr in rows:
         key = _key(pr)
@@ -159,7 +128,7 @@ def _collect_enriched_rows(
     for key, recorded in scanned.items():
         if key in seen or (keys is not None and key not in keys):
             continue
-        row = _scan_row(recorded)
+        row = scan_row(recorded)
         item = items.get(key)
         _merge_item(row, item, task_ids.get(item.id, []) if item else [])
         rows.append(row)

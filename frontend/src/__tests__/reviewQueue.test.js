@@ -133,6 +133,25 @@ afterEach(() => {
 })
 
 describe('ReviewsView', () => {
+  it('publishes what still awaits a review for the nav badge', async () => {
+    const publish = vi.spyOn(store, 'setNavBadge')
+    mocks.queue.mockResolvedValue({
+      root: null,
+      counts: { total: 4 },
+      prs: [
+        pr({ number: 1 }),
+        pr({ number: 2, draft: true }),
+        pr({ number: 3, state: 'MERGED' }),
+        pr({ number: 4, review_decision: 'APPROVED' })
+      ]
+    })
+    mount(ReviewsView, stub)
+    await flushPromises()
+
+    // Only the open, non-draft, unapproved row still waits for a reviewer.
+    expect(publish).toHaveBeenCalledWith('reviews', 1)
+  })
+
   it('shows an empty state when the store has no reports', async () => {
     mocks.queue.mockResolvedValue({ root: '/home/u/.sdlc', counts: { total: 0 }, prs: [] })
     const wrapper = mount(ReviewsView, stub)

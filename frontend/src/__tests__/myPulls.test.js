@@ -288,6 +288,23 @@ describe('filtering', () => {
 })
 
 describe('MyPullsView', () => {
+  it('publishes the attention count for the nav badge', async () => {
+    const publish = vi.spyOn(store, 'setNavBadge')
+    mocks.list.mockResolvedValue(report([], { counts: { attention: 2 } }))
+    mount(MyPullsView, { global: { stubs: { RouterLink: RouterLinkStub } } })
+    await flushPromises()
+
+    expect(publish).toHaveBeenCalledWith('my-pulls', 2)
+  })
+
+  it('publishes zero when the read carries no counts', async () => {
+    const publish = vi.spyOn(store, 'setNavBadge')
+    mocks.list.mockResolvedValue(report([], { counts: undefined, error: 'no login' }))
+    mount(MyPullsView, { global: { stubs: { RouterLink: RouterLinkStub } } })
+    await flushPromises()
+
+    expect(publish).toHaveBeenCalledWith('my-pulls', 0)
+  })
   it('renders each pull request with its state', async () => {
     mocks.list.mockResolvedValue(
       report([

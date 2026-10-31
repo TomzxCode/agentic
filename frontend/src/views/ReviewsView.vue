@@ -4,6 +4,7 @@ import { api } from '../api'
 import { renderMarkdown } from '../markdown'
 import {
   approvedFilterCount,
+  awaitingReviewCount,
   commitUrl,
   draftFilterCount,
   groupQueueByRepository,
@@ -284,6 +285,9 @@ async function load(refresh = false) {
     await store.loadRepositories().catch(() => {})
     await store.loadTasks().catch(() => {})
     queue.value = await api.reviews.queue({ refresh })
+    // The nav badge counts what the queue shows at rest, so it follows the rows
+    // this load just read.
+    store.setNavBadge('reviews', awaitingReviewCount(queue.value.prs))
     // Drop any selected repository or author the refreshed queue no longer
     // carries, so a control never filters on something it cannot show as
     // selected.

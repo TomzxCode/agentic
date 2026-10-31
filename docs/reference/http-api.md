@@ -148,6 +148,12 @@ A manual item has no template and always applies.
 | `GET` | `/api/feedback` | Every reviewer-comment analysis file in the store, with its recommendation and decision state (`?refresh=true` re-reads each PR's GitHub state). |
 | `POST` | `/api/feedback/{feedback_id}/decision` | Record an `implement` / `decline` / `defer` decision, or `null` to reset it, in one analysis file's frontmatter. |
 
+## Sidebar badges
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| `GET` | `/api/badges` | The counts the sidebar icons show: pull requests in the review queue still awaiting a review, your own pull requests needing attention, and reviewer comments awaiting a decision. Reads the same stores as the pages, without forcing a GitHub refresh. |
+
 ## Decisions
 
 | Method | Path | Purpose |

@@ -119,6 +119,23 @@ describe('FeedbackView', () => {
     expect(bodies[1].html()).toContain('foo.py:12')
   })
 
+  it('publishes the count awaiting a decision for the nav badge', async () => {
+    const publish = vi.spyOn(store, 'setNavBadge')
+    mocks.list.mockResolvedValue({
+      root: '/home/u/.sdlc',
+      counts: {},
+      items: [item(), item({ feedback_id: 'comment-2', status: 'implement', decision: 'implement' })]
+    })
+    const wrapper = mount(FeedbackView)
+    await settle()
+    expect(publish).toHaveBeenCalledWith('feedback', 1)
+
+    // Deciding the last pending comment drops the badge to zero.
+    await wrapper.get('button.implement').trigger('click')
+    await settle()
+    expect(publish).toHaveBeenLastCalledWith('feedback', 0)
+  })
+
   it('records a decision and reflects it on the card', async () => {
     const wrapper = mount(FeedbackView)
     await settle()

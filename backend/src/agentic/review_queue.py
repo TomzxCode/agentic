@@ -13,6 +13,7 @@ from typing import Any
 
 import structlog
 
+from .models.reviews import ReviewRequest
 from .parallel import run_parallel
 from .review_store import (
     collect_review_prs as collect_review_prs,
@@ -118,3 +119,34 @@ def enrich_from_github(prs: list[dict[str, Any]], refresh: bool = False) -> None
         entry = _metadata_cache.get(key)
         if entry and entry[1]:
             _apply_github(pr, entry[1])
+
+
+def scan_row(recorded: ReviewRequest) -> dict[str, Any]:
+    """A pull request the review scan found, as a queue row.
+
+    It has no report yet, so every step is empty and the readiness light is
+    yellow: nothing clears it for approval, and nothing blocks it either.
+    """
+    owner, _, name = recorded.repository.partition("/")
+    return {
+        "owner": owner,
+        "name": name or recorded.repository,
+        "repository": recorded.repository,
+        "number": recorded.number,
+        "title": recorded.title,
+        "url": recorded.url,
+        "author": recorded.author,
+        "state": recorded.state,
+        "draft": recorded.draft,
+        "created_at": recorded.created_at,
+        "labels": [],
+        "review_decision": "",
+        "head_commit": "",
+        "steps": {},
+        "in_progress": {},
+        "stale_steps": [],
+        "reviewed_steps": 0,
+        "readiness": "yellow",
+        "status": "unreviewed",
+        "request_source": recorded.source,
+    }

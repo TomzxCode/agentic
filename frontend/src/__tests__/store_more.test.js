@@ -8,7 +8,8 @@ vi.mock('../api', () => ({
     repositories: { list: vi.fn(async () => [{ id: 'r1' }]) },
     groups: { list: vi.fn(async () => [{ id: 'g1' }]) },
     settings: { get: vi.fn(async () => ({ effective: { openchamber_url: 'x' } })) },
-    inbox: { get: vi.fn(async () => ({ suggestions: [{ id: 's1' }], count: 1 })) }
+    inbox: { get: vi.fn(async () => ({ suggestions: [{ id: 's1' }], count: 1 })) },
+    badges: { get: vi.fn(async () => ({ reviews: 3, my_pulls: 2, feedback: 1 })) }
   }
 }))
 
@@ -37,6 +38,23 @@ describe('store loaders', () => {
     await store.loadInbox()
     expect(store.inbox).toEqual([{ id: 's1' }])
     expect(store.inboxCount).toBe(1)
+  })
+
+  it('loads the nav badges under the nav item ids', async () => {
+    await store.loadNavBadges()
+    expect(store.navBadges).toEqual({ reviews: 3, 'my-pulls': 2, feedback: 1 })
+  })
+
+  it('sets one nav badge without touching the others', () => {
+    store.navBadges = { reviews: 3, 'my-pulls': 2, feedback: 1 }
+    store.setNavBadge('reviews', 0)
+    expect(store.navBadges).toEqual({ reviews: 0, 'my-pulls': 2, feedback: 1 })
+    // A count is never negative, and a non-number falls back to zero.
+    store.setNavBadge('feedback', -5)
+    store.setNavBadge('feedback', 'nope')
+    expect(store.navBadges.feedback).toBe(0)
+    store.setNavBadge('my-pulls', '4')
+    expect(store.navBadges['my-pulls']).toBe(4)
   })
 })
 

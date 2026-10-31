@@ -207,6 +207,9 @@ async function load(refresh = false) {
     await store.loadPeople().catch(() => {})
     await store.loadRepositories().catch(() => {})
     report.value = await api.myPulls.list({ refresh })
+    // The nav badge counts the pull requests needing their author to act, the
+    // same "need attention" number the header shows.
+    store.setNavBadge('my-pulls', report.value.counts?.attention ?? 0)
     // Drop any selected repository the refreshed list no longer carries, so the
     // control never filters on something it cannot show as selected.
     const known = new Set(repositories.value.map((repository) => repository.value.toLowerCase()))

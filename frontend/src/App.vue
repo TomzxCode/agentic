@@ -128,6 +128,13 @@ const importRepoOptions = computed(() => githubRepos.value.map((r) => ({ value: 
 // The sidebar is for work in flight: hide done and archived tasks.
 const sidebarTasks = computed(() => store.tasks.filter((p) => p.status !== 'done' && p.status !== 'archived'))
 
+// The count a nav icon carries: the inbox count lives on the store, and the
+// other badges are keyed by the nav item id. Zero shows no badge.
+function navBadge(item) {
+  if (!item.badge) return 0
+  return item.badge === 'inbox' ? store.inboxCount : store.navBadges[item.badge] || 0
+}
+
 function runPaletteItem(item) {
   item.run?.()
 }
@@ -195,6 +202,10 @@ async function refresh() {
     await store.loadTags()
     // The inbox badge in the nav tracks the same state the tasks do.
     await store.loadInbox().catch(() => {})
+    // The other nav badges read their own stores; a failure leaves the last
+    // count in place rather than blanking the nav. They land when they land, so
+    // a slow GitHub read never holds up the shell.
+    store.loadNavBadges().catch(() => {})
     // Drop a filter whose tag no longer exists on any task.
     if (store.tagFilter && !store.tags.some((tag) => tag.name === store.tagFilter)) store.tagFilter = ''
   } catch (e) {
@@ -453,9 +464,7 @@ onUnmounted(() => {
             @click="sidebarOpen = false"
           >
             <Icon :name="item.icon" :size="20" />
-            <span v-if="item.badge === 'inbox' && store.inboxCount" class="nav-badge" aria-hidden="true">{{
-              store.inboxCount
-            }}</span>
+            <span v-if="navBadge(item)" class="nav-badge" aria-hidden="true">{{ navBadge(item) }}</span>
           </router-link>
         </div>
       </nav>

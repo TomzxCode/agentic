@@ -26,6 +26,9 @@ export const store = reactive({
   settings: {},
   inbox: [],
   inboxCount: 0,
+  // The sidebar nav badges, keyed by nav item id. A page publishes its own
+  // count as it loads, so the badge follows the list the viewer just saw.
+  navBadges: {},
   loading: false,
   toast: null,
   // Tag filter applied to task lists ("" means every tag).
@@ -74,6 +77,22 @@ export const store = reactive({
     const report = await api.inbox.get()
     this.inbox = report.suggestions || []
     this.inboxCount = report.count ?? this.inbox.length
+  },
+  // The badges the shell cannot derive from what it already loads. The endpoint
+  // reads the same stores the pages do without forcing a GitHub refresh.
+  async loadNavBadges() {
+    const report = await api.badges.get()
+    this.navBadges = {
+      reviews: report.reviews ?? 0,
+      'my-pulls': report.my_pulls ?? 0,
+      feedback: report.feedback ?? 0
+    }
+  },
+  // A page calls this with the count of what its own list shows at rest.
+  setNavBadge(id, count) {
+    const value = Math.max(0, Number(count) || 0)
+    if (this.navBadges[id] === value) return
+    this.navBadges = { ...this.navBadges, [id]: value }
   },
   toggleTagFilter(name) {
     this.tagFilter = this.tagFilter === name ? '' : name

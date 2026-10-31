@@ -80,6 +80,8 @@ async function load(refresh = false) {
     const payload = await api.feedback.list({ refresh })
     items.value = payload.items || []
     root.value = payload.root || null
+    // The nav badge counts the comments still awaiting a decision.
+    store.setNavBadge('feedback', feedbackCounts(items.value).pending)
   } catch (e) {
     error.value = true
     store.notify(e.message, true)
@@ -172,6 +174,7 @@ async function setDecision(item, value) {
   try {
     const saved = await api.feedback.setDecision(item.feedback_id, decision)
     Object.assign(item, saved)
+    store.setNavBadge('feedback', feedbackCounts(items.value).pending)
     store.notify(decision ? `${item.feedback_id} → ${decision}` : `${item.feedback_id} reset`)
   } catch (e) {
     store.notify(e.message, true)

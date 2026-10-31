@@ -30,6 +30,7 @@ from .request_logging import RequestErrorMiddleware, configure_request_logging
 from .routers import (
     agent_runs,
     agent_streams,
+    badges,
     changes,
     checklists,
     decisions,
@@ -249,6 +250,7 @@ def debug_cli_calls() -> list[dict]:
 
 
 for module in (
+    badges,
     repositories,
     groups,
     items,

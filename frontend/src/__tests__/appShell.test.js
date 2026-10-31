@@ -73,6 +73,8 @@ beforeEach(() => {
   store.repositories = []
   store.groups = []
   store.settings = {}
+  store.inboxCount = 0
+  store.navBadges = {}
   store.hintMode = false
   store.toast = null
   vi.spyOn(store, 'loadTasks').mockResolvedValue()
@@ -655,6 +657,22 @@ describe('App', () => {
       const wrapper = mountApp()
       await flushPromises()
       expect(wrapper.find('.sidebar-nav-links').exists()).toBe(false)
+    })
+
+    it('shows a count on the pages that have work waiting', async () => {
+      store.inboxCount = 4
+      store.navBadges = { reviews: 3, 'my-pulls': 2, feedback: 1 }
+      const wrapper = mountApp()
+      await flushPromises()
+
+      const badgeFor = (title) =>
+        wrapper.findAll('.sidebar-nav-links .nav-link').find((link) => link.attributes('title') === title)
+      expect(badgeFor('Inbox').get('.nav-badge').text()).toBe('4')
+      expect(badgeFor('Review queue').get('.nav-badge').text()).toBe('3')
+      expect(badgeFor('My PRs').get('.nav-badge').text()).toBe('2')
+      expect(badgeFor('PR feedback').get('.nav-badge').text()).toBe('1')
+      // A page with nothing waiting carries no badge at all.
+      expect(badgeFor('Tasks').find('.nav-badge').exists()).toBe(false)
     })
   })
 })

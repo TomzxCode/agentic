@@ -186,6 +186,12 @@ export const api = {
     get: () => request('/inbox')
   },
 
+  // The counts the sidebar nav badges show: what waits on the review queue, the
+  // viewer's pull requests, and the reviewer feedback.
+  badges: {
+    get: () => request('/badges')
+  },
+
   schedules: {
     list: () => request('/schedules'),
     get: (id) => request(`/schedules/${id}`),
