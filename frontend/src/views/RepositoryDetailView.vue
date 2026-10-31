@@ -324,54 +324,56 @@ onMounted(load)
     </div>
 
     <template v-else>
-      <div class="faint"><router-link to="/repositories">Repositories</router-link> / {{ repository.name }}</div>
-      <div class="row" style="justify-content: space-between; margin-top: 6px; align-items: flex-start">
-        <h1>{{ repository.name }}</h1>
-        <span class="row" style="gap: 6px; flex-wrap: wrap; justify-content: flex-end">
-          <span v-if="repository.default_branch" class="badge">{{ repository.default_branch }}</span>
-          <span v-if="repository.remote_url" class="faint">{{ repository.remote_url }}</span>
-          <a
-            v-if="ghxRepositoryLink"
-            class="btn sm ghost"
-            :href="ghxRepositoryLink"
-            target="_blank"
-            rel="noopener"
-            title="Open this repository in the local ghx web UI"
-          >
-            Open in ghx
-          </a>
-          <button
-            class="btn sm"
-            :disabled="refreshingAll || loading || !canListGithub"
-            aria-label="Refresh all issues and pull requests"
-            title="Fetch the repository's issues and pull requests from GitHub"
-            @click="refreshAll"
-          >
-            <span v-if="refreshingAll" class="spinner" aria-hidden="true"></span>
-            <span v-else>↻</span>
-            {{ refreshingAll ? 'Refreshing…' : 'Refresh all' }}
-          </button>
-          <button
-            class="btn sm"
-            :disabled="refreshingLinked || !linkedItems.length"
-            aria-label="Refresh issues and pull requests associated to tasks"
-            title="Re-fetch the items already associated to tasks"
-            @click="refreshLinked"
-          >
-            <span v-if="refreshingLinked" class="spinner" aria-hidden="true"></span>
-            <span v-else>↻</span>
-            {{ refreshingLinked ? 'Refreshing…' : 'Refresh linked' }}
-          </button>
-          <GridColumnChooser :api="gridApi" storage-key="repository-items" />
-        </span>
-      </div>
+      <div>
+        <div class="faint"><router-link to="/repositories">Repositories</router-link> / {{ repository.name }}</div>
+        <div class="row" style="justify-content: space-between; margin-top: 6px; align-items: flex-start">
+          <h1>{{ repository.name }}</h1>
+          <span class="row" style="gap: 6px; flex-wrap: wrap; justify-content: flex-end">
+            <span v-if="repository.default_branch" class="badge">{{ repository.default_branch }}</span>
+            <span v-if="repository.remote_url" class="faint">{{ repository.remote_url }}</span>
+            <a
+              v-if="ghxRepositoryLink"
+              class="btn sm ghost"
+              :href="ghxRepositoryLink"
+              target="_blank"
+              rel="noopener"
+              title="Open this repository in the local ghx web UI"
+            >
+              Open in ghx
+            </a>
+            <button
+              class="btn sm"
+              :disabled="refreshingAll || loading || !canListGithub"
+              aria-label="Refresh all issues and pull requests"
+              title="Fetch the repository's issues and pull requests from GitHub"
+              @click="refreshAll"
+            >
+              <span v-if="refreshingAll" class="spinner" aria-hidden="true"></span>
+              <span v-else>↻</span>
+              {{ refreshingAll ? 'Refreshing…' : 'Refresh all' }}
+            </button>
+            <button
+              class="btn sm"
+              :disabled="refreshingLinked || !linkedItems.length"
+              aria-label="Refresh issues and pull requests associated to tasks"
+              title="Re-fetch the items already associated to tasks"
+              @click="refreshLinked"
+            >
+              <span v-if="refreshingLinked" class="spinner" aria-hidden="true"></span>
+              <span v-else>↻</span>
+              {{ refreshingLinked ? 'Refreshing…' : 'Refresh linked' }}
+            </button>
+            <GridColumnChooser :api="gridApi" storage-key="repository-items" />
+          </span>
+        </div>
 
-      <p v-if="ghxError" class="faint" style="margin: 8px 0 0">
-        Could not list this repository from GitHub ({{ ghxError }}). Showing the items already associated to tasks.
-      </p>
-      <p v-else-if="ghxFailed.length" class="faint" style="margin: 8px 0 0">
-        Could not load the {{ ghxFailed.join(' or the ') }} from GitHub. Showing the rest of the repository.
-      </p>
+        <p v-if="ghxError" class="faint" style="margin: 8px 0 0">
+          Could not list this repository from GitHub ({{ ghxError }}). Showing the items already associated to tasks.
+        </p>
+        <p v-else-if="ghxFailed.length" class="faint" style="margin: 8px 0 0">
+          Could not load the {{ ghxFailed.join(' or the ') }} from GitHub. Showing the rest of the repository.
+        </p>
+      </div>
 
       <!-- While the GitHub listing loads, the wait shows where the grid will
            land, instead of flashing a partial page. -->

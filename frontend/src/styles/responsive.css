@@ -31,6 +31,26 @@
     background: var(--bg-2);
     color: var(--text);
   }
+  /* A page that fills the viewport (its root sets `page-fill`, as the grid and
+     graph pages do) is a formatting context of its own, so the float would push
+     the whole page right of the toggle and leave it narrower than every other
+     page. Position the toggle instead, and give the page's header stack the
+     same 32px gap (the toggle's 22px width plus its 10px margin) the float used
+     to give a title line, so the header stays put and the content spans the same
+     width as elsewhere. The offsets match `.main`'s padding-top and left. */
+  .main:has(> .page-fill) {
+    position: relative;
+  }
+  .main:has(> .page-fill) > .menu-btn {
+    float: none;
+    position: absolute;
+    top: 20px;
+    left: 24px;
+    margin: 0;
+  }
+  .main:has(> .page-fill) > .page-fill > :first-child {
+    padding-left: 32px;
+  }
 }
 
 /* Mobile */
