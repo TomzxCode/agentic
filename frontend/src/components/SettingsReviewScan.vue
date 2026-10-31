@@ -147,8 +147,8 @@ onMounted(load)
       A background scan asks GitHub which pull requests await your review: those with a review requested from you, and
       the open ones you have already reviewed. They join the
       <router-link to="/reviews">review queue</router-link> even before a review report exists for them. Discovery runs
-      through <code>gh</code>, so the GitHub CLI must be installed and authenticated. The nudge SLO below instead reads
-      your own open pull requests, the way the <router-link to="/my-pulls">My PRs</router-link> page does.
+      through <code>ghx</code>'s cache, so repositories it has never cached are not scanned. The nudge SLO below instead
+      reads your own open pull requests, the way the <router-link to="/my-pulls">My PRs</router-link> page does.
     </p>
 
     <div class="field">

@@ -17,9 +17,9 @@ def _reviews_payload() -> str:
                 {"state": "COMMENTED", "submittedAt": "2026-01-01T00:00:00Z", "author": {"login": "bob"}},
             ],
             "reviewRequests": [
-                {"__typename": "User", "login": "carol"},
+                {"type": "User", "login": "carol"},
                 # A team request names a team, not a person to poke.
-                {"__typename": "Team", "name": "core"},
+                {"type": "Team", "name": "core"},
             ],
         }
     )
@@ -52,7 +52,7 @@ def test_fetch_pull_reviewers_lists_each_reviewer_once(monkeypatch):
                 {"state": "COMMENTED", "submittedAt": "2026-01-04T00:00:00Z", "author": {"login": "alice"}},
                 {"state": "CHANGES_REQUESTED", "submittedAt": "2026-01-05T00:00:00Z", "author": {"login": "bob"}},
             ],
-            "reviewRequests": [{"__typename": "User", "login": "carol"}],
+            "reviewRequests": [{"type": "User", "login": "carol"}],
         }
     )
     monkeypatch.setattr(shell, "_run_cli", lambda cmd, timeout=60: payload)
@@ -71,7 +71,7 @@ def test_fetch_pull_reviewers_marks_a_re_requested_reviewer_pending(monkeypatch)
             "reviews": [
                 {"state": "APPROVED", "submittedAt": "2026-01-02T00:00:00Z", "author": {"login": "alice"}},
             ],
-            "reviewRequests": [{"__typename": "User", "login": "alice"}],
+            "reviewRequests": [{"type": "User", "login": "alice"}],
         }
     )
     monkeypatch.setattr(shell, "_run_cli", lambda cmd, timeout=60: payload)
@@ -82,7 +82,19 @@ def test_fetch_pull_reviewers_marks_a_re_requested_reviewer_pending(monkeypatch)
     ]
 
 
-def test_fetch_pull_reviewers_is_none_when_gh_cannot_run(monkeypatch):
+def test_fetch_pull_reviewers_reads_through_ghx(monkeypatch):
+    seen = []
+
+    def fake(cmd: list[str], timeout: int = 60) -> str:
+        seen.append(cmd)
+        return _reviews_payload()
+
+    monkeypatch.setattr(shell, "_run_cli", fake)
+    assert github.fetch_github_pull_reviewers("acme", "api", 42) is not None
+    assert seen == [["ghx", "pr", "view", "42", "--repo", "acme/api", "--json"]]
+
+
+def test_fetch_pull_reviewers_is_none_when_ghx_cannot_run(monkeypatch):
     monkeypatch.setattr(shell, "_run_cli", lambda cmd, timeout=60: None)
     assert github.fetch_github_pull_reviewers("acme", "api", 42) is None
 

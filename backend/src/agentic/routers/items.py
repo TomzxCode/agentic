@@ -371,7 +371,7 @@ def list_item_github_reviewers(item_id: str, session: Session = Depends(get_sess
     reviews = fetch_github_pull_reviewers(*location)
     if reviews is None:
         return ItemGithubReviewers(
-            error="Could not read this pull request's reviewers (is `gh` installed and authenticated?)"
+            error="Could not read this pull request's reviewers (is `ghx` installed and authenticated?)"
         )
     return ItemGithubReviewers(reviewers=[ItemGithubReviewer.model_validate(review) for review in reviews])
 

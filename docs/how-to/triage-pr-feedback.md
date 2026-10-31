@@ -9,7 +9,7 @@ Reviewers left comments on the pull requests you authored, and you want one plac
 - A running API and the web app open (see the [tutorial](../tutorials/getting-started.md)).
 - Reviewer-feedback analysis files in the store.
   Run `/handle-pr-reviewer-feedback` on a pull request you authored to write them.
-- `gh` available when the page re-reads each pull request's state.
+- `ghx` available when the page re-reads each pull request's state.
 
 The analysis files live under `AGENTIC_SDLC_DIR` (`~/.sdlc` by default), at `{owner}/{repository}/pull-requests/{number}/feedback/`.
 

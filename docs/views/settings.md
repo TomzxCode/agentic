@@ -106,6 +106,7 @@ An empty policy disables that source.
 `Repositories with no policy of their own` chooses whether a repository with no policy is scanned (`Include`) or skipped (`Exclude`).
 Each repository then has its own `Default`, `Include`, or `Exclude`.
 `Scan now` runs one pass, and the section shows when the scan last ran, how many it found and kept, and any error.
+The scan reads `ghx`'s cache, so a repository `ghx` has never cached is not scanned.
 
 `Review SLO` is how long a pull request may await your review before the inbox flags it, such as `8h` or `1d`; blank turns it off.
 `Review nudge SLO` is how long a pull request of yours may wait without any review from anyone before the inbox offers to poke its reviewers, such as `1h30m` or `1d`; blank turns it off.

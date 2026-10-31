@@ -84,13 +84,13 @@ describe('GithubItemPanel reviewers', () => {
   it('shows a failed reviewers read instead of reading as no reviewers', async () => {
     mocks.pullReviewers.mockResolvedValue({
       reviewers: [],
-      error: 'Could not read this pull request’s reviewers (is `gh` installed and authenticated?)'
+      error: 'Could not read this pull request’s reviewers (is `ghx` installed and authenticated?)'
     })
 
     const wrapper = mountPanel(prUrl)
     await flushPromises()
 
-    expect(wrapper.text()).toContain('is `gh` installed and authenticated?')
+    expect(wrapper.text()).toContain('is `ghx` installed and authenticated?')
     expect(wrapper.text()).not.toContain('No reviewers yet.')
   })
 

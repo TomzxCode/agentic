@@ -226,17 +226,17 @@ _DECISIVE_REVIEW_STATES = frozenset({"APPROVED", "CHANGES_REQUESTED", "DISMISSED
 
 
 def fetch_github_pull_reviewers(owner: str, repo: str, number: object) -> list[dict[str, Any]] | None:
-    """The reviewers assigned to a pull request, via ``gh``.
+    """The reviewers assigned to a pull request, via ``ghx``.
 
-    ``ghx`` reads issues and pull requests from its cache but does not carry
-    reviews, so this one read goes through ``gh``. Each reviewer appears once:
+    ghx carries the pull request's submitted reviews and the reviewers still
+    requested, so this read needs no second tool. Each reviewer appears once:
     their latest decisive review state wins over a later plain comment, their
     last submitted review time is kept, and a reviewer a review is still
     requested from carries state ``PENDING`` with ``requested`` set. None when
     the read could not run.
     """
     raw = shell._run_cli(
-        ["gh", "pr", "view", str(number), "--repo", f"{owner}/{repo}", "--json", "reviews,reviewRequests"],
+        ["ghx", "pr", "view", str(number), "--repo", f"{owner}/{repo}", "--json"],
         timeout=60,
     )
     if not raw:
@@ -272,7 +272,7 @@ def fetch_github_pull_reviewers(owner: str, repo: str, number: object) -> list[d
     for request in data.get("reviewRequests") or []:
         # A team request names a team, not a person, so only user requests are
         # listed: a reviewer row has someone a poke can reach.
-        if not isinstance(request, dict) or request.get("__typename") != "User":
+        if not isinstance(request, dict) or request.get("type") != "User":
             continue
         login = request.get("login")
         if not login:
@@ -358,27 +358,31 @@ _cached_github_login: str | None = None
 
 
 def detect_github_login() -> str:
-    """The login of the authenticated ``gh`` account, or "" when unavailable.
+    """The login ``gh`` stores for github.com, or "" when unavailable.
 
-    Only a fallback for when no ``github_login`` is configured. The result is
-    cached for the process, so a re-login to another account needs a restart or
-    an explicit setting; both are cheap for a single-user local tool.
+    Only a fallback for when no ``github_login`` is configured. ``gh config get``
+    reads gh's own config, so it costs no API call and works offline. gh stores
+    no user when authentication comes from ``GH_TOKEN`` or ``GITHUB_TOKEN``
+    alone, which reads as empty. The result is cached for the process, so a
+    re-login to another account needs a restart or an explicit setting; both are
+    cheap for a single-user local tool.
     """
     global _cached_github_login
     if _cached_github_login is not None:
         return _cached_github_login
-    raw = shell._run_cli(["gh", "api", "user", "--jq", ".login"], timeout=15)
+    raw = shell._run_cli(["gh", "config", "get", "-h", "github.com", "user"], timeout=15)
     _cached_github_login = (raw or "").strip()
     return _cached_github_login
 
 
 # --- Cycle-time data -------------------------------------------------------
 #
-# ghx's cache and list commands carry no reviews or timeline events, and gh's
-# --json field set exposes neither, so these two reads go straight to the
-# GitHub GraphQL API through ``gh`` (the same exception the reviewer read
-# above makes). One query per repository for closed issues and one for merged
-# pull requests, with every review and review request the PR received.
+# ghx's cache carries the reviews and review requests these series need, but it
+# only answers for repositories it has cached, and the panel covers every
+# repository with a GitHub remote. Filling a cache walks a repository's whole
+# history, so these two reads go straight to the GitHub GraphQL API through
+# ``gh``: one query per repository for closed issues and one for merged pull
+# requests, with every review and review request the PR received.
 
 #: How long a repository's cycle-time data is reused before it is fetched again.
 CYCLE_TIME_CACHE_SECONDS = 600

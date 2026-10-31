@@ -16,6 +16,25 @@ def test_github_owner_repo():
     assert github.github_owner_repo(None) is None
 
 
+def test_detect_github_login_reads_gh_config(monkeypatch):
+    """The login comes from gh's local config, which costs no API call."""
+    seen = []
+    monkeypatch.setattr(github, "_cached_github_login", None)
+
+    def fake(cmd: list[str], timeout: int = 60) -> str:
+        seen.append(cmd)
+        return "tomzx\n"
+
+    monkeypatch.setattr(shell, "_run_cli", fake)
+    assert github.detect_github_login() == "tomzx"
+    assert seen == [["gh", "config", "get", "-h", "github.com", "user"]]
+
+    # The result is cached for the process, so a second call reads no config.
+    assert github.detect_github_login() == "tomzx"
+    assert len(seen) == 1
+    monkeypatch.setattr(github, "_cached_github_login", None)
+
+
 def test_list_github_issues_parses(monkeypatch):
     payload = json.dumps(
         [
