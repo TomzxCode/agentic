@@ -7,8 +7,10 @@ requests are waiting, so the queue can show them before any report exists.
 
 Two searches make up the set, matching the script: ``review-requested:@me`` (a
 review is asked of the user) and ``reviewed-by:@me`` (the user reviewed it and it
-is still open). Both go through ``gh search prs``: ghx caches and reads issues and
-pull requests, but has no search qualifiers.
+is still open). Both go through ``ghx search prs``, which answers only from the
+local cache, across every repository it has cached. The scan never refreshes
+that cache itself (a refresh per repository is slow), so a scheduled refresh
+keeps it current and a repository ghx has never cached is not searched.
 
 The script's ``--notifications`` recovery of dropped team review requests is not
 ported: it needs the notifications API plus a batched GraphQL drop check, and the
@@ -36,15 +38,18 @@ from .settings_store import get_review_scan_status, get_settings, record_review_
 
 log = structlog.get_logger(__name__)
 
-#: The fields ``gh search prs`` returns for a row.
+#: The fields ``ghx search prs`` returns for a row.
 SEARCH_FIELDS = "number,title,url,state,isDraft,repository,author,createdAt"
 SEARCH_TIMEOUT = 90
+
+#: The login both searches ask about. ghx resolves it from gh's local config.
+ME_SHORTHAND = "@me"
 
 #: The two searches, in priority order: a pull request asking for the user's
 #: review is reported as ``requested`` even when the second search also matches.
 SEARCHES: tuple[tuple[str, ReviewScanSource], ...] = (
-    ("--review-requested=@me", ReviewScanSource.requested),
-    ("--reviewed-by=@me", ReviewScanSource.reviewed),
+    ("--review-requested", ReviewScanSource.requested),
+    ("--reviewed-by", ReviewScanSource.reviewed),
 )
 
 #: Cadence spellings that mean the scan is off.
@@ -96,7 +101,19 @@ def _parse_timestamp(value: str | None) -> datetime | None:
 def _search(flag: str, limit: int) -> list[dict[str, Any]] | None:
     """Run one search. None when it could not run at all."""
     raw = shell._run_cli(
-        ["gh", "search", "prs", flag, "--state=open", "--limit", str(limit), "--json", SEARCH_FIELDS],
+        [
+            "ghx",
+            "search",
+            "prs",
+            flag,
+            ME_SHORTHAND,
+            "--state",
+            "open",
+            "--limit",
+            str(limit),
+            "--json",
+            SEARCH_FIELDS,
+        ],
         timeout=SEARCH_TIMEOUT,
     )
     if not raw:
@@ -130,10 +147,10 @@ def _normalize(entry: dict[str, Any], source: ReviewScanSource) -> dict[str, Any
 def search_awaiting_reviews(limit: int, exclude_authors: set[str]) -> list[dict[str, Any]] | None:
     """The pull requests awaiting the user's review, requested ones first.
 
-    None when neither search could run (``gh`` missing, not authenticated); one
-    failing search is tolerated, since the other still yields its half. Each
-    search carries its own *limit*, as the script's did. The two searches are
-    independent, so they run together.
+    None when neither search could run (``ghx`` missing, or its cache
+    unreadable); one failing search is tolerated, since the other still yields
+    its half. Each search carries its own *limit*, as the script's did. The two
+    searches are independent, so they run together.
     """
     found: dict[tuple[str, int], dict[str, Any]] = {}
     ran = False
@@ -227,12 +244,17 @@ def store_scan_results(session: Session, rows: list[dict[str, Any]]) -> tuple[in
 
 
 def run_review_scan(session: Session, origin: str = "background", force: bool = False) -> dict[str, Any]:
-    """Run one scan: ask GitHub, filter, and replace the stored set.
+    """Run one scan: ask ghx, filter, and replace the stored set.
 
-    A scan that could not run leaves the stored set untouched, so a broken ``gh``
-    never empties the queue; the failure is recorded and retried on the next
-    cadence. *force* runs even when the scan is switched off, which is what the
-    "Scan now" button does.
+    The scan searches the cache ghx has already written and never refreshes it:
+    a cache refresh walks or re-reads every repository, and a scan that waited
+    on several of them would stall whatever asked for it. Keeping the cache
+    current is the scheduled refresh's job.
+
+    A scan that could not run leaves the stored set untouched, so a broken
+    ``ghx`` never empties the queue; the failure is recorded and retried on the
+    next cadence. *force* runs even when the scan is switched off, which is what
+    the "Scan now" button does.
     """
     interval = scan_interval(get_settings(session).get("review_scan_interval", ""))
     if interval is None and not force:
@@ -240,7 +262,7 @@ def run_review_scan(session: Session, origin: str = "background", force: bool = 
     exclude = parse_exclude_authors(settings.review_scan_exclude_authors)
     found = search_awaiting_reviews(settings.review_scan_limit, exclude)
     if found is None:
-        error = "gh could not search for review requests; install and authenticate the GitHub CLI"
+        error = "ghx could not search the cached pull requests; install ghx and cache the repositories to scan"
         record_review_scan_run(session, last_run_at=utcnow(), found=0, stored=0, error=error, origin=origin)
         log.warning("review scan failed", error=error)
         return {"error": error}

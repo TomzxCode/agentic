@@ -7,8 +7,8 @@ You want one place that shows which pull requests still need your review and wha
 ## Prerequisites
 
 - A running API and the web app open (see the [tutorial](../tutorials/getting-started.md)).
-- `ghx` on your `PATH`: the queue reads each pull request's own fields (title, state, author, age) from it.
-- `gh` on your `PATH` and authenticated, for the review scan that asks GitHub which pull requests await your review, and for a pull request item's review list.
+- `ghx` on your `PATH`: the queue reads each pull request's own fields (title, state, author, age) from it, the review scan searches its cache, and a pull request item's reviewer list comes from it too.
+- The repositories you want scanned cached by `ghx` (run `ghx cache --repo owner/name` once for each): the scan reads that cache, not GitHub directly.
 - Review reports in the store for the pull requests you have already reviewed.
   Run `/review-pr-full` (or the individual review skills) on a PR to write them.
 
@@ -59,7 +59,8 @@ The reports live under `AGENTIC_SDLC_DIR` (`~/.sdlc` by default), at `{owner}/{r
 ## Where the pull requests come from
 
 The review scan asks GitHub which pull requests await your review: the ones with a review requested from you (`review-requested:@me`), and the open ones you have already reviewed (`reviewed-by:@me`).
-Discovery runs through `gh`, and a pull request the scan finds joins the queue even before any review report exists for it.
+Discovery runs through `ghx`'s cache: the scan searches what `ghx` has cached, so a repository it has never cached is not searched.
+A pull request the scan finds joins the queue even before any review report exists for it.
 
 Configure the scan under **Settings → Review requests**:
 
@@ -91,7 +92,7 @@ Without it, the poke reports that Slack is not configured.
 
 The review-step state comes from the reports the review skills write under the store, and each pull request's own fields come from `ghx`.
 A pull request's GitHub review decision (which is what the **✅** approval mark reads) comes from `ghx` too, falling back to the store's `gh-pr-view.md` cache when `ghx` cannot answer.
-A pull request item's reviewer list comes from `gh pr view`, because `ghx` does not carry reviews.
+A pull request item's reviewer list comes from `ghx` as well, from the reviews and review requests it caches for the pull request.
 Fields that would need a read the queue does not make (the diff size, the pull requests an open PR blocks) are left out.
 
 ## Verification

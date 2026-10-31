@@ -559,13 +559,13 @@ describe('ItemDetailView', () => {
     mocks.itemsGet.mockResolvedValue(item({ url: 'https://github.com/acme/api/pull/42', kind: 'pull_request' }))
     mocks.reviewersGet.mockResolvedValue({
       reviewers: [],
-      error: 'Could not read this pull request’s reviewers (is `gh` installed and authenticated?)'
+      error: 'Could not read this pull request’s reviewers (is `ghx` installed and authenticated?)'
     })
 
     const wrapper = mountView()
     await flushPromises()
 
-    expect(wrapper.text()).toContain('is `gh` installed and authenticated?')
+    expect(wrapper.text()).toContain('is `ghx` installed and authenticated?')
     expect(wrapper.text()).not.toContain('No reviewers yet.')
   })
 

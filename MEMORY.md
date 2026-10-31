@@ -1,5 +1,13 @@
 # Memory
 
+## 2026-10-31: The review scan reads ghx's cache, and cycle time stays on gh
+
+- The review scan runs `ghx search prs --review-requested @me` and `--reviewed-by @me`, which are cache-only and span every cached repository. The scan never refreshes the cache itself: a repository ghx has never cached is outside the scan, and keeping the cache current is left to a scheduled refresh, so a scan never waits on several repository fetches.
+- `ghx search` accepts `--json` in both forms, but a space-form field list after a bare `--json` is found by scanning the positional args, so a query word that names a field is consumed as the field list. Pass `--json=` in code.
+- Reviewer lists come from `ghx pr view --json`: its `reviewRequests` entries carry `type` (`User`/`Team`), not gh's `__typename`.
+- The login fallback reads `gh config get -h github.com user`: local config, no API call, empty when authentication comes from `GH_TOKEN` alone.
+- The cycle-time panel stays on `gh api graphql`. ghx's cache carries reviews and review requests, but only for repositories it has cached, and interrupted delta fetches leave gaps (ghx#11). Worth knowing separately: the GraphQL read silently caps at `CYCLE_TIME_RESULT_LIMIT = 1000` per repository, so busy repositories already under-report. Do not move it until coverage is complete and that cap is addressed.
+
 ## 2026-10-27: My PRs reads ghx per registered repository, and its refresh is a delta
 
 - The My PRs page and the inbox nudge no longer run a `gh` GraphQL search. `list_my_open_pulls` runs `ghx pr list --author <login> --state open` once per registered GitHub repository and merges the rows newest-update-first. A pull request in a repository neither the app nor ghx knows is deliberately out of scope, not a silent gap; the cache key is (login, repository set), so registering a repository never answers from the previous list.

@@ -17,12 +17,12 @@ from agentic.services import shell
 
 
 def _entry(repository: str, number: int, author: str = "alice", **over) -> dict:
-    """One ``gh search prs --json`` result."""
+    """One ``ghx search prs --json`` result."""
     return {
         "number": number,
         "title": over.get("title", f"PR {number}"),
         "url": f"https://github.com/{repository}/pull/{number}",
-        "state": over.get("state", "open"),
+        "state": over.get("state", "OPEN"),
         "isDraft": over.get("isDraft", False),
         "repository": {"name": repository.split("/")[-1], "nameWithOwner": repository},
         "author": {"login": author},
@@ -34,9 +34,9 @@ def _fake_search(requested: list[dict], reviewed: list[dict]):
     """A ``shell._run_cli`` stand-in that answers the two searches."""
 
     def fake(cmd: list[str], timeout: int = 60) -> str | None:
-        if "--review-requested=@me" in cmd:
+        if "--review-requested" in cmd:
             return json.dumps(requested)
-        if "--reviewed-by=@me" in cmd:
+        if "--reviewed-by" in cmd:
             return json.dumps(reviewed)
         return None
 
@@ -131,14 +131,14 @@ def test_search_awaiting_reviews_merges_and_filters(monkeypatch):
 
 def test_search_awaiting_reviews_tolerates_one_failing_search(monkeypatch):
     def fake(cmd: list[str], timeout: int = 60) -> str | None:
-        return json.dumps([_entry("o/a", 1)]) if "--review-requested=@me" in cmd else None
+        return json.dumps([_entry("o/a", 1)]) if "--review-requested" in cmd else None
 
     monkeypatch.setattr(shell, "_run_cli", fake)
     rows = review_scan.search_awaiting_reviews(50, set())
     assert rows is not None and [row["number"] for row in rows] == [1]
 
 
-def test_search_awaiting_reviews_is_none_when_gh_cannot_run(monkeypatch):
+def test_search_awaiting_reviews_is_none_when_ghx_cannot_run(monkeypatch):
     monkeypatch.setattr(shell, "_run_cli", lambda cmd, timeout=60: None)
     assert review_scan.search_awaiting_reviews(50, set()) is None
 
@@ -173,14 +173,14 @@ def test_run_review_scan_stores_the_filtered_set_and_removes_the_rest(session, m
     assert rows[0].first_seen_at == first_seen["o/a"]
 
 
-def test_run_review_scan_keeps_the_set_when_gh_fails(session, monkeypatch):
+def test_run_review_scan_keeps_the_set_when_ghx_fails(session, monkeypatch):
     monkeypatch.setattr(shell, "_run_cli", _fake_search([_entry("o/a", 1)], []))
     review_scan.run_review_scan(session, force=True)
 
     monkeypatch.setattr(shell, "_run_cli", lambda cmd, timeout=60: None)
     report = review_scan.run_review_scan(session, force=True)
     assert "error" in report
-    # The stored set survives, so a broken gh never empties the queue.
+    # The stored set survives, so a broken ghx never empties the queue.
     assert [row.number for row in session.exec(select(ReviewRequest)).all()] == [1]
     assert review_scan.review_scan_state(session)["error"]
 

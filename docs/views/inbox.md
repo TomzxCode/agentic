@@ -54,7 +54,7 @@ The CLI's `agentic change create` is the one path that starts at `proposed`.
 - A pull request row's title opens the app's PR page (`/pr/{owner}/{repo}/{number}`); actions that do the work, such as `Review PR` or a poke, still reach GitHub or Slack where that work happens.
 - `Record change` fails with `That pull request is no longer in the resources list.` when its item was deleted.
 - The sidebar badge on Inbox uses the same endpoint, so it clears as soon as you act.
-- The nudge reads your open pull requests from GitHub, so with a cold cache the first inbox read of the hour can take a moment while `gh` answers.
+- The nudge reads your open pull requests through `ghx`, so with a cold cache the first inbox read of the hour can take a moment while `ghx` fills it.
 
 ## CLI and agent interface
 
