@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref, resolveComponent, shallowRef } from 'vue'
+import { computed, nextTick, onMounted, ref, resolveComponent, shallowRef } from 'vue'
 import { api } from '../api'
 import { store, timeAgo } from '../store'
 import { groupItemsByRepository } from '../repositories/rows'
@@ -12,6 +12,10 @@ const loading = ref(true)
 const error = ref(false)
 const path = ref('')
 const showPicker = ref(false)
+// The add controls stay out of the way until the button in the header opens them.
+const showAdd = ref(false)
+const pathInput = ref(null)
+const addToggle = ref(null)
 // How many rows the grid currently shows (its filters may hide some).
 const shown = ref(null)
 // A repository refresh is in flight, so its button shows a spinner.
@@ -70,11 +74,20 @@ async function load() {
   }
 }
 
+// Show or hide the add controls, moving focus to whichever control is useful next.
+async function toggleAdd() {
+  showAdd.value = !showAdd.value
+  await nextTick()
+  if (showAdd.value) pathInput.value?.focus()
+  else addToggle.value?.focus()
+}
+
 async function addRepository() {
   if (!path.value.trim()) return
   try {
     await api.repositories.create({ path: path.value.trim() })
     path.value = ''
+    showAdd.value = false
     await load()
   } catch (e) {
     store.notify(e.message, true)
@@ -86,6 +99,7 @@ async function addRepositories(paths) {
   try {
     const result = await api.repositories.createBulk(paths)
     showPicker.value = false
+    showAdd.value = false
     await load()
     const added = result.added.length
     if (result.errors.length) {
@@ -143,6 +157,15 @@ onMounted(load)
           {{ totals.pulls }} PRs
         </span>
         <button
+          ref="addToggle"
+          class="btn sm primary"
+          :aria-expanded="showAdd"
+          aria-controls="add-repository"
+          @click="toggleAdd"
+        >
+          {{ showAdd ? 'Close' : '+ Add repository' }}
+        </button>
+        <button
           class="btn sm"
           :disabled="refreshing || loading || !totals.all"
           aria-label="Refresh the tracked repositories"
@@ -157,9 +180,10 @@ onMounted(load)
       </span>
     </div>
 
-    <div class="panel">
+    <div v-if="showAdd" id="add-repository" class="panel" style="margin-top: 14px">
       <div class="row">
         <input
+          ref="pathInput"
           v-model="path"
           class="input grow"
           placeholder="/absolute/path/to/git/repo"
@@ -168,6 +192,7 @@ onMounted(load)
         />
         <button class="btn" @click="showPicker = true">Browse…</button>
         <button class="btn primary" @click="addRepository">Add repository</button>
+        <button class="btn ghost" @click="toggleAdd">Cancel</button>
       </div>
     </div>
 
@@ -182,6 +207,7 @@ onMounted(load)
       <p class="muted" style="margin-top: 0">
         No repositories are registered yet. Add a local git checkout to group its issues and PRs by repository.
       </p>
+      <button v-if="!showAdd" class="btn primary" @click="toggleAdd">Add repository</button>
     </div>
 
     <RepositoriesGrid

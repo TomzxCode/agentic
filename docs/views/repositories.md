@@ -13,7 +13,7 @@ Registering a checkout tells Agentic where a task's worktree comes from, and the
 
 ### The list (`/repositories`)
 
-The header counts repositories, issues, and pull requests (`N of M repositories · X issues · Y PRs`), and `Refresh` re-reads each checkout's `origin` and updates any changed remote or derived name; `Columns` opens the column chooser, remembered on this device under `agentic.gridColumns.repositories`.
+The header counts repositories, issues, and pull requests (`N of M repositories · X issues · Y PRs`), and `+ Add repository` opens the add controls; `Refresh` re-reads each checkout's `origin` and updates any changed remote or derived name; `Columns` opens the column chooser, remembered on this device under `agentic.gridColumns.repositories`.
 
 | Column | What it shows |
 | --- | --- |
@@ -31,7 +31,9 @@ The counts come from the items already linked to tasks whose URL matches the rep
 
 ### Adding repositories
 
+The add controls stay hidden until you press `+ Add repository` in the header.
 Type an absolute path in `/absolute/path/to/git/repo` and press `Enter`, or use `Browse…`.
+The controls close once a repository is added; `Cancel` (or the header button again) hides them without adding anything.
 
 `Browse…` opens the server-side directory picker, which browses from `AGENTIC_FS_ROOT` (`~` by default) and refuses to leave it.
 In the picker: `↑ Up` goes to the parent, a folder opens with `open ›`, `Select this folder` takes the current one, `show hidden` reveals dot folders, and each row has a checkbox.

@@ -150,6 +150,32 @@ describe('RepositoriesView', () => {
     expect(wrapper.find('.col-chooser').exists()).toBe(true)
   })
 
+  it('keeps the add controls hidden until the button opens them', async () => {
+    const wrapper = await mountView()
+    const toggle = wrapper.get('button[aria-controls="add-repository"]')
+
+    expect(wrapper.find('input[aria-label="Repository path"]').exists()).toBe(false)
+    expect(toggle.attributes('aria-expanded')).toBe('false')
+
+    await toggle.trigger('click')
+
+    expect(wrapper.find('input[aria-label="Repository path"]').exists()).toBe(true)
+    expect(toggle.attributes('aria-expanded')).toBe('true')
+  })
+
+  it('closes the add controls after a repository is added', async () => {
+    mocks.repositoriesCreate.mockResolvedValue({})
+    const wrapper = await mountView()
+
+    await wrapper.get('button[aria-controls="add-repository"]').trigger('click')
+    await wrapper.get('input[aria-label="Repository path"]').setValue('/src/new')
+    await wrapper.get('#add-repository .btn.primary').trigger('click')
+    await settle()
+
+    expect(mocks.repositoriesCreate).toHaveBeenCalledWith({ path: '/src/new' })
+    expect(wrapper.find('input[aria-label="Repository path"]').exists()).toBe(false)
+  })
+
   it('lists the repositories in the grid and links each name', async () => {
     store.repositories = [
       {
