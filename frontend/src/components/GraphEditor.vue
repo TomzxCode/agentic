@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import {
   NODE_WIDTH,
   HEADER_HEIGHT,
@@ -11,15 +11,22 @@ import {
   blankFormNode,
   blankInput,
   blankRunNode,
+  blankShellNode,
+  blankTriggerNode,
+  blankTriggerOutput,
   canvasSize,
+  canConnect,
   connect,
   dropDanglingEdges,
   edgeEndpoints,
   edgePath,
   editorIssues,
+  nearestPort,
   nodeRows,
+  nodeKindLabel,
   normalizeDefinition,
   portPoint,
+  relayout,
   removeField,
   removeInput,
   removeNode
@@ -40,15 +47,58 @@ const selected = ref('')
 const selectedEdge = ref('')
 // A connection being drawn: where it starts and where the pointer is now.
 const pending = ref(null)
+// A connection waiting for its target: tap a source row, then tap an input or
+// a form field. This is the phone-friendly path, since it needs no held drag
+// and survives scrolling to a node that is off screen.
+const armed = ref(null)
 // The node being dragged, with the grab offset inside the card.
 const dragging = ref(null)
 const issues = ref([])
 const saving = ref(false)
 const content = ref(null)
+// A source row pressed but not yet moved: it arms on release, so a tap and a
+// drag start the same way and only the distance tells them apart.
+const rowPress = ref(null)
+
+// Whether the canvas arranges itself as the graph changes: never, when a step
+// is added, when one is removed, or both. A per-device view preference, kept
+// in localStorage like the sidebar's, not a server setting.
+const LAYOUT_KEY = 'agentic.executionGraph.autoLayout'
+const LAYOUT_MODES = ['off', 'add', 'remove', 'always']
+const storedLayout = localStorage.getItem(LAYOUT_KEY)
+const autoLayoutMode = ref(LAYOUT_MODES.includes(storedLayout) ? storedLayout : 'off')
+watch(autoLayoutMode, (mode) => localStorage.setItem(LAYOUT_KEY, mode))
 
 const size = computed(() => canvasSize(definition.value))
 const issueSet = computed(() => new Set(issues.value))
 const selectedNode = computed(() => definition.value.nodes.find((node) => node.id === selected.value) || null)
+// While a source is armed, every row a tap could land on is marked, so the
+// eligible targets are obvious without hovering (phones have no hover).
+const eligibleRows = computed(() => {
+  const allowed = new Set()
+  if (!armed.value) return allowed
+  for (const node of definition.value.nodes) {
+    for (const row of nodeRows(node)) {
+      if (!canConnect(definition.value, armed.value.sourceId, armed.value.sourceFieldId, node.id, row)) continue
+      allowed.add(rowKey(node, row))
+    }
+  }
+  return allowed
+})
+
+const hasTrigger = computed(() => definition.value.nodes.some((node) => node.kind === 'trigger'))
+
+// The "Add step" menu: one entry per node kind, with the shape of work it does.
+const ADD_STEP_OPTIONS = [
+  { kind: 'run', hint: 'Prompt an ACP harness and use its answer.' },
+  { kind: 'cli', hint: 'Call the agentic CLI against this server.' },
+  { kind: 'shell', hint: 'Run a bash script and use its output.' },
+  { kind: 'form', hint: 'Ask a person for input mid-run.' },
+  { kind: 'trigger', hint: 'Start the workflow from a webhook event.' }
+]
+
+const addMenuOpen = ref(false)
+const addMenu = ref(null)
 
 const edges = computed(() =>
   definition.value.edges
@@ -56,12 +106,95 @@ const edges = computed(() =>
     .filter((entry) => entry.points)
 )
 
+// A selected connection, named by its two ends, so the remove action can say
+// what it will disconnect and a phone never needs the Delete key.
+const selectedEdgeInfo = computed(() => {
+  const edge = definition.value.edges.find((candidate) => candidate.id === selectedEdge.value)
+  if (!edge) return null
+  const source = nodeById(edge.source)
+  const target = nodeById(edge.target)
+  if (!source || !target) return null
+  const sourceRow =
+    source.kind === 'form'
+      ? nodeRows(source).find((row) => row.kind === 'field' && row.id === edge.sourceFieldId)
+      : nodeRows(source).find((row) => row.kind === 'output')
+  const targetRow =
+    target.kind === 'form'
+      ? nodeRows(target).find((row) => row.kind === 'field' && row.id === edge.targetFieldId)
+      : nodeRows(target).find((row) => row.kind === 'input' && row.id === edge.targetInputId)
+  return {
+    edge,
+    source: `${source.title || source.id} · ${sourceRow?.label || '?'}`,
+    target: `${target.title || target.id} · ${targetRow?.label || '?'}`
+  }
+})
+
 function nodeById(id) {
   return definition.value.nodes.find((node) => node.id === id)
 }
 
+function rowKey(node, row) {
+  return `${node.id}:${row.kind}:${row.id}`
+}
+
+// Arm a source row as the start of a connection. The target is a second tap,
+// so the finger never has to hold the source while finding its target.
+function arm(node, row) {
+  if (row.kind === 'input') return
+  selectedEdge.value = ''
+  armed.value = {
+    sourceId: node.id,
+    sourceFieldId: row.kind === 'field' ? row.id : '',
+    label: row.label,
+    nodeTitle: node.title || node.id
+  }
+}
+
+function cancelConnect() {
+  armed.value = null
+}
+
+function isArmedSource(node, row) {
+  if (!armed.value || armed.value.sourceId !== node.id) return false
+  return row.kind === 'field' ? row.id === armed.value.sourceFieldId : row.kind === 'output'
+}
+
+// A tap while armed lands on a row: connect when it can take the link, cancel
+// when it is the armed node itself, and otherwise leave the connection open.
+function connectArmed(node, row) {
+  const source = armed.value
+  if (!source) return
+  if (node.id === source.sourceId) {
+    cancelConnect()
+    return
+  }
+  if (!eligibleRows.value.has(rowKey(node, row))) return
+  applyConnection(source.sourceId, source.sourceFieldId, node.id, row)
+  cancelConnect()
+}
+
+// Add an edge, then re-arrange when the chosen mode covers adds: a new link
+// can move a node into a deeper dependency layer. Refused and duplicate
+// connections leave the canvas alone.
+function applyConnection(sourceId, sourceFieldId, targetId, port) {
+  const next = connect(definition.value, sourceId, sourceFieldId, targetId, port)
+  if (next === definition.value) return false
+  definition.value = laysOut('add') ? relayout(next) : next
+  return true
+}
+
 function addNode(kind) {
-  const node = kind === 'form' ? blankFormNode() : kind === 'cli' ? blankCliNode() : blankRunNode()
+  addMenuOpen.value = false
+  const node =
+    kind === 'form'
+      ? blankFormNode()
+      : kind === 'cli'
+        ? blankCliNode()
+        : kind === 'shell'
+          ? blankShellNode()
+          : kind === 'trigger'
+            ? blankTriggerNode()
+            : blankRunNode()
   // Drop new nodes where the canvas is scrolled to, stepping each one down so
   // consecutive additions do not stack on top of each other.
   const box = content.value?.parentElement
@@ -70,6 +203,19 @@ function addNode(kind) {
   definition.value.nodes.push(node)
   selected.value = node.id
   selectedEdge.value = ''
+  if (laysOut('add')) definition.value = relayout(definition.value)
+}
+
+// True when the chosen auto-layout mode covers this kind of change.
+function laysOut(change) {
+  return autoLayoutMode.value === 'always' || autoLayoutMode.value === change
+}
+
+// Arranges every card by dependency layer, discarding hand-placed positions,
+// and scrolls back to the corner the layout starts at so the result is visible.
+function arrange() {
+  definition.value = relayout(definition.value)
+  content.value?.parentElement?.scrollTo?.({ top: 0, left: 0 })
 }
 function selectNode(id) {
   selected.value = id
@@ -83,13 +229,18 @@ function selectEdge(id) {
 
 function deleteSelected() {
   if (selectedEdge.value) {
-    definition.value.edges = definition.value.edges.filter((edge) => edge.id !== selectedEdge.value)
+    definition.value = {
+      ...definition.value,
+      edges: definition.value.edges.filter((edge) => edge.id !== selectedEdge.value)
+    }
     selectedEdge.value = ''
+    if (laysOut('remove')) definition.value = relayout(definition.value)
     return
   }
   if (!selected.value) return
   definition.value = dropDanglingEdges(removeNode(definition.value, selected.value))
   selected.value = ''
+  if (laysOut('remove')) definition.value = relayout(definition.value)
 }
 
 function startDrag(event, node) {
@@ -106,7 +257,49 @@ function startDrag(event, node) {
   event.currentTarget.setPointerCapture?.(event.pointerId)
 }
 
+// A press on the card body: on a phone the body pans the canvas and a tap
+// selects, while dragging a card is left to its header handle. A mouse keeps
+// the old drag-anywhere behaviour.
+function onNodePointerDown(event, node) {
+  if (armed.value) {
+    // Taps that land on a row were handled there; the rest of the card keeps
+    // the armed connection instead of starting a drag or a selection.
+    event.stopPropagation()
+    return
+  }
+  if (event.pointerType === 'touch') {
+    selectNode(node.id)
+    return
+  }
+  startDrag(event, node)
+}
+
+function onRowPointerDown(event, node, row) {
+  if (armed.value) {
+    event.stopPropagation()
+    connectArmed(node, row)
+    return
+  }
+  if (row.kind === 'input') return
+  event.stopPropagation()
+  // A mouse draws the connection immediately; a finger arms the row on
+  // release, so a swipe can still pan the canvas instead.
+  rowPress.value = {
+    nodeId: node.id,
+    row,
+    startX: event.clientX,
+    startY: event.clientY,
+    moved: false
+  }
+  if (event.pointerType !== 'touch') startConnect(event, node, row)
+}
+
 function onPointerMove(event) {
+  if (rowPress.value && !rowPress.value.moved) {
+    const dx = event.clientX - rowPress.value.startX
+    const dy = event.clientY - rowPress.value.startY
+    if (Math.hypot(dx, dy) > 8) rowPress.value.moved = true
+  }
   if (dragging.value) {
     const box = content.value.getBoundingClientRect()
     const node = nodeById(dragging.value.id)
@@ -126,8 +319,18 @@ function onPointerMove(event) {
 }
 
 function onPointerUp(event) {
+  const press = rowPress.value
+  rowPress.value = null
   if (dragging.value) {
     dragging.value = null
+    return
+  }
+  // A press that never moved is a tap: arm the source instead of resolving a
+  // drop that went nowhere.
+  if (press && !press.moved) {
+    pending.value = null
+    const node = nodeById(press.nodeId)
+    if (node) arm(node, press.row)
     return
   }
   if (!pending.value) return
@@ -136,19 +339,36 @@ function onPointerUp(event) {
   const drop = landing?.closest('[data-port-kind][data-node-id]')
   if (drop) {
     const port = { kind: drop.dataset.portKind, id: drop.dataset.portId }
-    definition.value = connect(
+    applyConnection(pending.value.sourceId, pending.value.sourceFieldId, drop.dataset.nodeId, port)
+  } else {
+    // A finger that missed the row by a few pixels still lands on the port it
+    // was aiming at.
+    const nearest = nearestPort(
       definition.value,
       pending.value.sourceId,
       pending.value.sourceFieldId,
-      drop.dataset.nodeId,
-      port
+      { x: pending.value.x, y: pending.value.y },
+      48
     )
+    if (nearest) {
+      applyConnection(pending.value.sourceId, pending.value.sourceFieldId, nearest.nodeId, {
+        kind: nearest.kind,
+        id: nearest.id
+      })
+    }
   }
   pending.value = null
 }
 
+function onPointerCancel() {
+  dragging.value = null
+  pending.value = null
+  rowPress.value = null
+}
+
 function startConnect(event, node, row) {
   event.stopPropagation()
+  selectedEdge.value = ''
   const point = portPoint(node, row)
   pending.value = {
     sourceId: node.id,
@@ -167,6 +387,7 @@ function rowsFor(node) {
 
 function onCanvasBackground(event) {
   if (event.target.closest('[data-node-card], button, input, textarea, select')) return
+  armed.value = null
   selected.value = ''
   selectedEdge.value = ''
 }
@@ -177,7 +398,17 @@ function onKeyDown(event) {
     event.preventDefault()
     deleteSelected()
   }
-  if (event.key === 'Escape') pending.value = null
+  if (event.key === 'Escape') {
+    armed.value = null
+    pending.value = null
+    addMenuOpen.value = false
+  }
+}
+
+function onDocumentClick(event) {
+  if (!addMenuOpen.value) return
+  if (addMenu.value?.contains(event.target)) return
+  addMenuOpen.value = false
 }
 
 // --- inspector edits --------------------------------------------------------
@@ -200,6 +431,20 @@ function removeNodeField(node, fieldId) {
   const index = definition.value.nodes.findIndex((candidate) => candidate.id === node.id)
   if (index === -1) return
   definition.value.nodes[index] = removeField(node, fieldId)
+  definition.value = dropDanglingEdges(definition.value)
+}
+
+function addOutput(node) {
+  node.outputs.push(blankTriggerOutput())
+}
+
+function removeNodeOutput(node, outputId) {
+  const index = definition.value.nodes.findIndex((candidate) => candidate.id === node.id)
+  if (index === -1) return
+  definition.value.nodes[index] = {
+    ...node,
+    outputs: node.outputs.filter((output) => output.id !== outputId)
+  }
   definition.value = dropDanglingEdges(definition.value)
 }
 
@@ -239,50 +484,114 @@ function run() {
 onMounted(() => {
   window.addEventListener('pointermove', onPointerMove)
   window.addEventListener('pointerup', onPointerUp)
+  window.addEventListener('pointercancel', onPointerCancel)
   window.addEventListener('keydown', onKeyDown)
+  document.addEventListener('click', onDocumentClick)
 })
 onBeforeUnmount(() => {
   window.removeEventListener('pointermove', onPointerMove)
   window.removeEventListener('pointerup', onPointerUp)
+  window.removeEventListener('pointercancel', onPointerCancel)
   window.removeEventListener('keydown', onKeyDown)
+  document.removeEventListener('click', onDocumentClick)
 })
 </script>
 
 <template>
   <div class="panel editor-panel">
-    <div class="panel-head">
+    <div class="panel-head editor-head">
       <h2>{{ graph.name }}</h2>
-      <span class="row" style="gap: 6px; flex-wrap: wrap">
-        <button class="btn sm" @click="addNode('run')">+ Run step</button>
-        <button class="btn sm" @click="addNode('cli')">+ Command step</button>
-        <button class="btn sm" @click="addNode('form')">+ Form step</button>
-        <button class="btn sm" @click="validate">Check</button>
-        <button class="btn sm primary" :disabled="saving || issueSet.size > 0" @click="save">Save</button>
-        <button class="btn sm" :disabled="issueSet.size > 0" @click="run">Run</button>
-        <button class="btn sm ghost" @click="emit('close')">Close</button>
-      </span>
+      <div class="editor-actions">
+        <div ref="addMenu" class="editor-add">
+          <button
+            class="btn sm"
+            type="button"
+            aria-haspopup="menu"
+            :aria-expanded="addMenuOpen ? 'true' : 'false'"
+            @click="addMenuOpen = !addMenuOpen"
+          >
+            + Add step
+            <span class="editor-caret" :class="{ open: addMenuOpen }" aria-hidden="true"></span>
+          </button>
+          <div v-if="addMenuOpen" class="editor-add-menu" role="menu" aria-label="Add a step">
+            <button
+              v-for="option in ADD_STEP_OPTIONS"
+              :key="option.kind"
+              class="editor-add-item"
+              type="button"
+              role="menuitem"
+              :disabled="option.kind === 'trigger' && hasTrigger"
+              @click="addNode(option.kind)"
+            >
+              <span class="editor-add-label">{{ nodeKindLabel(option.kind) }}</span>
+              <span class="editor-add-hint">
+                {{ option.kind === 'trigger' && hasTrigger ? 'Already added' : option.hint }}
+              </span>
+            </button>
+          </div>
+        </div>
+        <label class="editor-layout-mode" title="Keep the graph arranged as steps and connections are added or removed">
+          <span>Auto-layout</span>
+          <select v-model="autoLayoutMode" class="input" aria-label="When to auto-layout the graph">
+            <option value="off">never</option>
+            <option value="add">on add</option>
+            <option value="remove">on remove</option>
+            <option value="always">always</option>
+          </select>
+        </label>
+        <button class="btn sm" type="button" title="Arrange every step automatically" @click="arrange">Arrange</button>
+        <span class="editor-divider" aria-hidden="true"></span>
+        <button class="btn sm ghost" type="button" @click="validate">Check</button>
+        <button class="btn sm primary" type="button" :disabled="saving || issueSet.size > 0" @click="save">Save</button>
+        <button class="btn sm" type="button" :disabled="issueSet.size > 0" @click="run">Run</button>
+        <button class="btn sm ghost" type="button" @click="emit('close')">Close</button>
+      </div>
     </div>
 
     <p v-if="issues.length" class="editor-issues">
       <span v-for="issue in issues" :key="issue">{{ issue }}</span>
     </p>
     <p v-else class="faint editor-hint">
-      Drag cards to arrange them. Drag from a right-side dot onto an input or a form field to connect. Select something
-      and press Delete to remove it.
+      Tap a step's output row, then tap the input or form field it should feed (on a computer you can also drag from a
+      right-side dot). An Event trigger is the entry point for a webhook event. Tap a connection line to select it, then
+      press Remove. Drag a card by its header to move it. Select something and press Delete to remove it.
     </p>
+
+    <div v-if="armed" class="editor-armed" role="status">
+      <span>
+        Connecting <strong>{{ armed.label }}</strong> from <strong>{{ armed.nodeTitle }}</strong
+        >. Tap an input or a form field, or tap the source again to cancel.
+      </span>
+      <button class="btn sm" @click="cancelConnect">Cancel</button>
+    </div>
+
+    <div v-else-if="selectedEdgeInfo" class="editor-armed" role="status">
+      <span>
+        Connection <strong>{{ selectedEdgeInfo.source }}</strong> → <strong>{{ selectedEdgeInfo.target }}</strong
+        >.
+      </span>
+      <button class="btn sm danger" @click="deleteSelected">Remove</button>
+    </div>
 
     <div class="editor-body">
       <div class="editor-canvas" @pointerdown="onCanvasBackground">
         <div ref="content" class="editor-content" :style="{ width: `${size.width}px`, height: `${size.height}px` }">
           <svg class="editor-edges" :width="size.width" :height="size.height">
-            <path
-              v-for="entry in edges"
-              :key="entry.edge.id"
-              class="editor-edge"
-              :class="{ selected: selectedEdge === entry.edge.id, bad: issueSet.has(`edge:${entry.edge.id}`) }"
-              :d="edgePath(entry.points.from, entry.points.to)"
-              @click.stop="selectEdge(entry.edge.id)"
-            />
+            <template v-for="entry in edges" :key="entry.edge.id">
+              <path
+                class="editor-edge"
+                :class="{ selected: selectedEdge === entry.edge.id, bad: issueSet.has(`edge:${entry.edge.id}`) }"
+                :d="edgePath(entry.points.from, entry.points.to)"
+                @click.stop="selectEdge(entry.edge.id)"
+              />
+              <!-- A wide transparent band over the same curve, so a finger
+                   does not have to hit a 1.6 px stroke to select it. -->
+              <path
+                class="editor-edge-hit"
+                :d="edgePath(entry.points.from, entry.points.to)"
+                @click.stop="selectEdge(entry.edge.id)"
+              />
+            </template>
             <path
               v-if="pending"
               class="editor-edge pending"
@@ -295,23 +604,39 @@ onBeforeUnmount(() => {
             :key="node.id"
             :data-node-card="node.id"
             class="editor-node"
-            :class="{ run: node.kind === 'run', form: node.kind === 'form', selected: selected === node.id }"
+            :class="{
+              run: node.kind === 'run',
+              shell: node.kind === 'shell',
+              form: node.kind === 'form',
+              trigger: node.kind === 'trigger',
+              selected: selected === node.id
+            }"
             :style="{ left: `${node.position.x}px`, top: `${node.position.y}px`, width: `${NODE_WIDTH}px` }"
-            @pointerdown="startDrag($event, node)"
+            @pointerdown="onNodePointerDown($event, node)"
           >
-            <div class="editor-node-head" :style="{ height: `${HEADER_HEIGHT}px` }">
-              <span class="editor-node-kind">{{ node.kind }}</span>
+            <div
+              class="editor-node-head"
+              :style="{ height: `${HEADER_HEIGHT}px` }"
+              title="Drag to move"
+              @pointerdown.stop="startDrag($event, node)"
+            >
+              <span class="editor-node-kind">{{ nodeKindLabel(node.kind) }}</span>
               <span class="editor-node-title">{{ node.title || node.id }}</span>
+              <span class="editor-node-grip" aria-hidden="true">⠿</span>
             </div>
             <div
               v-for="row in rowsFor(node)"
               :key="`${row.kind}:${row.id}`"
               class="editor-node-row"
+              :class="{
+                eligible: eligibleRows.has(rowKey(node, row)),
+                source: isArmedSource(node, row)
+              }"
               :style="{ height: `${ROW_HEIGHT}px` }"
               :data-port-kind="row.kind === 'input' ? 'input' : row.kind"
               :data-port-id="row.id"
               :data-node-id="node.id"
-              @pointerdown="row.kind !== 'input' && startConnect($event, node, row)"
+              @pointerdown="onRowPointerDown($event, node, row)"
             >
               <span v-if="row.kind === 'input'" class="port in" title="Drop a connection here"></span>
               <span class="editor-row-label">{{ row.label }}</span>
@@ -323,9 +648,7 @@ onBeforeUnmount(() => {
 
       <aside v-if="selectedNode" class="editor-inspector">
         <div class="row" style="justify-content: space-between">
-          <h3 style="margin: 0">
-            {{ selectedNode.kind === 'run' ? 'Run step' : selectedNode.kind === 'cli' ? 'Command step' : 'Form step' }}
-          </h3>
+          <h3 style="margin: 0">{{ nodeKindLabel(selectedNode.kind) }}</h3>
           <button class="btn sm ghost" @click="deleteSelected">Delete</button>
         </div>
         <div class="field">
@@ -349,7 +672,7 @@ onBeforeUnmount(() => {
           </div>
         </template>
 
-        <template v-if="selectedNode.kind !== 'form'">
+        <template v-if="selectedNode.kind === 'run' || selectedNode.kind === 'cli' || selectedNode.kind === 'shell'">
           <div class="field">
             <label for="node-cwd">Working directory (optional)</label>
             <input
@@ -357,7 +680,7 @@ onBeforeUnmount(() => {
               v-model="selectedNode.cwd"
               class="input"
               :placeholder="
-                selectedNode.kind === 'cli' ? 'Defaults to the server\'s own directory' : 'Defaults to the run\'s task'
+                selectedNode.kind === 'run' ? 'Defaults to the run\'s task' : 'Defaults to the server\'s own directory'
               "
             />
           </div>
@@ -371,8 +694,8 @@ onBeforeUnmount(() => {
               >.
             </p>
           </div>
-          <div v-else class="field">
-            <label for="node-command">Command (after `agentic`)</label>
+          <div v-else-if="selectedNode.kind === 'cli'" class="field">
+            <label for="node-command">Agentic command (after `agentic`)</label>
             <textarea
               id="node-command"
               v-model="selectedNode.command"
@@ -387,6 +710,22 @@ onBeforeUnmount(() => {
               >.
             </p>
           </div>
+          <div v-else class="field">
+            <label for="node-script">Shell script</label>
+            <textarea
+              id="node-script"
+              v-model="selectedNode.script"
+              class="textarea"
+              rows="6"
+              :style="{ fontFamily: 'var(--mono)' }"
+              placeholder='echo "Building {{ name }}" && make build'
+            ></textarea>
+            <p class="faint" style="margin: 4px 0 0">
+              Runs with <code>bash -c</code>; its combined stdout and stderr feeds downstream inputs. Reference an input
+              as <code v-pre>{{ name }}</code
+              >.
+            </p>
+          </div>
 
           <div class="field">
             <span>Inputs</span>
@@ -396,6 +735,33 @@ onBeforeUnmount(() => {
             </div>
             <button class="btn sm" style="margin-top: 6px" @click="addInput(selectedNode)">+ Input</button>
           </div>
+        </template>
+
+        <template v-else-if="selectedNode.kind === 'trigger'">
+          <p class="faint" style="margin: 0 0 8px">
+            The webhook payload arrives here. Each field reads one JSON path (for example
+            <code>pull_request.title</code>) and can feed a downstream input.
+          </p>
+          <div v-for="(output, index) in selectedNode.outputs" :key="output.id" class="editor-field-group">
+            <div class="row" style="justify-content: space-between">
+              <strong>Event field {{ index + 1 }}</strong>
+              <button class="btn sm ghost" @click="removeNodeOutput(selectedNode, output.id)">×</button>
+            </div>
+            <div class="field">
+              <label :for="`output-name-${output.id}`">Label</label>
+              <input :id="`output-name-${output.id}`" v-model="output.name" class="input" placeholder="title" />
+            </div>
+            <div class="field">
+              <label :for="`output-path-${output.id}`">Payload path</label>
+              <input
+                :id="`output-path-${output.id}`"
+                v-model="output.path"
+                class="input"
+                placeholder="pull_request.title"
+              />
+            </div>
+          </div>
+          <button class="btn sm" @click="addOutput(selectedNode)">+ Event field</button>
         </template>
 
         <template v-else>
@@ -441,8 +807,14 @@ onBeforeUnmount(() => {
         </template>
       </aside>
       <aside v-else class="editor-inspector faint">
-        Select a node to edit it. Connections run from an answer or a field value into a named input, and a form appears
-        only when its downstream step is ready.
+        <template v-if="selectedEdgeInfo">
+          Connection <strong>{{ selectedEdgeInfo.source }}</strong> → <strong>{{ selectedEdgeInfo.target }}</strong
+          >. Use Remove above to disconnect it.
+        </template>
+        <template v-else>
+          Select a node to edit it. Connections run from an answer, a field value, or an event field into a named input,
+          and a form appears only when its downstream step is ready.
+        </template>
       </aside>
     </div>
   </div>
@@ -452,6 +824,82 @@ onBeforeUnmount(() => {
 .editor-panel {
   display: flex;
   flex-direction: column;
+}
+.editor-head {
+  align-items: flex-start;
+}
+.editor-actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.editor-add {
+  position: relative;
+}
+.editor-caret {
+  display: inline-block;
+  margin-left: 6px;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-top: 5px solid currentColor;
+  vertical-align: middle;
+  transition: transform 120ms ease;
+}
+.editor-caret.open {
+  transform: rotate(180deg);
+}
+.editor-add-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 30;
+  min-width: 260px;
+  max-width: min(320px, calc(100vw - 40px));
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.22);
+}
+.editor-add-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.editor-add-item:hover:not(:disabled),
+.editor-add-item:focus-visible {
+  background: var(--bg-1);
+}
+.editor-add-item:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.editor-add-label {
+  font-size: 13px;
+  font-weight: 600;
+}
+.editor-add-hint {
+  font-size: 12px;
+  color: var(--muted);
+}
+.editor-divider {
+  width: 1px;
+  height: 20px;
+  background: var(--border);
 }
 .editor-hint,
 .editor-issues {
@@ -463,6 +911,20 @@ onBeforeUnmount(() => {
   flex-direction: column;
   gap: 2px;
   color: var(--warn);
+}
+/* The "Auto-layout" select beside the toolbar buttons: a compact labeled
+   control that sits on the same line as them. */
+.editor-layout-mode {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.editor-layout-mode select {
+  width: auto;
+  padding: 4px 6px;
+  font-size: 12px;
 }
 .editor-body {
   display: flex;
@@ -497,16 +959,39 @@ onBeforeUnmount(() => {
 .editor-edge.selected {
   stroke: var(--danger);
 }
+/* The selectable band around a connection: invisible, but 24 px wide, so a
+   tap on a phone hits the curve instead of the canvas behind it. */
+.editor-edge-hit {
+  fill: none;
+  stroke: transparent;
+  stroke-width: 24;
+  pointer-events: stroke;
+  cursor: pointer;
+}
 .editor-edge.pending {
   stroke: var(--accent);
   stroke-dasharray: 4 4;
+}
+.editor-armed {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 0 0 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  background: var(--bg-1);
+  font-size: 13px;
 }
 .editor-node {
   position: absolute;
   background: var(--bg-2);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  touch-action: none;
+  /* A swipe over the card body pans the canvas; only the header and the ports
+     opt out, so a phone can still move around a dense canvas. */
+  touch-action: pan-x pan-y;
   user-select: none;
   cursor: grab;
 }
@@ -516,12 +1001,33 @@ onBeforeUnmount(() => {
 .editor-node.form {
   background: var(--bg-1);
 }
+.editor-node.shell {
+  background: var(--bg-1);
+}
+.editor-node.trigger {
+  background: var(--bg-1);
+  border-style: dashed;
+}
+.editor-node.trigger .editor-node-kind {
+  color: var(--accent);
+  border-color: var(--accent);
+}
 .editor-node-head {
   display: flex;
   align-items: center;
   gap: 6px;
   padding: 0 10px;
   border-bottom: 1px solid var(--border);
+  /* The header is the card's drag handle, so it keeps the gesture from
+     turning into a canvas pan. */
+  touch-action: none;
+  cursor: grab;
+}
+.editor-node-grip {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1;
 }
 .editor-node-kind {
   font-size: 10px;
@@ -541,10 +1047,25 @@ onBeforeUnmount(() => {
 .editor-node-row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   padding: 0 10px;
   border-bottom: 1px dashed var(--border);
   font-size: 13px;
+}
+/* While a connection is armed, every row a tap could land on is marked, so a
+   phone user sees the targets without hovering over them. */
+.editor-node-row.eligible {
+  background: rgba(110, 231, 183, 0.12);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+.editor-node-row.eligible .port {
+  border-color: var(--accent);
+}
+.editor-node-row.source {
+  background: rgba(110, 231, 183, 0.22);
+}
+.editor-node-row.source .port {
+  background: var(--accent);
+  border-color: var(--accent);
 }
 .editor-node-row:last-child {
   border-bottom: none;
@@ -567,8 +1088,14 @@ onBeforeUnmount(() => {
   margin-right: 6px;
 }
 .port.out {
-  margin-left: 6px;
+  /* Push the output dot to the row's right edge; the label stays beside the
+     left edge, where the incoming dot sits on an input row. */
+  margin-left: auto;
   cursor: crosshair;
+}
+.port.out,
+.port.in {
+  touch-action: none;
 }
 .editor-node-row:hover .port.out {
   border-color: var(--accent);
@@ -589,6 +1116,17 @@ onBeforeUnmount(() => {
   padding-top: 8px;
 }
 @media (max-width: 760px) {
+  .editor-head {
+    align-items: stretch;
+  }
+  .editor-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+  .editor-add-menu {
+    left: 0;
+    right: auto;
+  }
   .editor-body {
     flex-direction: column;
   }
@@ -598,6 +1136,13 @@ onBeforeUnmount(() => {
   .editor-inspector {
     width: auto;
     max-height: none;
+  }
+  /* Match the toolbar buttons' phone sizing, and keep iOS from zooming on the
+     select when it takes focus. */
+  .editor-layout-mode select {
+    min-height: 36px;
+    padding: 7px 11px;
+    font-size: 16px;
   }
 }
 </style>

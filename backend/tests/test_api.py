@@ -136,8 +136,13 @@ def test_items_list_includes_task_links_and_search():
         )
         assert client.get("/api/items", params={"source": "github"})
 
+        # Linking a GitHub item names its author, which only resolves where the
+        # ghx CLI exists; delete whoever appeared so no person outlives the test.
+        person_ids = client.get(f"/api/items/{item['id']}").json()["person_ids"]
         client.delete(f"/api/tasks/{task['id']}")
         client.delete(f"/api/items/{item['id']}")
+        for person_id in person_ids:
+            client.delete(f"/api/people/{person_id}")
 
 
 def test_tags_are_normalized_filtered_and_listed():
