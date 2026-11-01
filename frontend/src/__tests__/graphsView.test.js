@@ -42,13 +42,60 @@ import { store } from '../store'
 const RouterLinkStub = { props: ['to'], template: '<a :href="to"><slot /></a>' }
 const stub = { global: { stubs: { RouterLink: RouterLinkStub } } }
 
+async function openEditor(wrapper) {
+  await wrapper
+    .findAll('button')
+    .find((button) => button.text() === 'Edit graph')
+    .trigger('click')
+  await flushPromises()
+}
+
+// Two run steps far apart with nothing wired, for the connect gestures.
+const untangledDefinition = () => ({
+  nodes: [
+    { id: 'a', kind: 'run', title: 'Step A', position: { x: 40, y: 40 }, promptTemplate: 'hi', inputs: [] },
+    {
+      id: 'b',
+      kind: 'run',
+      title: 'Step B',
+      position: { x: 600, y: 40 },
+      promptTemplate: 'then {{v}}',
+      inputs: [{ id: 'v', name: 'v' }]
+    }
+  ],
+  edges: []
+})
+
+// Two run steps wired in a chain, saved far from where a layout would put them.
+const twoStepDefinition = () => ({
+  nodes: [
+    { id: 'a', kind: 'run', title: 'Step A', position: { x: 900, y: 700 }, promptTemplate: 'hi', inputs: [] },
+    {
+      id: 'b',
+      kind: 'run',
+      title: 'Step B',
+      position: { x: 20, y: 30 },
+      promptTemplate: 'then {{v}}',
+      inputs: [{ id: 'v', name: 'v' }]
+    }
+  ],
+  edges: [{ id: 'e1', source: 'a', sourceFieldId: '', target: 'b', targetInputId: 'v', targetFieldId: '' }]
+})
+
 const graphRow = (id, extra = {}) => ({
   id,
   name: `Graph ${id}`,
   description: '',
-  schedule: '0 9 * * *',
-  timezone: 'UTC',
-  enabled: true,
+  triggers: [
+    {
+      id: 'tr1',
+      type: 'schedule',
+      config: { cron: '0 9 * * *', timezone: 'UTC' },
+      enabled: true,
+      next_run_at: '2026-10-25T09:00:00Z',
+      last_run_at: null
+    }
+  ],
   next_run_at: '2026-10-25T09:00:00Z',
   last_run_at: null,
   created_at: '2026-10-25T00:00:00Z',
@@ -77,6 +124,7 @@ const executionRow = (id, extra = {}) => ({
 beforeEach(() => {
   vi.clearAllMocks()
   store.toast = null
+  localStorage.clear()
   // Fresh arrays per call: the component's watchers key off the list
   // reference, and the real API returns new JSON (so new objects) every poll.
   mocks.graphsList.mockImplementation(async () => [graphRow('g1')])
@@ -137,6 +185,287 @@ describe('GraphsList', () => {
     expect(wrapper.find('.editor-node').exists()).toBe(true)
     expect(wrapper.find('.editor-node-title').text()).toBe('Step A')
     expect(wrapper.find('.editor-canvas').exists()).toBe(true)
+  })
+
+  it('arranges every step from the Arrange button', async () => {
+    mocks.graphsList.mockImplementation(async () => [graphRow('g1', { definition: twoStepDefinition() })])
+    const wrapper = mount(GraphsList, stub)
+    await flushPromises()
+    await openEditor(wrapper)
+    expect(wrapper.findAll('.editor-node')[0].attributes('style')).toContain('left: 900px')
+
+    await wrapper
+      .findAll('button')
+      .find((button) => button.text() === 'Arrange')
+      .trigger('click')
+    await flushPromises()
+    const cards = wrapper.findAll('.editor-node')
+    expect(cards[0].attributes('style')).toContain('left: 40px')
+    expect(cards[1].attributes('style')).toContain('left: 340px')
+    expect(cards[0].attributes('style')).toContain('top: 40px')
+  })
+
+  it('lays out as steps are added when that mode is chosen', async () => {
+    localStorage.setItem('agentic.executionGraph.autoLayout', 'add')
+    const wrapper = mount(GraphsList, stub)
+    await flushPromises()
+    await openEditor(wrapper)
+    await wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('Add step'))
+      .trigger('click')
+    // The first menu entry is an agent run step.
+    await wrapper.get('.editor-add-menu').findAll('.editor-add-item')[0].trigger('click')
+    await flushPromises()
+
+    const cards = wrapper.findAll('.editor-node')
+    expect(cards).toHaveLength(2)
+    // The added step takes the next free row of its layer.
+    expect(cards[1].attributes('style')).toContain('left: 40px')
+    expect(cards[1].attributes('style')).toContain('top: 190px')
+  })
+
+  it('lays out as steps are removed when that mode is chosen', async () => {
+    localStorage.setItem('agentic.executionGraph.autoLayout', 'remove')
+    mocks.graphsList.mockImplementation(async () => [
+      graphRow('g1', {
+        definition: {
+          nodes: [
+            { id: 'a', kind: 'run', title: 'Step A', position: { x: 0, y: 0 }, promptTemplate: 'hi', inputs: [] },
+            { id: 'b', kind: 'run', title: 'Step B', position: { x: 600, y: 400 }, promptTemplate: 'go', inputs: [] }
+          ],
+          edges: []
+        }
+      })
+    ])
+    const wrapper = mount(GraphsList, stub)
+    await flushPromises()
+    await openEditor(wrapper)
+
+    await wrapper.findAll('.editor-node')[0].trigger('pointerdown')
+    await wrapper
+      .find('.editor-inspector')
+      .findAll('button')
+      .find((button) => button.text() === 'Delete')
+      .trigger('click')
+    await flushPromises()
+
+    const card = wrapper.find('.editor-node')
+    expect(card.text()).toContain('Step B')
+    expect(card.attributes('style')).toContain('left: 40px')
+    expect(card.attributes('style')).toContain('top: 40px')
+  })
+
+  it('connects two steps with two taps', async () => {
+    mocks.graphsList.mockImplementation(async () => [graphRow('g1', { definition: untangledDefinition() })])
+    const wrapper = mount(GraphsList, stub)
+    await flushPromises()
+    await openEditor(wrapper)
+
+    const source = wrapper.find('[data-node-id="a"][data-port-kind="output"]')
+    await source.trigger('pointerdown')
+    window.dispatchEvent(new PointerEvent('pointerup'))
+    await flushPromises()
+    const banner = wrapper.find('.editor-armed')
+    expect(banner.exists()).toBe(true)
+    expect(banner.text()).toContain('answer')
+
+    // The eligible target is marked before the second tap.
+    const target = wrapper.find('[data-node-id="b"][data-port-kind="input"]')
+    expect(target.classes()).toContain('eligible')
+    await target.trigger('pointerdown')
+    await flushPromises()
+    expect(wrapper.find('.editor-armed').exists()).toBe(false)
+    expect(wrapper.findAll('.editor-edge')).toHaveLength(1)
+  })
+
+  it('cancels an armed connection from the banner or the source', async () => {
+    mocks.graphsList.mockImplementation(async () => [graphRow('g1', { definition: untangledDefinition() })])
+    const wrapper = mount(GraphsList, stub)
+    await flushPromises()
+    await openEditor(wrapper)
+    const source = wrapper.find('[data-node-id="a"][data-port-kind="output"]')
+
+    await source.trigger('pointerdown')
+    window.dispatchEvent(new PointerEvent('pointerup'))
+    await flushPromises()
+    await wrapper
+      .findAll('button')
+      .find((button) => button.text() === 'Cancel')
+      .trigger('click')
+    await flushPromises()
+    expect(wrapper.find('.editor-armed').exists()).toBe(false)
+
+    // Tapping the source again is the other way out.
+    await source.trigger('pointerdown')
+    window.dispatchEvent(new PointerEvent('pointerup'))
+    await flushPromises()
+    expect(wrapper.find('.editor-armed').exists()).toBe(true)
+    await source.trigger('pointerdown')
+    await flushPromises()
+    expect(wrapper.find('.editor-armed').exists()).toBe(false)
+    expect(wrapper.findAll('.editor-edge')).toHaveLength(0)
+  })
+
+  it('removes a connection after tapping its line', async () => {
+    mocks.graphsList.mockImplementation(async () => [graphRow('g1', { definition: twoStepDefinition() })])
+    const wrapper = mount(GraphsList, stub)
+    await flushPromises()
+    await openEditor(wrapper)
+
+    // The transparent band is the tap target, so the 1.6 px curve is not the
+    // only thing a finger can hit.
+    const hit = wrapper.find('.editor-edge-hit')
+    expect(hit.exists()).toBe(true)
+    await hit.trigger('click')
+    await flushPromises()
+    const banner = wrapper.find('.editor-armed')
+    expect(banner.exists()).toBe(true)
+    expect(banner.text()).toContain('Step A · answer')
+    expect(banner.text()).toContain('Step B · v')
+
+    await banner
+      .findAll('button')
+      .find((button) => button.text() === 'Remove')
+      .trigger('click')
+    await flushPromises()
+    expect(wrapper.findAll('.editor-edge')).toHaveLength(0)
+    expect(wrapper.find('.editor-armed').exists()).toBe(false)
+  })
+
+  it('lays out after a connection when auto-layout is always', async () => {
+    localStorage.setItem('agentic.executionGraph.autoLayout', 'always')
+    mocks.graphsList.mockImplementation(async () => [graphRow('g1', { definition: untangledDefinition() })])
+    const wrapper = mount(GraphsList, stub)
+    await flushPromises()
+    await openEditor(wrapper)
+    expect(wrapper.findAll('.editor-node')[1].attributes('style')).toContain('left: 600px')
+
+    const source = wrapper.find('[data-node-id="a"][data-port-kind="output"]')
+    await source.trigger('pointerdown')
+    window.dispatchEvent(new PointerEvent('pointerup'))
+    await flushPromises()
+    await wrapper.find('[data-node-id="b"][data-port-kind="input"]').trigger('pointerdown')
+    await flushPromises()
+
+    const cards = wrapper.findAll('.editor-node')
+    expect(cards[0].attributes('style')).toContain('left: 40px')
+    // The new link puts the second step in a later column.
+    expect(cards[1].attributes('style')).toContain('left: 340px')
+  })
+
+  it('lays out after a connection is removed when auto-layout is on remove', async () => {
+    localStorage.setItem('agentic.executionGraph.autoLayout', 'remove')
+    mocks.graphsList.mockImplementation(async () => [graphRow('g1', { definition: twoStepDefinition() })])
+    const wrapper = mount(GraphsList, stub)
+    await flushPromises()
+    await openEditor(wrapper)
+
+    await wrapper.find('.editor-edge-hit').trigger('click')
+    await flushPromises()
+    await wrapper
+      .find('.editor-armed')
+      .findAll('button')
+      .find((button) => button.text() === 'Remove')
+      .trigger('click')
+    await flushPromises()
+
+    const cards = wrapper.findAll('.editor-node')
+    // With the link gone both steps share the first column and stack in rows.
+    expect(cards[0].attributes('style')).toContain('left: 40px')
+    expect(cards[0].attributes('style')).toContain('top: 40px')
+    expect(cards[1].attributes('style')).toContain('left: 40px')
+    expect(cards[1].attributes('style')).toContain('top: 190px')
+  })
+
+  it('remembers the auto-layout mode per device', async () => {
+    const wrapper = mount(GraphsList, stub)
+    await flushPromises()
+    await openEditor(wrapper)
+    await wrapper.find('.editor-layout-mode select').setValue('always')
+    expect(localStorage.getItem('agentic.executionGraph.autoLayout')).toBe('always')
+  })
+
+  it('saves triggers edited in the settings form', async () => {
+    mocks.graphsUpdate.mockResolvedValue(graphRow('g1'))
+    const wrapper = mount(GraphsList, stub)
+    await flushPromises()
+    await wrapper
+      .findAll('button')
+      .find((button) => button.text() === 'Settings')
+      .trigger('click')
+    await flushPromises()
+    // The existing schedule trigger's cron and its preview are visible.
+    const triggers = wrapper.findAll('.trigger-block')
+    expect(triggers).toHaveLength(1)
+    expect(wrapper.find('input[id="graph-g1-trigger-0-cron"]').element.value).toBe('0 9 * * *')
+    expect(wrapper.text()).toContain('Next 5 runs')
+
+    // A second trigger is added as a schedule, then switched to a webhook.
+    await wrapper
+      .findAll('button')
+      .find((button) => button.text() === '+ Trigger')
+      .trigger('click')
+    await wrapper.findAll('.trigger-type')[1].setValue('webhook')
+    expect(wrapper.text()).toContain('Save the graph to get the URL')
+
+    await wrapper
+      .findAll('button')
+      .find((button) => button.text() === 'Save settings')
+      .trigger('click')
+    await flushPromises()
+    expect(mocks.graphsUpdate).toHaveBeenCalledWith('g1', {
+      name: 'Graph g1',
+      description: '',
+      triggers: [
+        { id: 'tr1', type: 'schedule', config: { cron: '0 9 * * *', timezone: 'UTC' }, enabled: true },
+        { id: '', type: 'webhook', config: { secret: '' }, enabled: true }
+      ]
+    })
+  })
+
+  it('shows the URL of a saved webhook trigger', async () => {
+    mocks.graphsList.mockImplementation(async () => [
+      graphRow('g1', {
+        triggers: [{ id: 'tr2', type: 'webhook', config: { secret: '' }, enabled: true }],
+        next_run_at: null
+      })
+    ])
+    const wrapper = mount(GraphsList, stub)
+    await flushPromises()
+    await wrapper
+      .findAll('button')
+      .find((button) => button.text() === 'Settings')
+      .trigger('click')
+    await flushPromises()
+    expect(wrapper.text()).toContain('/api/graphs/g1/triggers/tr2/fire')
+  })
+
+  it('adds a step from the Add step menu', async () => {
+    const wrapper = mount(GraphsList, stub)
+    await flushPromises()
+    await wrapper
+      .findAll('button')
+      .find((button) => button.text() === 'Edit graph')
+      .trigger('click')
+    await flushPromises()
+
+    const add = wrapper.findAll('button').find((button) => button.text().includes('Add step'))
+    await add.trigger('click')
+    const menu = wrapper.get('.editor-add-menu')
+    expect(menu.findAll('.editor-add-item').map((item) => item.text())).toEqual([
+      expect.stringContaining('Agent run'),
+      expect.stringContaining('Agentic command'),
+      expect.stringContaining('Shell script'),
+      expect.stringContaining('Form'),
+      expect.stringContaining('Event trigger')
+    ])
+    await menu.findAll('.editor-add-item')[2].trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('.editor-add-menu').exists()).toBe(false)
+    expect(wrapper.findAll('.editor-node')).toHaveLength(2)
+    expect(wrapper.text()).toContain('Shell script')
   })
 
   it('runs a graph from its row', async () => {

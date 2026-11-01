@@ -9,6 +9,7 @@ from fakes.runs import RunsFake
 from fakes.schedules import SchedulesFake
 from fakes.stack import StackFake
 from fakes.tasks import TasksFake
+from fakes.webhooks import WebhooksFake
 
 
 class FakeClient(
@@ -21,5 +22,6 @@ class FakeClient(
     StackFake,
     SchedulesFake,
     MiscFake,
+    WebhooksFake,
 ):
     """A stand-in for AgenticClient returning plausible shapes per method."""

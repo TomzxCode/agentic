@@ -60,6 +60,7 @@ from .routers import (
     task_items,
     task_writes,
     tasks,
+    webhooks,
     worktrees,
 )
 from .routers import (
@@ -285,11 +286,14 @@ for module in (
     decisions,
     schedules,
     graphs_router,
+    webhooks,
 ):
     app.include_router(module.router)
 
 # The task- and item-side people links are mounted at their natural paths.
 app.include_router(people.link_router)
+# Inbound webhook entry points live outside /api/webhooks, at /api/hooks.
+app.include_router(webhooks.hook_router)
 
 
 # JSON-RPC 2.0 endpoint (mirrors ghx/slackx): POST /rpc.
