@@ -51,6 +51,7 @@ Out of scope: no automated test drives the `agentic graphs` CLI commands, and no
 | TC-23 | A webhook fire with the wrong, missing, or right secret, a disabled trigger, a non-webhook trigger, another graph's trigger, or a busy graph | 403, 403, 201 with trigger "webhook", 403, 400, 404, and 409 respectively |
 | TC-24 | Migration of the old schedule columns | Each graph with a schedule gains one schedule trigger carrying its cron, zone, enabled flag, and next run; the old columns are emptied; a second pass adds nothing |
 | TC-25 | Tap-to-connect on a small screen | An armed source row, a second tap on an eligible row, the source again, Cancel, and a drag that lands near but not on a port | The banner appears, eligible rows are marked, the second tap draws one edge, both cancels leave none, and a drag snaps to the nearest port within 48 px |
+| TC-26 | Disconnecting a connection on a phone | A tap 9 px off the drawn curve, then Remove | The banner names both ends, the edge selects, and Remove deletes it with no keyboard |
 
 ## Test Infrastructure
 
@@ -83,7 +84,7 @@ Out of scope: no automated test drives the `agentic graphs` CLI commands, and no
 | FR-17 | TC-13, TC-12 |
 | FR-18 | TC-9, TC-10, frontend graphsView suite |
 | FR-19 | TC-17 |
-| FR-20 | frontend graphsView suite (tabs, rows, run, delete confirm, expand execution, form submit and cancel, Arrange, auto-layout modes, trigger editing and webhook URL, tap-to-connect and cancel) |
+| FR-20 | frontend graphsView suite (tabs, rows, run, delete confirm, expand execution, form submit and cancel, Arrange, auto-layout modes, trigger editing and webhook URL, tap-to-connect and cancel, connection selection and Remove) |
 | FR-21 | none (manual; the CLI calls the same endpoints the backend suite covers; the trigger-file and shortcut helpers have unit tests) |
 | FR-22 | TC-8, TC-24 |
 | FR-23 | TC-23 |
@@ -92,4 +93,4 @@ Out of scope: no automated test drives the `agentic graphs` CLI commands, and no
 | NFR-3 | TC-9 to TC-16 (fast poll) |
 | NFR-4 | TC-14, TC-18 (timeout and render error paths; process kill is by code review) |
 | NFR-5 | TC-6 |
-| NFR-6 | TC-25 (connect gestures at phone width) |
+| NFR-6 | TC-25, TC-26 (connect and disconnect gestures at phone width) |

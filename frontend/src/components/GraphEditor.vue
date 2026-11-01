@@ -88,6 +88,29 @@ const edges = computed(() =>
     .filter((entry) => entry.points)
 )
 
+// A selected connection, named by its two ends, so the remove action can say
+// what it will disconnect and a phone never needs the Delete key.
+const selectedEdgeInfo = computed(() => {
+  const edge = definition.value.edges.find((candidate) => candidate.id === selectedEdge.value)
+  if (!edge) return null
+  const source = nodeById(edge.source)
+  const target = nodeById(edge.target)
+  if (!source || !target) return null
+  const sourceRow =
+    source.kind === 'form'
+      ? nodeRows(source).find((row) => row.kind === 'field' && row.id === edge.sourceFieldId)
+      : nodeRows(source).find((row) => row.kind === 'output')
+  const targetRow =
+    target.kind === 'form'
+      ? nodeRows(target).find((row) => row.kind === 'field' && row.id === edge.targetFieldId)
+      : nodeRows(target).find((row) => row.kind === 'input' && row.id === edge.targetInputId)
+  return {
+    edge,
+    source: `${source.title || source.id} · ${sourceRow?.label || '?'}`,
+    target: `${target.title || target.id} · ${targetRow?.label || '?'}`
+  }
+})
+
 function nodeById(id) {
   return definition.value.nodes.find((node) => node.id === id)
 }
@@ -100,6 +123,7 @@ function rowKey(node, row) {
 // so the finger never has to hold the source while finding its target.
 function arm(node, row) {
   if (row.kind === 'input') return
+  selectedEdge.value = ''
   armed.value = {
     sourceId: node.id,
     sourceFieldId: row.kind === 'field' ? row.id : '',
@@ -314,6 +338,7 @@ function onPointerCancel() {
 
 function startConnect(event, node, row) {
   event.stopPropagation()
+  selectedEdge.value = ''
   const point = portPoint(node, row)
   pending.value = {
     sourceId: node.id,
@@ -449,7 +474,8 @@ onBeforeUnmount(() => {
     </p>
     <p v-else class="faint editor-hint">
       Tap a step's output row, then tap the input or form field it should feed (on a computer you can also drag from a
-      right-side dot). Drag a card by its header to move it. Select something and press Delete to remove it.
+      right-side dot). Tap a connection line to select it, then press Remove. Drag a card by its header to move it.
+      Select something and press Delete to remove it.
     </p>
 
     <div v-if="armed" class="editor-armed" role="status">
@@ -460,18 +486,33 @@ onBeforeUnmount(() => {
       <button class="btn sm" @click="cancelConnect">Cancel</button>
     </div>
 
+    <div v-else-if="selectedEdgeInfo" class="editor-armed" role="status">
+      <span>
+        Connection <strong>{{ selectedEdgeInfo.source }}</strong> → <strong>{{ selectedEdgeInfo.target }}</strong
+        >.
+      </span>
+      <button class="btn sm danger" @click="deleteSelected">Remove</button>
+    </div>
+
     <div class="editor-body">
       <div class="editor-canvas" @pointerdown="onCanvasBackground">
         <div ref="content" class="editor-content" :style="{ width: `${size.width}px`, height: `${size.height}px` }">
           <svg class="editor-edges" :width="size.width" :height="size.height">
-            <path
-              v-for="entry in edges"
-              :key="entry.edge.id"
-              class="editor-edge"
-              :class="{ selected: selectedEdge === entry.edge.id, bad: issueSet.has(`edge:${entry.edge.id}`) }"
-              :d="edgePath(entry.points.from, entry.points.to)"
-              @click.stop="selectEdge(entry.edge.id)"
-            />
+            <template v-for="entry in edges" :key="entry.edge.id">
+              <path
+                class="editor-edge"
+                :class="{ selected: selectedEdge === entry.edge.id, bad: issueSet.has(`edge:${entry.edge.id}`) }"
+                :d="edgePath(entry.points.from, entry.points.to)"
+                @click.stop="selectEdge(entry.edge.id)"
+              />
+              <!-- A wide transparent band over the same curve, so a finger
+                   does not have to hit a 1.6 px stroke to select it. -->
+              <path
+                class="editor-edge-hit"
+                :d="edgePath(entry.points.from, entry.points.to)"
+                @click.stop="selectEdge(entry.edge.id)"
+              />
+            </template>
             <path
               v-if="pending"
               class="editor-edge pending"
@@ -640,8 +681,14 @@ onBeforeUnmount(() => {
         </template>
       </aside>
       <aside v-else class="editor-inspector faint">
-        Select a node to edit it. Connections run from an answer or a field value into a named input, and a form appears
-        only when its downstream step is ready.
+        <template v-if="selectedEdgeInfo">
+          Connection <strong>{{ selectedEdgeInfo.source }}</strong> → <strong>{{ selectedEdgeInfo.target }}</strong
+          >. Use Remove above to disconnect it.
+        </template>
+        <template v-else>
+          Select a node to edit it. Connections run from an answer or a field value into a named input, and a form
+          appears only when its downstream step is ready.
+        </template>
       </aside>
     </div>
   </div>
@@ -709,6 +756,15 @@ onBeforeUnmount(() => {
 }
 .editor-edge.selected {
   stroke: var(--danger);
+}
+/* The selectable band around a connection: invisible, but 24 px wide, so a
+   tap on a phone hits the curve instead of the canvas behind it. */
+.editor-edge-hit {
+  fill: none;
+  stroke: transparent;
+  stroke-width: 24;
+  pointer-events: stroke;
+  cursor: pointer;
 }
 .editor-edge.pending {
   stroke: var(--accent);

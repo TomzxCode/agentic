@@ -305,6 +305,32 @@ describe('GraphsList', () => {
     expect(wrapper.findAll('.editor-edge')).toHaveLength(0)
   })
 
+  it('removes a connection after tapping its line', async () => {
+    mocks.graphsList.mockImplementation(async () => [graphRow('g1', { definition: twoStepDefinition() })])
+    const wrapper = mount(GraphsList, stub)
+    await flushPromises()
+    await openEditor(wrapper)
+
+    // The transparent band is the tap target, so the 1.6 px curve is not the
+    // only thing a finger can hit.
+    const hit = wrapper.find('.editor-edge-hit')
+    expect(hit.exists()).toBe(true)
+    await hit.trigger('click')
+    await flushPromises()
+    const banner = wrapper.find('.editor-armed')
+    expect(banner.exists()).toBe(true)
+    expect(banner.text()).toContain('Step A · answer')
+    expect(banner.text()).toContain('Step B · v')
+
+    await banner
+      .findAll('button')
+      .find((button) => button.text() === 'Remove')
+      .trigger('click')
+    await flushPromises()
+    expect(wrapper.findAll('.editor-edge')).toHaveLength(0)
+    expect(wrapper.find('.editor-armed').exists()).toBe(false)
+  })
+
   it('remembers the auto-layout mode per device', async () => {
     const wrapper = mount(GraphsList, stub)
     await flushPromises()

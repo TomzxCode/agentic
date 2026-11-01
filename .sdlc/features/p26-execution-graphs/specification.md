@@ -121,6 +121,8 @@ A press that releases on the same row without moving arms it; a press that moves
 The card header is the drag handle and the only part that keeps `touch-action: none`; a swipe over a card body pans the canvas, so cards no longer block scrolling on a phone.
 Rows are 32 px tall so a tap lands inside the row it aims at, and an input's dot sits beside its label instead of at the opposite edge.
 
+A connection is selected by tapping anywhere within 24 px of its curve, through a transparent hit path drawn over the visible stroke; the banner then names both ends and its Remove button disconnects them, so no Delete key is needed on a phone.
+
 ## API Contracts
 
 | Method | Path | Purpose |
