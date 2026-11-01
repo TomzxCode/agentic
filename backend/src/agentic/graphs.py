@@ -1,12 +1,16 @@
-"""Execution graphs: DAGs of agent runs, CLI commands, and forms, fired on demand or cron.
+"""Execution graphs: DAGs of agent runs, Agentic commands, shell scripts, forms, and event triggers.
 
-A graph definition is ``{"nodes": [...], "edges": [...]}``. A run node holds a
-prompt template whose ``{{name}}`` placeholders read named inputs; a cli node
-holds an agentic CLI command line whose placeholders fill its arguments; an
-edge feeds one upstream output (an agent run's final answer, a command's
-stdout, or a form field value) into one downstream input. A form node pauses
-the execution until someone answers it in the web UI, and its answers flow
-downstream like run outputs.
+A graph definition is ``{"nodes": [...], "edges": [...]}``. An agent run node
+holds a prompt template whose ``{{name}}`` placeholders read named inputs; an
+Agentic command node holds an ``agentic`` command line whose placeholders fill
+its arguments; a shell script node holds a bash script whose placeholders fill
+its body; an
+edge feeds one upstream output (an agent run's final answer, a command's or
+script's stdout, a form field value, or an event payload value) into one
+downstream input. A form node pauses the execution until someone answers it in
+the web UI, and its answers flow downstream like run outputs. A trigger node is
+the graph's entry point for a webhook event: each of its outputs reads one JSON
+path from the event payload.
 
 The executor walks the DAG in the API process: it renders each ready run
 node's prompt, enqueues an agent run on the SAQ queue, and polls the run's row
@@ -24,6 +28,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import json
 import os
 import re
 import shlex
@@ -33,29 +38,34 @@ import structlog
 from sqlalchemy import or_
 from sqlmodel import Session, col, select
 
+from . import triggers
 from .checklists import apply_task_templates
 from .config import settings
 from .db import engine
 from .models.agents import AgentEvent, AgentRun
 from .models.base import GraphExecutionStatus, RunStatus, TaskStatus, utcnow
-from .models.graphs import ExecutionGraph, GraphExecution
+from .models.graphs import ExecutionGraph, GraphExecution, GraphTrigger
 from .models.tasks import Task
 
 log = structlog.get_logger(__name__)
 
 # --- definition contract ---------------------------------------------------
 
-NODE_KINDS = ("run", "form", "cli")
+NODE_KINDS = ("trigger", "run", "form", "cli", "shell")
 FIELD_TYPES = ("text", "textarea", "number", "date", "time", "select", "slider", "checkbox")
 # Field types whose value is a number bounded by min/max/step.
 NUMERIC_FIELD_TYPES = ("number", "slider")
 
 # Nodes with named inputs and one output (the node kinds an edge can feed).
-OUTPUT_NODE_KINDS = ("run", "cli")
+OUTPUT_NODE_KINDS = ("run", "cli", "shell")
 
 MAX_NODES = 32
 MAX_FIELDS = 20
 MAX_SELECT_OPTIONS = 20
+# Trigger outputs are the JSON paths an event payload exposes downstream.
+MAX_TRIGGER_OUTPUTS = 20
+# Beyond this a trigger node's event values are stored truncated, like run output.
+MAX_TRIGGER_VALUE = 20_000
 
 # Input names appear inside template placeholders, so they may not contain
 # whitespace or any character that is part of the placeholder grammar.
@@ -73,7 +83,7 @@ NODE_SKIPPED = "skipped"  # an upstream failed, or the form was never needed
 
 TERMINAL_NODE_STATES = {NODE_DONE, NODE_FAILED, NODE_SKIPPED}
 
-# Keep at most this many characters of a run node's output, both in the state
+# Keep at most this many characters of an output node's result, both in the state
 # row and as a downstream input value.
 MAX_OUTPUT = 20_000
 
@@ -116,6 +126,12 @@ def normalize_definition(raw: Any) -> dict[str, Any]:
             clean["command"] = str(node.get("command") or "")
             clean["cwd"] = str(node.get("cwd") or "").strip()
             clean["inputs"] = _inputs(node.get("inputs"))
+        elif kind == "shell":
+            clean["script"] = str(node.get("script") or "")
+            clean["cwd"] = str(node.get("cwd") or "").strip()
+            clean["inputs"] = _inputs(node.get("inputs"))
+        elif kind == "trigger":
+            clean["outputs"] = _trigger_outputs(node.get("outputs"))
         else:
             clean["fields"] = _fields(node.get("fields"))
         nodes.append(clean)
@@ -155,6 +171,27 @@ def _inputs(raw: Any) -> list[dict[str, str]]:
             continue
         inputs.append({"id": str(item.get("id") or "").strip(), "name": name})
     return inputs
+
+
+def _trigger_outputs(raw: Any) -> list[dict[str, str]]:
+    """A trigger node's outputs: a label plus the payload path it reads."""
+    outputs: list[dict[str, str]] = []
+    for item in raw or []:
+        if len(outputs) >= MAX_TRIGGER_OUTPUTS:
+            break
+        if not isinstance(item, dict):
+            continue
+        path = str(item.get("path") or "").strip()
+        if not path:
+            continue
+        outputs.append(
+            {
+                "id": str(item.get("id") or "").strip(),
+                "name": str(item.get("name") or path).strip(),
+                "path": path,
+            }
+        )
+    return outputs
 
 
 def _fields(raw: Any) -> list[dict[str, Any]]:
@@ -214,6 +251,8 @@ def validate_definition(definition: dict[str, Any]) -> list[str]:
             issues.append(f"Node '{node_id}' needs a title")
         if node.get("kind") == "form":
             issues.extend(_validate_form_node(node))
+        elif node.get("kind") == "trigger":
+            issues.extend(_validate_trigger_node(node))
         else:
             issues.extend(_validate_output_node(node))
 
@@ -221,6 +260,13 @@ def validate_definition(definition: dict[str, Any]) -> list[str]:
     for title in set(titles):
         if titles.count(title) > 1:
             issues.append(f"Two nodes are titled '{title}'")
+
+    triggers = [node for node in nodes if node.get("kind") == "trigger"]
+    if len(triggers) > 1:
+        issues.append("A graph holds at most one event trigger")
+    for trigger in triggers:
+        if any(edge.get("target") == trigger.get("id") for edge in edges):
+            issues.append(f"'{trigger.get('title')}' is an event trigger and cannot take a connection")
 
     seen_edges: set[str] = set()
     for edge in edges:
@@ -231,7 +277,7 @@ def validate_definition(definition: dict[str, Any]) -> list[str]:
     for node in by_id.values():
         if node.get("kind") not in OUTPUT_NODE_KINDS:
             continue
-        text_field = "command" if node["kind"] == "cli" else "promptTemplate"
+        text_field = _node_text_field(node)
         referenced = _template_names(node.get(text_field) or "")
         for item in node.get("inputs") or []:
             name = item.get("name") or ""
@@ -246,12 +292,19 @@ def validate_definition(definition: dict[str, Any]) -> list[str]:
     return issues
 
 
+def _node_text_field(node: dict[str, Any]) -> str:
+    """The definition key holding an output node's template text."""
+    return {"cli": "command", "shell": "script"}.get(node.get("kind") or "", "promptTemplate")
+
+
 def _validate_output_node(node: dict[str, Any]) -> list[str]:
-    """A run or cli node: named inputs, template placeholders, and its text."""
+    """A run, cli, or shell node: named inputs, template placeholders, and its text."""
     issues: list[str] = []
     title = node.get("title") or node.get("id") or "node"
     if node["kind"] == "cli":
         text_field, label = "command", "command"
+    elif node["kind"] == "shell":
+        text_field, label = "script", "script"
     else:
         text_field, label = "promptTemplate", "prompt"
     template = node.get(text_field) or ""
@@ -301,6 +354,33 @@ def _validate_form_node(node: dict[str, Any]) -> list[str]:
     return issues
 
 
+def _validate_trigger_node(node: dict[str, Any]) -> list[str]:
+    """An event trigger: at least one JSON-path output, each with an id."""
+    issues: list[str] = []
+    title = node.get("title") or node.get("id") or "trigger"
+    outputs = node.get("outputs") or []
+    if not outputs:
+        issues.append(f"Trigger '{title}' needs at least one event field")
+        return issues
+    ids: set[str] = set()
+    names: set[str] = set()
+    for item in outputs:
+        output_id = item.get("id") or ""
+        if not output_id:
+            issues.append(f"Trigger '{title}' has an event field without an id")
+            continue
+        if output_id in ids:
+            issues.append(f"Trigger '{title}' has two event fields with the id '{output_id}'")
+        ids.add(output_id)
+        name = item.get("name") or ""
+        if name in names:
+            issues.append(f"Trigger '{title}' has two event fields named '{name}'")
+        names.add(name)
+        if not item.get("path"):
+            issues.append(f"Event field '{name or output_id}' needs a payload path")
+    return issues
+
+
 def _validate_edge(edge: dict[str, Any], by_id: dict[str, dict[str, Any]], seen_edges: set[str]) -> list[str]:
     issues: list[str] = []
     key = (
@@ -319,12 +399,17 @@ def _validate_edge(edge: dict[str, Any], by_id: dict[str, dict[str, Any]], seen_
     if source is target:
         issues.append(f"'{source.get('title')}' cannot connect to itself")
         return issues
-    if source.get("kind") in OUTPUT_NODE_KINDS:
+    if source.get("kind") == "trigger":
+        if not any(item.get("id") == edge.get("sourceFieldId") for item in source.get("outputs") or []):
+            issues.append(f"'{source.get('title')}' has no event field for one connection")
+    elif source.get("kind") in OUTPUT_NODE_KINDS:
         if edge.get("sourceFieldId"):
             issues.append(f"'{source.get('title')}' has no field outputs")
     elif not any(field.get("id") == edge.get("sourceFieldId") for field in source.get("fields") or []):
         issues.append(f"'{source.get('title')}' has no field for one connection")
-    if target.get("kind") in OUTPUT_NODE_KINDS:
+    if target.get("kind") == "trigger":
+        issues.append(f"'{target.get('title')}' is an event trigger and cannot take a connection")
+    elif target.get("kind") in OUTPUT_NODE_KINDS:
         if edge.get("targetFieldId") or not any(
             item.get("id") == edge.get("targetInputId") for item in target.get("inputs") or []
         ):
@@ -391,6 +476,73 @@ def render_template(template: str, values: dict[str, list[str]]) -> tuple[str, l
     return TEMPLATE_RE.sub(replace, template or ""), errors
 
 
+# --- event payload values --------------------------------------------------
+# A trigger node reads its outputs from the event payload by a small path
+# grammar: dotted keys, with [n] or .n to index a list. A leading "payload." or
+# "$." is accepted so the GitHub-shaped names read naturally.
+_PATH_SEGMENT_RE = re.compile(r"([^.\[\]]+)|\[(\d+)\]")
+
+# The marker for a payload path that does not exist, so a filter can tell
+# "absent" from "present with an empty value".
+EVENT_MISSING = object()
+
+
+def _event_segments(path: str) -> list[str]:
+    text = (path or "").strip()
+    if text.startswith("$."):
+        text = text[2:]
+    elif text.startswith("$"):
+        text = text[1:].lstrip(".")
+    segments: list[str] = []
+    for match in _PATH_SEGMENT_RE.finditer(text):
+        segments.append(match.group(1) if match.group(1) is not None else match.group(2))
+    if segments and segments[0] == "payload":
+        segments = segments[1:]
+    return segments
+
+
+def _event_text(value: Any) -> str:
+    """A payload value as text: strings as-is, objects as JSON, missing as empty."""
+    if value is None:
+        return ""
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, str):
+        return value[:MAX_TRIGGER_VALUE]
+    text = json.dumps(value, ensure_ascii=False, default=str) if isinstance(value, (dict, list)) else str(value)
+    return text[:MAX_TRIGGER_VALUE]
+
+
+def resolve_event_path(payload: dict[str, Any], path: str) -> str:
+    """Read one value from an event payload, or "" when the path does not exist."""
+    value = resolve_event_value(payload, path)
+    if value is EVENT_MISSING:
+        return ""
+    return _event_text(value)
+
+
+def resolve_event_value(payload: dict[str, Any], path: str) -> Any:
+    """The raw value at a payload path, or :data:`EVENT_MISSING`."""
+    if not isinstance(payload, dict):
+        return EVENT_MISSING
+    value: Any = payload
+    for segment in _event_segments(path):
+        if isinstance(value, dict):
+            if segment not in value:
+                return EVENT_MISSING
+            value = value[segment]
+        elif isinstance(value, list) and segment.isdigit() and int(segment) < len(value):
+            value = value[int(segment)]
+        else:
+            return EVENT_MISSING
+    return value
+
+
+def trigger_values(node: dict[str, Any], payload: dict[str, Any]) -> dict[str, str]:
+    """One trigger node's outputs, keyed by output id."""
+    return {item["id"]: resolve_event_path(payload, item.get("path") or "") for item in node.get("outputs") or []}
+
+
 # --- execution -------------------------------------------------------------
 # The orchestrator tasks and pending form futures live in the API process only,
 # keyed by execution id (forms by (execution id, node id)).
@@ -404,15 +556,30 @@ def _new_state(definition: dict[str, Any], order: list[str]) -> dict[str, Any]:
         "nodes": {node["id"]: {"status": NODE_PENDING} for node in definition["nodes"]},
         "outputs": {},
         "formValues": {},
+        "triggerValues": {},
+        # The event that started this execution, when one did.
+        "trigger": {},
         "pendingForm": None,
     }
 
 
-async def start_execution(session: Session, graph: ExecutionGraph, *, trigger: str) -> str:
+async def start_execution(
+    session: Session,
+    graph: ExecutionGraph,
+    *,
+    trigger: str,
+    trigger_id: str = "",
+    event: dict[str, Any] | None = None,
+) -> str:
     """Create the execution's task and row, then start orchestrating in the background.
 
-    Raises ``ValueError`` when the definition would not run or the graph
-    already has a running execution; the router turns that into a 409.
+    ``trigger`` names what started it (``manual``, a schedule trigger's type, or
+    an ``event:`` webhook event) and ``trigger_id`` the trigger row when one
+    did. ``event`` carries the webhook payload that started this run, when
+    there is one; a trigger node reads its outputs from it. Raises
+    ``ValueError`` when
+    the definition would not run or the graph already has a running execution;
+    the router turns that into a 409.
     """
     definition = normalize_definition(graph.definition)
     issues = validate_definition(definition)
@@ -432,18 +599,18 @@ async def start_execution(session: Session, graph: ExecutionGraph, *, trigger: s
     session.add(task)
     session.flush()
     order = topological_order(definition["nodes"], definition["edges"]) or []
+    state = _new_state(definition, order)
+    if event:
+        state["trigger"] = event
     execution = GraphExecution(
         graph_id=graph.id,
         task_id=task.id,
         trigger=trigger,
-        state=_new_state(definition, order),
+        trigger_id=trigger_id,
+        state=state,
     )
     session.add(execution)
     graph.last_run_at = utcnow()
-    if graph.enabled and graph.schedule:
-        from .schedules import compute_next_run
-
-        graph.next_run_at = compute_next_run(graph.schedule, base=graph.last_run_at, timezone=graph.timezone)
     session.add(graph)
     session.commit()
     session.refresh(execution)
@@ -583,15 +750,32 @@ async def _advance(
         if any(_status(state, edge["source"]) in (NODE_FAILED, NODE_SKIPPED) for edge in incoming):
             _set_node(state, node_id, status=NODE_SKIPPED, error="An upstream node did not finish")
             progressed = True
+        elif node["kind"] == "trigger":
+            _complete_trigger_node(node, state)
+            progressed = True
         elif node["kind"] == "run":
             await _start_run_node(execution_id, node, incoming, nodes, state)
             progressed = True
         elif node["kind"] == "cli":
             await _start_cli_node(execution_id, node, incoming, nodes, state)
             progressed = True
+        elif node["kind"] == "shell":
+            await _start_shell_node(execution_id, node, incoming, nodes, state)
+            progressed = True
         elif await _request_form(execution_id, node, incoming, nodes, edges, state):
             progressed = True
     return progressed
+
+
+def _complete_trigger_node(node: dict[str, Any], state: dict[str, Any]) -> None:
+    """Resolve the event payload into the trigger's outputs and mark it done.
+
+    A manual or scheduled run has no payload, so every output resolves to an
+    empty string and the downstream nodes still run.
+    """
+    payload = (state.get("trigger") or {}).get("payload") or {}
+    state.setdefault("triggerValues", {})[node["id"]] = trigger_values(node, payload)
+    _set_node(state, node["id"], status=NODE_DONE)
 
 
 def _input_values(
@@ -609,7 +793,11 @@ def _input_values(
         source = nodes.get(edge.get("source") or "")
         if source is None:
             continue
-        if source.get("kind") in OUTPUT_NODE_KINDS:
+        if source.get("kind") == "trigger":
+            value = str(
+                (state.get("triggerValues", {}).get(source["id"]) or {}).get(edge.get("sourceFieldId") or "", "")
+            )
+        elif source.get("kind") in OUTPUT_NODE_KINDS:
             value = str(state.get("outputs", {}).get(source["id"], ""))
         else:
             field_values = state.get("formValues", {}).get(source["id"]) or {}
@@ -619,7 +807,7 @@ def _input_values(
 
 
 def _resolve_cwd(session: Session, task: Task, explicit: str) -> str:
-    """The directory a run node executes in: the node's own, else the task's."""
+    """The directory an agent run node executes in: the node's own, else the task's."""
     from pathlib import Path
 
     if explicit:
@@ -685,7 +873,7 @@ async def _start_run_node(
 
         await enqueue_run(run_id)
     except Exception as exc:  # noqa: BLE001
-        log.warning("failed to start graph run node", execution_id=execution_id, node=node["id"], error=str(exc))
+        log.warning("failed to start graph agent run node", execution_id=execution_id, node=node["id"], error=str(exc))
         _set_node(state, node["id"], status=NODE_FAILED, error=str(exc))
         return
     _set_node(state, node["id"], status=NODE_RUNNING, run_id=run_id)
@@ -703,11 +891,11 @@ def _cli_binary() -> str:
     return shutil.which("agentic") or "agentic"
 
 
-async def _run_cli(argv: list[str], cwd: str, env: dict[str, str]) -> tuple[int | None, str]:
-    """Run one agentic CLI invocation to completion; (exit code, combined output).
+async def _run_process(argv: list[str], cwd: str, env: dict[str, str]) -> tuple[int | None, str]:
+    """Run one child process to completion; (exit code, combined output).
 
     The child is killed when the orchestrator task is cancelled, so stopping an
-    execution does not leave CLI processes behind.
+    execution does not leave CLI or shell processes behind.
     """
     proc = await asyncio.create_subprocess_exec(
         *argv,
@@ -729,6 +917,16 @@ async def _run_cli(argv: list[str], cwd: str, env: dict[str, str]) -> tuple[int 
             await proc.wait()
         raise
     return proc.returncode, stdout.decode("utf-8", "replace")
+
+
+async def _run_cli(argv: list[str], cwd: str, env: dict[str, str]) -> tuple[int | None, str]:
+    """Run one Agentic CLI invocation; see :func:`_run_process`."""
+    return await _run_process(argv, cwd, env)
+
+
+async def _run_shell(script: str, cwd: str, env: dict[str, str]) -> tuple[int | None, str]:
+    """Run one bash script with ``bash -c``; see :func:`_run_process`."""
+    return await _run_process(["bash", "-c", script], cwd, env)
 
 
 async def _start_cli_node(
@@ -762,7 +960,44 @@ async def _start_cli_node(
     except asyncio.CancelledError:
         raise
     except Exception as exc:  # noqa: BLE001
-        log.warning("cli node failed", execution_id=execution_id, node=node["id"], error=str(exc))
+        log.warning("agentic command node failed", execution_id=execution_id, node=node["id"], error=str(exc))
+        _set_node(state, node["id"], status=NODE_FAILED, error=str(exc))
+        return
+    output = output[:MAX_OUTPUT]
+    if exit_code == 0:
+        state.setdefault("outputs", {})[node["id"]] = output
+        _set_node(state, node["id"], status=NODE_DONE)
+    else:
+        detail = f"exit {exit_code}: {output[-400:]}" if output else f"exit {exit_code}"
+        _set_node(state, node["id"], status=NODE_FAILED, error=detail)
+
+
+async def _start_shell_node(
+    execution_id: str,
+    node: dict[str, Any],
+    incoming: list[dict[str, Any]],
+    nodes: dict[str, dict[str, Any]],
+    state: dict[str, Any],
+) -> None:
+    """Run one bash script with its placeholders filled from upstream inputs.
+
+    The node's output is the script's combined stdout and stderr, which
+    downstream inputs consume like a run's answer. A non-zero exit, a render
+    error, or a timeout fails the node.
+    """
+    script, errors = render_template(node.get("script") or "", _input_values(node, incoming, nodes, state))
+    if errors or not script.strip():
+        detail = "; ".join(errors) or "The script is empty"
+        _set_node(state, node["id"], status=NODE_FAILED, error=detail)
+        return
+    env = {**os.environ, "AGENTIC_API_URL": _self_api_url()}
+    _set_node(state, node["id"], status=NODE_RUNNING)
+    try:
+        exit_code, output = await _run_shell(script, node.get("cwd") or "", env)
+    except asyncio.CancelledError:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        log.warning("shell node failed", execution_id=execution_id, node=node["id"], error=str(exc))
         _set_node(state, node["id"], status=NODE_FAILED, error=str(exc))
         return
     output = output[:MAX_OUTPUT]
@@ -782,7 +1017,7 @@ def _self_api_url() -> str:
 def _run_consumers(
     node: dict[str, Any], edges: list[dict[str, Any]], nodes: dict[str, dict[str, Any]]
 ) -> list[dict[str, Any]]:
-    """The run nodes directly downstream of this form node."""
+    """The output nodes directly downstream of this form node."""
     consumers: list[dict[str, Any]] = []
     for edge in edges:
         target = edge.get("target") or ""
@@ -1033,41 +1268,46 @@ def _finalize(
         )
 
 
-# --- cron scheduling -------------------------------------------------------
+# --- trigger scheduling ----------------------------------------------------
 async def run_due_once() -> int:
-    """Fire every enabled graph whose next occurrence has passed.
+    """Fire every enabled schedule trigger whose next occurrence has passed.
 
     The occurrence is advanced before the execution starts, so a slow one is
-    never fired twice; when the previous execution still runs, the fire is
-    skipped and only the schedule moves on.
+    never fired twice; when the graph's previous execution still runs, the fire
+    is skipped and only the trigger moves on.
     """
     now = utcnow()
     with Session(engine) as session:
         due = session.exec(
-            select(ExecutionGraph)
-            .where(col(ExecutionGraph.enabled) == True)  # noqa: E712
-            .where(col(ExecutionGraph.schedule).is_not(None), col(ExecutionGraph.schedule) != "")
-            .where(or_(col(ExecutionGraph.next_run_at).is_(None), col(ExecutionGraph.next_run_at) <= now))
+            select(GraphTrigger)
+            .where(col(GraphTrigger.type) == triggers.SCHEDULE)
+            .where(col(GraphTrigger.enabled) == True)  # noqa: E712
+            .where(or_(col(GraphTrigger.next_run_at).is_(None), col(GraphTrigger.next_run_at) <= now))
         ).all()
-        graph_ids = [graph.id for graph in due]
+        trigger_ids = [row.id for row in due]
     started = 0
-    from .schedules import compute_next_run
-
-    for graph_id in graph_ids:
+    for trigger_id in trigger_ids:
         with Session(engine) as session:
-            graph = session.get(ExecutionGraph, graph_id)
-            if graph is None or not graph.enabled or not graph.schedule:
+            row = session.get(GraphTrigger, trigger_id)
+            if row is None or not row.enabled or row.type != triggers.SCHEDULE:
                 continue
-            graph.last_run_at = utcnow()
-            graph.next_run_at = compute_next_run(graph.schedule, base=graph.last_run_at, timezone=graph.timezone)
-            busy = _active_execution_id(session, graph.id) is not None
-            session.add(graph)
+            graph = session.get(ExecutionGraph, row.graph_id)
+            if graph is None:
+                # A trigger whose graph went away is orphaned; drop it.
+                session.delete(row)
+                session.commit()
+                continue
+            row.last_run_at = utcnow()
+            row.next_run_at = triggers.next_run(
+                {"type": row.type, "config": row.config or {}, "enabled": row.enabled}, base=row.last_run_at
+            )
+            session.add(row)
             session.commit()
-            if busy:
-                log.info("skipped graph execution, one is already running", graph_id=graph_id)
+            if _active_execution_id(session, graph.id) is not None:
+                log.info("skipped graph execution, one is already running", graph_id=graph.id)
                 continue
             session.refresh(graph)
-            await start_execution(session, graph, trigger="schedule")
+            await start_execution(session, graph, trigger=row.type, trigger_id=row.id)
         started += 1
     return started
 

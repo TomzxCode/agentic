@@ -281,12 +281,21 @@ def _schedule_run_text(run: dict) -> str:
     return "\n".join(lines)
 
 
+def _trigger_line(trigger: dict) -> str:
+    """A trigger as one short label: 'schedule 0 9 * * *' or 'webhook'."""
+    ttype = trigger.get("type") or ""
+    if ttype == "schedule":
+        return f"schedule {(trigger.get('config') or {}).get('cron') or '-'}"
+    return ttype or "trigger"
+
+
 def _execution_graph_line(graph: dict) -> str:
-    state = "on " if graph.get("enabled") else "off"
-    schedule = graph.get("schedule") or "-"
-    nxt = _format_in_zone(graph.get("next_run_at"), graph.get("timezone"))
+    triggers = [trigger for trigger in graph.get("triggers") or [] if trigger.get("enabled")]
+    state = "on " if triggers else "off"
+    summary = ", ".join(_trigger_line(trigger) for trigger in triggers) or "manual"
+    nxt = _format_in_zone(graph.get("next_run_at"), None)
     running = "RUNNING" if graph.get("running_execution_id") else "-"
-    return f"{graph['id']}  {state}  {schedule:<15} next {nxt:<16} {running:<7} {graph['name']}"
+    return f"{graph['id']}  {state}  {summary[:28]:<28} next {nxt:<16} {running:<7} {graph['name']}"
 
 
 def _execution_graph_text(graph: dict) -> str:
@@ -295,6 +304,14 @@ def _execution_graph_text(graph: dict) -> str:
         lines.append(f"  description: {graph['description']}")
     nodes = (graph.get("definition") or {}).get("nodes") or []
     lines.append(f"  nodes: {len(nodes)}, connections: {len((graph.get('definition') or {}).get('edges') or [])}")
+    for trigger in graph.get("triggers") or []:
+        config = trigger.get("config") or {}
+        details = [f"{key} {value}" for key, value in config.items() if value and key != "secret"]
+        if trigger.get("type") == "webhook" and config.get("secret"):
+            details.append("secret set")
+        state = "on" if trigger.get("enabled") else "off"
+        suffix = f" ({(', '.join(details))})" if details else ""
+        lines.append(f"  trigger: {trigger.get('type')} [{state}]{suffix}")
     return "\n".join(lines)
 
 
