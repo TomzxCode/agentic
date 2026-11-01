@@ -144,6 +144,27 @@ agentic schedule runs <schedule>     # one task's run history
 agentic schedule runs                # every task's executions, newest first
 ```
 
+### Execution graphs
+
+```bash
+agentic graphs list                  # workflows, with next and last run
+agentic graphs create --name "Build" --definition graph.json
+agentic graphs run <graph>           # start an execution now
+agentic graphs executions            # every graph's executions, newest first
+agentic graphs executions <execution>
+```
+
+### Webhooks
+
+```bash
+agentic webhooks list                # entry points, with workflow and event counts
+agentic webhooks create --name "GitHub PRs" --kind github --secret "$SECRET"
+agentic webhooks subscribe <endpoint> <graph> --event pull_request --filter action=opened
+agentic webhooks events <endpoint>   # stored deliveries, newest first
+agentic webhooks event <event>       # payload and the workflows it started
+agentic webhooks replay <event>      # run those workflows again
+```
+
 ### Settings
 
 ```bash

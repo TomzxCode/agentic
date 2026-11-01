@@ -94,6 +94,8 @@ def test_rules_match_status_priority_people_and_requesters():
         for task_id in (task["id"], other["id"]):
             client.delete(f"/api/tasks/{task_id}")
         client.delete(f"/api/checklist-templates/{template['id']}")
+        client.delete(f"/api/people/{person['id']}")
+        client.delete(f"/api/people/{requester['id']}")
 
 
 def test_waiting_on_and_exclusion_operators():

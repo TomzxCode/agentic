@@ -7,7 +7,7 @@
 
 export const NODE_WIDTH = 208
 export const HEADER_HEIGHT = 34
-export const ROW_HEIGHT = 26
+export const ROW_HEIGHT = 32
 // Distance between topological layers, and between stacked nodes in one.
 export const LAYER_GAP = 300
 export const ROW_GAP = 150
@@ -22,6 +22,20 @@ const TEMPLATE_RE = /\{\{\s*([^\s.[\]{}"()]+)\s*(?:\[\s*(\d+)\s*\]|\.\s*join\(\s
 export const FIELD_TYPES = ['text', 'textarea', 'number', 'date', 'time', 'select', 'slider', 'checkbox']
 const NUMERIC_TYPES = ['number', 'slider']
 
+// The words the editor shows for each internal node kind. The stored kind names
+// stay short and stable so existing definitions keep loading.
+export const NODE_KIND_LABELS = {
+  run: 'Agent run',
+  cli: 'Agentic command',
+  shell: 'Shell script',
+  form: 'Form',
+  trigger: 'Event trigger'
+}
+
+export function nodeKindLabel(kind) {
+  return NODE_KIND_LABELS[kind] || kind
+}
+
 export function newId(prefix = '') {
   return `${prefix}${Math.random().toString(16).slice(2, 10)}${Math.random().toString(16).slice(2, 6)}`
 }
@@ -34,7 +48,7 @@ export function blankRunNode(position = { x: 40, y: 40 }) {
   return {
     id: newId('n'),
     kind: 'run',
-    title: 'New step',
+    title: 'New agent run',
     position,
     harnessId: '',
     model: '',
@@ -48,10 +62,22 @@ export function blankCliNode(position = { x: 40, y: 40 }) {
   return {
     id: newId('n'),
     kind: 'cli',
-    title: 'New command',
+    title: 'New Agentic command',
     position,
     cwd: '',
     command: '',
+    inputs: []
+  }
+}
+
+export function blankShellNode(position = { x: 40, y: 40 }) {
+  return {
+    id: newId('n'),
+    kind: 'shell',
+    title: 'New shell script',
+    position,
+    cwd: '',
+    script: '',
     inputs: []
   }
 }
@@ -64,6 +90,22 @@ export function blankFormNode(position = { x: 40, y: 40 }) {
     position,
     fields: [{ ...blankField(), title: 'Answer' }]
   }
+}
+
+// The entry point of an event-triggered workflow: each output reads one JSON
+// path from the webhook payload and feeds it to a downstream input.
+export function blankTriggerNode(position = { x: 40, y: 40 }) {
+  return {
+    id: newId('n'),
+    kind: 'trigger',
+    title: 'Event trigger',
+    position,
+    outputs: [{ id: newId('o'), name: 'value', path: 'body' }]
+  }
+}
+
+export function blankTriggerOutput() {
+  return { id: newId('o'), name: 'value', path: '' }
 }
 
 export function blankField() {
@@ -93,9 +135,19 @@ export function normalizeDefinition(raw) {
 }
 
 function normalizeNode(node) {
+  const kind =
+    node?.kind === 'form'
+      ? 'form'
+      : node?.kind === 'cli'
+        ? 'cli'
+        : node?.kind === 'shell'
+          ? 'shell'
+          : node?.kind === 'trigger'
+            ? 'trigger'
+            : 'run'
   const clean = {
     id: String(node?.id || ''),
-    kind: node?.kind === 'form' ? 'form' : node?.kind === 'cli' ? 'cli' : 'run',
+    kind,
     title: String(node?.title || ''),
     position: {
       x: Number(node?.position?.x) || 0,
@@ -115,6 +167,22 @@ function normalizeNode(node) {
     clean.cwd = String(node?.cwd || '')
     clean.inputs = Array.isArray(node?.inputs)
       ? node.inputs.map((input) => ({ id: String(input?.id || ''), name: String(input?.name || '') }))
+      : []
+  } else if (clean.kind === 'shell') {
+    clean.script = String(node?.script || '')
+    clean.cwd = String(node?.cwd || '')
+    clean.inputs = Array.isArray(node?.inputs)
+      ? node.inputs.map((input) => ({ id: String(input?.id || ''), name: String(input?.name || '') }))
+      : []
+  } else if (clean.kind === 'trigger') {
+    clean.outputs = Array.isArray(node?.outputs)
+      ? node.outputs
+          .filter((output) => String(output?.path || '').trim())
+          .map((output) => ({
+            id: String(output?.id || ''),
+            name: String(output?.name || output?.path || ''),
+            path: String(output?.path || '')
+          }))
       : []
   } else {
     clean.fields = Array.isArray(node?.fields)
@@ -181,8 +249,11 @@ export function dropDanglingEdges(definition) {
     const source = byId.get(edge.source)
     const target = byId.get(edge.target)
     if (!source || !target) return false
+    if (target.kind === 'trigger') return false
     if (source.kind === 'form') {
       if (!source.fields.some((field) => field.id === edge.sourceFieldId)) return false
+    } else if (source.kind === 'trigger') {
+      if (!source.outputs.some((output) => output.id === edge.sourceFieldId)) return false
     } else if (edge.sourceFieldId) {
       return false
     }
@@ -205,8 +276,14 @@ export function canConnect(definition, sourceId, sourceFieldId, targetId, port) 
   const source = definition.nodes.find((node) => node.id === sourceId)
   const target = definition.nodes.find((node) => node.id === targetId)
   if (!source || !target) return false
-  if (source.kind !== 'form' && sourceFieldId) return false
-  if (source.kind === 'form' && !source.fields.some((field) => field.id === sourceFieldId)) return false
+  if (target.kind === 'trigger') return false
+  if (source.kind === 'form') {
+    if (!source.fields.some((field) => field.id === sourceFieldId)) return false
+  } else if (source.kind === 'trigger') {
+    if (!source.outputs.some((output) => output.id === sourceFieldId)) return false
+  } else if (sourceFieldId) {
+    return false
+  }
   if (target.kind === 'form') {
     if (port.kind !== 'field') return false
     return target.fields.some((field) => field.id === port.id)
@@ -235,6 +312,24 @@ export function connect(definition, sourceId, sourceFieldId, targetId, port) {
   return { ...definition, edges: [...definition.edges, edge] }
 }
 
+// The eligible target port nearest a canvas point, within `radius`, or null.
+// A finger rarely lands exactly on a 10px dot, so a drag that misses the row
+// by a few pixels still connects to the port it was aiming at.
+export function nearestPort(definition, sourceId, sourceFieldId, point, radius = 48) {
+  let best = null
+  for (const node of definition.nodes) {
+    for (const row of nodeRows(node)) {
+      if (row.kind === 'output') continue
+      if (!canConnect(definition, sourceId, sourceFieldId, node.id, { kind: row.kind, id: row.id })) continue
+      const port = portPoint(node, row)
+      const distance = Math.hypot(port.x - point.x, port.y - point.y)
+      if (distance > radius || (best && distance >= best.distance)) continue
+      best = { nodeId: node.id, kind: row.kind, id: row.id, distance }
+    }
+  }
+  return best
+}
+
 // --- instant editor feedback ------------------------------------------------
 // The same problems the server's validate endpoint reports, computed locally
 // so the editor can flag them as they are typed. The server stays the
@@ -244,15 +339,26 @@ export function editorIssues(definition) {
   if (!definition.nodes.length) issues.push('The graph needs at least one node')
   const byId = new Map()
   const titles = new Map()
+  let triggers = 0
   for (const node of definition.nodes) {
     if (byId.has(node.id)) issues.push(`Duplicate node id '${node.id}'`)
     byId.set(node.id, node)
     if (!node.title) issues.push('Every node needs a title')
     if (titles.has(node.title)) issues.push(`Two nodes are titled '${node.title}'`)
     titles.set(node.title, node)
-    if (node.kind !== 'form') {
-      const text = node.kind === 'cli' ? node.command : node.promptTemplate
-      const label = node.kind === 'cli' ? 'command' : 'prompt'
+    if (node.kind === 'trigger') {
+      triggers += 1
+      if (!node.outputs.length) issues.push(`Trigger '${node.title || node.id}' needs at least one event field`)
+      const names = new Set()
+      for (const output of node.outputs) {
+        if (!output.id) issues.push(`Trigger '${node.title || node.id}' has an event field without an id`)
+        if (!output.path) issues.push(`Event field '${output.name || output.id}' needs a payload path`)
+        if (names.has(output.name)) issues.push(`Trigger '${node.title}' has two event fields named '${output.name}'`)
+        names.add(output.name)
+      }
+    } else if (node.kind !== 'form') {
+      const text = node.kind === 'cli' ? node.command : node.kind === 'shell' ? node.script : node.promptTemplate
+      const label = node.kind === 'cli' ? 'command' : node.kind === 'shell' ? 'script' : 'prompt'
       if (!text.trim()) issues.push(`'${node.title || node.id}' needs a ${label}`)
       const names = new Set()
       for (const input of node.inputs) {
@@ -293,6 +399,13 @@ export function editorIssues(definition) {
       }
     }
   }
+  if (triggers > 1) issues.push('A graph holds at most one event trigger')
+  for (const node of definition.nodes) {
+    if (node.kind !== 'trigger') continue
+    if (definition.edges.some((edge) => edge.target === node.id)) {
+      issues.push(`'${node.title}' is an event trigger and cannot take a connection`)
+    }
+  }
   const seenEdges = new Set()
   for (const edge of definition.edges) {
     const key = `${edge.source}:${edge.sourceFieldId}->${edge.target}:${edge.targetInputId || edge.targetFieldId}`
@@ -304,6 +417,10 @@ export function editorIssues(definition) {
       issues.push('A connection points at a missing node')
       continue
     }
+    if (target.kind === 'trigger') {
+      issues.push(`'${target.title}' is an event trigger and cannot take a connection`)
+      continue
+    }
     if (target.kind !== 'form' && !target.inputs.some((input) => input.id === edge.targetInputId)) {
       issues.push(`'${target.title}' has no input for one incoming connection`)
     }
@@ -312,6 +429,9 @@ export function editorIssues(definition) {
     }
     if (source.kind === 'form' && !source.fields.some((field) => field.id === edge.sourceFieldId)) {
       issues.push(`'${source.title}' has no field for one connection`)
+    }
+    if (source.kind === 'trigger' && !source.outputs.some((output) => output.id === edge.sourceFieldId)) {
+      issues.push(`'${source.title}' has no event field for one connection`)
     }
   }
   if (topologicalOrder(definition) === null) issues.push('The graph has a circular connection')
@@ -342,33 +462,78 @@ export function topologicalOrder(definition) {
   return order.length === ids.length ? order : null
 }
 
-// Assigns left-to-right positions by longest path from a source, for nodes
-// that have never been placed (a definition the user has not dragged yet).
-export function autoLayout(definition) {
+// Assigns left-to-right positions to every node by longest path from a source,
+// so each dependency layer is its own column and a node sits in the row of the
+// node it follows whenever that row is free. A chain therefore reads on one
+// line. A definition with a cycle has no order to lay out, so it is returned
+// untouched and the editor flags the cycle instead.
+export function relayout(definition) {
   const order = topologicalOrder(definition)
   if (!order) return definition
+  const ids = new Set(definition.nodes.map((node) => node.id))
+  const parents = new Map([...ids].map((id) => [id, []]))
+  for (const edge of definition.edges) {
+    if (!ids.has(edge.source) || !ids.has(edge.target) || edge.source === edge.target) continue
+    parents.get(edge.target).push(edge.source)
+  }
   const layer = new Map()
   for (const id of order) {
-    const parents = definition.edges.filter((edge) => edge.target === id).map((edge) => edge.source)
-    layer.set(id, parents.length ? Math.max(...parents.map((parent) => layer.get(parent) + 1)) : 0)
+    const incoming = parents.get(id)
+    layer.set(id, incoming.length ? Math.max(...incoming.map((parent) => layer.get(parent) + 1)) : 0)
   }
-  const perLayer = new Map()
-  const nodes = definition.nodes.map((node) => {
-    if (node.position && (node.position.x || node.position.y)) return node
-    const depth = layer.get(node.id) || 0
-    const row = perLayer.get(depth) || 0
-    perLayer.set(depth, row + 1)
-    return { ...node, position: { x: 40 + depth * LAYER_GAP, y: 40 + row * ROW_GAP } }
-  })
-  return { ...definition, nodes }
+  const rows = new Map()
+  const usedRows = new Map()
+  const positions = new Map()
+  for (const id of order) {
+    const depth = layer.get(id)
+    const used = usedRows.get(depth) || new Set()
+    let row = null
+    for (const parent of parents.get(id)) {
+      const candidate = rows.get(parent)
+      if (candidate !== undefined && !used.has(candidate)) {
+        row = candidate
+        break
+      }
+    }
+    if (row === null) {
+      row = 0
+      while (used.has(row)) row++
+    }
+    used.add(row)
+    usedRows.set(depth, used)
+    rows.set(id, row)
+    positions.set(id, { x: 40 + depth * LAYER_GAP, y: 40 + row * ROW_GAP })
+  }
+  return {
+    ...definition,
+    nodes: definition.nodes.map((node) => ({ ...node, position: positions.get(node.id) || node.position }))
+  }
+}
+
+// Positions nodes that have never been placed (a definition the user has not
+// dragged yet), leaving dragged nodes where the user put them.
+export function autoLayout(definition) {
+  const placed = relayout(definition)
+  const positions = new Map(placed.nodes.map((node) => [node.id, node.position]))
+  return {
+    ...definition,
+    nodes: definition.nodes.map((node) =>
+      node.position && (node.position.x || node.position.y)
+        ? node
+        : { ...node, position: positions.get(node.id) || node.position }
+    )
+  }
 }
 
 // --- canvas geometry --------------------------------------------------------
 export function nodeRows(node) {
+  if (node.kind === 'trigger') {
+    return node.outputs.map((output) => ({ kind: 'field', id: output.id, label: output.name || output.path }))
+  }
   if (node.kind !== 'form') {
     return [
       ...node.inputs.map((input) => ({ kind: 'input', id: input.id, label: input.name })),
-      { kind: 'output', id: '', label: node.kind === 'cli' ? 'stdout' : 'answer' }
+      { kind: 'output', id: '', label: node.kind === 'run' ? 'answer' : 'stdout' }
     ]
   }
   return node.fields.map((field) => ({ kind: 'field', id: field.id, label: field.title || 'field' }))
@@ -389,7 +554,10 @@ export function edgeEndpoints(definition, edge) {
   const source = definition.nodes.find((node) => node.id === edge.source)
   const target = definition.nodes.find((node) => node.id === edge.target)
   if (!source || !target) return null
-  const sourceRow = source.kind === 'form' ? { kind: 'field', id: edge.sourceFieldId } : { kind: 'output', id: '' }
+  const sourceRow =
+    source.kind === 'form' || source.kind === 'trigger'
+      ? { kind: 'field', id: edge.sourceFieldId }
+      : { kind: 'output', id: '' }
   const targetRow =
     target.kind === 'form' ? { kind: 'field', id: edge.targetFieldId } : { kind: 'input', id: edge.targetInputId }
   return { from: portPoint(source, sourceRow), to: portPoint(target, targetRow) }

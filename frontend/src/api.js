@@ -217,6 +217,33 @@ export const api = {
       request(`/graphs/executions/${executionId}/forms/${nodeId}`, { method: 'POST', body })
   },
 
+  webhooks: {
+    // Entry points an outside system posts to.
+    endpoints: () => request('/webhooks/endpoints'),
+    endpoint: (id) => request(`/webhooks/endpoints/${id}`),
+    createEndpoint: (body) => request('/webhooks/endpoints', { method: 'POST', body }),
+    updateEndpoint: (id, body) => request(`/webhooks/endpoints/${id}`, { method: 'PATCH', body }),
+    removeEndpoint: (id) => request(`/webhooks/endpoints/${id}`, { method: 'DELETE' }),
+    // The workflows an endpoint feeds.
+    subscriptions: (endpointId) => request(`/webhooks/endpoints/${endpointId}/subscriptions`),
+    createSubscription: (endpointId, body) =>
+      request(`/webhooks/endpoints/${endpointId}/subscriptions`, { method: 'POST', body }),
+    updateSubscription: (id, body) => request(`/webhooks/subscriptions/${id}`, { method: 'PATCH', body }),
+    removeSubscription: (id) => request(`/webhooks/subscriptions/${id}`, { method: 'DELETE' }),
+    // Stored deliveries, and the actions on them.
+    events: ({ endpointId, eventType, limit = 50 } = {}) => {
+      const qs = new URLSearchParams()
+      if (endpointId) qs.set('endpoint_id', endpointId)
+      if (eventType) qs.set('event_type', eventType)
+      if (limit) qs.set('limit', String(limit))
+      const query = qs.toString()
+      return request(`/webhooks/events${query ? `?${query}` : ''}`)
+    },
+    event: (id) => request(`/webhooks/events/${id}`),
+    replay: (id) => request(`/webhooks/events/${id}/replay`, { method: 'POST' }),
+    test: (endpointId, body) => request(`/webhooks/endpoints/${endpointId}/test`, { method: 'POST', body })
+  },
+
   reviews: {
     // Every PR with review reports in the user-global store, with its step state.
     // refresh re-reads each PR's GitHub fields instead of the short ghx cache.

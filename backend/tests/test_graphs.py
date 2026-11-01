@@ -14,7 +14,7 @@ from agentic.db import create_db_and_tables, engine
 from agentic.main import app
 from agentic.models.agents import AgentEvent, AgentRun
 from agentic.models.base import RunStatus, utcnow
-from agentic.models.graphs import ExecutionGraph, GraphExecution
+from agentic.models.graphs import ExecutionGraph, GraphExecution, GraphTrigger
 from agentic.models.tasks import Task
 
 # The executor polls at 1 Hz; a fast tick keeps the tests quick.
@@ -27,6 +27,7 @@ def _clear() -> None:
     with Session(engine) as session:
         session.exec(sa_delete(AgentEvent))
         session.exec(sa_delete(AgentRun))
+        session.exec(sa_delete(GraphTrigger))
         session.exec(sa_delete(GraphExecution))
         session.exec(sa_delete(ExecutionGraph))
         session.exec(sa_delete(TimelineEvent))
@@ -68,6 +69,18 @@ def cli_node(node_id: str, command: str, inputs: list[str] | None = None, **extr
         "title": node_id,
         "position": {"x": 0, "y": 0},
         "command": command,
+        "inputs": [{"id": name, "name": name} for name in inputs or []],
+        **extra,
+    }
+
+
+def shell_node(node_id: str, script: str, inputs: list[str] | None = None, **extra) -> dict:
+    return {
+        "id": node_id,
+        "kind": "shell",
+        "title": node_id,
+        "position": {"x": 0, "y": 0},
+        "script": script,
         "inputs": [{"id": name, "name": name} for name in inputs or []],
         **extra,
     }
@@ -283,10 +296,17 @@ def test_graph_crud_api():
     with TestClient(app) as client:
         created = client.post(
             "/api/graphs",
-            json={"name": "pipeline", "description": "two steps", "schedule": "*/5 * * * *", "definition": definition},
+            json={
+                "name": "pipeline",
+                "description": "two steps",
+                "triggers": [{"type": "schedule", "config": {"cron": "*/5 * * * *", "timezone": "UTC"}}],
+                "definition": definition,
+            },
         )
         assert created.status_code == 201
         graph = created.json()
+        assert graph["triggers"][0]["type"] == "schedule"
+        assert graph["triggers"][0]["config"] == {"cron": "*/5 * * * *", "timezone": "UTC"}
         assert graph["next_run_at"] is not None
         assert graph["definition"]["nodes"][0]["promptTemplate"] == "Do things"
 
@@ -314,28 +334,50 @@ def test_graph_crud_api():
         assert any("circular" in issue for issue in checked.json()["issues"])
         client.delete(f"/api/graphs/{wip_id}")
 
-        # Blank names and bad schedules are still rejected.
+        # Blank names and broken triggers are rejected before anything is saved.
         assert client.post("/api/graphs", json={"name": " ", "definition": definition}).status_code == 400
-        bad_cron = client.post("/api/graphs", json={"name": "bad-cron", "schedule": "nope", "definition": definition})
+        bad_cron = client.post(
+            "/api/graphs",
+            json={"name": "bad-cron", "triggers": [{"type": "schedule", "config": {"cron": "nope"}}]},
+        )
         assert bad_cron.status_code == 400
+        unknown_type = client.post("/api/graphs", json={"name": "bad-type", "triggers": [{"type": "pigeon"}]})
+        assert unknown_type.status_code == 400
 
         # The editor's validate action reports issues without saving.
-        checked = client.post("/api/graphs/validate", json={"name": "v", "definition": _definition([], [])})
+        checked = client.post(
+            "/api/graphs/validate",
+            json={
+                "name": "v",
+                "triggers": [{"type": "schedule", "config": {"cron": "nope"}}],
+                "definition": _definition([], []),
+            },
+        )
         assert checked.status_code == 200
-        assert checked.json()["issues"]
+        assert any("5 fields" in issue for issue in checked.json()["issues"])
 
         listing = client.get("/api/graphs")
         assert [row["id"] for row in listing.json()] == [graph["id"]]
 
-        # Disabling clears the next occurrence; renaming keeps everything else.
-        updated = client.patch(f"/api/graphs/{graph['id']}", json={"enabled": False, "name": "renamed"}).json()
-        assert updated["enabled"] is False
+        # Disabling the trigger clears its next occurrence; renaming keeps it.
+        trigger = graph["triggers"][0]
+        updated = client.patch(
+            f"/api/graphs/{graph['id']}",
+            json={"triggers": [{**trigger, "enabled": False}], "name": "renamed"},
+        ).json()
+        assert updated["triggers"][0]["enabled"] is False
         assert updated["next_run_at"] is None
         assert updated["name"] == "renamed"
+
+        # Renaming alone does not touch the triggers.
+        renamed = client.patch(f"/api/graphs/{graph['id']}", json={"name": "renamed again"}).json()
+        assert renamed["triggers"] == updated["triggers"]
 
         assert client.get(f"/api/graphs/{graph['id']}").status_code == 200
         assert client.delete(f"/api/graphs/{graph['id']}").status_code == 204
         assert client.get("/api/graphs").json() == []
+        with Session(engine) as session:
+            assert session.exec(select(GraphTrigger)).all() == []
     _clear()
 
 
@@ -599,6 +641,114 @@ def test_cli_node_runs_command_and_feeds_output_downstream(monkeypatch):
     _clear()
 
 
+def test_shell_node_runs_script_and_feeds_output_downstream(monkeypatch):
+    """run -> shell -> run: the script renders upstream output and its stdout feeds the next step."""
+    create_db_and_tables()
+    _clear()
+    _harness()
+    _no_enqueue(monkeypatch)
+    monkeypatch.setattr(graphs, "POLL_SECONDS", POLL)
+    calls: list[tuple[str, str]] = []
+
+    async def fake_run_shell(script, cwd, env):
+        calls.append((script, cwd))
+        return 0, "built ok\n"
+
+    monkeypatch.setattr(graphs, "_run_shell", fake_run_shell)
+    definition = _definition(
+        [
+            run_node("a", "First"),
+            shell_node("s", 'echo "Building {{name}}" && make build', ["name"], cwd="/tmp"),
+            run_node("b", "Built: {{result}}", ["result"]),
+        ],
+        [
+            edge("a", "s", target_input="name"),
+            edge("s", "b", target_input="result"),
+        ],
+    )
+    graph_id = _make_graph(definition, name="with-shell")
+    with TestClient(app) as client:
+        execution_id = client.post(f"/api/graphs/{graph_id}/run").json()["id"]
+        first = _wait_for(_running_run, message="first run never started")
+        _settle_run(first.id, "world")
+
+        script, cwd = _wait_for(lambda: calls[0] if calls else None, message="shell script never ran")
+        assert script == 'echo "Building world" && make build'
+        assert cwd == "/tmp"
+
+        second = _wait_for(
+            lambda: (run := _running_run()) and run.id != first.id and run,
+            message="second run never started",
+        )
+        assert second.prompt == "Built: built ok\n"
+        _settle_run(second.id, "done")
+        row = _wait_for(
+            lambda: _execution(execution_id).status.value == "succeeded" and _execution(execution_id),
+            message="execution never succeeded",
+        )
+        assert row.state["outputs"]["s"] == "built ok\n"
+        detail = client.get(f"/api/graphs/executions/{execution_id}").json()
+        shell_state = next(node for node in detail["nodes"] if node["node_id"] == "s")
+        assert shell_state["status"] == "done"
+        assert shell_state["run_id"] is None  # not an agent run; no transcript row
+    _clear()
+
+
+def test_shell_node_failure_skips_downstream(monkeypatch):
+    create_db_and_tables()
+    _clear()
+    _harness()
+    _no_enqueue(monkeypatch)
+    monkeypatch.setattr(graphs, "POLL_SECONDS", POLL)
+
+    async def failing_shell(script, cwd, env):
+        return 1, "boom\n"
+
+    monkeypatch.setattr(graphs, "_run_shell", failing_shell)
+    definition = _definition(
+        [shell_node("s", "exit 1"), run_node("b", "After: {{v}}", ["v"])],
+        [edge("s", "b", target_input="v")],
+    )
+    graph_id = _make_graph(definition, name="shell-fail")
+    with TestClient(app) as client:
+        execution_id = client.post(f"/api/graphs/{graph_id}/run").json()["id"]
+        row = _wait_for(
+            lambda: _execution(execution_id).status.value == "failed" and _execution(execution_id),
+            message="execution never failed",
+        )
+        statuses = {node_id: entry["status"] for node_id, entry in row.state["nodes"].items()}
+        assert statuses == {"s": "failed", "b": "skipped"}
+        assert "exit 1" in row.state["nodes"]["s"]["error"]
+    _clear()
+
+
+@pytest.mark.asyncio
+async def test_run_shell_executes_a_bash_script():
+    exit_code, output = await graphs._run_shell('printf "hello from bash"', "/tmp", {})
+    assert exit_code == 0
+    assert output == "hello from bash"
+    failed, _ = await graphs._run_shell("exit 3", "/tmp", {})
+    assert failed == 3
+
+
+def test_shell_node_normalizes_and_validates():
+    normalized = graphs.normalize_definition(
+        _definition([shell_node("s", "echo hi", ["name"], cwd="/tmp", junk=True)], [])
+    )
+    node = normalized["nodes"][0]
+    assert node["kind"] == "shell"
+    assert node["script"] == "echo hi"
+    assert node["cwd"] == "/tmp"
+    assert node["inputs"] == [{"id": "name", "name": "name"}]
+    assert "command" not in node and "promptTemplate" not in node
+
+    issues = graphs.validate_definition(_definition([shell_node("s", "")], []))
+    assert any("needs a script" in issue for issue in issues)
+
+    unconnected = graphs.validate_definition(_definition([shell_node("s", "echo {{name}}", ["name"])], []))
+    assert any("nothing feeds the input 'name'" in issue for issue in unconnected)
+
+
 def test_cli_node_failure_skips_downstream(monkeypatch):
     create_db_and_tables()
     _clear()
@@ -637,22 +787,27 @@ async def test_scheduler_fires_due_graph_once(monkeypatch):
     _no_enqueue(monkeypatch)
     monkeypatch.setattr(graphs, "POLL_SECONDS", POLL)
     definition = _definition([run_node("a", "Tick")], [])
-    graph_id = _make_graph(definition, name="scheduled", schedule="* * * * *", enabled=True)
+    graph_id = _make_graph(definition, name="scheduled")
     with Session(engine) as session:
-        graph = session.get(ExecutionGraph, graph_id)
-        assert graph is not None
-        graph.next_run_at = utcnow() - timedelta(minutes=1)
-        session.add(graph)
+        trigger = GraphTrigger(
+            graph_id=graph_id,
+            type="schedule",
+            config={"cron": "* * * * *", "timezone": "UTC"},
+            next_run_at=utcnow() - timedelta(minutes=1),
+        )
+        session.add(trigger)
         session.commit()
+        session.refresh(trigger)
+        trigger_id = trigger.id
 
     assert await graphs.run_due_once() == 1
     # The occurrence advanced, so a second tick does not fire again.
     with Session(engine) as session:
-        graph = session.get(ExecutionGraph, graph_id)
-        assert graph is not None and graph.next_run_at is not None
-        assert graph.next_run_at > utcnow()
+        trigger = session.get(GraphTrigger, trigger_id)
+        assert trigger is not None and trigger.next_run_at is not None
+        assert trigger.next_run_at > utcnow()
         execution = session.exec(select(GraphExecution)).first()
-        assert execution is not None and execution.trigger == "schedule"
+        assert execution is not None and execution.trigger == "schedule" and execution.trigger_id == trigger_id
     assert await graphs.run_due_once() == 0  # the busy execution suppresses a second fire
 
     run = await _await_for(_running_run, message="scheduled run never started")
@@ -662,6 +817,87 @@ async def test_scheduler_fires_due_graph_once(monkeypatch):
         lambda: _execution(execution_id).status.value == "succeeded",
         message="execution never succeeded",
     )
+    _clear()
+
+
+@pytest.mark.asyncio
+async def test_due_disabled_trigger_does_not_fire(monkeypatch):
+    create_db_and_tables()
+    _clear()
+    _harness()
+    _no_enqueue(monkeypatch)
+    graph_id = _make_graph(_definition([run_node("a", "Tick")], []), name="paused")
+    with Session(engine) as session:
+        session.add(
+            GraphTrigger(
+                graph_id=graph_id,
+                type="schedule",
+                config={"cron": "* * * * *", "timezone": "UTC"},
+                enabled=False,
+                next_run_at=utcnow() - timedelta(minutes=1),
+            )
+        )
+        session.commit()
+
+    assert await graphs.run_due_once() == 0
+    with Session(engine) as session:
+        assert session.exec(select(GraphExecution)).first() is None
+    _clear()
+
+
+def test_webhook_trigger_fires_graph(monkeypatch):
+    create_db_and_tables()
+    _clear()
+    _harness()
+    _no_enqueue(monkeypatch)
+    monkeypatch.setattr(graphs, "POLL_SECONDS", POLL)
+    graph_id = _make_graph(_definition([run_node("a", "Hook")], []), name="hooked")
+    with Session(engine) as session:
+        webhook = GraphTrigger(graph_id=graph_id, type="webhook", config={"secret": "s3cret"})
+        schedule = GraphTrigger(graph_id=graph_id, type="schedule", config={"cron": "0 9 * * *"})
+        session.add(webhook)
+        session.add(schedule)
+        session.commit()
+        session.refresh(webhook)
+        session.refresh(schedule)
+        webhook_id, schedule_id = webhook.id, schedule.id
+
+    with TestClient(app) as client:
+        url = f"/api/graphs/{graph_id}/triggers/{webhook_id}/fire"
+        # The secret is required, and the wrong one is refused.
+        assert client.post(url).status_code == 403
+        assert client.post(url, headers={"X-Trigger-Secret": "wrong"}).status_code == 403
+        started = client.post(url, headers={"X-Trigger-Secret": "s3cret"})
+        assert started.status_code == 201
+        assert started.json()["trigger"] == "webhook"
+        # The graph is busy, so a second fire is refused.
+        assert client.post(url, headers={"X-Trigger-Secret": "s3cret"}).status_code == 409
+        # A trigger that is not a webhook cannot be fired this way.
+        schedule_url = f"/api/graphs/{graph_id}/triggers/{schedule_id}/fire"
+        assert client.post(schedule_url, headers={"X-Trigger-Secret": "s3cret"}).status_code == 400
+        # A webhook received for another graph's trigger is not found.
+        other = _make_graph(_definition([run_node("a", "Other")], []), name="other")
+        assert client.post(f"/api/graphs/{other}/triggers/{webhook_id}/fire").status_code == 404
+
+        run = _wait_for(_running_run, message="webhook run never started")
+        _settle_run(run.id, "done")
+        _wait_for(
+            lambda: _execution(started.json()["id"]).status.value == "succeeded",
+            message="webhook execution never succeeded",
+        )
+
+        # A disabled trigger refuses the call even with the right secret.
+        disabled = client.patch(
+            f"/api/graphs/{graph_id}",
+            json={
+                "triggers": [
+                    {"id": webhook_id, "type": "webhook", "config": {"secret": "s3cret"}, "enabled": False},
+                    {"id": schedule_id, "type": "schedule", "config": {"cron": "0 9 * * *"}, "enabled": True},
+                ]
+            },
+        )
+        assert disabled.status_code == 200
+        assert client.post(url, headers={"X-Trigger-Secret": "s3cret"}).status_code == 403
     _clear()
 
 
