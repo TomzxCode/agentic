@@ -331,6 +331,51 @@ describe('GraphsList', () => {
     expect(wrapper.find('.editor-armed').exists()).toBe(false)
   })
 
+  it('lays out after a connection when auto-layout is always', async () => {
+    localStorage.setItem('agentic.executionGraph.autoLayout', 'always')
+    mocks.graphsList.mockImplementation(async () => [graphRow('g1', { definition: untangledDefinition() })])
+    const wrapper = mount(GraphsList, stub)
+    await flushPromises()
+    await openEditor(wrapper)
+    expect(wrapper.findAll('.editor-node')[1].attributes('style')).toContain('left: 600px')
+
+    const source = wrapper.find('[data-node-id="a"][data-port-kind="output"]')
+    await source.trigger('pointerdown')
+    window.dispatchEvent(new PointerEvent('pointerup'))
+    await flushPromises()
+    await wrapper.find('[data-node-id="b"][data-port-kind="input"]').trigger('pointerdown')
+    await flushPromises()
+
+    const cards = wrapper.findAll('.editor-node')
+    expect(cards[0].attributes('style')).toContain('left: 40px')
+    // The new link puts the second step in a later column.
+    expect(cards[1].attributes('style')).toContain('left: 340px')
+  })
+
+  it('lays out after a connection is removed when auto-layout is on remove', async () => {
+    localStorage.setItem('agentic.executionGraph.autoLayout', 'remove')
+    mocks.graphsList.mockImplementation(async () => [graphRow('g1', { definition: twoStepDefinition() })])
+    const wrapper = mount(GraphsList, stub)
+    await flushPromises()
+    await openEditor(wrapper)
+
+    await wrapper.find('.editor-edge-hit').trigger('click')
+    await flushPromises()
+    await wrapper
+      .find('.editor-armed')
+      .findAll('button')
+      .find((button) => button.text() === 'Remove')
+      .trigger('click')
+    await flushPromises()
+
+    const cards = wrapper.findAll('.editor-node')
+    // With the link gone both steps share the first column and stack in rows.
+    expect(cards[0].attributes('style')).toContain('left: 40px')
+    expect(cards[0].attributes('style')).toContain('top: 40px')
+    expect(cards[1].attributes('style')).toContain('left: 40px')
+    expect(cards[1].attributes('style')).toContain('top: 190px')
+  })
+
   it('remembers the auto-layout mode per device', async () => {
     const wrapper = mount(GraphsList, stub)
     await flushPromises()

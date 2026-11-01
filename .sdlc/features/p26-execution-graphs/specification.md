@@ -114,7 +114,7 @@ Node statuses are pending, waiting (a form waiting for an answer), running, done
 `relayout` places every node in the column of its dependency layer and in the row of the node it follows when that row is free, so a chain reads on one line; a definition with a cycle is left as it is and the cycle is reported as a validation issue instead.
 `autoLayout` applies the same placement only to nodes that have never been positioned, so opening a graph never moves cards the user dragged.
 The editor's Arrange button runs `relayout` over the whole definition.
-Its Auto-layout select (never, on add, on remove, always) decides whether a structural edit re-runs it; the choice is a per-device preference in `localStorage`, not graph state.
+Its Auto-layout select (never, on add, on remove, always) decides whether adding or removing a node or a connection re-runs it: a new link can move a node into a deeper layer, and dropping one can pull it back; the choice is a per-device preference in `localStorage`, not graph state.
 
 Linking works by two taps on a phone: tapping a source row arms it, every eligible target row is marked, and a second tap draws the edge, so the finger is never held while the canvas scrolls to an off-screen node.
 A press that releases on the same row without moving arms it; a press that moves draws the connection; a release within 48 px of an eligible port (`nearestPort`) snaps to that port, which covers a finger that missed the row by a few pixels.

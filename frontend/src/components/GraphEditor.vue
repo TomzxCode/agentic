@@ -151,8 +151,18 @@ function connectArmed(node, row) {
     return
   }
   if (!eligibleRows.value.has(rowKey(node, row))) return
-  definition.value = connect(definition.value, source.sourceId, source.sourceFieldId, node.id, row)
+  applyConnection(source.sourceId, source.sourceFieldId, node.id, row)
   cancelConnect()
+}
+
+// Add an edge, then re-arrange when the chosen mode covers adds: a new link
+// can move a node into a deeper dependency layer. Refused and duplicate
+// connections leave the canvas alone.
+function applyConnection(sourceId, sourceFieldId, targetId, port) {
+  const next = connect(definition.value, sourceId, sourceFieldId, targetId, port)
+  if (next === definition.value) return false
+  definition.value = laysOut('add') ? relayout(next) : next
+  return true
 }
 
 function addNode(kind) {
@@ -191,8 +201,12 @@ function selectEdge(id) {
 
 function deleteSelected() {
   if (selectedEdge.value) {
-    definition.value.edges = definition.value.edges.filter((edge) => edge.id !== selectedEdge.value)
+    definition.value = {
+      ...definition.value,
+      edges: definition.value.edges.filter((edge) => edge.id !== selectedEdge.value)
+    }
     selectedEdge.value = ''
+    if (laysOut('remove')) definition.value = relayout(definition.value)
     return
   }
   if (!selected.value) return
@@ -297,13 +311,7 @@ function onPointerUp(event) {
   const drop = landing?.closest('[data-port-kind][data-node-id]')
   if (drop) {
     const port = { kind: drop.dataset.portKind, id: drop.dataset.portId }
-    definition.value = connect(
-      definition.value,
-      pending.value.sourceId,
-      pending.value.sourceFieldId,
-      drop.dataset.nodeId,
-      port
-    )
+    applyConnection(pending.value.sourceId, pending.value.sourceFieldId, drop.dataset.nodeId, port)
   } else {
     // A finger that missed the row by a few pixels still lands on the port it
     // was aiming at.
@@ -315,16 +323,10 @@ function onPointerUp(event) {
       48
     )
     if (nearest) {
-      definition.value = connect(
-        definition.value,
-        pending.value.sourceId,
-        pending.value.sourceFieldId,
-        nearest.nodeId,
-        {
-          kind: nearest.kind,
-          id: nearest.id
-        }
-      )
+      applyConnection(pending.value.sourceId, pending.value.sourceFieldId, nearest.nodeId, {
+        kind: nearest.kind,
+        id: nearest.id
+      })
     }
   }
   pending.value = null
@@ -452,7 +454,7 @@ onBeforeUnmount(() => {
         <button class="btn sm" @click="addNode('run')">+ Run step</button>
         <button class="btn sm" @click="addNode('cli')">+ Command step</button>
         <button class="btn sm" @click="addNode('form')">+ Form step</button>
-        <label class="editor-layout-mode" title="Keep the graph arranged as steps are added or removed">
+        <label class="editor-layout-mode" title="Keep the graph arranged as steps and connections are added or removed">
           <span>Auto-layout</span>
           <select v-model="autoLayoutMode" class="input" aria-label="When to auto-layout the graph">
             <option value="off">never</option>

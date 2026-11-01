@@ -50,8 +50,8 @@ Out of scope: no automated test drives the `agentic graphs` CLI commands, and no
 | TC-22 | A disabled schedule trigger | `run_due_once` starts nothing and leaves the occurrence alone |
 | TC-23 | A webhook fire with the wrong, missing, or right secret, a disabled trigger, a non-webhook trigger, another graph's trigger, or a busy graph | 403, 403, 201 with trigger "webhook", 403, 400, 404, and 409 respectively |
 | TC-24 | Migration of the old schedule columns | Each graph with a schedule gains one schedule trigger carrying its cron, zone, enabled flag, and next run; the old columns are emptied; a second pass adds nothing |
-| TC-25 | Tap-to-connect on a small screen | An armed source row, a second tap on an eligible row, the source again, Cancel, and a drag that lands near but not on a port | The banner appears, eligible rows are marked, the second tap draws one edge, both cancels leave none, and a drag snaps to the nearest port within 48 px |
-| TC-26 | Disconnecting a connection on a phone | A tap 9 px off the drawn curve, then Remove | The banner names both ends, the edge selects, and Remove deletes it with no keyboard |
+| TC-25 | Tap-to-connect on a small screen | An armed source row, a second tap on an eligible row, the source again, Cancel, and a drag that lands near but not on a port; the same tap while Auto-layout is "always" | The banner appears, eligible rows are marked, the second tap draws one edge (and re-arranges the cards when the mode says so), both cancels leave none, and a drag snaps to the nearest port within 48 px |
+| TC-26 | Disconnecting a connection on a phone | A tap 9 px off the drawn curve, then Remove, with Auto-layout "on remove" | The banner names both ends, the edge selects, Remove deletes it with no keyboard, and the cards re-arrange |
 
 ## Test Infrastructure
 
