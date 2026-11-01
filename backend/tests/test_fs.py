@@ -55,6 +55,11 @@ def test_bulk_add_reports_per_path_errors(browse_root: Path):
             "/api/repositories/bulk",
             json={"paths": [str(browse_root / "alpha"), str(browse_root / "beta"), str(browse_root / "notgit")]},
         ).json()
-    assert {repo["name"] for repo in result["added"]} == {"alpha", "beta"}
-    assert len(result["errors"]) == 1
-    assert result["errors"][0]["path"].endswith("notgit")
+        assert {repo["name"] for repo in result["added"]} == {"alpha", "beta"}
+        assert len(result["errors"]) == 1
+        assert result["errors"][0]["path"].endswith("notgit")
+
+        # The rows must not outlive the test: a later suite matching repositories
+        # by owner/repo or syncing remotes would read these stale registrations.
+        for repo in result["added"]:
+            assert client.delete(f"/api/repositories/{repo['id']}").status_code == 204

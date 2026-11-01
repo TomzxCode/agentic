@@ -24,6 +24,7 @@ import MyPullsView from './views/MyPullsView.vue'
 import DecisionsView from './views/DecisionsView.vue'
 import SchedulesView from './views/SchedulesView.vue'
 import ExecutionGraphsView from './views/ExecutionGraphsView.vue'
+import WebhooksView from './views/WebhooksView.vue'
 import OnCallView from './views/OnCallView.vue'
 import StackView from './views/StackView.vue'
 import TimeView from './views/TimeView.vue'
@@ -80,6 +81,7 @@ const router = createRouter({
     { path: '/process', name: 'process', component: ProcessView, meta: { title: 'Process' } },
     { path: '/schedules', name: 'schedules', component: SchedulesView, meta: { title: 'Scheduled tasks' } },
     { path: '/graphs', name: 'graphs', component: ExecutionGraphsView, meta: { title: 'Execution graphs' } },
+    { path: '/webhooks', name: 'webhooks', component: WebhooksView, meta: { title: 'Webhooks' } },
     { path: '/on-call', name: 'on-call', component: OnCallView, meta: { title: 'On call' } },
     { path: '/oncall', name: 'oncall', component: OnCallView, meta: { title: 'On call' } },
     { path: '/items', name: 'items', component: ItemsView, meta: { title: 'Items' } },

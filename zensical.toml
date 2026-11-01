@@ -24,6 +24,7 @@ nav = [
     { "Open items in ghx and slackx" = "how-to/open-items-in-local-tools.md" },
     { "Refresh items on a schedule" = "how-to/refresh-items.md" },
     { "Schedule a shell command" = "how-to/schedule-a-script.md" },
+    { "Trigger a workflow from a webhook" = "how-to/trigger-workflows-from-webhooks.md" },
     { "Expose Agentic on your network" = "how-to/expose-on-your-network.md" },
   ] },
   { "Views" = [
@@ -44,6 +45,8 @@ nav = [
     { "Repositories" = "views/repositories.md" },
     { "Scheduled tasks" = "views/schedules.md" },
     { "Time" = "views/time.md" },
+    { "Execution graphs" = "views/execution-graphs.md" },
+    { "Webhooks" = "views/webhooks.md" },
     { "Settings" = "views/settings.md" },
   ] },
   { "Reference" = [

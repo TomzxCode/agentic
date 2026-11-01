@@ -33,6 +33,13 @@ class GraphFormField(BaseModel):
     step: float | None = None
 
 
+class GraphTriggerOutput(BaseModel):
+    id: str
+    name: str = ""
+    # The dotted path read from the event payload, for example pull_request.title.
+    path: str = ""
+
+
 class GraphNode(BaseModel):
     """One node of the definition, as the editor draws it."""
 
@@ -40,16 +47,20 @@ class GraphNode(BaseModel):
     kind: str = "run"
     title: str = ""
     position: GraphNodePosition = GraphNodePosition()
-    # Run nodes
+    # Agent run nodes
     harnessId: str = ""
     model: str = ""
     cwd: str = ""
     promptTemplate: str = ""
     inputs: list[GraphNodeInput] = []
-    # Cli nodes (the command line after `agentic`, with {{name}} placeholders)
+    # Agentic command nodes (the command line after `agentic`, with {{name}} placeholders)
     command: str = ""
+    # Shell script nodes (a bash script, with {{name}} placeholders)
+    script: str = ""
     # Form nodes
     fields: list[GraphFormField] = []
+    # Trigger nodes
+    outputs: list[GraphTriggerOutput] = []
 
 
 class GraphEdge(BaseModel):
@@ -68,22 +79,38 @@ class GraphDefinition(BaseModel):
     edges: list[GraphEdge] = []
 
 
+class GraphTriggerInput(BaseModel):
+    """One submitted trigger; an empty id asks the server to make a new one."""
+
+    id: str = ""
+    type: str = "schedule"
+    config: dict[str, Any] = {}
+    enabled: bool = True
+
+
+class GraphTriggerRead(ORMModel):
+    id: str
+    type: str
+    config: dict[str, Any] = {}
+    enabled: bool
+    next_run_at: datetime | None = None
+    last_run_at: datetime | None = None
+
+
 class ExecutionGraphCreate(BaseModel):
     name: str
     description: str = ""
-    # A 5-field cron expression; omitted or empty means manual only.
-    schedule: str | None = None
-    timezone: str | None = None
-    enabled: bool = True
+    # Triggers start the graph without a manual run; an empty list means manual
+    # only. The server normalizes and validates each one.
+    triggers: list[GraphTriggerInput] = []
     definition: GraphDefinition = GraphDefinition()
 
 
 class ExecutionGraphUpdate(BaseModel):
     name: str | None = None
     description: str | None = None
-    schedule: str | None = None
-    timezone: str | None = None
-    enabled: bool | None = None
+    # Omitted leaves the triggers alone; a list replaces the whole set.
+    triggers: list[GraphTriggerInput] | None = None
     definition: GraphDefinition | None = None
 
 
@@ -91,11 +118,10 @@ class ExecutionGraphRead(ORMModel):
     id: str
     name: str
     description: str
-    schedule: str | None = None
-    # The zone the cron is evaluated in, resolved to the server's when unset.
-    timezone: str
-    enabled: bool
+    triggers: list[GraphTriggerRead] = []
     definition: dict[str, Any]
+    # The earliest enabled trigger's next occurrence, so the list can show when
+    # the graph runs without walking its triggers.
     next_run_at: datetime | None = None
     last_run_at: datetime | None = None
     created_at: datetime
@@ -144,6 +170,8 @@ class GraphExecutionRead(ORMModel):
     error: str = ""
     nodes: list[GraphNodeStateRead] = []
     pending_form: GraphFormRequestRead | None = None
+    # The webhook event that started the run, when one did.
+    trigger_event: dict[str, Any] = {}
     started_at: datetime
     ended_at: datetime | None = None
 

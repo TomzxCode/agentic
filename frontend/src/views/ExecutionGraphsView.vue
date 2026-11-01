@@ -3,9 +3,10 @@ import { ref } from 'vue'
 import GraphsList from '../components/GraphsList.vue'
 import GraphExecutions from '../components/GraphExecutions.vue'
 
-// The execution graphs page: user-defined DAGs of agent runs and input forms,
-// fired by hand or on a cron schedule. This shell owns the header, the tab
-// switch, and the refresh button; each tab is its own component.
+// The execution graphs page: user-defined DAGs of agent runs, command steps,
+// input forms, and an optional event trigger, fired by hand, on a cron
+// schedule, or by a webhook event. This shell owns the header, the tab switch,
+// and the refresh button; each tab is its own component.
 const tab = ref('graphs')
 // Reported by the tabs, for the header count and Refresh button.
 const graphCount = ref(0)
