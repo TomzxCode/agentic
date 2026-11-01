@@ -70,9 +70,16 @@ const graphRow = (id, extra = {}) => ({
   id,
   name: `Graph ${id}`,
   description: '',
-  schedule: '0 9 * * *',
-  timezone: 'UTC',
-  enabled: true,
+  triggers: [
+    {
+      id: 'tr1',
+      type: 'schedule',
+      config: { cron: '0 9 * * *', timezone: 'UTC' },
+      enabled: true,
+      next_run_at: '2026-10-25T09:00:00Z',
+      last_run_at: null
+    }
+  ],
   next_run_at: '2026-10-25T09:00:00Z',
   last_run_at: null,
   created_at: '2026-10-25T00:00:00Z',
@@ -237,6 +244,61 @@ describe('GraphsList', () => {
     await openEditor(wrapper)
     await wrapper.find('.editor-layout-mode select').setValue('always')
     expect(localStorage.getItem('agentic.executionGraph.autoLayout')).toBe('always')
+  })
+
+  it('saves triggers edited in the settings form', async () => {
+    mocks.graphsUpdate.mockResolvedValue(graphRow('g1'))
+    const wrapper = mount(GraphsList, stub)
+    await flushPromises()
+    await wrapper
+      .findAll('button')
+      .find((button) => button.text() === 'Settings')
+      .trigger('click')
+    await flushPromises()
+    // The existing schedule trigger's cron and its preview are visible.
+    const triggers = wrapper.findAll('.trigger-block')
+    expect(triggers).toHaveLength(1)
+    expect(wrapper.find('input[id="graph-g1-trigger-0-cron"]').element.value).toBe('0 9 * * *')
+    expect(wrapper.text()).toContain('Next 5 runs')
+
+    // A second trigger is added as a schedule, then switched to a webhook.
+    await wrapper
+      .findAll('button')
+      .find((button) => button.text() === '+ Trigger')
+      .trigger('click')
+    await wrapper.findAll('.trigger-type')[1].setValue('webhook')
+    expect(wrapper.text()).toContain('Save the graph to get the URL')
+
+    await wrapper
+      .findAll('button')
+      .find((button) => button.text() === 'Save settings')
+      .trigger('click')
+    await flushPromises()
+    expect(mocks.graphsUpdate).toHaveBeenCalledWith('g1', {
+      name: 'Graph g1',
+      description: '',
+      triggers: [
+        { id: 'tr1', type: 'schedule', config: { cron: '0 9 * * *', timezone: 'UTC' }, enabled: true },
+        { id: '', type: 'webhook', config: { secret: '' }, enabled: true }
+      ]
+    })
+  })
+
+  it('shows the URL of a saved webhook trigger', async () => {
+    mocks.graphsList.mockImplementation(async () => [
+      graphRow('g1', {
+        triggers: [{ id: 'tr2', type: 'webhook', config: { secret: '' }, enabled: true }],
+        next_run_at: null
+      })
+    ])
+    const wrapper = mount(GraphsList, stub)
+    await flushPromises()
+    await wrapper
+      .findAll('button')
+      .find((button) => button.text() === 'Settings')
+      .trigger('click')
+    await flushPromises()
+    expect(wrapper.text()).toContain('/api/graphs/g1/triggers/tr2/fire')
   })
 
   it('runs a graph from its row', async () => {

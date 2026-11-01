@@ -14,7 +14,7 @@ from agentic.db import create_db_and_tables, engine
 from agentic.main import app
 from agentic.models.agents import AgentEvent, AgentRun
 from agentic.models.base import RunStatus, utcnow
-from agentic.models.graphs import ExecutionGraph, GraphExecution
+from agentic.models.graphs import ExecutionGraph, GraphExecution, GraphTrigger
 from agentic.models.tasks import Task
 
 # The executor polls at 1 Hz; a fast tick keeps the tests quick.
@@ -27,6 +27,7 @@ def _clear() -> None:
     with Session(engine) as session:
         session.exec(sa_delete(AgentEvent))
         session.exec(sa_delete(AgentRun))
+        session.exec(sa_delete(GraphTrigger))
         session.exec(sa_delete(GraphExecution))
         session.exec(sa_delete(ExecutionGraph))
         session.exec(sa_delete(TimelineEvent))
@@ -283,10 +284,17 @@ def test_graph_crud_api():
     with TestClient(app) as client:
         created = client.post(
             "/api/graphs",
-            json={"name": "pipeline", "description": "two steps", "schedule": "*/5 * * * *", "definition": definition},
+            json={
+                "name": "pipeline",
+                "description": "two steps",
+                "triggers": [{"type": "schedule", "config": {"cron": "*/5 * * * *", "timezone": "UTC"}}],
+                "definition": definition,
+            },
         )
         assert created.status_code == 201
         graph = created.json()
+        assert graph["triggers"][0]["type"] == "schedule"
+        assert graph["triggers"][0]["config"] == {"cron": "*/5 * * * *", "timezone": "UTC"}
         assert graph["next_run_at"] is not None
         assert graph["definition"]["nodes"][0]["promptTemplate"] == "Do things"
 
@@ -314,28 +322,50 @@ def test_graph_crud_api():
         assert any("circular" in issue for issue in checked.json()["issues"])
         client.delete(f"/api/graphs/{wip_id}")
 
-        # Blank names and bad schedules are still rejected.
+        # Blank names and broken triggers are rejected before anything is saved.
         assert client.post("/api/graphs", json={"name": " ", "definition": definition}).status_code == 400
-        bad_cron = client.post("/api/graphs", json={"name": "bad-cron", "schedule": "nope", "definition": definition})
+        bad_cron = client.post(
+            "/api/graphs",
+            json={"name": "bad-cron", "triggers": [{"type": "schedule", "config": {"cron": "nope"}}]},
+        )
         assert bad_cron.status_code == 400
+        unknown_type = client.post("/api/graphs", json={"name": "bad-type", "triggers": [{"type": "pigeon"}]})
+        assert unknown_type.status_code == 400
 
         # The editor's validate action reports issues without saving.
-        checked = client.post("/api/graphs/validate", json={"name": "v", "definition": _definition([], [])})
+        checked = client.post(
+            "/api/graphs/validate",
+            json={
+                "name": "v",
+                "triggers": [{"type": "schedule", "config": {"cron": "nope"}}],
+                "definition": _definition([], []),
+            },
+        )
         assert checked.status_code == 200
-        assert checked.json()["issues"]
+        assert any("5 fields" in issue for issue in checked.json()["issues"])
 
         listing = client.get("/api/graphs")
         assert [row["id"] for row in listing.json()] == [graph["id"]]
 
-        # Disabling clears the next occurrence; renaming keeps everything else.
-        updated = client.patch(f"/api/graphs/{graph['id']}", json={"enabled": False, "name": "renamed"}).json()
-        assert updated["enabled"] is False
+        # Disabling the trigger clears its next occurrence; renaming keeps it.
+        trigger = graph["triggers"][0]
+        updated = client.patch(
+            f"/api/graphs/{graph['id']}",
+            json={"triggers": [{**trigger, "enabled": False}], "name": "renamed"},
+        ).json()
+        assert updated["triggers"][0]["enabled"] is False
         assert updated["next_run_at"] is None
         assert updated["name"] == "renamed"
+
+        # Renaming alone does not touch the triggers.
+        renamed = client.patch(f"/api/graphs/{graph['id']}", json={"name": "renamed again"}).json()
+        assert renamed["triggers"] == updated["triggers"]
 
         assert client.get(f"/api/graphs/{graph['id']}").status_code == 200
         assert client.delete(f"/api/graphs/{graph['id']}").status_code == 204
         assert client.get("/api/graphs").json() == []
+        with Session(engine) as session:
+            assert session.exec(select(GraphTrigger)).all() == []
     _clear()
 
 
@@ -637,22 +667,27 @@ async def test_scheduler_fires_due_graph_once(monkeypatch):
     _no_enqueue(monkeypatch)
     monkeypatch.setattr(graphs, "POLL_SECONDS", POLL)
     definition = _definition([run_node("a", "Tick")], [])
-    graph_id = _make_graph(definition, name="scheduled", schedule="* * * * *", enabled=True)
+    graph_id = _make_graph(definition, name="scheduled")
     with Session(engine) as session:
-        graph = session.get(ExecutionGraph, graph_id)
-        assert graph is not None
-        graph.next_run_at = utcnow() - timedelta(minutes=1)
-        session.add(graph)
+        trigger = GraphTrigger(
+            graph_id=graph_id,
+            type="schedule",
+            config={"cron": "* * * * *", "timezone": "UTC"},
+            next_run_at=utcnow() - timedelta(minutes=1),
+        )
+        session.add(trigger)
         session.commit()
+        session.refresh(trigger)
+        trigger_id = trigger.id
 
     assert await graphs.run_due_once() == 1
     # The occurrence advanced, so a second tick does not fire again.
     with Session(engine) as session:
-        graph = session.get(ExecutionGraph, graph_id)
-        assert graph is not None and graph.next_run_at is not None
-        assert graph.next_run_at > utcnow()
+        trigger = session.get(GraphTrigger, trigger_id)
+        assert trigger is not None and trigger.next_run_at is not None
+        assert trigger.next_run_at > utcnow()
         execution = session.exec(select(GraphExecution)).first()
-        assert execution is not None and execution.trigger == "schedule"
+        assert execution is not None and execution.trigger == "schedule" and execution.trigger_id == trigger_id
     assert await graphs.run_due_once() == 0  # the busy execution suppresses a second fire
 
     run = await _await_for(_running_run, message="scheduled run never started")
@@ -662,6 +697,87 @@ async def test_scheduler_fires_due_graph_once(monkeypatch):
         lambda: _execution(execution_id).status.value == "succeeded",
         message="execution never succeeded",
     )
+    _clear()
+
+
+@pytest.mark.asyncio
+async def test_due_disabled_trigger_does_not_fire(monkeypatch):
+    create_db_and_tables()
+    _clear()
+    _harness()
+    _no_enqueue(monkeypatch)
+    graph_id = _make_graph(_definition([run_node("a", "Tick")], []), name="paused")
+    with Session(engine) as session:
+        session.add(
+            GraphTrigger(
+                graph_id=graph_id,
+                type="schedule",
+                config={"cron": "* * * * *", "timezone": "UTC"},
+                enabled=False,
+                next_run_at=utcnow() - timedelta(minutes=1),
+            )
+        )
+        session.commit()
+
+    assert await graphs.run_due_once() == 0
+    with Session(engine) as session:
+        assert session.exec(select(GraphExecution)).first() is None
+    _clear()
+
+
+def test_webhook_trigger_fires_graph(monkeypatch):
+    create_db_and_tables()
+    _clear()
+    _harness()
+    _no_enqueue(monkeypatch)
+    monkeypatch.setattr(graphs, "POLL_SECONDS", POLL)
+    graph_id = _make_graph(_definition([run_node("a", "Hook")], []), name="hooked")
+    with Session(engine) as session:
+        webhook = GraphTrigger(graph_id=graph_id, type="webhook", config={"secret": "s3cret"})
+        schedule = GraphTrigger(graph_id=graph_id, type="schedule", config={"cron": "0 9 * * *"})
+        session.add(webhook)
+        session.add(schedule)
+        session.commit()
+        session.refresh(webhook)
+        session.refresh(schedule)
+        webhook_id, schedule_id = webhook.id, schedule.id
+
+    with TestClient(app) as client:
+        url = f"/api/graphs/{graph_id}/triggers/{webhook_id}/fire"
+        # The secret is required, and the wrong one is refused.
+        assert client.post(url).status_code == 403
+        assert client.post(url, headers={"X-Trigger-Secret": "wrong"}).status_code == 403
+        started = client.post(url, headers={"X-Trigger-Secret": "s3cret"})
+        assert started.status_code == 201
+        assert started.json()["trigger"] == "webhook"
+        # The graph is busy, so a second fire is refused.
+        assert client.post(url, headers={"X-Trigger-Secret": "s3cret"}).status_code == 409
+        # A trigger that is not a webhook cannot be fired this way.
+        schedule_url = f"/api/graphs/{graph_id}/triggers/{schedule_id}/fire"
+        assert client.post(schedule_url, headers={"X-Trigger-Secret": "s3cret"}).status_code == 400
+        # A webhook received for another graph's trigger is not found.
+        other = _make_graph(_definition([run_node("a", "Other")], []), name="other")
+        assert client.post(f"/api/graphs/{other}/triggers/{webhook_id}/fire").status_code == 404
+
+        run = _wait_for(_running_run, message="webhook run never started")
+        _settle_run(run.id, "done")
+        _wait_for(
+            lambda: _execution(started.json()["id"]).status.value == "succeeded",
+            message="webhook execution never succeeded",
+        )
+
+        # A disabled trigger refuses the call even with the right secret.
+        disabled = client.patch(
+            f"/api/graphs/{graph_id}",
+            json={
+                "triggers": [
+                    {"id": webhook_id, "type": "webhook", "config": {"secret": "s3cret"}, "enabled": False},
+                    {"id": schedule_id, "type": "schedule", "config": {"cron": "0 9 * * *"}, "enabled": True},
+                ]
+            },
+        )
+        assert disabled.status_code == 200
+        assert client.post(url, headers={"X-Trigger-Secret": "s3cret"}).status_code == 403
     _clear()
 
 

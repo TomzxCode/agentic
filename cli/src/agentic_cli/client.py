@@ -527,9 +527,7 @@ class AgenticClient:
         name: str,
         *,
         description: str | None = None,
-        schedule: str | None = None,
-        timezone: str | None = None,
-        enabled: bool | None = None,
+        triggers: list[dict] | None = None,
         definition: dict | None = None,
     ) -> dict:
         return self._request(
@@ -539,9 +537,7 @@ class AgenticClient:
                 {
                     "name": name,
                     "description": description,
-                    "schedule": schedule,
-                    "timezone": timezone,
-                    "enabled": enabled,
+                    "triggers": triggers,
                     "definition": definition,
                 }
             ),

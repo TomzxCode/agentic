@@ -68,22 +68,38 @@ class GraphDefinition(BaseModel):
     edges: list[GraphEdge] = []
 
 
+class GraphTriggerInput(BaseModel):
+    """One submitted trigger; an empty id asks the server to make a new one."""
+
+    id: str = ""
+    type: str = "schedule"
+    config: dict[str, Any] = {}
+    enabled: bool = True
+
+
+class GraphTriggerRead(ORMModel):
+    id: str
+    type: str
+    config: dict[str, Any] = {}
+    enabled: bool
+    next_run_at: datetime | None = None
+    last_run_at: datetime | None = None
+
+
 class ExecutionGraphCreate(BaseModel):
     name: str
     description: str = ""
-    # A 5-field cron expression; omitted or empty means manual only.
-    schedule: str | None = None
-    timezone: str | None = None
-    enabled: bool = True
+    # Triggers start the graph without a manual run; an empty list means manual
+    # only. The server normalizes and validates each one.
+    triggers: list[GraphTriggerInput] = []
     definition: GraphDefinition = GraphDefinition()
 
 
 class ExecutionGraphUpdate(BaseModel):
     name: str | None = None
     description: str | None = None
-    schedule: str | None = None
-    timezone: str | None = None
-    enabled: bool | None = None
+    # Omitted leaves the triggers alone; a list replaces the whole set.
+    triggers: list[GraphTriggerInput] | None = None
     definition: GraphDefinition | None = None
 
 
@@ -91,11 +107,10 @@ class ExecutionGraphRead(ORMModel):
     id: str
     name: str
     description: str
-    schedule: str | None = None
-    # The zone the cron is evaluated in, resolved to the server's when unset.
-    timezone: str
-    enabled: bool
+    triggers: list[GraphTriggerRead] = []
     definition: dict[str, Any]
+    # The earliest enabled trigger's next occurrence, so the list can show when
+    # the graph runs without walking its triggers.
     next_run_at: datetime | None = None
     last_run_at: datetime | None = None
     created_at: datetime

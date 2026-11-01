@@ -33,12 +33,13 @@ import structlog
 from sqlalchemy import or_
 from sqlmodel import Session, col, select
 
+from . import triggers
 from .checklists import apply_task_templates
 from .config import settings
 from .db import engine
 from .models.agents import AgentEvent, AgentRun
 from .models.base import GraphExecutionStatus, RunStatus, TaskStatus, utcnow
-from .models.graphs import ExecutionGraph, GraphExecution
+from .models.graphs import ExecutionGraph, GraphExecution, GraphTrigger
 from .models.tasks import Task
 
 log = structlog.get_logger(__name__)
@@ -408,11 +409,13 @@ def _new_state(definition: dict[str, Any], order: list[str]) -> dict[str, Any]:
     }
 
 
-async def start_execution(session: Session, graph: ExecutionGraph, *, trigger: str) -> str:
+async def start_execution(session: Session, graph: ExecutionGraph, *, trigger: str, trigger_id: str = "") -> str:
     """Create the execution's task and row, then start orchestrating in the background.
 
-    Raises ``ValueError`` when the definition would not run or the graph
-    already has a running execution; the router turns that into a 409.
+    ``trigger`` names what started it (``manual``, ``schedule``, ``webhook``),
+    and ``trigger_id`` the trigger row when one did. Raises ``ValueError`` when
+    the definition would not run or the graph already has a running execution;
+    the router turns that into a 409.
     """
     definition = normalize_definition(graph.definition)
     issues = validate_definition(definition)
@@ -436,14 +439,11 @@ async def start_execution(session: Session, graph: ExecutionGraph, *, trigger: s
         graph_id=graph.id,
         task_id=task.id,
         trigger=trigger,
+        trigger_id=trigger_id,
         state=_new_state(definition, order),
     )
     session.add(execution)
     graph.last_run_at = utcnow()
-    if graph.enabled and graph.schedule:
-        from .schedules import compute_next_run
-
-        graph.next_run_at = compute_next_run(graph.schedule, base=graph.last_run_at, timezone=graph.timezone)
     session.add(graph)
     session.commit()
     session.refresh(execution)
@@ -1033,41 +1033,46 @@ def _finalize(
         )
 
 
-# --- cron scheduling -------------------------------------------------------
+# --- trigger scheduling ----------------------------------------------------
 async def run_due_once() -> int:
-    """Fire every enabled graph whose next occurrence has passed.
+    """Fire every enabled schedule trigger whose next occurrence has passed.
 
     The occurrence is advanced before the execution starts, so a slow one is
-    never fired twice; when the previous execution still runs, the fire is
-    skipped and only the schedule moves on.
+    never fired twice; when the graph's previous execution still runs, the fire
+    is skipped and only the trigger moves on.
     """
     now = utcnow()
     with Session(engine) as session:
         due = session.exec(
-            select(ExecutionGraph)
-            .where(col(ExecutionGraph.enabled) == True)  # noqa: E712
-            .where(col(ExecutionGraph.schedule).is_not(None), col(ExecutionGraph.schedule) != "")
-            .where(or_(col(ExecutionGraph.next_run_at).is_(None), col(ExecutionGraph.next_run_at) <= now))
+            select(GraphTrigger)
+            .where(col(GraphTrigger.type) == triggers.SCHEDULE)
+            .where(col(GraphTrigger.enabled) == True)  # noqa: E712
+            .where(or_(col(GraphTrigger.next_run_at).is_(None), col(GraphTrigger.next_run_at) <= now))
         ).all()
-        graph_ids = [graph.id for graph in due]
+        trigger_ids = [row.id for row in due]
     started = 0
-    from .schedules import compute_next_run
-
-    for graph_id in graph_ids:
+    for trigger_id in trigger_ids:
         with Session(engine) as session:
-            graph = session.get(ExecutionGraph, graph_id)
-            if graph is None or not graph.enabled or not graph.schedule:
+            row = session.get(GraphTrigger, trigger_id)
+            if row is None or not row.enabled or row.type != triggers.SCHEDULE:
                 continue
-            graph.last_run_at = utcnow()
-            graph.next_run_at = compute_next_run(graph.schedule, base=graph.last_run_at, timezone=graph.timezone)
-            busy = _active_execution_id(session, graph.id) is not None
-            session.add(graph)
+            graph = session.get(ExecutionGraph, row.graph_id)
+            if graph is None:
+                # A trigger whose graph went away is orphaned; drop it.
+                session.delete(row)
+                session.commit()
+                continue
+            row.last_run_at = utcnow()
+            row.next_run_at = triggers.next_run(
+                {"type": row.type, "config": row.config or {}, "enabled": row.enabled}, base=row.last_run_at
+            )
+            session.add(row)
             session.commit()
-            if busy:
-                log.info("skipped graph execution, one is already running", graph_id=graph_id)
+            if _active_execution_id(session, graph.id) is not None:
+                log.info("skipped graph execution, one is already running", graph_id=graph.id)
                 continue
             session.refresh(graph)
-            await start_execution(session, graph, trigger="schedule")
+            await start_execution(session, graph, trigger=row.type, trigger_id=row.id)
         started += 1
     return started
 

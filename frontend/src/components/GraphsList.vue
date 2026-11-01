@@ -24,14 +24,13 @@ const settingsFor = ref('')
 const editingDraft = ref({})
 const harnesses = ref([])
 
-const browserTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone
 const newDraft = ref(blankDraft())
 const creating = ref(false)
 
 const editingGraph = computed(() => graphs.value.find((graph) => graph.id === editing.value) || null)
 
 function blankDraft() {
-  return { name: '', description: '', schedule: '0 9 * * *', timezone: browserTimezone, enabled: true }
+  return { name: '', description: '', triggers: [] }
 }
 
 function cancelCreate() {
@@ -81,9 +80,12 @@ function draftFromGraph(graph) {
   return {
     name: graph.name,
     description: graph.description || '',
-    schedule: graph.schedule || '',
-    timezone: graph.timezone || browserTimezone,
-    enabled: graph.enabled
+    triggers: (graph.triggers || []).map((trigger) => ({
+      id: trigger.id,
+      type: trigger.type,
+      config: { ...(trigger.config || {}) },
+      enabled: trigger.enabled
+    }))
   }
 }
 
@@ -97,10 +99,34 @@ function draftBody(draft) {
   return {
     name: draft.name.trim(),
     description: draft.description.trim(),
-    schedule: draft.schedule.trim() || null,
-    timezone: draft.timezone.trim() || null,
-    enabled: draft.enabled
+    triggers: (draft.triggers || []).map((trigger) => ({
+      id: trigger.id || '',
+      type: trigger.type,
+      config: trigger.config || {},
+      enabled: trigger.enabled
+    }))
   }
+}
+
+// The triggers that are on, and a one-line label for each, for the list rows.
+function enabledTriggers(graph) {
+  return (graph.triggers || []).filter((trigger) => trigger.enabled)
+}
+
+function triggerSummary(graph) {
+  const enabled = enabledTriggers(graph)
+  if (!enabled.length) {
+    return (graph.triggers || []).length ? 'all triggers paused' : 'runs by hand only'
+  }
+  return enabled
+    .map((trigger) =>
+      trigger.type === 'schedule' ? `schedule ${trigger.config?.cron || '-'}` : trigger.type || 'trigger'
+    )
+    .join(' · ')
+}
+
+function pausedGraph(graph) {
+  return (graph.triggers || []).length > 0 && !enabledTriggers(graph).length
 }
 
 async function saveNew() {
@@ -226,17 +252,14 @@ async function runFromEditor(graph, definition) {
             <div class="row" style="gap: 8px; align-items: baseline">
               <strong>{{ graph.name }}</strong>
               <span v-if="graph.running_execution_id" class="badge graphs-running">running</span>
-              <span v-if="!graph.enabled" class="faint" style="font-size: 12px">paused</span>
+              <span v-if="pausedGraph(graph)" class="faint" style="font-size: 12px">paused</span>
             </div>
             <p v-if="graph.description" class="faint" style="margin: 2px 0 0; font-size: 13px">
               {{ graph.description }}
             </p>
             <p class="faint" style="margin: 2px 0 0; font-size: 12px">
-              <template v-if="graph.schedule">
-                <code>{{ graph.schedule }}</code> · next {{ formatDateTime(graph.next_run_at) }} ·
-                {{ graph.timezone }}
-              </template>
-              <template v-else>runs by hand only</template>
+              {{ triggerSummary(graph) }}
+              <template v-if="graph.next_run_at"> · next {{ formatDateTime(graph.next_run_at) }}</template>
               ·
               {{ (graph.definition?.nodes || []).length }} step{{
                 (graph.definition?.nodes || []).length === 1 ? '' : 's'
@@ -260,6 +283,7 @@ async function runFromEditor(graph, definition) {
         <GraphMetaForm
           v-if="settingsFor === graph.id"
           :id-prefix="`graph-${graph.id}`"
+          :graph-id="graph.id"
           :heading="`Settings: ${graph.name}`"
           submit-label="Save settings"
           :model-value="editingDraft"

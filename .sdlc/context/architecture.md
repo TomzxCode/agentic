@@ -333,17 +333,24 @@ erDiagram
     EXECUTIONGRAPH {
         string id PK
         string name
-        string schedule
-        string timezone
-        bool enabled
         json definition
+        datetime last_run_at
+    }
+    GRAPHTRIGGER {
+        string id PK
+        string graph_id FK
+        string type
+        json config
+        bool enabled
         datetime next_run_at
+        datetime last_run_at
     }
     GRAPHEXECUTION {
         string id PK
         string graph_id FK
         string task_id FK
         string trigger
+        string trigger_id
         string status
         json state
         datetime started_at
@@ -377,7 +384,7 @@ The full schema with types, constraints, and indexes lives in [`schema.dbml`](sc
 | Warm ACP session pool | Hold one ACP session for the default harness from startup, so the model picker lists models without spawning a harness per request | `agents/pool.py` (gated by `AGENTIC_WARM_HARNESS_SESSION`) |
 | In-process event bus | Publish run and task events to SSE subscribers | asyncio queues |
 | Scheduled tasks | User-defined shell commands fired on a cron schedule, each execution recorded with its exit code and output tail | `schedules.py`, `routers/schedules.py` |
-| Execution graphs | Named DAGs of agent runs, CLI commands, and form nodes, fired on demand or by cron; the executor walks the DAG in the API process and pauses on forms until answered | `graphs.py`, `routers/graphs.py` |
+| Execution graphs | Named DAGs of agent runs, CLI commands, and form nodes, fired on demand or by their triggers (a cron schedule, a webhook); the executor walks the DAG in the API process and pauses on forms until answered | `graphs.py`, `triggers.py`, `routers/graphs.py` |
 | Review queue | Pull requests awaiting the user's review: reports read from the user-global review store, the GitHub scan that stores the awaited set, and the must/should/may findings | `reviews.py`, `review_store.py`, `review_scan.py`, `review_queue.py`, `review_findings.py`, `routers/reviews.py` |
 | PR feedback | The reviewer-comment analysis files in the store, read as a triage queue whose implement/decline/defer decision is written back into the file's frontmatter for the executor to run | `feedback_store.py`, `routers/feedback.py`, Vue FeedbackView |
 | Decisions | Colleague-decision reports written by the extract-colleague-decisions skill, parsed read-only from the notes tree | `decisions_store.py`, `routers/decisions.py` |
@@ -411,7 +418,7 @@ The full schema with types, constraints, and indexes lives in [`schema.dbml`](sc
 4. An agent run is stored as a queued `AgentRun` and enqueued as a SAQ job keyed by the run id; a worker process (`agentic-server worker`) picks the job up, spawns the harness as a child process, drives it over ACP JSON-RPC on stdio, normalizes each update into an `AgentEvent` (persisted and streamed on `/api/runs/{id}/stream`), then terminates the process.
 5. A context refresh runs the same path, then parses a JSON `{summary, next_steps}` out of the assistant text and writes it back onto the task.
 6. At startup the API fails runs and graph executions left mid-flight by a previous process, unless their queue job is still live, so nothing looks running forever.
-7. Background loops in the API process refresh due items on their tiered policies, run the review scan on its cadence, fire scheduled shell tasks and cron-triggered execution graphs, and hold the warm ACP session for the default harness.
+7. Background loops in the API process refresh due items on their tiered policies, run the review scan on its cadence, fire scheduled shell tasks and due execution-graph schedule triggers, and hold the warm ACP session for the default harness.
 
 ## Infrastructure
 

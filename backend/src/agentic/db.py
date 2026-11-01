@@ -55,6 +55,7 @@ def create_db_and_tables() -> None:
     _migrate_task_repositories()
     _migrate_person_aliases()
     _migrate_person_notes()
+    _migrate_graph_schedules_to_triggers()
     _ensure_columns()
     _initialized = True
 
@@ -130,6 +131,38 @@ def _migrate_person_notes() -> None:
             )
         )
         connection.execute(text("UPDATE person SET notes = ''"))
+
+
+def _migrate_graph_schedules_to_triggers() -> None:
+    """Turn each graph's old schedule columns into a schedule trigger row.
+
+    A trigger is now its own row, so a cron schedule is one trigger type among
+    several instead of a column on the graph. The old columns stay (SQLite
+    drops are disruptive) but are emptied, so nothing reads a schedule twice.
+    """
+    tables = set(inspect(engine).get_table_names())
+    if "executiongraph" not in tables or "graphtrigger" not in tables:
+        return
+    columns = {column["name"] for column in inspect(engine).get_columns("executiongraph")}
+    if "schedule" not in columns:
+        return
+    # `enabled` is as old as the columns around it, but stay tolerant of a
+    # schema built before it existed.
+    enabled = "COALESCE(g.enabled, 1)" if "enabled" in columns else "1"
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                "INSERT INTO graphtrigger "
+                "(id, graph_id, type, config, enabled, next_run_at, last_run_at, created_at, updated_at) "
+                "SELECT lower(hex(randomblob(8))), g.id, 'schedule', "
+                "json_object('cron', g.schedule, 'timezone', COALESCE(g.timezone, '')), "
+                f"{enabled}, g.next_run_at, g.last_run_at, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP "
+                "FROM executiongraph g "
+                "WHERE g.schedule IS NOT NULL AND trim(g.schedule) <> '' "
+                "AND NOT EXISTS (SELECT 1 FROM graphtrigger t WHERE t.graph_id = g.id)"
+            )
+        )
+        connection.execute(text("UPDATE executiongraph SET schedule = NULL, timezone = NULL, next_run_at = NULL"))
 
 
 def _migrate_problem_to_task() -> None:
@@ -235,6 +268,12 @@ def _ensure_columns() -> None:
                 connection.execute(
                     text("ALTER TABLE repository ADD COLUMN review_scan VARCHAR NOT NULL DEFAULT 'default'")
                 )
+    if "graphexecution" in inspector.get_table_names():
+        execution_columns = {column["name"] for column in inspector.get_columns("graphexecution")}
+        if "trigger_id" not in execution_columns:
+            with engine.begin() as connection:
+                # DEFAULT backfills executions recorded before triggers existed.
+                connection.execute(text("ALTER TABLE graphexecution ADD COLUMN trigger_id VARCHAR NOT NULL DEFAULT ''"))
     if "scheduledtask" in inspector.get_table_names():
         schedule_columns = {column["name"] for column in inspector.get_columns("scheduledtask")}
         if "timezone" not in schedule_columns:

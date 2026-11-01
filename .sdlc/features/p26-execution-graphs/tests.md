@@ -28,7 +28,7 @@ Out of scope: no automated test drives the `agentic graphs` CLI commands, and no
 
 | ID | Description | Preconditions | Expected Outcome |
 |---|---|---|---|
-| TC-8 | Graph CRUD over the API | Fresh tables | Create (201, next_run_at set), empty shell stored, broken definition stored but refused at run (400), validate endpoint reports issues, blank name and bad cron 400, disable clears next_run_at, rename keeps the rest, delete 204 |
+| TC-8 | Graph CRUD over the API | Fresh tables | Create (201, next_run_at set), empty shell stored, broken definition stored but refused at run (400), validate endpoint reports definition and trigger issues, blank name, bad cron and unknown trigger type are 400, disabling a trigger clears its next_run_at, renaming keeps the triggers, delete 204 and removes them |
 | TC-9 | Two-node chain renders downstream | Enqueue stubbed, fast poll | First run linked to the "[Graph] chain" task, settling it enqueues the second with the answer rendered in, execution succeeds with outputs recorded, detail and history endpoints report the nodes |
 | TC-10 | Form pauses and an answer resumes | Chain run -> form -> run | Pending form appears with fields and defaults, the answer flows into the next prompt, answers stored in state |
 | TC-11 | Cancelling a form fails it | Pending form | Cancel fails the form, downstream skipped, execution failed |
@@ -47,6 +47,9 @@ Out of scope: no automated test drives the `agentic graphs` CLI commands, and no
 | TC-19 | A run row disappears while the executor polls | The node fails with "The run row disappeared" |
 | TC-20 | A waiting form whose request future is lost | `_wait_for_progress` raises instead of spinning, failing the execution loudly |
 | TC-21 | A scheduled tick while an execution is already running | The occurrence advances, no second execution starts |
+| TC-22 | A disabled schedule trigger | `run_due_once` starts nothing and leaves the occurrence alone |
+| TC-23 | A webhook fire with the wrong, missing, or right secret, a disabled trigger, a non-webhook trigger, another graph's trigger, or a busy graph | 403, 403, 201 with trigger "webhook", 403, 400, 404, and 409 respectively |
+| TC-24 | Migration of the old schedule columns | Each graph with a schedule gains one schedule trigger carrying its cron, zone, enabled flag, and next run; the old columns are emptied; a second pass adds nothing |
 
 ## Test Infrastructure
 
@@ -68,7 +71,7 @@ Out of scope: no automated test drives the `agentic graphs` CLI commands, and no
 | FR-6 | TC-8 |
 | FR-7 | TC-8 |
 | FR-8 | TC-8 |
-| FR-9 | TC-16, TC-21 |
+| FR-9 | TC-16, TC-21, TC-22 |
 | FR-10 | TC-9, TC-12 |
 | FR-11 | TC-4, TC-9, TC-14 |
 | FR-12 | TC-14, TC-15, TC-18 |
@@ -79,8 +82,10 @@ Out of scope: no automated test drives the `agentic graphs` CLI commands, and no
 | FR-17 | TC-13, TC-12 |
 | FR-18 | TC-9, TC-10, frontend graphsView suite |
 | FR-19 | TC-17 |
-| FR-20 | frontend graphsView suite (tabs, rows, run, delete confirm, expand execution, form submit and cancel, Arrange, auto-layout modes) |
-| FR-21 | none (manual; the CLI calls the same endpoints the backend suite covers) |
+| FR-20 | frontend graphsView suite (tabs, rows, run, delete confirm, expand execution, form submit and cancel, Arrange, auto-layout modes, trigger editing and webhook URL) |
+| FR-21 | none (manual; the CLI calls the same endpoints the backend suite covers; the trigger-file and shortcut helpers have unit tests) |
+| FR-22 | TC-8, TC-24 |
+| FR-23 | TC-23 |
 | NFR-1 | TC-10 (endpoint write survives the executor's next persist) |
 | NFR-2 | TC-1 to TC-4, TC-7 |
 | NFR-3 | TC-9 to TC-16 (fast poll) |
