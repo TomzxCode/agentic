@@ -32,7 +32,7 @@ dev = [
     "pytest-xdist>=3.8.0",
     "ruff>=0.17.1",
     "ty>=0.0.87",
-    "zensical>=0.0.70",
+    "zensical>=0.0.73",
 ]
 
 [tool.ruff]
