@@ -7,7 +7,7 @@
 
 export const NODE_WIDTH = 208
 export const HEADER_HEIGHT = 34
-export const ROW_HEIGHT = 26
+export const ROW_HEIGHT = 32
 // Distance between topological layers, and between stacked nodes in one.
 export const LAYER_GAP = 300
 export const ROW_GAP = 150
@@ -233,6 +233,24 @@ export function connect(definition, sourceId, sourceFieldId, targetId, port) {
   )
   if (duplicate) return definition
   return { ...definition, edges: [...definition.edges, edge] }
+}
+
+// The eligible target port nearest a canvas point, within `radius`, or null.
+// A finger rarely lands exactly on a 10px dot, so a drag that misses the row
+// by a few pixels still connects to the port it was aiming at.
+export function nearestPort(definition, sourceId, sourceFieldId, point, radius = 48) {
+  let best = null
+  for (const node of definition.nodes) {
+    for (const row of nodeRows(node)) {
+      if (row.kind === 'output') continue
+      if (!canConnect(definition, sourceId, sourceFieldId, node.id, { kind: row.kind, id: row.id })) continue
+      const port = portPoint(node, row)
+      const distance = Math.hypot(port.x - point.x, port.y - point.y)
+      if (distance > radius || (best && distance >= best.distance)) continue
+      best = { nodeId: node.id, kind: row.kind, id: row.id, distance }
+    }
+  }
+  return best
 }
 
 // --- instant editor feedback ------------------------------------------------

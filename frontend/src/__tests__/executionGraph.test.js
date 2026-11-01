@@ -7,6 +7,7 @@ import {
   dropDanglingEdges,
   edgeEndpoints,
   editorIssues,
+  nearestPort,
   nodeHeight,
   nodeRows,
   normalizeDefinition,
@@ -226,6 +227,31 @@ describe('relayout', () => {
       edges: [edge('a', 'b', { targetInputId: 'v' }), edge('b', 'a')]
     }
     expect(relayout(cyclic)).toBe(cyclic)
+  })
+})
+
+describe('nearestPort', () => {
+  const definition = {
+    nodes: [
+      { ...runNode('a', 'hi'), position: { x: 0, y: 0 } },
+      { ...runNode('b', 'then {{v}}', ['v', 'w']), position: { x: 400, y: 0 } }
+    ],
+    edges: []
+  }
+
+  it('picks the closest eligible target within the radius', () => {
+    const port = portPoint(definition.nodes[1], { kind: 'input', id: 'v' })
+    const found = nearestPort(definition, 'a', '', { x: port.x - 20, y: port.y + 10 }, 48)
+    expect(found).toMatchObject({ nodeId: 'b', kind: 'input', id: 'v' })
+  })
+
+  it('returns nothing when the point is too far from any target', () => {
+    expect(nearestPort(definition, 'a', '', { x: 0, y: 0 }, 48)).toBe(null)
+    expect(nearestPort(definition, 'a', '', { x: 400, y: 50 }, 10)).toMatchObject({ id: 'v' })
+  })
+
+  it('never targets the source node', () => {
+    expect(nearestPort({ ...definition, nodes: [definition.nodes[0]] }, 'a', '', { x: 0, y: 50 }, 48)).toBe(null)
   })
 })
 

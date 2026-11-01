@@ -116,6 +116,11 @@ Node statuses are pending, waiting (a form waiting for an answer), running, done
 The editor's Arrange button runs `relayout` over the whole definition.
 Its Auto-layout select (never, on add, on remove, always) decides whether a structural edit re-runs it; the choice is a per-device preference in `localStorage`, not graph state.
 
+Linking works by two taps on a phone: tapping a source row arms it, every eligible target row is marked, and a second tap draws the edge, so the finger is never held while the canvas scrolls to an off-screen node.
+A press that releases on the same row without moving arms it; a press that moves draws the connection; a release within 48 px of an eligible port (`nearestPort`) snaps to that port, which covers a finger that missed the row by a few pixels.
+The card header is the drag handle and the only part that keeps `touch-action: none`; a swipe over a card body pans the canvas, so cards no longer block scrolling on a phone.
+Rows are 32 px tall so a tap lands inside the row it aims at, and an input's dot sits beside its label instead of at the opposite edge.
+
 ## API Contracts
 
 | Method | Path | Purpose |

@@ -50,6 +50,22 @@ async function openEditor(wrapper) {
   await flushPromises()
 }
 
+// Two run steps far apart with nothing wired, for the connect gestures.
+const untangledDefinition = () => ({
+  nodes: [
+    { id: 'a', kind: 'run', title: 'Step A', position: { x: 40, y: 40 }, promptTemplate: 'hi', inputs: [] },
+    {
+      id: 'b',
+      kind: 'run',
+      title: 'Step B',
+      position: { x: 600, y: 40 },
+      promptTemplate: 'then {{v}}',
+      inputs: [{ id: 'v', name: 'v' }]
+    }
+  ],
+  edges: []
+})
+
 // Two run steps wired in a chain, saved far from where a layout would put them.
 const twoStepDefinition = () => ({
   nodes: [
@@ -236,6 +252,57 @@ describe('GraphsList', () => {
     expect(card.text()).toContain('Step B')
     expect(card.attributes('style')).toContain('left: 40px')
     expect(card.attributes('style')).toContain('top: 40px')
+  })
+
+  it('connects two steps with two taps', async () => {
+    mocks.graphsList.mockImplementation(async () => [graphRow('g1', { definition: untangledDefinition() })])
+    const wrapper = mount(GraphsList, stub)
+    await flushPromises()
+    await openEditor(wrapper)
+
+    const source = wrapper.find('[data-node-id="a"][data-port-kind="output"]')
+    await source.trigger('pointerdown')
+    window.dispatchEvent(new PointerEvent('pointerup'))
+    await flushPromises()
+    const banner = wrapper.find('.editor-armed')
+    expect(banner.exists()).toBe(true)
+    expect(banner.text()).toContain('answer')
+
+    // The eligible target is marked before the second tap.
+    const target = wrapper.find('[data-node-id="b"][data-port-kind="input"]')
+    expect(target.classes()).toContain('eligible')
+    await target.trigger('pointerdown')
+    await flushPromises()
+    expect(wrapper.find('.editor-armed').exists()).toBe(false)
+    expect(wrapper.findAll('.editor-edge')).toHaveLength(1)
+  })
+
+  it('cancels an armed connection from the banner or the source', async () => {
+    mocks.graphsList.mockImplementation(async () => [graphRow('g1', { definition: untangledDefinition() })])
+    const wrapper = mount(GraphsList, stub)
+    await flushPromises()
+    await openEditor(wrapper)
+    const source = wrapper.find('[data-node-id="a"][data-port-kind="output"]')
+
+    await source.trigger('pointerdown')
+    window.dispatchEvent(new PointerEvent('pointerup'))
+    await flushPromises()
+    await wrapper
+      .findAll('button')
+      .find((button) => button.text() === 'Cancel')
+      .trigger('click')
+    await flushPromises()
+    expect(wrapper.find('.editor-armed').exists()).toBe(false)
+
+    // Tapping the source again is the other way out.
+    await source.trigger('pointerdown')
+    window.dispatchEvent(new PointerEvent('pointerup'))
+    await flushPromises()
+    expect(wrapper.find('.editor-armed').exists()).toBe(true)
+    await source.trigger('pointerdown')
+    await flushPromises()
+    expect(wrapper.find('.editor-armed').exists()).toBe(false)
+    expect(wrapper.findAll('.editor-edge')).toHaveLength(0)
   })
 
   it('remembers the auto-layout mode per device', async () => {

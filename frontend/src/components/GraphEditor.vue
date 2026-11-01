@@ -12,11 +12,13 @@ import {
   blankInput,
   blankRunNode,
   canvasSize,
+  canConnect,
   connect,
   dropDanglingEdges,
   edgeEndpoints,
   edgePath,
   editorIssues,
+  nearestPort,
   nodeRows,
   normalizeDefinition,
   portPoint,
@@ -41,11 +43,18 @@ const selected = ref('')
 const selectedEdge = ref('')
 // A connection being drawn: where it starts and where the pointer is now.
 const pending = ref(null)
+// A connection waiting for its target: tap a source row, then tap an input or
+// a form field. This is the phone-friendly path, since it needs no held drag
+// and survives scrolling to a node that is off screen.
+const armed = ref(null)
 // The node being dragged, with the grab offset inside the card.
 const dragging = ref(null)
 const issues = ref([])
 const saving = ref(false)
 const content = ref(null)
+// A source row pressed but not yet moved: it arms on release, so a tap and a
+// drag start the same way and only the distance tells them apart.
+const rowPress = ref(null)
 
 // Whether the canvas arranges itself as the graph changes: never, when a step
 // is added, when one is removed, or both. A per-device view preference, kept
@@ -59,6 +68,19 @@ watch(autoLayoutMode, (mode) => localStorage.setItem(LAYOUT_KEY, mode))
 const size = computed(() => canvasSize(definition.value))
 const issueSet = computed(() => new Set(issues.value))
 const selectedNode = computed(() => definition.value.nodes.find((node) => node.id === selected.value) || null)
+// While a source is armed, every row a tap could land on is marked, so the
+// eligible targets are obvious without hovering (phones have no hover).
+const eligibleRows = computed(() => {
+  const allowed = new Set()
+  if (!armed.value) return allowed
+  for (const node of definition.value.nodes) {
+    for (const row of nodeRows(node)) {
+      if (!canConnect(definition.value, armed.value.sourceId, armed.value.sourceFieldId, node.id, row)) continue
+      allowed.add(rowKey(node, row))
+    }
+  }
+  return allowed
+})
 
 const edges = computed(() =>
   definition.value.edges
@@ -68,6 +90,45 @@ const edges = computed(() =>
 
 function nodeById(id) {
   return definition.value.nodes.find((node) => node.id === id)
+}
+
+function rowKey(node, row) {
+  return `${node.id}:${row.kind}:${row.id}`
+}
+
+// Arm a source row as the start of a connection. The target is a second tap,
+// so the finger never has to hold the source while finding its target.
+function arm(node, row) {
+  if (row.kind === 'input') return
+  armed.value = {
+    sourceId: node.id,
+    sourceFieldId: row.kind === 'field' ? row.id : '',
+    label: row.label,
+    nodeTitle: node.title || node.id
+  }
+}
+
+function cancelConnect() {
+  armed.value = null
+}
+
+function isArmedSource(node, row) {
+  if (!armed.value || armed.value.sourceId !== node.id) return false
+  return row.kind === 'field' ? row.id === armed.value.sourceFieldId : row.kind === 'output'
+}
+
+// A tap while armed lands on a row: connect when it can take the link, cancel
+// when it is the armed node itself, and otherwise leave the connection open.
+function connectArmed(node, row) {
+  const source = armed.value
+  if (!source) return
+  if (node.id === source.sourceId) {
+    cancelConnect()
+    return
+  }
+  if (!eligibleRows.value.has(rowKey(node, row))) return
+  definition.value = connect(definition.value, source.sourceId, source.sourceFieldId, node.id, row)
+  cancelConnect()
 }
 
 function addNode(kind) {
@@ -130,7 +191,49 @@ function startDrag(event, node) {
   event.currentTarget.setPointerCapture?.(event.pointerId)
 }
 
+// A press on the card body: on a phone the body pans the canvas and a tap
+// selects, while dragging a card is left to its header handle. A mouse keeps
+// the old drag-anywhere behaviour.
+function onNodePointerDown(event, node) {
+  if (armed.value) {
+    // Taps that land on a row were handled there; the rest of the card keeps
+    // the armed connection instead of starting a drag or a selection.
+    event.stopPropagation()
+    return
+  }
+  if (event.pointerType === 'touch') {
+    selectNode(node.id)
+    return
+  }
+  startDrag(event, node)
+}
+
+function onRowPointerDown(event, node, row) {
+  if (armed.value) {
+    event.stopPropagation()
+    connectArmed(node, row)
+    return
+  }
+  if (row.kind === 'input') return
+  event.stopPropagation()
+  // A mouse draws the connection immediately; a finger arms the row on
+  // release, so a swipe can still pan the canvas instead.
+  rowPress.value = {
+    nodeId: node.id,
+    row,
+    startX: event.clientX,
+    startY: event.clientY,
+    moved: false
+  }
+  if (event.pointerType !== 'touch') startConnect(event, node, row)
+}
+
 function onPointerMove(event) {
+  if (rowPress.value && !rowPress.value.moved) {
+    const dx = event.clientX - rowPress.value.startX
+    const dy = event.clientY - rowPress.value.startY
+    if (Math.hypot(dx, dy) > 8) rowPress.value.moved = true
+  }
   if (dragging.value) {
     const box = content.value.getBoundingClientRect()
     const node = nodeById(dragging.value.id)
@@ -150,8 +253,18 @@ function onPointerMove(event) {
 }
 
 function onPointerUp(event) {
+  const press = rowPress.value
+  rowPress.value = null
   if (dragging.value) {
     dragging.value = null
+    return
+  }
+  // A press that never moved is a tap: arm the source instead of resolving a
+  // drop that went nowhere.
+  if (press && !press.moved) {
+    pending.value = null
+    const node = nodeById(press.nodeId)
+    if (node) arm(node, press.row)
     return
   }
   if (!pending.value) return
@@ -167,8 +280,36 @@ function onPointerUp(event) {
       drop.dataset.nodeId,
       port
     )
+  } else {
+    // A finger that missed the row by a few pixels still lands on the port it
+    // was aiming at.
+    const nearest = nearestPort(
+      definition.value,
+      pending.value.sourceId,
+      pending.value.sourceFieldId,
+      { x: pending.value.x, y: pending.value.y },
+      48
+    )
+    if (nearest) {
+      definition.value = connect(
+        definition.value,
+        pending.value.sourceId,
+        pending.value.sourceFieldId,
+        nearest.nodeId,
+        {
+          kind: nearest.kind,
+          id: nearest.id
+        }
+      )
+    }
   }
   pending.value = null
+}
+
+function onPointerCancel() {
+  dragging.value = null
+  pending.value = null
+  rowPress.value = null
 }
 
 function startConnect(event, node, row) {
@@ -191,6 +332,7 @@ function rowsFor(node) {
 
 function onCanvasBackground(event) {
   if (event.target.closest('[data-node-card], button, input, textarea, select')) return
+  armed.value = null
   selected.value = ''
   selectedEdge.value = ''
 }
@@ -201,7 +343,10 @@ function onKeyDown(event) {
     event.preventDefault()
     deleteSelected()
   }
-  if (event.key === 'Escape') pending.value = null
+  if (event.key === 'Escape') {
+    armed.value = null
+    pending.value = null
+  }
 }
 
 // --- inspector edits --------------------------------------------------------
@@ -263,11 +408,13 @@ function run() {
 onMounted(() => {
   window.addEventListener('pointermove', onPointerMove)
   window.addEventListener('pointerup', onPointerUp)
+  window.addEventListener('pointercancel', onPointerCancel)
   window.addEventListener('keydown', onKeyDown)
 })
 onBeforeUnmount(() => {
   window.removeEventListener('pointermove', onPointerMove)
   window.removeEventListener('pointerup', onPointerUp)
+  window.removeEventListener('pointercancel', onPointerCancel)
   window.removeEventListener('keydown', onKeyDown)
 })
 </script>
@@ -301,9 +448,17 @@ onBeforeUnmount(() => {
       <span v-for="issue in issues" :key="issue">{{ issue }}</span>
     </p>
     <p v-else class="faint editor-hint">
-      Drag cards to arrange them, or press Arrange to lay them out for you. Drag from a right-side dot onto an input or
-      a form field to connect. Select something and press Delete to remove it.
+      Tap a step's output row, then tap the input or form field it should feed (on a computer you can also drag from a
+      right-side dot). Drag a card by its header to move it. Select something and press Delete to remove it.
     </p>
+
+    <div v-if="armed" class="editor-armed" role="status">
+      <span>
+        Connecting <strong>{{ armed.label }}</strong> from <strong>{{ armed.nodeTitle }}</strong
+        >. Tap an input or a form field, or tap the source again to cancel.
+      </span>
+      <button class="btn sm" @click="cancelConnect">Cancel</button>
+    </div>
 
     <div class="editor-body">
       <div class="editor-canvas" @pointerdown="onCanvasBackground">
@@ -331,21 +486,31 @@ onBeforeUnmount(() => {
             class="editor-node"
             :class="{ run: node.kind === 'run', form: node.kind === 'form', selected: selected === node.id }"
             :style="{ left: `${node.position.x}px`, top: `${node.position.y}px`, width: `${NODE_WIDTH}px` }"
-            @pointerdown="startDrag($event, node)"
+            @pointerdown="onNodePointerDown($event, node)"
           >
-            <div class="editor-node-head" :style="{ height: `${HEADER_HEIGHT}px` }">
+            <div
+              class="editor-node-head"
+              :style="{ height: `${HEADER_HEIGHT}px` }"
+              title="Drag to move"
+              @pointerdown.stop="startDrag($event, node)"
+            >
               <span class="editor-node-kind">{{ node.kind }}</span>
               <span class="editor-node-title">{{ node.title || node.id }}</span>
+              <span class="editor-node-grip" aria-hidden="true">⠿</span>
             </div>
             <div
               v-for="row in rowsFor(node)"
               :key="`${row.kind}:${row.id}`"
               class="editor-node-row"
+              :class="{
+                eligible: eligibleRows.has(rowKey(node, row)),
+                source: isArmedSource(node, row)
+              }"
               :style="{ height: `${ROW_HEIGHT}px` }"
               :data-port-kind="row.kind === 'input' ? 'input' : row.kind"
               :data-port-id="row.id"
               :data-node-id="node.id"
-              @pointerdown="row.kind !== 'input' && startConnect($event, node, row)"
+              @pointerdown="onRowPointerDown($event, node, row)"
             >
               <span v-if="row.kind === 'input'" class="port in" title="Drop a connection here"></span>
               <span class="editor-row-label">{{ row.label }}</span>
@@ -549,12 +714,26 @@ onBeforeUnmount(() => {
   stroke: var(--accent);
   stroke-dasharray: 4 4;
 }
+.editor-armed {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 0 0 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  background: var(--bg-1);
+  font-size: 13px;
+}
 .editor-node {
   position: absolute;
   background: var(--bg-2);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  touch-action: none;
+  /* A swipe over the card body pans the canvas; only the header and the ports
+     opt out, so a phone can still move around a dense canvas. */
+  touch-action: pan-x pan-y;
   user-select: none;
   cursor: grab;
 }
@@ -570,6 +749,16 @@ onBeforeUnmount(() => {
   gap: 6px;
   padding: 0 10px;
   border-bottom: 1px solid var(--border);
+  /* The header is the card's drag handle, so it keeps the gesture from
+     turning into a canvas pan. */
+  touch-action: none;
+  cursor: grab;
+}
+.editor-node-grip {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1;
 }
 .editor-node-kind {
   font-size: 10px;
@@ -589,10 +778,25 @@ onBeforeUnmount(() => {
 .editor-node-row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   padding: 0 10px;
   border-bottom: 1px dashed var(--border);
   font-size: 13px;
+}
+/* While a connection is armed, every row a tap could land on is marked, so a
+   phone user sees the targets without hovering over them. */
+.editor-node-row.eligible {
+  background: rgba(110, 231, 183, 0.12);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+.editor-node-row.eligible .port {
+  border-color: var(--accent);
+}
+.editor-node-row.source {
+  background: rgba(110, 231, 183, 0.22);
+}
+.editor-node-row.source .port {
+  background: var(--accent);
+  border-color: var(--accent);
 }
 .editor-node-row:last-child {
   border-bottom: none;
@@ -615,8 +819,14 @@ onBeforeUnmount(() => {
   margin-right: 6px;
 }
 .port.out {
-  margin-left: 6px;
+  /* Push the output dot to the row's right edge; the label stays beside the
+     left edge, where the incoming dot sits on an input row. */
+  margin-left: auto;
   cursor: crosshair;
+}
+.port.out,
+.port.in {
+  touch-action: none;
 }
 .editor-node-row:hover .port.out {
   border-color: var(--accent);
