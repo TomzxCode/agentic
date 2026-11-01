@@ -488,13 +488,7 @@ watch(
         </div>
         <div class="prop">
           <span class="prop-label">Requested by</span>
-          <PeopleSelect
-            ref="requesterRef"
-            kind="requesters"
-            :task="task"
-            link-to-detail
-            @changed="onChanged"
-          />
+          <PeopleSelect ref="requesterRef" kind="requesters" :task="task" link-to-detail @changed="onChanged" />
         </div>
         <div class="prop">
           <span class="prop-label">Repositories</span>

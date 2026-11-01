@@ -138,6 +138,74 @@ def test_ensure_columns_adds_missing_post_init_columns(monkeypatch, tmp_path):
     db._ensure_columns()
 
 
+def test_migrate_graph_schedules_to_triggers(monkeypatch, tmp_path):
+    engine = _engine(tmp_path, "i.db")
+    with engine.begin() as conn:
+        conn.execute(
+            sqlalchemy.text(
+                "CREATE TABLE executiongraph "
+                "(id VARCHAR PRIMARY KEY, schedule VARCHAR, timezone VARCHAR, enabled BOOLEAN, "
+                "next_run_at DATETIME, last_run_at DATETIME)"
+            )
+        )
+        conn.execute(
+            sqlalchemy.text(
+                "CREATE TABLE graphtrigger "
+                "(id VARCHAR PRIMARY KEY, graph_id VARCHAR, type VARCHAR, config VARCHAR, enabled BOOLEAN, "
+                "next_run_at DATETIME, last_run_at DATETIME, created_at DATETIME, updated_at DATETIME)"
+            )
+        )
+        conn.execute(
+            sqlalchemy.text(
+                "INSERT INTO executiongraph (id, schedule, timezone, enabled, next_run_at) "
+                "VALUES ('g1', '0 9 * * *', 'Europe/Paris', 1, '2026-11-02 08:00:00')"
+            )
+        )
+        conn.execute(sqlalchemy.text("INSERT INTO executiongraph (id, schedule, enabled) VALUES ('g2', NULL, 0)"))
+    monkeypatch.setattr(db, "engine", engine)
+
+    db._migrate_graph_schedules_to_triggers()
+
+    with engine.connect() as conn:
+        rows = conn.execute(
+            sqlalchemy.text("SELECT graph_id, type, config, enabled FROM graphtrigger ORDER BY graph_id")
+        ).all()
+        cleared = conn.execute(
+            sqlalchemy.text("SELECT schedule, next_run_at, enabled FROM executiongraph WHERE id='g1'")
+        ).one()
+    # Only the graph with a schedule gets a trigger, carrying its cron and zone.
+    assert len(rows) == 1 and rows[0][0] == "g1" and rows[0][1] == "schedule"
+    assert '"0 9 * * *"' in rows[0][2] and "Europe/Paris" in rows[0][2] and rows[0][3] == 1
+    # The old columns are emptied so the schedule is not read twice.
+    assert tuple(cleared) == (None, None, 1)
+
+    # A second pass adds nothing.
+    db._migrate_graph_schedules_to_triggers()
+    with engine.connect() as conn:
+        assert conn.execute(sqlalchemy.text("SELECT count(*) FROM graphtrigger")).scalar() == 1
+
+
+def test_migrate_graph_schedules_to_triggers_without_tables_is_a_noop(monkeypatch, tmp_path):
+    engine = _engine(tmp_path, "j.db")
+    monkeypatch.setattr(db, "engine", engine)
+    db._migrate_graph_schedules_to_triggers()
+
+
+def test_ensure_columns_adds_graph_execution_trigger_id(monkeypatch, tmp_path):
+    engine = _engine(tmp_path, "k.db")
+    with engine.begin() as conn:
+        conn.execute(sqlalchemy.text("CREATE TABLE graphexecution (id VARCHAR PRIMARY KEY, graph_id VARCHAR)"))
+        conn.execute(sqlalchemy.text("INSERT INTO graphexecution (id, graph_id) VALUES ('x1', 'g1')"))
+    monkeypatch.setattr(db, "engine", engine)
+
+    db._ensure_columns()
+
+    with engine.connect() as conn:
+        row = conn.execute(sqlalchemy.text("SELECT trigger_id FROM graphexecution WHERE id='x1'")).scalar()
+    # The DEFAULT backfills executions recorded before triggers existed.
+    assert row == ""
+
+
 def test_ensure_columns_without_tables_is_a_noop(monkeypatch, tmp_path):
     engine = _engine(tmp_path, "h.db")
     monkeypatch.setattr(db, "engine", engine)
