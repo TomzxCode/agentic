@@ -564,6 +564,99 @@ class AgenticClient:
     def get_graph_execution(self, execution_id: str) -> dict:
         return self._request("GET", f"/api/graphs/executions/{execution_id}")
 
+    # --- webhooks (event bus) ---------------------------------------------
+    def list_webhook_endpoints(self) -> list[dict]:
+        return self._request("GET", "/api/webhooks/endpoints")
+
+    def get_webhook_endpoint(self, endpoint_id: str) -> dict:
+        return self._request("GET", f"/api/webhooks/endpoints/{endpoint_id}")
+
+    def create_webhook_endpoint(
+        self,
+        name: str,
+        *,
+        description: str | None = None,
+        kind: str | None = None,
+        secret: str | None = None,
+        enabled: bool | None = None,
+    ) -> dict:
+        return self._request(
+            "POST",
+            "/api/webhooks/endpoints",
+            json=_compact(
+                {
+                    "name": name,
+                    "description": description,
+                    "kind": kind,
+                    "secret": secret,
+                    "enabled": enabled,
+                }
+            ),
+        )
+
+    def update_webhook_endpoint(self, endpoint_id: str, **fields: Any) -> dict:
+        return self._request("PATCH", f"/api/webhooks/endpoints/{endpoint_id}", json=_compact(fields))
+
+    def delete_webhook_endpoint(self, endpoint_id: str) -> None:
+        self._request("DELETE", f"/api/webhooks/endpoints/{endpoint_id}")
+
+    def list_webhook_subscriptions(self, endpoint_id: str | None = None) -> list[dict]:
+        params = {"endpoint_id": endpoint_id} if endpoint_id else None
+        return self._request("GET", "/api/webhooks/subscriptions", params=params)
+
+    def create_webhook_subscription(
+        self,
+        endpoint_id: str,
+        graph_id: str,
+        *,
+        name: str | None = None,
+        events: list[str] | None = None,
+        filters: list[dict] | None = None,
+        enabled: bool | None = None,
+    ) -> dict:
+        return self._request(
+            "POST",
+            f"/api/webhooks/endpoints/{endpoint_id}/subscriptions",
+            json=_compact(
+                {
+                    "graph_id": graph_id,
+                    "name": name,
+                    "events": events,
+                    "filters": filters,
+                    "enabled": enabled,
+                }
+            ),
+        )
+
+    def update_webhook_subscription(self, subscription_id: str, **fields: Any) -> dict:
+        return self._request("PATCH", f"/api/webhooks/subscriptions/{subscription_id}", json=_compact(fields))
+
+    def delete_webhook_subscription(self, subscription_id: str) -> None:
+        self._request("DELETE", f"/api/webhooks/subscriptions/{subscription_id}")
+
+    def list_webhook_events(
+        self, endpoint_id: str | None = None, event_type: str | None = None, limit: int = 50
+    ) -> list[dict]:
+        params: list[tuple[str, Any]] = [("limit", limit)]
+        if endpoint_id:
+            params.append(("endpoint_id", endpoint_id))
+        if event_type:
+            params.append(("event_type", event_type))
+        return self._request("GET", "/api/webhooks/events", params=params)
+
+    def get_webhook_event(self, event_id: str) -> dict:
+        return self._request("GET", f"/api/webhooks/events/{event_id}")
+
+    def replay_webhook_event(self, event_id: str) -> dict:
+        return self._request("POST", f"/api/webhooks/events/{event_id}/replay")
+
+    def test_webhook_endpoint(self, endpoint_id: str, *, event_type: str = "test", payload: dict | None = None) -> dict:
+        return self._request(
+            "POST",
+            f"/api/webhooks/endpoints/{endpoint_id}/test",
+            json={"event_type": event_type, "payload": payload or {}},
+        )
+
     # --- operations (provenance audit log) --------------------------------
     def list_operations(
         self,

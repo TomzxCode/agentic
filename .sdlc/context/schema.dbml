@@ -524,3 +524,65 @@ Table reviewrequest {
     (repository, number) [unique, name: 'uq_review_request']
   }
 }
+
+// The event bus: an inbound webhook URL, the execution graphs it feeds, the
+// stored deliveries, and what each delivery did to each workflow.
+Table webhookendpoint {
+  id varchar [pk]
+  name varchar [not null]
+  description text [not null, default: '']
+  kind varchar [not null, default: 'generic'] // generic | github
+  secret varchar [not null, default: ''] // GitHub HMAC key or generic shared token
+  enabled boolean [not null, default: true]
+  created_at datetime [not null]
+  updated_at datetime [not null]
+}
+
+Table eventsubscription {
+  id varchar [pk]
+  name varchar [not null, default: '']
+  endpoint_id varchar [not null, ref: > webhookendpoint.id]
+  graph_id varchar [not null, ref: > executiongraph.id]
+  events json [not null] // event types; empty matches all
+  filters json [not null] // [{path, equals|contains|exists}]
+  enabled boolean [not null, default: true]
+  created_at datetime [not null]
+  updated_at datetime [not null]
+
+  Indexes {
+    endpoint_id
+    graph_id
+  }
+}
+
+Table webhookevent {
+  id varchar [pk]
+  endpoint_id varchar [not null, ref: > webhookendpoint.id]
+  source varchar [not null, default: 'webhook']
+  event_type varchar [not null, default: 'event']
+  delivery_id varchar [not null, default: '']
+  payload json [not null]
+  headers json [not null]
+  created_at datetime [not null]
+
+  Indexes {
+    endpoint_id
+  }
+}
+
+Table eventdelivery {
+  id varchar [pk]
+  event_id varchar [not null, ref: > webhookevent.id]
+  subscription_id varchar [not null, ref: > eventsubscription.id]
+  graph_id varchar [not null, ref: > executiongraph.id]
+  graph_execution_id varchar
+  status varchar [not null, default: 'started'] // started | skipped | failed
+  error text [not null, default: '']
+  created_at datetime [not null]
+
+  Indexes {
+    event_id
+    subscription_id
+    graph_id
+  }
+}

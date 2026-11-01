@@ -27,13 +27,14 @@ deliberate non-goals under "Out of scope".
 | UC-8 | Plan and sequence work | Sole user | The Gantt view shows each task in flight as a bar with one marker per timeline event, and before/after dependency edges form a DAG (the API refuses cycles) drawn on the graph page. |
 | UC-9 | Measure output and flow | Sole user | Factory metrics compute autonomy rate and yield for recorded changes against stored metric baselines, and the process view reports stations, cumulative flow, aging WIP, and cycle times derived from timeline events. |
 | UC-10 | Keep recurring maintenance running on a schedule | Sole user | Scheduled tasks run user-defined shell commands when their 5-field cron expression is due, recording each run's exit code and output tail. |
-| UC-11 | Orchestrate multi-step agent work | Sole user | Execution graphs chain run nodes, CLI commands, and form nodes; a graph execution pauses at a form node until someone answers it in the web UI, then flows the answer downstream and resumes. |
+| UC-11 | Orchestrate multi-step agent work | Sole user | Execution graphs chain agent runs, Agentic commands, shell scripts, and form nodes; a graph execution pauses at a form node until someone answers it in the web UI, then flows the answer downstream and resumes. |
 | UC-12 | Prepare replies while on call | Sole user | The on-call view runs an on-call scan of a Slack channel that collects what needs answering and prepares draft replies. |
 | UC-13 | Catch up on what colleagues decided | Sole user | The decisions page reads the colleague decision reports under the notes tree, read-only. |
 | UC-14 | Track who and which checkouts a piece of work involves | Sole user | The people directory links people and their aliases to tasks and items, repositories register local checkouts with repository groups that tell a task's agent which checkouts may be relevant, and a requester records who asked for a task. |
 | UC-15 | Drive the tracker from a phone | Sole user | The web app is an installable Vue 3 PWA whose layouts collapse to an off-canvas drawer below 760px with touch-friendly controls and safe-area handling, so it stays usable at phone widths. |
 | UC-16 | Work a task with its full context as the task's operator | Coding agent | The context prompt built for a run carries the task, its items, repositories, group, and worktrees, the agent works in an isolated worktree, and its summary and next steps are written back to the task. |
 | UC-17 | Integrate a coding harness without changing the app | ACP harness authors | Any harness reachable over ACP can be added under Settings → Harnesses (one marked default, an optional per-harness model, and a warm session pool for the model picker), and the runner drives it through the same client. |
+| UC-18 | React to events from outside systems | Sole user | Webhook endpoints accept generic JSON or signed GitHub deliveries, store every event, and start the execution graphs whose event type and JSON-path filters match; the graph's event trigger exposes payload fields to its steps, and deliveries can be inspected and replayed. |
 
 ## Wanted
 
@@ -45,6 +46,6 @@ None recorded yet.
 ## Out of scope
 
 - Multi-user access, authentication, or tenancy isolation.
-- OAuth flows, webhooks, or continuous two-way sync with external systems.
+- OAuth flows or continuous two-way sync with external systems (webhooks are inbound and one-way).
 - A hosted or cloud deployment (the app is local-first and only safe to expose on a trusted network).
 - Interactive agent permission approval (run requests are auto-approved).

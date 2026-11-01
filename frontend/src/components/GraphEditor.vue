@@ -11,6 +11,9 @@ import {
   blankFormNode,
   blankInput,
   blankRunNode,
+  blankShellNode,
+  blankTriggerNode,
+  blankTriggerOutput,
   canvasSize,
   connect,
   dropDanglingEdges,
@@ -18,6 +21,7 @@ import {
   edgePath,
   editorIssues,
   nodeRows,
+  nodeKindLabel,
   normalizeDefinition,
   portPoint,
   removeField,
@@ -49,6 +53,19 @@ const content = ref(null)
 const size = computed(() => canvasSize(definition.value))
 const issueSet = computed(() => new Set(issues.value))
 const selectedNode = computed(() => definition.value.nodes.find((node) => node.id === selected.value) || null)
+const hasTrigger = computed(() => definition.value.nodes.some((node) => node.kind === 'trigger'))
+
+// The "Add step" menu: one entry per node kind, with the shape of work it does.
+const ADD_STEP_OPTIONS = [
+  { kind: 'run', hint: 'Prompt an ACP harness and use its answer.' },
+  { kind: 'cli', hint: 'Call the agentic CLI against this server.' },
+  { kind: 'shell', hint: 'Run a bash script and use its output.' },
+  { kind: 'form', hint: 'Ask a person for input mid-run.' },
+  { kind: 'trigger', hint: 'Start the workflow from a webhook event.' }
+]
+
+const addMenuOpen = ref(false)
+const addMenu = ref(null)
 
 const edges = computed(() =>
   definition.value.edges
@@ -61,7 +78,17 @@ function nodeById(id) {
 }
 
 function addNode(kind) {
-  const node = kind === 'form' ? blankFormNode() : kind === 'cli' ? blankCliNode() : blankRunNode()
+  addMenuOpen.value = false
+  const node =
+    kind === 'form'
+      ? blankFormNode()
+      : kind === 'cli'
+        ? blankCliNode()
+        : kind === 'shell'
+          ? blankShellNode()
+          : kind === 'trigger'
+            ? blankTriggerNode()
+            : blankRunNode()
   // Drop new nodes where the canvas is scrolled to, stepping each one down so
   // consecutive additions do not stack on top of each other.
   const box = content.value?.parentElement
@@ -177,7 +204,16 @@ function onKeyDown(event) {
     event.preventDefault()
     deleteSelected()
   }
-  if (event.key === 'Escape') pending.value = null
+  if (event.key === 'Escape') {
+    pending.value = null
+    addMenuOpen.value = false
+  }
+}
+
+function onDocumentClick(event) {
+  if (!addMenuOpen.value) return
+  if (addMenu.value?.contains(event.target)) return
+  addMenuOpen.value = false
 }
 
 // --- inspector edits --------------------------------------------------------
@@ -200,6 +236,20 @@ function removeNodeField(node, fieldId) {
   const index = definition.value.nodes.findIndex((candidate) => candidate.id === node.id)
   if (index === -1) return
   definition.value.nodes[index] = removeField(node, fieldId)
+  definition.value = dropDanglingEdges(definition.value)
+}
+
+function addOutput(node) {
+  node.outputs.push(blankTriggerOutput())
+}
+
+function removeNodeOutput(node, outputId) {
+  const index = definition.value.nodes.findIndex((candidate) => candidate.id === node.id)
+  if (index === -1) return
+  definition.value.nodes[index] = {
+    ...node,
+    outputs: node.outputs.filter((output) => output.id !== outputId)
+  }
   definition.value = dropDanglingEdges(definition.value)
 }
 
@@ -240,35 +290,63 @@ onMounted(() => {
   window.addEventListener('pointermove', onPointerMove)
   window.addEventListener('pointerup', onPointerUp)
   window.addEventListener('keydown', onKeyDown)
+  document.addEventListener('click', onDocumentClick)
 })
 onBeforeUnmount(() => {
   window.removeEventListener('pointermove', onPointerMove)
   window.removeEventListener('pointerup', onPointerUp)
   window.removeEventListener('keydown', onKeyDown)
+  document.removeEventListener('click', onDocumentClick)
 })
 </script>
 
 <template>
   <div class="panel editor-panel">
-    <div class="panel-head">
+    <div class="panel-head editor-head">
       <h2>{{ graph.name }}</h2>
-      <span class="row" style="gap: 6px; flex-wrap: wrap">
-        <button class="btn sm" @click="addNode('run')">+ Run step</button>
-        <button class="btn sm" @click="addNode('cli')">+ Command step</button>
-        <button class="btn sm" @click="addNode('form')">+ Form step</button>
-        <button class="btn sm" @click="validate">Check</button>
-        <button class="btn sm primary" :disabled="saving || issueSet.size > 0" @click="save">Save</button>
-        <button class="btn sm" :disabled="issueSet.size > 0" @click="run">Run</button>
-        <button class="btn sm ghost" @click="emit('close')">Close</button>
-      </span>
+      <div class="editor-actions">
+        <div ref="addMenu" class="editor-add">
+          <button
+            class="btn sm"
+            type="button"
+            aria-haspopup="menu"
+            :aria-expanded="addMenuOpen ? 'true' : 'false'"
+            @click="addMenuOpen = !addMenuOpen"
+          >
+            + Add step
+            <span class="editor-caret" :class="{ open: addMenuOpen }" aria-hidden="true"></span>
+          </button>
+          <div v-if="addMenuOpen" class="editor-add-menu" role="menu" aria-label="Add a step">
+            <button
+              v-for="option in ADD_STEP_OPTIONS"
+              :key="option.kind"
+              class="editor-add-item"
+              type="button"
+              role="menuitem"
+              :disabled="option.kind === 'trigger' && hasTrigger"
+              @click="addNode(option.kind)"
+            >
+              <span class="editor-add-label">{{ nodeKindLabel(option.kind) }}</span>
+              <span class="editor-add-hint">
+                {{ option.kind === 'trigger' && hasTrigger ? 'Already added' : option.hint }}
+              </span>
+            </button>
+          </div>
+        </div>
+        <span class="editor-divider" aria-hidden="true"></span>
+        <button class="btn sm ghost" type="button" @click="validate">Check</button>
+        <button class="btn sm primary" type="button" :disabled="saving || issueSet.size > 0" @click="save">Save</button>
+        <button class="btn sm" type="button" :disabled="issueSet.size > 0" @click="run">Run</button>
+        <button class="btn sm ghost" type="button" @click="emit('close')">Close</button>
+      </div>
     </div>
 
     <p v-if="issues.length" class="editor-issues">
       <span v-for="issue in issues" :key="issue">{{ issue }}</span>
     </p>
     <p v-else class="faint editor-hint">
-      Drag cards to arrange them. Drag from a right-side dot onto an input or a form field to connect. Select something
-      and press Delete to remove it.
+      Drag cards to arrange them. Drag from a right-side dot onto an input or a form field to connect. An Event trigger
+      is the entry point for a webhook event. Select something and press Delete to remove it.
     </p>
 
     <div class="editor-body">
@@ -295,12 +373,18 @@ onBeforeUnmount(() => {
             :key="node.id"
             :data-node-card="node.id"
             class="editor-node"
-            :class="{ run: node.kind === 'run', form: node.kind === 'form', selected: selected === node.id }"
+            :class="{
+              run: node.kind === 'run',
+              shell: node.kind === 'shell',
+              form: node.kind === 'form',
+              trigger: node.kind === 'trigger',
+              selected: selected === node.id
+            }"
             :style="{ left: `${node.position.x}px`, top: `${node.position.y}px`, width: `${NODE_WIDTH}px` }"
             @pointerdown="startDrag($event, node)"
           >
             <div class="editor-node-head" :style="{ height: `${HEADER_HEIGHT}px` }">
-              <span class="editor-node-kind">{{ node.kind }}</span>
+              <span class="editor-node-kind">{{ nodeKindLabel(node.kind) }}</span>
               <span class="editor-node-title">{{ node.title || node.id }}</span>
             </div>
             <div
@@ -323,9 +407,7 @@ onBeforeUnmount(() => {
 
       <aside v-if="selectedNode" class="editor-inspector">
         <div class="row" style="justify-content: space-between">
-          <h3 style="margin: 0">
-            {{ selectedNode.kind === 'run' ? 'Run step' : selectedNode.kind === 'cli' ? 'Command step' : 'Form step' }}
-          </h3>
+          <h3 style="margin: 0">{{ nodeKindLabel(selectedNode.kind) }}</h3>
           <button class="btn sm ghost" @click="deleteSelected">Delete</button>
         </div>
         <div class="field">
@@ -349,7 +431,7 @@ onBeforeUnmount(() => {
           </div>
         </template>
 
-        <template v-if="selectedNode.kind !== 'form'">
+        <template v-if="selectedNode.kind === 'run' || selectedNode.kind === 'cli' || selectedNode.kind === 'shell'">
           <div class="field">
             <label for="node-cwd">Working directory (optional)</label>
             <input
@@ -357,7 +439,7 @@ onBeforeUnmount(() => {
               v-model="selectedNode.cwd"
               class="input"
               :placeholder="
-                selectedNode.kind === 'cli' ? 'Defaults to the server\'s own directory' : 'Defaults to the run\'s task'
+                selectedNode.kind === 'run' ? 'Defaults to the run\'s task' : 'Defaults to the server\'s own directory'
               "
             />
           </div>
@@ -371,8 +453,8 @@ onBeforeUnmount(() => {
               >.
             </p>
           </div>
-          <div v-else class="field">
-            <label for="node-command">Command (after `agentic`)</label>
+          <div v-else-if="selectedNode.kind === 'cli'" class="field">
+            <label for="node-command">Agentic command (after `agentic`)</label>
             <textarea
               id="node-command"
               v-model="selectedNode.command"
@@ -387,6 +469,22 @@ onBeforeUnmount(() => {
               >.
             </p>
           </div>
+          <div v-else class="field">
+            <label for="node-script">Shell script</label>
+            <textarea
+              id="node-script"
+              v-model="selectedNode.script"
+              class="textarea"
+              rows="6"
+              :style="{ fontFamily: 'var(--mono)' }"
+              placeholder='echo "Building {{ name }}" && make build'
+            ></textarea>
+            <p class="faint" style="margin: 4px 0 0">
+              Runs with <code>bash -c</code>; its combined stdout and stderr feeds downstream inputs. Reference an input
+              as <code v-pre>{{ name }}</code
+              >.
+            </p>
+          </div>
 
           <div class="field">
             <span>Inputs</span>
@@ -396,6 +494,33 @@ onBeforeUnmount(() => {
             </div>
             <button class="btn sm" style="margin-top: 6px" @click="addInput(selectedNode)">+ Input</button>
           </div>
+        </template>
+
+        <template v-else-if="selectedNode.kind === 'trigger'">
+          <p class="faint" style="margin: 0 0 8px">
+            The webhook payload arrives here. Each field reads one JSON path (for example
+            <code>pull_request.title</code>) and can feed a downstream input.
+          </p>
+          <div v-for="(output, index) in selectedNode.outputs" :key="output.id" class="editor-field-group">
+            <div class="row" style="justify-content: space-between">
+              <strong>Event field {{ index + 1 }}</strong>
+              <button class="btn sm ghost" @click="removeNodeOutput(selectedNode, output.id)">×</button>
+            </div>
+            <div class="field">
+              <label :for="`output-name-${output.id}`">Label</label>
+              <input :id="`output-name-${output.id}`" v-model="output.name" class="input" placeholder="title" />
+            </div>
+            <div class="field">
+              <label :for="`output-path-${output.id}`">Payload path</label>
+              <input
+                :id="`output-path-${output.id}`"
+                v-model="output.path"
+                class="input"
+                placeholder="pull_request.title"
+              />
+            </div>
+          </div>
+          <button class="btn sm" @click="addOutput(selectedNode)">+ Event field</button>
         </template>
 
         <template v-else>
@@ -441,8 +566,8 @@ onBeforeUnmount(() => {
         </template>
       </aside>
       <aside v-else class="editor-inspector faint">
-        Select a node to edit it. Connections run from an answer or a field value into a named input, and a form appears
-        only when its downstream step is ready.
+        Select a node to edit it. Connections run from an answer, a field value, or an event field into a named input,
+        and a form appears only when its downstream step is ready.
       </aside>
     </div>
   </div>
@@ -452,6 +577,82 @@ onBeforeUnmount(() => {
 .editor-panel {
   display: flex;
   flex-direction: column;
+}
+.editor-head {
+  align-items: flex-start;
+}
+.editor-actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.editor-add {
+  position: relative;
+}
+.editor-caret {
+  display: inline-block;
+  margin-left: 6px;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-top: 5px solid currentColor;
+  vertical-align: middle;
+  transition: transform 120ms ease;
+}
+.editor-caret.open {
+  transform: rotate(180deg);
+}
+.editor-add-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 30;
+  min-width: 260px;
+  max-width: min(320px, calc(100vw - 40px));
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.22);
+}
+.editor-add-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.editor-add-item:hover:not(:disabled),
+.editor-add-item:focus-visible {
+  background: var(--bg-1);
+}
+.editor-add-item:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.editor-add-label {
+  font-size: 13px;
+  font-weight: 600;
+}
+.editor-add-hint {
+  font-size: 12px;
+  color: var(--muted);
+}
+.editor-divider {
+  width: 1px;
+  height: 20px;
+  background: var(--border);
 }
 .editor-hint,
 .editor-issues {
@@ -515,6 +716,17 @@ onBeforeUnmount(() => {
 }
 .editor-node.form {
   background: var(--bg-1);
+}
+.editor-node.shell {
+  background: var(--bg-1);
+}
+.editor-node.trigger {
+  background: var(--bg-1);
+  border-style: dashed;
+}
+.editor-node.trigger .editor-node-kind {
+  color: var(--accent);
+  border-color: var(--accent);
 }
 .editor-node-head {
   display: flex;
@@ -589,6 +801,17 @@ onBeforeUnmount(() => {
   padding-top: 8px;
 }
 @media (max-width: 760px) {
+  .editor-head {
+    align-items: stretch;
+  }
+  .editor-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+  .editor-add-menu {
+    left: 0;
+    right: auto;
+  }
   .editor-body {
     flex-direction: column;
   }

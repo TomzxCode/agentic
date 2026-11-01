@@ -38,6 +38,7 @@ from .commands import (
     stack,
     tags,
     tasks,
+    webhooks,
 )
 from .runtime import CONTEXT
 
@@ -97,6 +98,7 @@ _COMMAND_MODULES = (
     schedules,
     operations,
     rpc,
+    webhooks,
 )
 
 for _module in _COMMAND_MODULES:

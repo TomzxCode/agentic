@@ -46,6 +46,7 @@ def create_db_and_tables() -> None:
         schedules,
         system,
         tasks,
+        webhooks,
     )
 
     settings.data_dir.mkdir(parents=True, exist_ok=True)

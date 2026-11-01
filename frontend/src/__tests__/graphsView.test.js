@@ -139,6 +139,33 @@ describe('GraphsList', () => {
     expect(wrapper.find('.editor-canvas').exists()).toBe(true)
   })
 
+  it('adds a step from the Add step menu', async () => {
+    const wrapper = mount(GraphsList, stub)
+    await flushPromises()
+    await wrapper
+      .findAll('button')
+      .find((button) => button.text() === 'Edit graph')
+      .trigger('click')
+    await flushPromises()
+
+    const add = wrapper.findAll('button').find((button) => button.text().includes('Add step'))
+    await add.trigger('click')
+    const menu = wrapper.get('.editor-add-menu')
+    expect(menu.findAll('.editor-add-item').map((item) => item.text())).toEqual([
+      expect.stringContaining('Agent run'),
+      expect.stringContaining('Agentic command'),
+      expect.stringContaining('Shell script'),
+      expect.stringContaining('Form'),
+      expect.stringContaining('Event trigger')
+    ])
+    await menu.findAll('.editor-add-item')[2].trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('.editor-add-menu').exists()).toBe(false)
+    expect(wrapper.findAll('.editor-node')).toHaveLength(2)
+    expect(wrapper.text()).toContain('Shell script')
+  })
+
   it('runs a graph from its row', async () => {
     mocks.graphsRun.mockResolvedValue({ id: 'x9' })
     const wrapper = mount(GraphsList, stub)

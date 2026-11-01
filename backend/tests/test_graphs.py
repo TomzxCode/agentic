@@ -73,6 +73,18 @@ def cli_node(node_id: str, command: str, inputs: list[str] | None = None, **extr
     }
 
 
+def shell_node(node_id: str, script: str, inputs: list[str] | None = None, **extra) -> dict:
+    return {
+        "id": node_id,
+        "kind": "shell",
+        "title": node_id,
+        "position": {"x": 0, "y": 0},
+        "script": script,
+        "inputs": [{"id": name, "name": name} for name in inputs or []],
+        **extra,
+    }
+
+
 def form_node(node_id: str, fields: list[dict], **extra) -> dict:
     return {
         "id": node_id,
@@ -597,6 +609,114 @@ def test_cli_node_runs_command_and_feeds_output_downstream(monkeypatch):
         assert cli_state["status"] == "done"
         assert cli_state["run_id"] is None  # not an agent run; no transcript row
     _clear()
+
+
+def test_shell_node_runs_script_and_feeds_output_downstream(monkeypatch):
+    """run -> shell -> run: the script renders upstream output and its stdout feeds the next step."""
+    create_db_and_tables()
+    _clear()
+    _harness()
+    _no_enqueue(monkeypatch)
+    monkeypatch.setattr(graphs, "POLL_SECONDS", POLL)
+    calls: list[tuple[str, str]] = []
+
+    async def fake_run_shell(script, cwd, env):
+        calls.append((script, cwd))
+        return 0, "built ok\n"
+
+    monkeypatch.setattr(graphs, "_run_shell", fake_run_shell)
+    definition = _definition(
+        [
+            run_node("a", "First"),
+            shell_node("s", 'echo "Building {{name}}" && make build', ["name"], cwd="/tmp"),
+            run_node("b", "Built: {{result}}", ["result"]),
+        ],
+        [
+            edge("a", "s", target_input="name"),
+            edge("s", "b", target_input="result"),
+        ],
+    )
+    graph_id = _make_graph(definition, name="with-shell")
+    with TestClient(app) as client:
+        execution_id = client.post(f"/api/graphs/{graph_id}/run").json()["id"]
+        first = _wait_for(_running_run, message="first run never started")
+        _settle_run(first.id, "world")
+
+        script, cwd = _wait_for(lambda: calls[0] if calls else None, message="shell script never ran")
+        assert script == 'echo "Building world" && make build'
+        assert cwd == "/tmp"
+
+        second = _wait_for(
+            lambda: (run := _running_run()) and run.id != first.id and run,
+            message="second run never started",
+        )
+        assert second.prompt == "Built: built ok\n"
+        _settle_run(second.id, "done")
+        row = _wait_for(
+            lambda: _execution(execution_id).status.value == "succeeded" and _execution(execution_id),
+            message="execution never succeeded",
+        )
+        assert row.state["outputs"]["s"] == "built ok\n"
+        detail = client.get(f"/api/graphs/executions/{execution_id}").json()
+        shell_state = next(node for node in detail["nodes"] if node["node_id"] == "s")
+        assert shell_state["status"] == "done"
+        assert shell_state["run_id"] is None  # not an agent run; no transcript row
+    _clear()
+
+
+def test_shell_node_failure_skips_downstream(monkeypatch):
+    create_db_and_tables()
+    _clear()
+    _harness()
+    _no_enqueue(monkeypatch)
+    monkeypatch.setattr(graphs, "POLL_SECONDS", POLL)
+
+    async def failing_shell(script, cwd, env):
+        return 1, "boom\n"
+
+    monkeypatch.setattr(graphs, "_run_shell", failing_shell)
+    definition = _definition(
+        [shell_node("s", "exit 1"), run_node("b", "After: {{v}}", ["v"])],
+        [edge("s", "b", target_input="v")],
+    )
+    graph_id = _make_graph(definition, name="shell-fail")
+    with TestClient(app) as client:
+        execution_id = client.post(f"/api/graphs/{graph_id}/run").json()["id"]
+        row = _wait_for(
+            lambda: _execution(execution_id).status.value == "failed" and _execution(execution_id),
+            message="execution never failed",
+        )
+        statuses = {node_id: entry["status"] for node_id, entry in row.state["nodes"].items()}
+        assert statuses == {"s": "failed", "b": "skipped"}
+        assert "exit 1" in row.state["nodes"]["s"]["error"]
+    _clear()
+
+
+@pytest.mark.asyncio
+async def test_run_shell_executes_a_bash_script():
+    exit_code, output = await graphs._run_shell('printf "hello from bash"', "/tmp", {})
+    assert exit_code == 0
+    assert output == "hello from bash"
+    failed, _ = await graphs._run_shell("exit 3", "/tmp", {})
+    assert failed == 3
+
+
+def test_shell_node_normalizes_and_validates():
+    normalized = graphs.normalize_definition(
+        _definition([shell_node("s", "echo hi", ["name"], cwd="/tmp", junk=True)], [])
+    )
+    node = normalized["nodes"][0]
+    assert node["kind"] == "shell"
+    assert node["script"] == "echo hi"
+    assert node["cwd"] == "/tmp"
+    assert node["inputs"] == [{"id": "name", "name": "name"}]
+    assert "command" not in node and "promptTemplate" not in node
+
+    issues = graphs.validate_definition(_definition([shell_node("s", "")], []))
+    assert any("needs a script" in issue for issue in issues)
+
+    unconnected = graphs.validate_definition(_definition([shell_node("s", "echo {{name}}", ["name"])], []))
+    assert any("nothing feeds the input 'name'" in issue for issue in unconnected)
 
 
 def test_cli_node_failure_skips_downstream(monkeypatch):
