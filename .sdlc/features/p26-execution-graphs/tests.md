@@ -22,7 +22,7 @@ Out of scope: no automated test drives the `agentic graphs` CLI commands, and no
 | TC-4 | Template rendering | `{{name}}`, `{{name[1]}}`, `{{name.join(", ")}}`, unknown name, out-of-range index | Rendered text plus error list; unknown placeholders left in place |
 | TC-5 | Editor connect rules (frontend) | Self connection, unknown ports, form sources with fields, duplicates | `canConnect`/`connect` refuse or dedupe |
 | TC-6 | Editor issues mirror the server (frontend) | Missing prompts, unconnected placeholders, cycles, dropdown without options | Same issue texts as the server's validator |
-| TC-7 | Auto layout and canvas geometry | Unplaced and placed nodes, node rows, edge endpoints | Placed nodes keep positions, new ones layer by longest path |
+| TC-7 | Auto layout and canvas geometry | Unplaced and placed nodes, node rows, edge endpoints, a full `relayout`, a cycle, and the editor's Arrange button and Auto-layout modes | Placed nodes keep positions on open while `relayout` moves every node by layer, chains share a row, cycles are left untouched, and additions and removals re-arrange only in the chosen mode |
 
 ## Integration Tests
 
@@ -79,7 +79,7 @@ Out of scope: no automated test drives the `agentic graphs` CLI commands, and no
 | FR-17 | TC-13, TC-12 |
 | FR-18 | TC-9, TC-10, frontend graphsView suite |
 | FR-19 | TC-17 |
-| FR-20 | frontend graphsView suite (tabs, rows, run, delete confirm, expand execution, form submit and cancel) |
+| FR-20 | frontend graphsView suite (tabs, rows, run, delete confirm, expand execution, form submit and cancel, Arrange, auto-layout modes) |
 | FR-21 | none (manual; the CLI calls the same endpoints the backend suite covers) |
 | NFR-1 | TC-10 (endpoint write survives the executor's next persist) |
 | NFR-2 | TC-1 to TC-4, TC-7 |

@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import {
   NODE_WIDTH,
   HEADER_HEIGHT,
@@ -20,6 +20,7 @@ import {
   nodeRows,
   normalizeDefinition,
   portPoint,
+  relayout,
   removeField,
   removeInput,
   removeNode
@@ -46,6 +47,15 @@ const issues = ref([])
 const saving = ref(false)
 const content = ref(null)
 
+// Whether the canvas arranges itself as the graph changes: never, when a step
+// is added, when one is removed, or both. A per-device view preference, kept
+// in localStorage like the sidebar's, not a server setting.
+const LAYOUT_KEY = 'agentic.executionGraph.autoLayout'
+const LAYOUT_MODES = ['off', 'add', 'remove', 'always']
+const storedLayout = localStorage.getItem(LAYOUT_KEY)
+const autoLayoutMode = ref(LAYOUT_MODES.includes(storedLayout) ? storedLayout : 'off')
+watch(autoLayoutMode, (mode) => localStorage.setItem(LAYOUT_KEY, mode))
+
 const size = computed(() => canvasSize(definition.value))
 const issueSet = computed(() => new Set(issues.value))
 const selectedNode = computed(() => definition.value.nodes.find((node) => node.id === selected.value) || null)
@@ -70,6 +80,19 @@ function addNode(kind) {
   definition.value.nodes.push(node)
   selected.value = node.id
   selectedEdge.value = ''
+  if (laysOut('add')) definition.value = relayout(definition.value)
+}
+
+// True when the chosen auto-layout mode covers this kind of change.
+function laysOut(change) {
+  return autoLayoutMode.value === 'always' || autoLayoutMode.value === change
+}
+
+// Arranges every card by dependency layer, discarding hand-placed positions,
+// and scrolls back to the corner the layout starts at so the result is visible.
+function arrange() {
+  definition.value = relayout(definition.value)
+  content.value?.parentElement?.scrollTo?.({ top: 0, left: 0 })
 }
 function selectNode(id) {
   selected.value = id
@@ -90,6 +113,7 @@ function deleteSelected() {
   if (!selected.value) return
   definition.value = dropDanglingEdges(removeNode(definition.value, selected.value))
   selected.value = ''
+  if (laysOut('remove')) definition.value = relayout(definition.value)
 }
 
 function startDrag(event, node) {
@@ -256,6 +280,16 @@ onBeforeUnmount(() => {
         <button class="btn sm" @click="addNode('run')">+ Run step</button>
         <button class="btn sm" @click="addNode('cli')">+ Command step</button>
         <button class="btn sm" @click="addNode('form')">+ Form step</button>
+        <label class="editor-layout-mode" title="Keep the graph arranged as steps are added or removed">
+          <span>Auto-layout</span>
+          <select v-model="autoLayoutMode" class="input" aria-label="When to auto-layout the graph">
+            <option value="off">never</option>
+            <option value="add">on add</option>
+            <option value="remove">on remove</option>
+            <option value="always">always</option>
+          </select>
+        </label>
+        <button class="btn sm" title="Arrange every step automatically" @click="arrange">Arrange</button>
         <button class="btn sm" @click="validate">Check</button>
         <button class="btn sm primary" :disabled="saving || issueSet.size > 0" @click="save">Save</button>
         <button class="btn sm" :disabled="issueSet.size > 0" @click="run">Run</button>
@@ -267,8 +301,8 @@ onBeforeUnmount(() => {
       <span v-for="issue in issues" :key="issue">{{ issue }}</span>
     </p>
     <p v-else class="faint editor-hint">
-      Drag cards to arrange them. Drag from a right-side dot onto an input or a form field to connect. Select something
-      and press Delete to remove it.
+      Drag cards to arrange them, or press Arrange to lay them out for you. Drag from a right-side dot onto an input or
+      a form field to connect. Select something and press Delete to remove it.
     </p>
 
     <div class="editor-body">
@@ -464,6 +498,20 @@ onBeforeUnmount(() => {
   gap: 2px;
   color: var(--warn);
 }
+/* The "Auto-layout" select beside the toolbar buttons: a compact labeled
+   control that sits on the same line as them. */
+.editor-layout-mode {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.editor-layout-mode select {
+  width: auto;
+  padding: 4px 6px;
+  font-size: 12px;
+}
 .editor-body {
   display: flex;
   gap: 12px;
@@ -598,6 +646,13 @@ onBeforeUnmount(() => {
   .editor-inspector {
     width: auto;
     max-height: none;
+  }
+  /* Match the toolbar buttons' phone sizing, and keep iOS from zooming on the
+     select when it takes focus. */
+  .editor-layout-mode select {
+    min-height: 36px;
+    padding: 7px 11px;
+    font-size: 16px;
   }
 }
 </style>

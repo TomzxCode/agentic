@@ -88,6 +88,14 @@ Caps: 32 nodes, 20 fields per form, 20 select options, 20,000 characters of outp
 The template language is `{{name}}` (join values with newlines), `{{name[2]}}` (one value), and `{{name.join(", ")}}` (join with a separator); an unknown name or out-of-range index fails the node and leaves the placeholder in place.
 Node statuses are pending, waiting (a form waiting for an answer), running, done, failed, and skipped.
 
+### Editor layout
+
+`executionGraph.js` positions a node's card on the canvas from `position` in the definition, so a save keeps the arrangement.
+`relayout` places every node in the column of its dependency layer and in the row of the node it follows when that row is free, so a chain reads on one line; a definition with a cycle is left as it is and the cycle is reported as a validation issue instead.
+`autoLayout` applies the same placement only to nodes that have never been positioned, so opening a graph never moves cards the user dragged.
+The editor's Arrange button runs `relayout` over the whole definition.
+Its Auto-layout select (never, on add, on remove, always) decides whether a structural edit re-runs it; the choice is a per-device preference in `localStorage`, not graph state.
+
 ## API Contracts
 
 | Method | Path | Purpose |

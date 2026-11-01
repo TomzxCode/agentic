@@ -11,6 +11,7 @@ import {
   nodeRows,
   normalizeDefinition,
   portPoint,
+  relayout,
   removeField,
   removeInput,
   removeNode,
@@ -189,6 +190,42 @@ describe('topologicalOrder and autoLayout', () => {
       ]
     }
     expect(autoLayout(placed).nodes[0].position).toEqual({ x: 500, y: 500 })
+  })
+})
+
+describe('relayout', () => {
+  const definition = {
+    nodes: [
+      { ...runNode('a', 'hi'), position: { x: 900, y: 700 } },
+      { ...runNode('b', 'then {{v}}', ['v']), position: { x: 0, y: 0 } },
+      { ...formNode('f', ['f1']), position: { x: 40, y: 40 } }
+    ],
+    edges: [edge('a', 'b', { targetInputId: 'v' })]
+  }
+
+  it('places every node by its dependency layer, discarding hand-placed positions', () => {
+    const laid = relayout(definition)
+    expect(laid.nodes[0].position.x).toBe(40)
+    expect(laid.nodes[1].position.x).toBeGreaterThan(laid.nodes[0].position.x)
+    // The form has no edges, so it starts in the first column again instead of
+    // keeping the position it was saved with.
+    expect(laid.nodes[2].position).toEqual({ x: 40, y: 190 })
+    // The input definition is left untouched.
+    expect(definition.nodes[0].position).toEqual({ x: 900, y: 700 })
+  })
+
+  it('keeps a chain on one row and gives stacked nodes their own row', () => {
+    const laid = relayout(definition)
+    expect(laid.nodes[0].position.y).toBe(laid.nodes[1].position.y)
+    expect(laid.nodes[2].position.y).toBeGreaterThan(laid.nodes[0].position.y)
+  })
+
+  it('leaves a circular definition alone', () => {
+    const cyclic = {
+      nodes: [runNode('a', 'x'), runNode('b', '{{v}}', ['v'])],
+      edges: [edge('a', 'b', { targetInputId: 'v' }), edge('b', 'a')]
+    }
+    expect(relayout(cyclic)).toBe(cyclic)
   })
 })
 

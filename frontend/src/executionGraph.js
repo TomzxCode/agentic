@@ -342,25 +342,67 @@ export function topologicalOrder(definition) {
   return order.length === ids.length ? order : null
 }
 
-// Assigns left-to-right positions by longest path from a source, for nodes
-// that have never been placed (a definition the user has not dragged yet).
-export function autoLayout(definition) {
+// Assigns left-to-right positions to every node by longest path from a source,
+// so each dependency layer is its own column and a node sits in the row of the
+// node it follows whenever that row is free. A chain therefore reads on one
+// line. A definition with a cycle has no order to lay out, so it is returned
+// untouched and the editor flags the cycle instead.
+export function relayout(definition) {
   const order = topologicalOrder(definition)
   if (!order) return definition
+  const ids = new Set(definition.nodes.map((node) => node.id))
+  const parents = new Map([...ids].map((id) => [id, []]))
+  for (const edge of definition.edges) {
+    if (!ids.has(edge.source) || !ids.has(edge.target) || edge.source === edge.target) continue
+    parents.get(edge.target).push(edge.source)
+  }
   const layer = new Map()
   for (const id of order) {
-    const parents = definition.edges.filter((edge) => edge.target === id).map((edge) => edge.source)
-    layer.set(id, parents.length ? Math.max(...parents.map((parent) => layer.get(parent) + 1)) : 0)
+    const incoming = parents.get(id)
+    layer.set(id, incoming.length ? Math.max(...incoming.map((parent) => layer.get(parent) + 1)) : 0)
   }
-  const perLayer = new Map()
-  const nodes = definition.nodes.map((node) => {
-    if (node.position && (node.position.x || node.position.y)) return node
-    const depth = layer.get(node.id) || 0
-    const row = perLayer.get(depth) || 0
-    perLayer.set(depth, row + 1)
-    return { ...node, position: { x: 40 + depth * LAYER_GAP, y: 40 + row * ROW_GAP } }
-  })
-  return { ...definition, nodes }
+  const rows = new Map()
+  const usedRows = new Map()
+  const positions = new Map()
+  for (const id of order) {
+    const depth = layer.get(id)
+    const used = usedRows.get(depth) || new Set()
+    let row = null
+    for (const parent of parents.get(id)) {
+      const candidate = rows.get(parent)
+      if (candidate !== undefined && !used.has(candidate)) {
+        row = candidate
+        break
+      }
+    }
+    if (row === null) {
+      row = 0
+      while (used.has(row)) row++
+    }
+    used.add(row)
+    usedRows.set(depth, used)
+    rows.set(id, row)
+    positions.set(id, { x: 40 + depth * LAYER_GAP, y: 40 + row * ROW_GAP })
+  }
+  return {
+    ...definition,
+    nodes: definition.nodes.map((node) => ({ ...node, position: positions.get(node.id) || node.position }))
+  }
+}
+
+// Positions nodes that have never been placed (a definition the user has not
+// dragged yet), leaving dragged nodes where the user put them.
+export function autoLayout(definition) {
+  const placed = relayout(definition)
+  const positions = new Map(placed.nodes.map((node) => [node.id, node.position]))
+  return {
+    ...definition,
+    nodes: definition.nodes.map((node) =>
+      node.position && (node.position.x || node.position.y)
+        ? node
+        : { ...node, position: positions.get(node.id) || node.position }
+    )
+  }
 }
 
 // --- canvas geometry --------------------------------------------------------

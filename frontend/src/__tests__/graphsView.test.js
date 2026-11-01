@@ -42,6 +42,30 @@ import { store } from '../store'
 const RouterLinkStub = { props: ['to'], template: '<a :href="to"><slot /></a>' }
 const stub = { global: { stubs: { RouterLink: RouterLinkStub } } }
 
+async function openEditor(wrapper) {
+  await wrapper
+    .findAll('button')
+    .find((button) => button.text() === 'Edit graph')
+    .trigger('click')
+  await flushPromises()
+}
+
+// Two run steps wired in a chain, saved far from where a layout would put them.
+const twoStepDefinition = () => ({
+  nodes: [
+    { id: 'a', kind: 'run', title: 'Step A', position: { x: 900, y: 700 }, promptTemplate: 'hi', inputs: [] },
+    {
+      id: 'b',
+      kind: 'run',
+      title: 'Step B',
+      position: { x: 20, y: 30 },
+      promptTemplate: 'then {{v}}',
+      inputs: [{ id: 'v', name: 'v' }]
+    }
+  ],
+  edges: [{ id: 'e1', source: 'a', sourceFieldId: '', target: 'b', targetInputId: 'v', targetFieldId: '' }]
+})
+
 const graphRow = (id, extra = {}) => ({
   id,
   name: `Graph ${id}`,
@@ -77,6 +101,7 @@ const executionRow = (id, extra = {}) => ({
 beforeEach(() => {
   vi.clearAllMocks()
   store.toast = null
+  localStorage.clear()
   // Fresh arrays per call: the component's watchers key off the list
   // reference, and the real API returns new JSON (so new objects) every poll.
   mocks.graphsList.mockImplementation(async () => [graphRow('g1')])
@@ -137,6 +162,81 @@ describe('GraphsList', () => {
     expect(wrapper.find('.editor-node').exists()).toBe(true)
     expect(wrapper.find('.editor-node-title').text()).toBe('Step A')
     expect(wrapper.find('.editor-canvas').exists()).toBe(true)
+  })
+
+  it('arranges every step from the Arrange button', async () => {
+    mocks.graphsList.mockImplementation(async () => [graphRow('g1', { definition: twoStepDefinition() })])
+    const wrapper = mount(GraphsList, stub)
+    await flushPromises()
+    await openEditor(wrapper)
+    expect(wrapper.findAll('.editor-node')[0].attributes('style')).toContain('left: 900px')
+
+    await wrapper
+      .findAll('button')
+      .find((button) => button.text() === 'Arrange')
+      .trigger('click')
+    await flushPromises()
+    const cards = wrapper.findAll('.editor-node')
+    expect(cards[0].attributes('style')).toContain('left: 40px')
+    expect(cards[1].attributes('style')).toContain('left: 340px')
+    expect(cards[0].attributes('style')).toContain('top: 40px')
+  })
+
+  it('lays out as steps are added when that mode is chosen', async () => {
+    localStorage.setItem('agentic.executionGraph.autoLayout', 'add')
+    const wrapper = mount(GraphsList, stub)
+    await flushPromises()
+    await openEditor(wrapper)
+    await wrapper
+      .findAll('button')
+      .find((button) => button.text() === '+ Run step')
+      .trigger('click')
+    await flushPromises()
+
+    const cards = wrapper.findAll('.editor-node')
+    expect(cards).toHaveLength(2)
+    // The added step takes the next free row of its layer.
+    expect(cards[1].attributes('style')).toContain('left: 40px')
+    expect(cards[1].attributes('style')).toContain('top: 190px')
+  })
+
+  it('lays out as steps are removed when that mode is chosen', async () => {
+    localStorage.setItem('agentic.executionGraph.autoLayout', 'remove')
+    mocks.graphsList.mockImplementation(async () => [
+      graphRow('g1', {
+        definition: {
+          nodes: [
+            { id: 'a', kind: 'run', title: 'Step A', position: { x: 0, y: 0 }, promptTemplate: 'hi', inputs: [] },
+            { id: 'b', kind: 'run', title: 'Step B', position: { x: 600, y: 400 }, promptTemplate: 'go', inputs: [] }
+          ],
+          edges: []
+        }
+      })
+    ])
+    const wrapper = mount(GraphsList, stub)
+    await flushPromises()
+    await openEditor(wrapper)
+
+    await wrapper.findAll('.editor-node')[0].trigger('pointerdown')
+    await wrapper
+      .find('.editor-inspector')
+      .findAll('button')
+      .find((button) => button.text() === 'Delete')
+      .trigger('click')
+    await flushPromises()
+
+    const card = wrapper.find('.editor-node')
+    expect(card.text()).toContain('Step B')
+    expect(card.attributes('style')).toContain('left: 40px')
+    expect(card.attributes('style')).toContain('top: 40px')
+  })
+
+  it('remembers the auto-layout mode per device', async () => {
+    const wrapper = mount(GraphsList, stub)
+    await flushPromises()
+    await openEditor(wrapper)
+    await wrapper.find('.editor-layout-mode select').setValue('always')
+    expect(localStorage.getItem('agentic.executionGraph.autoLayout')).toBe('always')
   })
 
   it('runs a graph from its row', async () => {
