@@ -38,6 +38,29 @@ def _load_definition(path: str | None) -> dict | None:
         raise ValueError(f"Could not read definition from {path}: {exc}") from exc
 
 
+def _load_triggers(path: str | None) -> list[dict] | None:
+    """Read a trigger list JSON file ('[{"type": "schedule", "config": {...}}]')."""
+    if not path:
+        return None
+    try:
+        data = json.loads(Path(path).read_text())
+    except (OSError, ValueError) as exc:
+        raise ValueError(f"Could not read triggers from {path}: {exc}") from exc
+    if not isinstance(data, list) or any(not isinstance(item, dict) for item in data):
+        raise ValueError(f"Triggers in {path} must be a JSON list of objects")
+    return data
+
+
+def _shortcut_triggers(schedule: str | None, timezone: str | None, webhook: bool) -> list[dict]:
+    """The triggers the simple flags describe: one schedule and/or one webhook."""
+    built: list[dict] = []
+    if schedule is not None and schedule.strip():
+        built.append({"type": "schedule", "config": {"cron": schedule.strip(), "timezone": (timezone or "").strip()}})
+    if webhook:
+        built.append({"type": "webhook", "config": {}})
+    return built
+
+
 @graph_app.command(name="list")
 @safe
 def graph_list() -> str:
@@ -69,6 +92,8 @@ def graph_create(
     description: str | None = None,
     schedule: str | None = None,
     timezone: str | None = None,
+    webhook: bool = False,
+    triggers: str | None = None,
     disabled: bool = False,
     definition: str | None = None,
 ) -> str:
@@ -81,21 +106,27 @@ def graph_create(
     description
         What the graph does.
     schedule
-        A 5-field cron expression to run it automatically; omitted means manual only.
+        A 5-field cron expression for a schedule trigger; omitted adds no schedule.
     timezone
-        IANA zone the cron is read in, for example ``Europe/Paris``. Defaults to the server's zone.
+        IANA zone that cron is read in, for example ``Europe/Paris``. Defaults to the server's zone.
+    webhook
+        Also add a webhook trigger, fired by an HTTP call to its URL.
+    triggers
+        Path to a JSON file holding a list of triggers, for types the flags do not cover.
+        Takes precedence over the ``schedule``, ``timezone``, and ``webhook`` shortcuts.
     disabled
-        Create the graph paused instead of enabled.
+        Create the triggers paused instead of enabled.
     definition
         Path to a JSON file holding ``{"nodes": [...], "edges": [...]}``, as the web editor saves it.
     """
+    built = (_load_triggers(triggers) if triggers else None) or _shortcut_triggers(schedule, timezone, webhook)
+    if disabled:
+        built = [{**trigger, "enabled": False} for trigger in built]
     with runtime._client() as client:
         graph = client.create_graph(
             name,
             description=description,
-            schedule=schedule,
-            timezone=timezone,
-            enabled=not disabled,
+            triggers=built or None,
             definition=_load_definition(definition),
         )
     return emit(graph, f"created {_execution_graph_line(graph)}")
@@ -110,11 +141,12 @@ def graph_update(
     description: str | None = None,
     schedule: str | None = None,
     timezone: str | None = None,
+    triggers: str | None = None,
     enable: bool = False,
     disable: bool = False,
     definition: str | None = None,
 ) -> str:
-    """Update a graph's fields, or enable/disable it.
+    """Update a graph's fields, its triggers, or pause its triggers.
 
     Parameters
     ----------
@@ -125,29 +157,47 @@ def graph_update(
     description
         New description.
     schedule
-        New 5-field cron expression; pass an empty string to run only by hand.
+        Replace every trigger with one schedule trigger using this 5-field cron
+        expression; pass an empty string to remove every trigger.
     timezone
-        New IANA zone the cron is read in.
+        IANA zone the schedule is read in, used with ``schedule``.
+    triggers
+        Path to a JSON file holding the new list of triggers; replaces every
+        existing trigger, and takes precedence over ``schedule``.
     enable
-        Turn the graph's schedule on.
+        Turn every trigger on.
     disable
-        Turn the graph's schedule off.
+        Turn every trigger off.
     definition
         Path to a JSON file with a new ``{"nodes": [...], "edges": [...]}`` definition.
     """
     fields: dict[str, Any] = {
         "name": name,
         "description": description,
-        "schedule": schedule,
-        "timezone": timezone,
     }
     if definition:
         fields["definition"] = _load_definition(definition)
-    if enable:
-        fields["enabled"] = True
-    if disable:
-        fields["enabled"] = False
+    if triggers is not None:
+        fields["triggers"] = _load_triggers(triggers)
+    elif schedule is not None:
+        fields["triggers"] = _shortcut_triggers(schedule, timezone, False)
+    if enable and disable:
+        raise ValueError("Pass only one of --enable and --disable")
     with runtime._client() as client:
+        if enable or disable:
+            submitted = fields.get("triggers")
+            if submitted is None:
+                current = client.get_execution_graph(graph_id)
+                submitted = [
+                    {
+                        "id": trigger.get("id", ""),
+                        "type": trigger.get("type", ""),
+                        "config": trigger.get("config") or {},
+                        "enabled": True,
+                    }
+                    for trigger in current.get("triggers") or []
+                ]
+            fields["triggers"] = [{**trigger, "enabled": enable and not disable} for trigger in submitted or []]
         graph = client.update_graph(graph_id, **fields)
     return emit(graph, _execution_graph_text(graph))
 

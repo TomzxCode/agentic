@@ -422,10 +422,15 @@ def test_item_links_read_list_and_delete():
         assert all(i["source"] == "github" for i in client.get("/api/items", params={"source": "github"}).json())
         assert any(i["id"] == item_id for i in client.get("/api/items", params={"q": "requests"}).json())
 
+        # Linking a GitHub item names its author, which only resolves where the
+        # ghx CLI exists; delete whoever appeared so no person outlives the test.
+        person_ids = fetched["person_ids"]
         # Deleting the item also removes the association to the task.
         client.delete(f"/api/items/{item_id}")
         assert client.get(f"/api/tasks/{task['id']}").json()["associations"] == []
         client.delete(f"/api/tasks/{task['id']}")
+        for person_id in person_ids:
+            client.delete(f"/api/people/{person_id}")
 
 
 def test_refresh_due_refreshes_items_the_policy_says_are_due(monkeypatch):
@@ -461,9 +466,10 @@ def test_refresh_due_is_a_noop_without_a_policy(monkeypatch):
     monkeypatch.setattr(items_refresh, "fetch_source", lambda *args, **kwargs: {})
     with TestClient(app) as client:
         client.patch("/api/settings", json={"slack_refresh_policy": "", "github_refresh_policy": ""})
-        client.post("/api/items", json={"url": "https://github.com/o/r/issues/10", "fetch": False})
+        item = client.post("/api/items", json={"url": "https://github.com/o/r/issues/10", "fetch": False}).json()
         report = client.post("/api/items/refresh-due").json()
         assert report == {"checked": 0, "due": 0, "refreshed": 0, "failed": 0, "items": []}
+        client.delete(f"/api/items/{item['id']}")
 
 
 def test_force_refresh_source_ignores_the_policy(monkeypatch):

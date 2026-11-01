@@ -9,12 +9,24 @@ from sqlmodel import Session
 
 from agentic.db import create_db_and_tables, engine
 from agentic.main import app
+from agentic.models.items import ItemPerson, Person, PersonAlias, PersonNote, TaskPerson, TaskRequester
 from agentic.models.tasks import StackEntry, Task, TaskSession, TimelineEvent
 
 
 def _clear(session: Session) -> None:
-    """Drop every task (and its stack rows) so each stack read is deterministic."""
-    for model in (TimelineEvent, TaskSession, StackEntry, Task):
+    """Drop every task (with its stack rows) and every person, so reads are deterministic."""
+    for model in (
+        TimelineEvent,
+        TaskSession,
+        StackEntry,
+        Task,
+        PersonNote,
+        PersonAlias,
+        ItemPerson,
+        TaskRequester,
+        TaskPerson,
+        Person,
+    ):
         session.exec(sa_delete(model))
     session.commit()
 

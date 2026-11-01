@@ -2,15 +2,19 @@ import { describe, expect, it } from 'vitest'
 import {
   autoLayout,
   blankRunNode,
+  blankShellNode,
   canConnect,
   connect,
   dropDanglingEdges,
   edgeEndpoints,
   editorIssues,
+  nearestPort,
   nodeHeight,
+  nodeKindLabel,
   nodeRows,
   normalizeDefinition,
   portPoint,
+  relayout,
   removeField,
   removeInput,
   removeNode,
@@ -40,12 +44,30 @@ const cliNode = (id, command = '', inputs = []) => ({
   inputs: inputs.map((name) => ({ id: name, name }))
 })
 
+const shellNode = (id, script = '', inputs = []) => ({
+  id,
+  kind: 'shell',
+  title: id,
+  position: { x: 0, y: 0 },
+  cwd: '',
+  script,
+  inputs: inputs.map((name) => ({ id: name, name }))
+})
+
 const formNode = (id, fields) => ({
   id,
   kind: 'form',
   title: id,
   position: { x: 0, y: 0 },
   fields: fields.map((field) => ({ id: field, title: field, type: 'text', required: false }))
+})
+
+const triggerNode = (id, outputs) => ({
+  id,
+  kind: 'trigger',
+  title: id,
+  position: { x: 0, y: 0 },
+  outputs: outputs.map(([outputId, name, path]) => ({ id: outputId, name, path }))
 })
 
 const edge = (source, target, { sourceFieldId = '', targetInputId = '', targetFieldId = '' } = {}) => ({
@@ -192,6 +214,67 @@ describe('topologicalOrder and autoLayout', () => {
   })
 })
 
+describe('relayout', () => {
+  const definition = {
+    nodes: [
+      { ...runNode('a', 'hi'), position: { x: 900, y: 700 } },
+      { ...runNode('b', 'then {{v}}', ['v']), position: { x: 0, y: 0 } },
+      { ...formNode('f', ['f1']), position: { x: 40, y: 40 } }
+    ],
+    edges: [edge('a', 'b', { targetInputId: 'v' })]
+  }
+
+  it('places every node by its dependency layer, discarding hand-placed positions', () => {
+    const laid = relayout(definition)
+    expect(laid.nodes[0].position.x).toBe(40)
+    expect(laid.nodes[1].position.x).toBeGreaterThan(laid.nodes[0].position.x)
+    // The form has no edges, so it starts in the first column again instead of
+    // keeping the position it was saved with.
+    expect(laid.nodes[2].position).toEqual({ x: 40, y: 190 })
+    // The input definition is left untouched.
+    expect(definition.nodes[0].position).toEqual({ x: 900, y: 700 })
+  })
+
+  it('keeps a chain on one row and gives stacked nodes their own row', () => {
+    const laid = relayout(definition)
+    expect(laid.nodes[0].position.y).toBe(laid.nodes[1].position.y)
+    expect(laid.nodes[2].position.y).toBeGreaterThan(laid.nodes[0].position.y)
+  })
+
+  it('leaves a circular definition alone', () => {
+    const cyclic = {
+      nodes: [runNode('a', 'x'), runNode('b', '{{v}}', ['v'])],
+      edges: [edge('a', 'b', { targetInputId: 'v' }), edge('b', 'a')]
+    }
+    expect(relayout(cyclic)).toBe(cyclic)
+  })
+})
+
+describe('nearestPort', () => {
+  const definition = {
+    nodes: [
+      { ...runNode('a', 'hi'), position: { x: 0, y: 0 } },
+      { ...runNode('b', 'then {{v}}', ['v', 'w']), position: { x: 400, y: 0 } }
+    ],
+    edges: []
+  }
+
+  it('picks the closest eligible target within the radius', () => {
+    const port = portPoint(definition.nodes[1], { kind: 'input', id: 'v' })
+    const found = nearestPort(definition, 'a', '', { x: port.x - 20, y: port.y + 10 }, 48)
+    expect(found).toMatchObject({ nodeId: 'b', kind: 'input', id: 'v' })
+  })
+
+  it('returns nothing when the point is too far from any target', () => {
+    expect(nearestPort(definition, 'a', '', { x: 0, y: 0 }, 48)).toBe(null)
+    expect(nearestPort(definition, 'a', '', { x: 400, y: 50 }, 10)).toMatchObject({ id: 'v' })
+  })
+
+  it('never targets the source node', () => {
+    expect(nearestPort({ ...definition, nodes: [definition.nodes[0]] }, 'a', '', { x: 0, y: 50 }, 48)).toBe(null)
+  })
+})
+
 describe('canvas geometry', () => {
   const node = { ...runNode('a', '', ['v', 'w']), position: { x: 100, y: 50 } }
 
@@ -221,6 +304,93 @@ describe('canvas geometry', () => {
   })
 })
 
+describe('trigger nodes', () => {
+  it('normalize their payload outputs and drop pathless ones', () => {
+    const definition = normalizeDefinition({
+      nodes: [
+        {
+          id: 't',
+          kind: 'trigger',
+          title: 'Event',
+          position: { x: 1, y: 2 },
+          outputs: [
+            { id: 'o1', name: 'title', path: 'pull_request.title' },
+            { id: 'o2', name: 'gone', path: '' }
+          ]
+        }
+      ],
+      edges: []
+    })
+    expect(definition.nodes[0].kind).toBe('trigger')
+    expect(definition.nodes[0].outputs).toEqual([{ id: 'o1', name: 'title', path: 'pull_request.title' }])
+  })
+
+  it('wire an event field into a run input or a form default, never the reverse', () => {
+    const definition = {
+      nodes: [
+        triggerNode('t', [['o1', 'title', 'title']]),
+        runNode('a', 'Handle {{title}}', ['title']),
+        formNode('f', ['f1'])
+      ],
+      edges: []
+    }
+    expect(canConnect(definition, 't', 'o1', 'a', { kind: 'input', id: 'title' })).toBe(true)
+    expect(canConnect(definition, 't', 'o1', 'f', { kind: 'field', id: 'f1' })).toBe(true)
+    expect(canConnect(definition, 't', 'nope', 'a', { kind: 'input', id: 'title' })).toBe(false)
+    expect(canConnect(definition, 'a', '', 't', { kind: 'input', id: 'o1' })).toBe(false)
+  })
+
+  it('feed a downstream input and stay quiet when wired', () => {
+    const definition = {
+      nodes: [triggerNode('t', [['o1', 'title', 'pull_request.title']]), runNode('a', 'Handle {{title}}', ['title'])],
+      edges: [edge('t', 'a', { sourceFieldId: 'o1', targetInputId: 'title' })]
+    }
+    expect(editorIssues(definition)).toEqual([])
+    expect(nodeRows(definition.nodes[0]).map((row) => row.label)).toEqual(['title'])
+    const points = edgeEndpoints(
+      { ...definition, nodes: [definition.nodes[0], { ...definition.nodes[1], position: { x: 400, y: 50 } }] },
+      definition.edges[0]
+    )
+    expect(points.from.x).toBe(208)
+    expect(points.to.x).toBe(400)
+  })
+
+  it('report a trigger without fields, two triggers, and an incoming connection', () => {
+    const noFields = editorIssues({ nodes: [triggerNode('t', [])], edges: [] })
+    expect(noFields.some((issue) => issue.includes('needs at least one event field'))).toBe(true)
+
+    const two = editorIssues({
+      nodes: [triggerNode('t', [['o1', 'title', 'title']]), triggerNode('t2', [['o2', 'title', 'title']])],
+      edges: []
+    })
+    expect(two.some((issue) => issue.includes('at most one event trigger'))).toBe(true)
+
+    const incoming = editorIssues({
+      nodes: [triggerNode('t', [['o1', 'title', 'title']]), runNode('a', 'go')],
+      edges: [edge('a', 't')]
+    })
+    expect(incoming.some((issue) => issue.includes('cannot take a connection'))).toBe(true)
+  })
+
+  it('drop the edges wired to a removed output', () => {
+    const definition = {
+      nodes: [
+        triggerNode('t', [
+          ['o1', 'title', 'title'],
+          ['o2', 'body', 'body']
+        ]),
+        runNode('a', '{{v}}', ['v'])
+      ],
+      edges: [edge('t', 'a', { sourceFieldId: 'o2', targetInputId: 'v' })]
+    }
+    const without = {
+      ...definition,
+      nodes: [triggerNode('t', [['o1', 'title', 'title']]), definition.nodes[1]]
+    }
+    expect(dropDanglingEdges(without).edges).toEqual([])
+  })
+})
+
 describe('blankRunNode', () => {
   it('makes a unique, editor-ready node', () => {
     const one = blankRunNode()
@@ -228,6 +398,47 @@ describe('blankRunNode', () => {
     expect(one.id).not.toBe(two.id)
     expect(one.kind).toBe('run')
     expect(one.inputs).toEqual([])
+  })
+})
+
+describe('shell nodes', () => {
+  it('wire like run nodes and report a missing script', () => {
+    const definition = {
+      nodes: [runNode('a', 'go'), shellNode('s', 'echo "{{v}}"', ['v']), formNode('f', ['f1'])],
+      edges: []
+    }
+    expect(canConnect(definition, 'a', '', 's', { kind: 'input', id: 'v' })).toBe(true)
+    expect(canConnect(definition, 's', '', 'f', { kind: 'field', id: 'f1' })).toBe(true)
+    expect(canConnect(definition, 'f', 'f1', 's', { kind: 'input', id: 'v' })).toBe(true)
+    expect(
+      editorIssues({ nodes: [shellNode('s', '')], edges: [] }).some((issue) => issue.includes('needs a script'))
+    ).toBe(true)
+    expect(
+      editorIssues({
+        nodes: [runNode('a', 'go'), shellNode('s', 'echo {{v}}', ['v'])],
+        edges: [edge('a', 's', { targetInputId: 'v' })]
+      })
+    ).toEqual([])
+  })
+
+  it('normalize their script and expose stdout', () => {
+    const definition = normalizeDefinition({
+      nodes: [{ id: 's', kind: 'shell', title: 'S', position: { x: 1, y: 2 }, script: 'make build', junk: true }],
+      edges: []
+    })
+    expect(definition.nodes[0].kind).toBe('shell')
+    expect(definition.nodes[0].script).toBe('make build')
+    expect(definition.nodes[0].command).toBeUndefined()
+    expect(nodeRows(definition.nodes[0]).map((row) => row.label)).toEqual(['stdout'])
+  })
+
+  it('make a blank, editor-ready node and have a display label', () => {
+    const node = blankShellNode()
+    expect(node.kind).toBe('shell')
+    expect(node.script).toBe('')
+    expect(nodeKindLabel('shell')).toBe('Shell script')
+    expect(nodeKindLabel('run')).toBe('Agent run')
+    expect(nodeKindLabel('cli')).toBe('Agentic command')
   })
 })
 

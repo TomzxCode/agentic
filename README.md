@@ -46,6 +46,8 @@ one virtualenv.
 | **Agent session** | An agent session recorded against a task: its session id, harness, working directory, and a label. A run records the session it produced; this records one you attach by hand (for example one opened in OpenChamber), and both build the links that reopen it. |
 | **Context refresh** | A special agent run that reads the task + its items and writes the `summary` and `next_steps`. |
 | **Scheduled task** | A user-defined shell script the API runs on a cron schedule, with a recorded history of runs. |
+| **Execution graph** | A named DAG of agent runs, Agentic commands, shell scripts, forms, and an optional event trigger, fired by hand, on a cron schedule, or by a webhook event. |
+| **Webhook endpoint** | A named inbound URL (generic JSON or signed GitHub) whose subscriptions match stored events to execution graphs and keep a delivery record. |
 | **Change** | A unit of factory output recorded against a task: a class, a lifecycle, a start/end time, and a human-intervened flag. Autonomy rate and yield are computed from changes. |
 | **Stack entry** | A task's place on the focus stack: its position (0 is current), whether it is current, a soft-delete timestamp, and why it was deleted (popped, removed, or parked). |
 | **Waiting on** | The person a task waits on, plus an optional check-back date. The task is blocked and off the stack until the date passes or the person is cleared. |
