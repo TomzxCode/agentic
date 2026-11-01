@@ -166,6 +166,24 @@ A manual item has no template and always applies.
 | `GET` | `/api/schedules/runs/{id}` | One run, with its exit code and output. |
 | `GET` | `/api/schedules/preview` | The next runs of a cron expression in a timezone (query `schedule`, optional `timezone`), plus the zone used. |
 
+## Webhooks and event bus
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| `GET` / `POST` | `/api/webhooks/endpoints` | List and create entry points. `kind` is `generic` or `github`; the secret is the HMAC key on GitHub and an optional shared token on a generic endpoint. |
+| `GET` / `PATCH` / `DELETE` | `/api/webhooks/endpoints/{id}` | Read, update, or delete one endpoint with its subscriptions and stored events. |
+| `GET` / `POST` | `/api/webhooks/endpoints/{id}/subscriptions` | List or create the workflows wired to an endpoint. Each carries `events` (empty matches all) and `filters` (`path` plus `equals`, `contains`, or `exists`). |
+| `GET` | `/api/webhooks/subscriptions` | Every subscription, optionally filtered by `endpoint_id`. |
+| `PATCH` / `DELETE` | `/api/webhooks/subscriptions/{id}` | Update or remove one subscription. |
+| `GET` | `/api/webhooks/events` | Stored deliveries, newest first; query `endpoint_id`, `event_type`, `limit`. |
+| `GET` | `/api/webhooks/events/{id}` | One event with its payload and the workflows it started. |
+| `POST` | `/api/webhooks/events/{id}/replay` | Deliver a stored event to the current subscriptions again. |
+| `POST` | `/api/webhooks/endpoints/{id}/test` | Send a sample event through an endpoint, skipping its secret. |
+| `POST` | `/api/hooks/{id}` | The generic inbound entry point. Optional secret in `X-Webhook-Secret`, `Authorization: Bearer`, or `?secret=`. Event type from `?event=` or `X-Event-Type`. |
+| `POST` | `/api/hooks/github/{id}` | The GitHub inbound entry point. Verifies `X-Hub-Signature-256` against the endpoint secret; event type and delivery id come from GitHub's headers. |
+
+Both inbound routes answer `202` with the stored event id, its type, and one delivery per matching workflow (`started`, `skipped`, or `failed`).
+
 ## Graph, Gantt, inbox, and operations
 
 | Method | Path | Purpose |

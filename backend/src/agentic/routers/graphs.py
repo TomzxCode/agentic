@@ -189,6 +189,8 @@ def get_execution(execution_id: str, session: Session = Depends(get_session)) ->
 
 def _execution_read(session: Session, execution: GraphExecution, graph: ExecutionGraph) -> GraphExecutionRead:
     """An execution's nodes with their live statuses, forms, and outputs."""
+    import json
+
     from ..models.agents import AgentRun
 
     definition = graphs.normalize_definition(graph.definition)
@@ -219,6 +221,9 @@ def _execution_read(session: Session, execution: GraphExecution, graph: Executio
                 status = "skipped"
             else:
                 status = run.status.value
+        output = (state.get("outputs") or {}).get(node_id, "")
+        if node["kind"] == "trigger":
+            output = json.dumps((state.get("triggerValues") or {}).get(node_id) or {}, ensure_ascii=False)
         node_reads.append(
             GraphNodeStateRead(
                 node_id=node_id,
@@ -227,7 +232,7 @@ def _execution_read(session: Session, execution: GraphExecution, graph: Executio
                 status=status,
                 run_id=node_state.get("runId"),
                 error=node_state.get("error", ""),
-                output=(state.get("outputs") or {}).get(node_id, ""),
+                output=output,
                 started_at=node_state.get("startedAt"),
                 ended_at=node_state.get("endedAt"),
             )
@@ -256,6 +261,7 @@ def _execution_read(session: Session, execution: GraphExecution, graph: Executio
         error=execution.error,
         nodes=node_reads,
         pending_form=pending_form,
+        trigger_event=state.get("trigger") or {},
         started_at=execution.started_at,
         ended_at=execution.ended_at,
     )
@@ -316,7 +322,21 @@ def update_graph(
 @router.delete("/{graph_id}", status_code=204)
 def delete_graph(graph_id: str, session: Session = Depends(get_session)) -> None:
     get_or_404(session, ExecutionGraph, graph_id, "Graph not found")
-    # Past runs keep living on their tasks; only the graph's own rows go.
+    # Past runs keep living on their tasks; only the graph's own rows go. The
+    # webhook subscriptions that pointed at it go too, or their foreign key
+    # would block the delete.
+    from ..models.webhooks import EventDelivery, EventSubscription
+
+    subscription_ids = [
+        subscription.id
+        for subscription in session.exec(
+            select(EventSubscription).where(col(EventSubscription.graph_id) == graph_id)
+        ).all()
+    ]
+    session.exec(sa_delete(EventDelivery).where(col(EventDelivery.graph_id) == graph_id))
+    if subscription_ids:
+        session.exec(sa_delete(EventDelivery).where(col(EventDelivery.subscription_id).in_(subscription_ids)))
+        session.exec(sa_delete(EventSubscription).where(col(EventSubscription.id).in_(subscription_ids)))
     session.exec(sa_delete(GraphTrigger).where(col(GraphTrigger.graph_id) == graph_id))
     session.exec(sa_delete(GraphExecution).where(col(GraphExecution.graph_id) == graph_id))
     session.exec(sa_delete(ExecutionGraph).where(col(ExecutionGraph.id) == graph_id))

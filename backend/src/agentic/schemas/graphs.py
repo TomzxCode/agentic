@@ -33,6 +33,13 @@ class GraphFormField(BaseModel):
     step: float | None = None
 
 
+class GraphTriggerOutput(BaseModel):
+    id: str
+    name: str = ""
+    # The dotted path read from the event payload, for example pull_request.title.
+    path: str = ""
+
+
 class GraphNode(BaseModel):
     """One node of the definition, as the editor draws it."""
 
@@ -40,16 +47,20 @@ class GraphNode(BaseModel):
     kind: str = "run"
     title: str = ""
     position: GraphNodePosition = GraphNodePosition()
-    # Run nodes
+    # Agent run nodes
     harnessId: str = ""
     model: str = ""
     cwd: str = ""
     promptTemplate: str = ""
     inputs: list[GraphNodeInput] = []
-    # Cli nodes (the command line after `agentic`, with {{name}} placeholders)
+    # Agentic command nodes (the command line after `agentic`, with {{name}} placeholders)
     command: str = ""
+    # Shell script nodes (a bash script, with {{name}} placeholders)
+    script: str = ""
     # Form nodes
     fields: list[GraphFormField] = []
+    # Trigger nodes
+    outputs: list[GraphTriggerOutput] = []
 
 
 class GraphEdge(BaseModel):
@@ -159,6 +170,8 @@ class GraphExecutionRead(ORMModel):
     error: str = ""
     nodes: list[GraphNodeStateRead] = []
     pending_form: GraphFormRequestRead | None = None
+    # The webhook event that started the run, when one did.
+    trigger_event: dict[str, Any] = {}
     started_at: datetime
     ended_at: datetime | None = None
 

@@ -90,6 +90,12 @@ erDiagram
     SCHEDULEDTASK ||--o{ SCHEDULEDTASKRUN : "executes as"
     EXECUTIONGRAPH ||--o{ GRAPHEXECUTION : "runs as"
     TASK ||--o{ GRAPHEXECUTION : "carries"
+    WEBHOOKENDPOINT ||--o{ EVENTSUBSCRIPTION : "feeds"
+    WEBHOOKENDPOINT ||--o{ WEBHOOKEVENT : "receives"
+    EXECUTIONGRAPH ||--o{ EVENTSUBSCRIPTION : "triggered by"
+    WEBHOOKEVENT ||--o{ EVENTDELIVERY : "delivers"
+    EVENTSUBSCRIPTION ||--o{ EVENTDELIVERY : "produces"
+    EXECUTIONGRAPH ||--o{ EVENTDELIVERY : "started as"
 
     TASK {
         string id PK
@@ -367,6 +373,42 @@ erDiagram
         bool draft
         datetime first_seen_at
     }
+    WEBHOOKENDPOINT {
+        string id PK
+        string name
+        string description
+        string kind
+        string secret
+        bool enabled
+    }
+    EVENTSUBSCRIPTION {
+        string id PK
+        string endpoint_id FK
+        string graph_id FK
+        json events
+        json filters
+        bool enabled
+    }
+    WEBHOOKEVENT {
+        string id PK
+        string endpoint_id FK
+        string source
+        string event_type
+        string delivery_id
+        json payload
+        json headers
+        datetime created_at
+    }
+    EVENTDELIVERY {
+        string id PK
+        string event_id FK
+        string subscription_id FK
+        string graph_id FK
+        string graph_execution_id
+        string status
+        string error
+        datetime created_at
+    }
 ```
 
 A person is a flat directory entry whose handles and emails are aliases in `PersonAlias`, so the same person dedupes across GitHub and Slack.
@@ -384,7 +426,8 @@ The full schema with types, constraints, and indexes lives in [`schema.dbml`](sc
 | Warm ACP session pool | Hold one ACP session for the default harness from startup, so the model picker lists models without spawning a harness per request | `agents/pool.py` (gated by `AGENTIC_WARM_HARNESS_SESSION`) |
 | In-process event bus | Publish run and task events to SSE subscribers | asyncio queues |
 | Scheduled tasks | User-defined shell commands fired on a cron schedule, each execution recorded with its exit code and output tail | `schedules.py`, `routers/schedules.py` |
-| Execution graphs | Named DAGs of agent runs, CLI commands, and form nodes, fired on demand or by their triggers (a cron schedule, a webhook); the executor walks the DAG in the API process and pauses on forms until answered | `graphs.py`, `triggers.py`, `routers/graphs.py` |
+| Execution graphs | Named DAGs of agent runs, Agentic commands, shell scripts, form nodes, and one event-trigger node, fired on demand, by their schedule triggers, or by a webhook event; the executor walks the DAG in the API process and pauses on forms until answered | `graphs.py`, `triggers.py`, `routers/graphs.py` |
+| Webhooks and event bus | Named inbound endpoints (generic JSON or signed GitHub), subscriptions that match stored events against a workflow (event types plus JSON-path filters), and the delivery record of what each event started | `event_bus.py`, `models/webhooks.py`, `routers/webhooks.py`, Vue WebhooksView |
 | Review queue | Pull requests awaiting the user's review: reports read from the user-global review store, the GitHub scan that stores the awaited set, and the must/should/may findings | `reviews.py`, `review_store.py`, `review_scan.py`, `review_queue.py`, `review_findings.py`, `routers/reviews.py` |
 | PR feedback | The reviewer-comment analysis files in the store, read as a triage queue whose implement/decline/defer decision is written back into the file's frontmatter for the executor to run | `feedback_store.py`, `routers/feedback.py`, Vue FeedbackView |
 | Decisions | Colleague-decision reports written by the extract-colleague-decisions skill, parsed read-only from the notes tree | `decisions_store.py`, `routers/decisions.py` |
@@ -419,6 +462,7 @@ The full schema with types, constraints, and indexes lives in [`schema.dbml`](sc
 5. A context refresh runs the same path, then parses a JSON `{summary, next_steps}` out of the assistant text and writes it back onto the task.
 6. At startup the API fails runs and graph executions left mid-flight by a previous process, unless their queue job is still live, so nothing looks running forever.
 7. Background loops in the API process refresh due items on their tiered policies, run the review scan on its cadence, fire scheduled shell tasks and due execution-graph schedule triggers, and hold the warm ACP session for the default harness.
+8. An inbound webhook is stored as a `WebhookEvent`, then matched against the endpoint's enabled subscriptions; each match starts an execution graph with the payload on its trigger node and records an `EventDelivery`.
 
 ## Infrastructure
 
@@ -436,7 +480,7 @@ Detailed stack, tooling, environments, deployment, and rollback live in [`infras
 - The review, PR-feedback, and decisions features read the user-global `~/.sdlc` store (and the notes tree) that the skills already write, instead of duplicating it in the app database; only the review scan persists its own rows.
 - Tools whose transport is `managed` are started and stopped by the API lifespan, so the ghx/slackx serve processes live and die with the server.
 - The API holds one warm ACP session for the default harness, so the model picker answers without spawning a harness per request; it is best effort and never delays startup or runs.
-- An in-process asyncio event bus rather than an external broker, because the app is single-process and local.
+- An in-process asyncio event bus rather than an external broker, because the app is single-process and local. Webhook events are persisted first and fanned out from that record, so a delivery can be inspected and replayed; the workflow itself is an execution graph rather than a second pipeline concept.
 - Task before/after edges are refused when they would close a cycle, so they always form a DAG; symmetric `related` links live in their own table and never join it.
 - The SPA is built into `backend/static` and served by the API, so one process serves both the API and the UI.
 - The focus stack is a separate `StackEntry` (plus `TaskSession`) rather than fields on `Task`, so a task can exist without being queued and its stack history stays independent of its own lifecycle.

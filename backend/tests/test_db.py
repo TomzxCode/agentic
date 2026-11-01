@@ -170,12 +170,14 @@ def test_migrate_graph_schedules_to_triggers(monkeypatch, tmp_path):
         rows = conn.execute(
             sqlalchemy.text("SELECT graph_id, type, config, enabled FROM graphtrigger ORDER BY graph_id")
         ).all()
-        cleared = conn.execute(sqlalchemy.text("SELECT schedule, next_run_at FROM executiongraph WHERE id='g1'")).one()
+        cleared = conn.execute(
+            sqlalchemy.text("SELECT schedule, next_run_at, enabled FROM executiongraph WHERE id='g1'")
+        ).one()
     # Only the graph with a schedule gets a trigger, carrying its cron and zone.
     assert len(rows) == 1 and rows[0][0] == "g1" and rows[0][1] == "schedule"
     assert '"0 9 * * *"' in rows[0][2] and "Europe/Paris" in rows[0][2] and rows[0][3] == 1
     # The old columns are emptied so the schedule is not read twice.
-    assert tuple(cleared) == (None, None)
+    assert tuple(cleared) == (None, None, 1)
 
     # A second pass adds nothing.
     db._migrate_graph_schedules_to_triggers()

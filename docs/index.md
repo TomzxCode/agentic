@@ -16,6 +16,7 @@ The goal is that resuming a task takes under a minute: the context you need sits
 - Creates git worktrees per task and runs any ACP harness against them.
 - Streams the agent transcript, then stores a summary and next steps on the task.
 - Runs user-defined shell scripts on a cron schedule, with a run history.
+- Runs execution graphs of agent runs, Agentic commands, shell scripts, and forms, by hand, on a cron schedule, or from a webhook event.
 - Reads the review reports your review skills write, scans GitHub for the pull requests awaiting your review, and shows each open pull request's merge readiness.
 - Collects the reviewer comments your PR-feedback skill analyzed, so you can decide what to implement, decline, or defer.
 - Collects what your colleagues decided from the extract-colleague-decisions reports, so you can catch up without reading every Slack thread.
@@ -48,6 +49,8 @@ The web app is organized into these pages:
 | [Repository](views/repositories.md) (`/repositories/:id`) | One repository's issues and pull requests, read fresh from GitHub. |
 | [Scheduled tasks](views/schedules.md) (`/schedules`) | Cron-scheduled shell tasks, with run history and output. |
 | [Time](views/time.md) (`/time`) | Where the app's foreground time went, as a day timeline, page shares, and a daily trend. |
+| [Execution graphs](views/execution-graphs.md) (`/graphs`) | Workflows of agent runs, Agentic commands, shell scripts, and forms, fired by hand, on a schedule, or by an event. |
+| [Webhooks](views/webhooks.md) (`/webhooks`) | Inbound endpoints, the workflows they trigger, and every stored event. |
 | [Settings](views/settings.md) (`/settings`) | Harnesses, repository groups, refresh policies, link templates, the sidebar layout, and dependency and cache diagnostics. |
 
 The order matches the sidebar's default order, with each detail route listed under the page that owns it.

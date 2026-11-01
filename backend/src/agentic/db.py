@@ -46,6 +46,7 @@ def create_db_and_tables() -> None:
         schedules,
         system,
         tasks,
+        webhooks,
     )
 
     settings.data_dir.mkdir(parents=True, exist_ok=True)
@@ -163,6 +164,11 @@ def _migrate_graph_schedules_to_triggers() -> None:
             )
         )
         connection.execute(text("UPDATE executiongraph SET schedule = NULL, timezone = NULL, next_run_at = NULL"))
+        if "enabled" in columns:
+            # The flag only gated the schedule. The trigger row now carries that
+            # pause, so clear it here or webhook deliveries would read the graph
+            # as paused with no way to un-pause it.
+            connection.execute(text("UPDATE executiongraph SET enabled = 1"))
 
 
 def _migrate_problem_to_task() -> None:
