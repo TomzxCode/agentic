@@ -425,6 +425,7 @@ The full schema with types, constraints, and indexes lives in [`schema.dbml`](sc
 | Decisions | Colleague-decision reports written by the extract-colleague-decisions skill, parsed read-only from the notes tree | `decisions_store.py`, `routers/decisions.py` |
 | Inbox | Suggestions of things to do (stale reviews, unreviewed own PRs, closable tasks, leftover worktrees), recomputed from current state on every read so nothing is stored | `inbox.py`, `routers/inbox.py` |
 | My PRs | The viewer's own open pull requests with attention counts, the individual checks behind each CI badge, plus reviewer pokes over Slack | `my_pulls.py`, `routers/my_pulls.py` |
+| ghx cache job | The one caller of `ghx cache`: a background pass on its own cadence that refreshes every registered GitHub repository (a delta when the cache is warm, a full history walk when cold), so every page reads a current cache | `ghx_cache.py` |
 | On-call | Scan a Slack channel and prepare replies | `routers/on_call.py` |
 | Process and cycle time | The task lifecycle read as a production line (station inventory, flows, Little's law) and cycle-time metrics over GitHub issue and PR events | `process_flow.py`, `cycle_time.py`, `routers/process.py` |
 | Operations audit | Every mutating request recorded with its client (web/cli/api) and actor (human/agent), exposed to handlers as request provenance | `provenance.py` (middleware), `routers/operations.py` |

@@ -1,5 +1,12 @@
 # Memory
 
+## 2026-11-02: only the ghx cache job runs `ghx cache`
+
+- `ghx_cache.py` is the single caller of `ghx cache`, driven by `_ghx_cache_forever` in `main.py` every `ghx_cache_tick` (60 s) when `ghx_cache_refresh_interval` (default 15m) has elapsed. No endpoint, page load, CLI command, or agent action refreshes a repository's cache on request; the My PRs read, the inbox nudge, and the repository listing only read what the job last wrote.
+- The job refreshes every registered GitHub repository: the delta timeout for one whose cache `ghx repo list` marks warm, a one-hour full-history walk for a cold one. A failed repository backs off for an hour (`RETRY_AFTER`), and an unreadable cache listing skips the pass instead of risking a walk on every repository.
+- This replaced the old behavior where `fetch_my_pulls` and `GET /api/github/repository?refresh=true` ran a delta. The repository view's "Refresh all" is now "Reload" and only re-reads the cache; the `refresh` query param is gone from that endpoint.
+- The rule is recorded in `.sdlc/context/conventions.md` ("GitHub and ghx"), docs/views/{my-pulls,repositories}.md, and docs/reference/configuration.md. A new feature that wants fresher GitHub data reads the cache, waits for the next pass, or joins that one job.
+
 ## 2026-11-02: the tray follows a push stream, not a poll
 
 - `agentic-stack` keeps one SSE connection to `GET /api/stack/stream` open (reconnecting on a drop) instead of polling `/api/stack` every 30 s. The stream sends the stack on connect, on every announce, and when a parked task's date passes; a 300 s cap is the resync for anything the bus missed (a graph-created task, for example).
@@ -9,7 +16,7 @@
 
 ## 2026-10-31: The review scan reads ghx's cache, and cycle time stays on gh
 
-- The review scan runs `ghx search prs --review-requested @me` and `--reviewed-by @me`, which are cache-only and span every cached repository. The scan never refreshes the cache itself: a repository ghx has never cached is outside the scan, and keeping the cache current is left to a scheduled refresh, so a scan never waits on several repository fetches.
+- The review scan runs `ghx search prs --review-requested @me` and `--reviewed-by @me`, which are cache-only and span every cached repository. The scan never refreshes the cache itself: a repository ghx has never cached is outside the scan, and keeping the cache current is the ghx cache job's work (see 2026-11-02), so a scan never waits on repository fetches.
 - `ghx search` accepts `--json` in both forms, but a space-form field list after a bare `--json` is found by scanning the positional args, so a query word that names a field is consumed as the field list. Pass `--json=` in code.
 - Reviewer lists come from `ghx pr view --json`: its `reviewRequests` entries carry `type` (`User`/`Team`), not gh's `__typename`.
 - The login fallback reads `gh config get -h github.com user`: local config, no API call, empty when authentication comes from `GH_TOKEN` alone.
@@ -18,7 +25,7 @@
 ## 2026-10-27: My PRs reads ghx per registered repository, and its refresh is a delta
 
 - The My PRs page and the inbox nudge no longer run a `gh` GraphQL search. `list_my_open_pulls` runs `ghx pr list --author <login> --state open` once per registered GitHub repository and merges the rows newest-update-first. A pull request in a repository neither the app nor ghx knows is deliberately out of scope, not a silent gap; the cache key is (login, repository set), so registering a repository never answers from the previous list.
-- Every refresh uses `ghx cache --repo`, the delta fetch; nothing passes `--force` any more (a forced full re-fetch on each page load or repository refresh is what we are avoiding). `refresh_github_cache` takes no `force` argument.
+- `refresh_github_cache` runs `ghx cache --repo` without `--force` (a delta, never a forced full re-fetch). Since 2026-11-02 only the background ghx cache job calls it, not a page load or the repository endpoint.
 - ghx now caches the head commit's check rollup and the review-thread counts on each pull request, so a row needs no second read; the individual checks stay on demand through `ghx pr checks`.
 - In rpc/managed mode the typed adapter answers `pr list` from `pr.list`, which drops flags it does not map. `--author` must be mapped in `_typed_ghx_list`, or the read returns every author's pull requests as if they were the login's own.
 
@@ -209,3 +216,15 @@
 - sqlmodel's generated `select` overloads stop at four positional entities. A five-or-more-column select cannot typecheck; add `# ty: ignore[no-matching-overload]` rather than splitting the query (agent_streams `_task_signature` deliberately keeps one cheap query for SSE polling).
 - `session.get(Model, id)` returns `Model | None` and ty flags every attribute access on it, including in tests. Assign to a variable and `assert x is not None` first; this is the repo's established pattern.
 - CI order matters: the Lint step runs first, so when it fails the format/type-check/test steps never run and their failures stay hidden. Run `ruff check`, `ruff format --check`, `ty check`, and prettier locally before pushing, not just pytest/eslint.
+
+## 2026-11-01: test-suite leak convention and the CI flake it caused
+
+- The backend suite shares one SQLite DB per pytest-xdist worker, so every test must delete the rows it creates; a leak poisons later tests in the same worker, and which tests collide depends on the worker split. This flaked CI for days with different victims (`test_associating_github_item_links_its_repository`, `test_item_fetch_auto_populates_people`).
+- Two interactions to remember: leftover `repository` rows adopt a monkeypatched fake `detect_remote_url` on the next listing sync (so a later test's `_repository_for_item` match grabs the oldest row), and `upsert_person` matches existing people case-insensitively by name, so a leftover "Ada" hijacks a fetched author.
+- The per-file standalone leak scan (run each file on a fresh DB, dump `repository`/`person` rows after) finds unconditional leakers but misses pair-interaction leaks; pair sweeps (file A then victim file in one process) catch those.
+
+## 2026-11-01: resolving dependabot uv PRs when @dependabot rebase refuses
+
+- `gh pr update-branch` pushes a merge commit to a dependabot branch, after which `@dependabot rebase` answers "PR has been edited by someone other than Dependabot". `@dependabot recreate` would work, but local resolution is faster: merge main into the branch, `git checkout origin/main -- uv.lock`, `uv lock --upgrade-package "pkg==version"`, commit, push.
+- The pyproject dev-group lines (`ty`, `zensical` are adjacent) conflict instead of auto-merging, so check pyproject for conflict markers before committing; `uv lock` through a pipe (`| tail`) masks its parse errors, and a chain after a failed `git merge` aborts at the `&&`, leaving earlier steps undone.
+- uv version matters: uv 0.10.4 rewrote the lock's `revision` from 5 to 3; self-update to latest (0.13.6 now) before regenerating locks. Each squashed dependabot merge changes main's uv.lock, so the remaining uv PRs go DIRTY one wave at a time; npm PRs auto-merge because their lock sections are disjoint.

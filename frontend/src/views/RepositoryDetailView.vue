@@ -216,11 +216,11 @@ async function load() {
   loading.value = false
 }
 
-// Fetch the repository's whole issue and PR listing from GitHub (ghx). Because
-// ghx serves a cached listing, the first load reads the cache and the "refresh
-// all" button asks ghx for a delta fetch first. A failure leaves the stored
+// Fetch the repository's whole issue and PR listing from ghx. The read only
+// serves ghx's cache: the backend's background job refreshes it, never a page
+// load, so this call never waits on a delta fetch. A failure leaves the stored
 // items to render on their own.
-async function loadGithub({ refresh = false } = {}) {
+async function loadGithub() {
   ghxError.value = ''
   if (!canListGithub.value) {
     ghxItems.value = []
@@ -228,7 +228,7 @@ async function loadGithub({ refresh = false } = {}) {
     return
   }
   try {
-    const listing = await api.github.repository({ repository_id: props.id, state: 'all', limit: 1000, refresh })
+    const listing = await api.github.repository({ repository_id: props.id, state: 'all', limit: 1000 })
     // Swap only once the response arrives, so a slow ghx call does not blank
     // the rows that are already on screen.
     ghxItems.value = listing?.items || []
@@ -240,17 +240,17 @@ async function loadGithub({ refresh = false } = {}) {
   }
 }
 
-// Button one: refresh the whole repository from GitHub (ghx's delta fetch, not
-// a forced re-download). The backend writes the listing's state back onto the
-// task-linked items, so
-// reload the items too: the refresh covers the repository and its items.
+// Button one: re-read the repository's issue and PR listing from ghx's cache.
+// The cache is refreshed by the backend's background job, never by a page load,
+// so this is a reload and not a GitHub round trip. The backend writes the
+// listing's state back onto the task-linked items, so reload the items too.
 async function refreshAll() {
   if (refreshingAll.value || !canListGithub.value) return
   refreshingAll.value = true
-  await loadGithub({ refresh: true })
+  await loadGithub()
   refreshingAll.value = false
   if (ghxError.value) {
-    store.notify(`Could not refresh from GitHub: ${ghxError.value}`, true)
+    store.notify(`Could not reload from ghx: ${ghxError.value}`, true)
     return
   }
   try {
@@ -260,7 +260,7 @@ async function refreshAll() {
   }
   const issues = ghxItems.value.filter((item) => item.kind === 'issue').length
   const pulls = ghxItems.value.filter((item) => item.kind === 'pr').length
-  store.notify(`Refreshed ${issues} issue${issues === 1 ? '' : 's'} and ${pulls} pull request${pulls === 1 ? '' : 's'}`)
+  store.notify(`Reloaded ${issues} issue${issues === 1 ? '' : 's'} and ${pulls} pull request${pulls === 1 ? '' : 's'}`)
 }
 
 // Button two: re-fetch the stored items already associated to tasks, a few at a
@@ -344,13 +344,13 @@ onMounted(load)
             <button
               class="btn sm"
               :disabled="refreshingAll || loading || !canListGithub"
-              aria-label="Refresh all issues and pull requests"
-              title="Fetch the repository's issues and pull requests from GitHub"
+              aria-label="Reload issues and pull requests from ghx"
+              title="Read the repository's issues and pull requests from ghx's cache; the background job refreshes it"
               @click="refreshAll"
             >
               <span v-if="refreshingAll" class="spinner" aria-hidden="true"></span>
               <span v-else>↻</span>
-              {{ refreshingAll ? 'Refreshing…' : 'Refresh all' }}
+              {{ refreshingAll ? 'Reloading…' : 'Reload' }}
             </button>
             <button
               class="btn sm"

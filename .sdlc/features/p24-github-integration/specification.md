@@ -9,7 +9,9 @@ session_link: "http://localhost:10000/?session=ses_ed778bb8affeJQ6f9Tkxe4MjUl"
 ## Overview
 
 `services/github.py` holds every GitHub read: `ghx`-backed listings and single-object fetches (`list_github_issues`, `list_github_pulls`, `list_github_repo_items`, `fetch_github_issue`), the My PRs read (`list_my_open_pulls`, one `ghx pr list` per registered repository) and its checks (`fetch_pull_checks`, one `ghx pr checks`), the remaining `gh` exception (`fetch_github_pull_reviewers`, the cycle-time reads), and the one `gh` write (`create_github_issue`).
-`my_pulls.py` refreshes the registered repositories' ghx caches, lists them, caches the assembled result for a short time per login and repository set, and derives the header counts, so a page reload does not re-query GitHub.
+`my_pulls.py` lists the registered repositories, caches the assembled result for a short time per login and repository set, and derives the header counts, so a page reload does not re-query GitHub.
+It never refreshes the ghx cache.
+`ghx_cache.py` is that cache's only writer: a background job (`ghx_cache_refresh_interval`, 15 minutes by default) refreshes every registered GitHub repository off the request path, using a delta for a warm cache and a full history walk for one ghx has never completed.
 `routers/github.py` exposes the repository read surface, `routers/my_pulls.py` the My PRs read and poke, and `routers/items.py` adds a pull request item's reviewer read and poke.
 The repository listing runs the issue and PR listings together and, through `sync_github_listing` in `routers/items_refresh.py`, merges its state fields onto the stored items it names.
 The SPA side is `MyPullsView.vue` with its pure helpers in `myPulls.js`, the standalone `IssueView.vue` and `PullRequestView.vue` pages, `TaskIssuePanel.vue` and `GithubItemPanel.vue` for the task's issue and PR modes, and the repository detail view's `RepositoryItemsGrid.vue`.
@@ -72,7 +74,7 @@ The normative contract is in [`api.yaml`](api.yaml) once written; the table belo
 | GET | /api/github/issue?url= | Fetch one issue or PR by URL (ghx) |
 | GET | /api/github/issues | List a repository's issues (repository_id or owner/repo, state, limit) |
 | POST | /api/github/issues | Create an issue from a title and body (gh) |
-| GET | /api/github/repository | List every issue and PR, all states by default; `refresh=true` forces a ghx re-fetch first; syncs stored items |
+| GET | /api/github/repository | List every issue and PR, all states by default, from ghx's cache (never refreshing it); syncs stored items |
 | GET | /api/my-pulls | The configured login's open pull requests across the registered GitHub repositories; `refresh=true` bypasses the cache |
 | GET | /api/my-pulls/checks | One pull request's individual checks, failing first, read on demand for the CI badge's popover (`refresh=true` bypasses the 30-second cache) |
 | POST | /api/my-pulls/poke | DM a pull request's named reviewers on Slack |
@@ -109,8 +111,6 @@ sequenceDiagram
     alt cache fresh
         M-->>R: cached rows
     else
-        M->>GH: repo list --json (which caches are warmable)
-        M->>GH: cache --repo o/r --type prs (delta, warm caches only, per repository)
         M->>S: list_my_open_pulls(repositories, login)
         S->>GH: pr list --author login (per repository, together)
         S-->>M: rows (ci, decision, approvers, threads)
@@ -119,6 +119,25 @@ sequenceDiagram
     M-->>R: login, pulls, counts, error
     R->>R: resolve linked tasks from stored items
     R-->>V: login, pulls (with tasks), counts, error
+```
+
+### ghx cache job
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant L as main.py lifespan
+    participant J as ghx_cache.py
+    participant S as services/github.py
+    participant GH as ghx
+    participant DB as SQLite
+    L->>J: run_due_ghx_cache_refresh (every tick, when interval elapsed)
+    J->>J: known_github_repositories(session)
+    J->>S: list_cached_repositories()
+    S->>GH: repo list --json nameWithOwner,cachedAt
+    J->>S: refresh_github_cache(owner, name) per repository
+    S->>GH: cache --repo o/r (delta when warm, full walk when cold)
+    J->>DB: record_ghx_cache_run
 ```
 
 ### Checks popover
@@ -156,11 +175,9 @@ sequenceDiagram
     participant S as services/github.py
     participant G as ghx
     participant DB as SQLite
-    V->>R: GET /api/github/repository?refresh=true
-    R->>S: refresh_github_cache
-    S->>G: cache --repo o/r --force
+    V->>R: GET /api/github/repository
     R->>S: list_github_repo_items
-    S->>G: issue list + pr list (together)
+    S->>G: issue list + pr list (together, from the cache)
     R->>DB: sync_github_listing (state fields onto named items)
     R-->>V: items + failed
     V->>V: reload stored items
@@ -170,11 +187,11 @@ sequenceDiagram
 
 | Decision | Choice | Rationale |
 |---|---|---|
-| Listings and single objects | `ghx` | Consistent JSON shape, repository selection, and an on-disk cache the refresh can force |
+| Listings and single objects | `ghx` | Consistent JSON shape, repository selection, and an on-disk cache the background job keeps current |
 | My PRs, reviewers, checks, threads | `ghx` | Its cached record carries the reviews, review requests, head-commit check rollup, and review-thread counts the page shows, so the read needs no GraphQL of its own |
 | My PRs source | One `ghx pr list --author` per registered repository, read together | ghx lists one repository at a time; a pull request in a repository neither side knows is out of scope rather than a silent gap |
-| My PRs freshness | `ghx cache --repo X --type prs` (delta) before a read, only for repositories whose cache a full run has completed, at most once per 300 seconds | On a warmed cache a delta is a few small requests; on any other repository `ghx cache` walks the whole history and never finishes inside a page load, so those are left to `ghx pr list` |
-| Warmable repositories | `ghx repo list --json nameWithOwner,cachedAt`; a repository without a `cachedAt` has no completed cache | One local read answers which repositories can be refreshed cheaply; an unreadable answer skips the refresh rather than risking a full walk |
+| My PRs freshness | The ghx cache job (delta when warm, full walk when cold) keeps the cache current; a My PRs read only reads it | A page load never pays a subprocess delta and never starts a full history walk; one background pass is the only `ghx cache` caller |
+| Warmable repositories | `ghx repo list --json nameWithOwner,cachedAt`; a repository without a `cachedAt` has no completed cache | The job uses it to pick a short delta timeout for a warm repository and the long walk timeout for a cold one; an unreadable answer skips the pass rather than risking a full walk on every repository |
 | My PRs storage | A pull request is not stored; its task links read the stored items | A merged pull request leaves the page on the next refresh, while task links come from the app's own items and stay current |
 | My PRs cache | 60 seconds per login and repository set, 30 for a failure | A reload does not re-query GitHub, a newly registered repository never serves the previous list, and an offline host is retried later rather than on every request |
 | Individual checks | Read on demand through `ghx pr checks` when the CI badge's popover opens, cached 30 seconds | The page needs only the rollup state, and a check list per pull request would dwarf the cached record |
@@ -193,9 +210,9 @@ sequenceDiagram
 
 1. Every read depends on `ghx` or `gh` being installed and authenticated; the failure modes are explicit errors, but nothing works without them.
 2. `open_threads` counts only the first 100 review threads; the total stays exact but the unresolved count under-reports a pull request with more than a hundred threads.
-3. `ghx` serves listings from its cache, so a My PRs read is current only as of the delta fetch it runs first (or of the cache's own freshness window on a repository the refresh skipped); a slow or failing fetch falls back to the cache the tool has.
-4. A My PRs read costs one `ghx repo list` plus, for each warmable repository due a refresh, one `ghx cache`, and one `ghx pr list` per registered repository; the calls run together, bounded by the helper-CLI pool.
-5. A repository whose cache was never completed stays on `ghx pr list` indefinitely, so its rows are as current as ghx's per-item window and its review-thread counts may be absent until a full `ghx cache` run happens elsewhere (the repository view's refresh, or a manual run).
+3. `ghx` serves listings from its cache, so a My PRs read is current only as of the last cache job pass; a slow or failing pass falls back to the cache the tool has.
+4. A My PRs read costs one `ghx pr list` per registered repository, and the cache job costs one `ghx repo list` plus one `ghx cache` per repository per pass; the calls run together, bounded by the helper-CLI pool.
+5. A repository ghx has never fully cached takes a full history walk on the job's first pass, so its rows stay on ghx's per-item reads until that pass completes; the walk can outlast the delta timeout and is retried after the failure backoff, not on the next tick.
 6. A list that ghx answers from its API fallback (a cache it could not refresh) carries the check rollup but not the review-thread counts, which only the full cache record holds.
 
 ## Out of Scope

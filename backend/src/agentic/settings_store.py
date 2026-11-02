@@ -41,6 +41,7 @@ OVERRIDABLE_KEYS = (
     "slack_events_channel",
     "slack_notify_user_id",
     "github_refresh_policy",
+    "ghx_cache_refresh_interval",
     "review_scan_interval",
     "review_scan_default",
     "review_slo",
@@ -104,6 +105,7 @@ def env_defaults() -> dict[str, str]:
         "slack_events_channel": settings.slack_events_channel,
         "slack_notify_user_id": settings.slack_notify_user_id,
         "github_refresh_policy": settings.github_refresh_policy,
+        "ghx_cache_refresh_interval": settings.ghx_cache_refresh_interval,
         "review_scan_interval": settings.review_scan_interval,
         "review_scan_default": settings.review_scan_default,
         "review_slo": settings.review_slo,
@@ -343,6 +345,54 @@ def record_review_scan_run(
 def get_review_scan_status(session: Session) -> dict:
     """The review scan's last pass, or an empty dict when it never ran."""
     row = session.get(Setting, REVIEW_SCAN_STATUS_KEY)
+    if row is None or not row.value:
+        return {}
+    try:
+        return json.loads(row.value)
+    except json.JSONDecodeError:
+        return {}
+
+
+# The ghx cache job's last pass. Like the review scan's, it is the job's own
+# state, not something the Settings page edits; the job reads its timestamp back
+# to know when the next pass is due, so a restart does not run one early.
+GHX_CACHE_STATUS_KEY = "ghx_cache_status"
+
+
+def record_ghx_cache_run(
+    session: Session,
+    *,
+    last_run_at: datetime,
+    refreshed: int,
+    failed: int,
+    skipped: int,
+    error: str | None = None,
+    origin: str = "background",
+) -> None:
+    """Persist the ghx cache job's last pass, so the cadence survives a restart."""
+    value = json.dumps(
+        {
+            "last_run_at": last_run_at.isoformat(),
+            "refreshed": refreshed,
+            "failed": failed,
+            "skipped": skipped,
+            "error": error[:300] if error else None,
+            "origin": origin,
+        }
+    )
+    row = session.get(Setting, GHX_CACHE_STATUS_KEY)
+    if row is None:
+        row = Setting(key=GHX_CACHE_STATUS_KEY, value=value)
+    else:
+        row.value = value
+        row.updated_at = utcnow()
+    session.add(row)
+    session.commit()
+
+
+def get_ghx_cache_status(session: Session) -> dict:
+    """The ghx cache job's last pass, or an empty dict when it never ran."""
+    row = session.get(Setting, GHX_CACHE_STATUS_KEY)
     if row is None or not row.value:
         return {}
     try:

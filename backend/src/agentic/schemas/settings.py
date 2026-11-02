@@ -55,6 +55,9 @@ class SettingsUpdate(BaseModel):
     slack_events_channel: str | None = None
     slack_notify_user_id: str | None = None
     github_refresh_policy: str | None = None
+    # How often the background job runs `ghx cache` ("15m", "1h"; empty
+    # disables it). It is the only caller: pages read ghx's cache.
+    ghx_cache_refresh_interval: str | None = None
     # The review scan's cadence ("1h", "30m"; empty disables it) and what a
     # repository with no policy of its own does (include or exclude).
     review_scan_interval: str | None = None

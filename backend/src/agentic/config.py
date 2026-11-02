@@ -150,6 +150,14 @@ class Settings(BaseSettings):
     # How often (seconds) the API checks for due items. 0 disables the loop.
     item_refresh_tick: int = 300
 
+    # How often (a duration such as "15m"; empty disables it) the background job
+    # runs `ghx cache` over the registered GitHub repositories. That job is the
+    # only caller: pages read ghx's cache and never refresh it, so a read never
+    # waits on a delta fetch (or starts a whole-history walk). ``ghx_cache_tick``
+    # is how often (seconds) the API checks whether the job is due.
+    ghx_cache_refresh_interval: str = "15m"
+    ghx_cache_tick: int = 60
+
     # Auto-approve ACP permission requests (single-user local tool). When false,
     # permission requests are surfaced to the UI and the run waits.
     auto_approve_permissions: bool = True

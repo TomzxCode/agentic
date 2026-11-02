@@ -17,7 +17,6 @@ from ..services.github import (
     github_owner_repo,
     list_github_issues,
     list_github_repo_items,
-    refresh_github_cache,
 )
 from ..services.parsing import parse_github
 from .items_refresh import sync_github_listing
@@ -134,23 +133,19 @@ def list_repository(
     repo: str | None = None,
     state: str = "all",
     limit: int = 1000,
-    refresh: bool = False,
     session: Session = Depends(get_session),
 ) -> GithubRepoListing:
     """List every issue and pull request of a repository (ghx), all states by default.
 
     Backs the repository view, which shows the whole repository rather than only
-    the items already associated to tasks. With ``refresh``, ghx runs a delta
-    fetch against GitHub first, so the call picks up what changed instead of
-    only reading ghx's cache; it does not force a full re-download. Either way
-    the listing's state is written back onto the
-    stored items it names, so the associated item is never read as older than the
-    repository that shows it.
+    the items already associated to tasks. The listing reads ghx's cache and
+    never refreshes it: the background job does that (``ghx_cache.py``), so this
+    read never waits on a delta fetch. The listing's state is written back onto
+    the stored items it names, so the associated item is never read as older
+    than the repository that shows it.
     """
     owner, repo = _resolve_owner_repo(session, repository_id, owner, repo)
 
-    if refresh:
-        refresh_github_cache(owner, repo)
     listing = list_github_repo_items(owner, repo, state=state, limit=limit)
     if listing is None:
         raise HTTPException(

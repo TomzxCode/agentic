@@ -20,6 +20,10 @@ const REFRESH_FIELDS = [
 
 const form = reactive({ slack_refresh_policy: '', github_refresh_policy: '' })
 const previews = reactive({ slack_refresh_policy: null, github_refresh_policy: null })
+// The ghx cache job's cadence. It is the only caller of `ghx cache`, so this is
+// how fresh every page's GitHub reads are.
+const CACHE_INTERVAL_KEY = 'ghx_cache_refresh_interval'
+const cache = reactive({ interval: '' })
 const status = ref({})
 const saving = ref('')
 const saved = ref('')
@@ -106,11 +110,28 @@ async function save(key) {
   }
 }
 
+// Save the cache job's cadence. A malformed duration is rejected by the server
+// and reported, leaving the stored value alone.
+async function saveCacheInterval() {
+  saving.value = CACHE_INTERVAL_KEY
+  try {
+    await api.settings.update({ [CACHE_INTERVAL_KEY]: cache.interval })
+    saved.value = CACHE_INTERVAL_KEY
+    clearTimeout(savedTimer)
+    savedTimer = setTimeout(() => (saved.value = ''), 1500)
+  } catch (e) {
+    store.notify(e.message, true)
+  } finally {
+    saving.value = ''
+  }
+}
+
 watch(
   () => props.overrides,
   (overrides) => {
     form.slack_refresh_policy = overrides.slack_refresh_policy ?? ''
     form.github_refresh_policy = overrides.github_refresh_policy ?? ''
+    cache.interval = overrides.ghx_cache_refresh_interval ?? ''
     if (props.active) previewAll()
   },
   { immediate: true }
@@ -137,7 +158,9 @@ onMounted(loadStatus)
     </div>
     <p class="faint" style="margin-top: 0">
       How often to re-fetch Slack threads (slackx) and GitHub issues/PRs (ghx). Age bands pair an upper age with a
-      refresh interval. Each field saves when you leave it; leave one blank to stop refreshing that source.
+      refresh interval. Each field saves when you leave it; leave one blank to stop refreshing that source. The ghx
+      cache every GitHub page reads is refreshed separately by one background job, which is the only caller of
+      <code>ghx cache</code>.
     </p>
     <div v-for="field in REFRESH_FIELDS" :key="field.key" class="field">
       <label>
@@ -198,6 +221,26 @@ onMounted(loadStatus)
         </template>
         <p v-else class="faint" style="margin: 0">No automatic refresh.</p>
       </div>
+    </div>
+    <div class="field">
+      <label>
+        GitHub cache refresh
+        <span v-if="saving === CACHE_INTERVAL_KEY" class="faint">saving…</span>
+        <span v-else-if="saved === CACHE_INTERVAL_KEY" class="faint">saved</span>
+      </label>
+      <div class="row">
+        <input
+          v-model="cache.interval"
+          class="input mono grow"
+          :placeholder="defaults.ghx_cache_refresh_interval || '15m'"
+          @blur="saveCacheInterval"
+        />
+      </div>
+      <p class="faint" style="margin: 4px 0 0">
+        How often the background job runs <code>ghx cache</code> over the registered GitHub repositories. It is the only
+        caller: every page reads the cache, so this is how fresh the GitHub pages are. A duration such as
+        <code>15m</code>, <code>1h</code> or <code>1d</code>; leave it blank to stop refreshing the cache.
+      </p>
     </div>
   </section>
 </template>

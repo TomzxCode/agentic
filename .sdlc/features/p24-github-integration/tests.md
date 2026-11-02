@@ -8,7 +8,7 @@ session_link: "http://localhost:10000/?session=ses_ed778bb8affeJQ6f9Tkxe4MjUl"
 
 ## Scope
 
-Covers the `services/github.py` helpers and their routers (issue fetch, issue listing, issue creation, the whole-repository listing with its item sync), the My PRs search, cache, counts, and poke, and the per-item reviewer read and poke.
+Covers the `services/github.py` helpers and their routers (issue fetch, issue listing, issue creation, the whole-repository listing with its item sync), the My PRs search, answer cache, counts, and poke, the ghx cache background job, and the per-item reviewer read and poke.
 Out of scope: real network calls to GitHub or Slack, and the cycle-time reads the metrics feature owns.
 
 ## Unit Tests
@@ -28,9 +28,9 @@ Out of scope: real network calls to GitHub or Slack, and the cycle-time reads th
 | TC-11 | Approvers come from decisive reviews only, the latest per author wins, and a decision of CHANGES_REQUESTED is not approved | test_my_pulls.py |
 | TC-12 | `reviewed` counts anyone but the author, ignores the author's own and pending reviews; requested reviewers carry logins and team names | test_my_pulls.py |
 | TC-13 | `pull_counts` totals, attention, approved, failing, open threads, and drafts | test_my_pulls.py |
-| TC-14 | The My PRs cache is reused without refresh, bypassed with refresh, keyed by the repository set, and a failed lookup reports the unreachable error | test_my_pulls.py |
+| TC-14 | The My PRs answer cache is reused without refresh, bypassed with refresh, keyed by the repository set, and a failed lookup reports the unreachable error; the read never runs `ghx cache` | test_my_pulls.py |
 | TC-15 | `fetch_my_pulls` without a login reports the no-login error, and without a registered GitHub repository the no-repositories error | test_my_pulls.py |
-| TC-43 | A read refreshes only a repository whose cache run has completed, with `ghx cache --type prs` and a bounded timeout, once per window; a repository without a completed cache is left alone, an unreadable cache listing skips the refresh, a failed refresh waits longer, and the repositories are listed together, merged newest update first | test_my_pulls.py |
+| TC-43 | The ghx cache job parses its cadence, uses the delta timeout for a warm cache and the walk timeout for a cold one, skips the pass when the cache listing cannot be read, backs off a failed repository, records each pass, and does nothing when the cadence is blank or not yet due | test_ghx_cache.py |
 | TC-44 | A repository that ghx cannot list is left out of the rows while the others return; every repository failing reports unreachable | test_my_pulls.py |
 | TC-45 | A registered repository's GitHub remote resolves to `owner/name`, with case-insensitive deduplication and non-GitHub remotes left out | test_my_pulls.py |
 | TC-46 | The typed `pr.list` path passes the author filter; `cache.refresh` carries `force: false` for a delta and the requested `type`; `repo.list` answers the cache listing; `pr.checks` answers the checks read | test_services_shell_rpc.py |
@@ -47,7 +47,7 @@ Out of scope: real network calls to GitHub or Slack, and the cycle-time reads th
 | TC-19 | Issues endpoint by owner/repo and by registered repository | monkeypatched `ghx` | issues listed; 400 without coordinates; 404 unknown repository; 400 non-GitHub remote; 502 when ghx fails |
 | TC-20 | Single issue endpoint | monkeypatched `ghx` | issue returned; 400 for a non-GitHub URL; 502 when the read fails |
 | TC-21 | Create issue endpoint | monkeypatched `create_github_issue` | issue created; 400 for a blank title or unresolvable repository; 502 on failure |
-| TC-22 | Repository endpoint with refresh | monkeypatched `ghx` | `ghx cache --force` runs first; 502 when both kinds fail |
+| TC-22 | Repository endpoint | monkeypatched `ghx` | the listing is read without any `ghx cache` command, even when an old `refresh=true` flag is sent; 502 when both kinds fail |
 | TC-23 | Repository listing syncs the items it names | stored item for a listed issue | item's state metadata and author updated; an identical listing writes nothing; other repositories' items untouched |
 | TC-24 | My PRs endpoint | login and repository list resolved, the read monkeypatched | rows and counts returned; linked tasks resolved per request; the no-login and no-repository cases carry their errors |
 | TC-25 | My PRs poke | people and Slack monkeypatched | one DM per deduplicated login; per-reviewer failure reasons; 400 with no logins |
@@ -55,7 +55,7 @@ Out of scope: real network calls to GitHub or Slack, and the cycle-time reads th
 | TC-27 | Item poke | person with Slack aliases, Slack monkeypatched | DM sent without unfurl to the resolved user id; 400 naming the missing person or Slack id; 502 when Slack refuses |
 | TC-28 | TaskIssuePanel and the task's issue mode | stored item, monkeypatched API | live GitHub read shown with the agent panel; stored-item fallback; author person links |
 | TC-29 | MyPullsView | monkeypatched API | rows rendered with badges, task links, filters, grouping (remembered in localStorage), repository multi-select, refresh, empty and error states |
-| TC-30 | Repository detail view and grid | monkeypatched API and store | grid rows with kind, state, author, and tasks; the title opens the app's issue or PR page; the Links column carries ghx and GitHub; refresh all; new-task and record-change actions |
+| TC-30 | Repository detail view and grid | monkeypatched API and store | grid rows with kind, state, author, and tasks; the title opens the app's issue or PR page; the Links column carries ghx and GitHub; reload from the cache; new-task and record-change actions |
 | TC-37 | My pull request checks endpoint | router read monkeypatched | checks and rollup returned; 400 for a missing repository, a non-`owner/name` repository, or a non-positive number; a failed read carries the error |
 | TC-39 | Pull checks popover | monkeypatched API | the badge opens the panel with failing checks first and the summary; a failed read offers a retry; Escape and an outside click close it; reopening answers from the visit's copy |
 | TC-41 | My PRs and repository list links | monkeypatched API and store | a My PRs row puts ghx (when configured) and gh before its number, which links to `/pr/{owner}/{repo}/{number}`, with a linked task after the title; a repository's Links cell holds ghx and GitHub when the remote is GitHub, and is empty otherwise |

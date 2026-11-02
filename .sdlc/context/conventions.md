@@ -12,7 +12,7 @@
 
 ## Directory Structure
 
-- `backend/src/agentic/`, the FastAPI app. Wiring and cross-cutting modules, one concern per file: `main.py` (app wiring), `config.py`, `db.py`, `crud.py` (shared CRUD helpers, including `get_or_404`), `events.py`, `links.py`, `provenance.py`, `jobs.py`, `stack.py`, `schedules.py`, `metrics.py`, `inbox.py`, `refresh.py`, `graphs.py`, and the `*_store.py` modules (`settings_store.py`, `decisions_store.py`, `feedback_store.py`, `review_store.py`).
+- `backend/src/agentic/`, the FastAPI app. Wiring and cross-cutting modules, one concern per file: `main.py` (app wiring), `config.py`, `db.py`, `crud.py` (shared CRUD helpers, including `get_or_404`), `events.py`, `links.py`, `provenance.py`, `jobs.py`, `stack.py`, `schedules.py`, `metrics.py`, `inbox.py`, `refresh.py`, `ghx_cache.py`, `graphs.py`, and the `*_store.py` modules (`settings_store.py`, `decisions_store.py`, `feedback_store.py`, `review_store.py`).
 - Domain packages, each imported by its defining submodule (the `__init__.py` files carry docstrings only, no re-export barrels): `models/` (SQLModel tables, by domain), `schemas/` (request/response models, by resource), `services/` (`shell`, `git`, `names`, `parsing`, `github`, `slack`, `sources`, `prompts`, `managed_tools`), `agents/` (`harnesses`, `client`, `pool`, `runner`, `executions`), and `rpc/` (JSON-RPC 2.0: `protocol.py`, `methods.py`, `server.py`, mounted at `POST /rpc`).
 - `routers/` holds one module per resource; a resource too large for one module keeps its sub-concern in a sibling (`task_writes`, `task_service`, `task_items`, `task_dependencies`, `items_refresh`, `agent_runs` + `agent_streams`, `people` + `people_service` + `people_links`, `reviews` + `review_findings`), all mounted from `main.py`.
 - `backend/tests/` holds pytest tests, one file per area or module (`test_agents_harnesses.py`, `test_services_prompts.py`, and so on); shared fixtures live in `conftest.py` and `_*_helpers.py`.
@@ -34,6 +34,10 @@
 - Blocking work (subprocess, network) runs off the event loop via `anyio.to_thread.run_sync`.
 - The CLI prints through a plain Rich `Console(markup=False, soft_wrap=True)` so `[open]`-style text stays literal and piped JSON is not wrapped.
 
+## GitHub and ghx
+
+- Only the background ghx cache job (`ghx_cache.py`, every `ghx_cache_refresh_interval`, 15 minutes by default) runs `ghx cache`. No endpoint, page load, CLI command, or agent action refreshes a repository's cache on request: pages read ghx's cache and the job keeps it current, so a read never waits on a delta fetch (or starts a whole-history walk). A new feature that needs fresher GitHub data reads the cache, waits for the next pass, or (if it truly needs a refresh) belongs in that one job.
+
 ## Testing
 
 - Backend and CLI tests run in parallel across processes (`make test-backend`, `uv run pytest -q -n auto`); pass extra args through `COV` (`make test-backend COV="--cov=agentic ..."`).
@@ -51,6 +55,7 @@
 - Controls stay touch-friendly on small screens (icons carry `aria-label`s, buttons keep a comfortable tap size, and form fields use 16px text so mobile browsers do not zoom on focus).
 - Respect mobile browser chrome and notches by accounting for `env(safe-area-inset-*)` in full-height or edge-anchored regions.
 - The Settings icon is always last in the sidebar's default nav order (`SIDEBAR_NAV_ITEMS` in `frontend/src/sidebarNav.js`). Add a new page before `settings`, never after it. The user can still reorder the icons in Settings → Sidebar.
+- The sidebar has two layouts, chosen per device in Settings → Sidebar (`agentic.sidebarLayout` in `frontend/src/sidebarLayout.js`): `full` (task list above the page icons) and `rail` (a thin column with only the icons, spread over the sidebar's full height). The rail is desktop-only; below 760px the drawer keeps the full sidebar. Rail mode hides the resize handle and keeps the saved width for when the full sidebar comes back.
 - Card components compose: `EntityCard.vue` is the shared shell (slots for `title`, `lead`, `select`), and `TaskCard.vue` and `ItemCard.vue` wrap it instead of duplicating markup.
 - AG Grid registration is shared: `components/gridSetup.js` registers the row-model, filter, and column-API modules once and exports the `gridTheme` mapped to the app's design tokens.
 - Per-device UI preferences (sidebar state, grid column choices, status bar) persist in `localStorage`, not in user settings.

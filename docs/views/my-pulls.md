@@ -87,9 +87,10 @@ There is no sort control.
 
 ### Caching and failures
 
-Each read asks `ghx` to refresh every registered repository with a delta fetch (`ghx cache --repo owner/name`), then lists the login's open pull requests from each repository's cache.
+Each read lists the login's open pull requests from each registered repository's `ghx` cache.
+The cache itself is never refreshed by a page load: one background job runs `ghx cache` over the registered repositories on its own cadence (Settings → Refresh, `ghx_cache_refresh_interval`, 15 minutes by default), and it is the only caller.
 The repositories are read together, and the assembled answer is cached per login and repository set for 60 seconds; a failed read is retried after 30 seconds.
-`Refresh` bypasses that cache and runs the same delta refresh; it never forces a full re-fetch of the repository.
+`Refresh` bypasses that 60-second answer cache and reads `ghx`'s cache again; it never refreshes the cache and never forces a full re-fetch of the repository.
 The checks popover caches each pull request's checks for 30 seconds.
 
 Three failures have their own messages:
@@ -106,6 +107,7 @@ Three failures have their own messages:
 - Approvers come from each pull request's latest decisive review, so a plain comment neither drops an approval nor adds one.
 - The open-thread count covers the first hundred threads of a pull request; the total stays exact.
 - A listing that `ghx` answers from its API fallback (a cache it could not refresh) carries the check rollup but not the thread counts.
+- The cache is as fresh as the last background pass. A repository `ghx` has never fully cached is warmed by that pass too; until then its rows come from `ghx`'s per-item reads.
 - The checks popover reads GitHub through `ghx pr checks` when it opens, so it is not affected by the list's `Refresh`.
 
 ## CLI and agent interface
@@ -113,7 +115,7 @@ Three failures have their own messages:
 | Operation | CLI | HTTP |
 | --- | --- | --- |
 | List your open pull requests | none | `GET /api/my-pulls` |
-| Force a fresh GitHub read | none | `GET /api/my-pulls?refresh=true` |
+| Re-read the cached answer | none | `GET /api/my-pulls?refresh=true` |
 | List one pull request's checks | none | `GET /api/my-pulls/checks?repository=owner/name&number=12` |
 | Poke a pull request's reviewers on Slack | none | `POST /api/my-pulls/poke` |
 | Act on one | use the review queue or a task | `POST /api/tasks` with `github_url` |

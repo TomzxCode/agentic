@@ -90,6 +90,10 @@ The GitHub login is editable under **Settings → Identity**; leave it blank to 
 
 The refresh policies are editable under **Settings → Refresh**.
 
+The GitHub cache refresh is the one background job that runs `ghx cache`, editable under **Settings → Refresh** as `ghx_cache_refresh_interval` (a duration such as `15m`; blank disables it).
+No page, endpoint, or CLI command refreshes a repository's cache: the pages read what that job last wrote.
+The job uses a delta fetch for a repository whose cache is warm and a full history walk for one ghx has never completed, which is why it runs off the request path.
+
 The review scan is editable under **Settings → Review requests**: how often it runs (`review_scan_interval`), the review SLO (`review_slo`), and what a repository with no policy of its own does (`review_scan_default`).
 Each registered repository can also be set to include or exclude on its own.
 See [How to read the review queue](../how-to/review-pull-requests.md).

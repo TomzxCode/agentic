@@ -442,14 +442,13 @@ export const api = {
     },
     issue: (url) => request(`/github/issue?${new URLSearchParams({ url }).toString()}`),
     createIssue: (body) => request('/github/issues', { method: 'POST', body }),
-    repository: ({ repository_id, owner, repo, state = 'all', limit = 1000, refresh = false } = {}) => {
+    repository: ({ repository_id, owner, repo, state = 'all', limit = 1000 } = {}) => {
       const qs = new URLSearchParams()
       if (repository_id) qs.set('repository_id', repository_id)
       if (owner) qs.set('owner', owner)
       if (repo) qs.set('repo', repo)
       qs.set('state', state)
       qs.set('limit', String(limit))
-      if (refresh) qs.set('refresh', 'true')
       return request(`/github/repository?${qs.toString()}`)
     },
     // A pull request's reviewers, for the standalone PR view (which has no

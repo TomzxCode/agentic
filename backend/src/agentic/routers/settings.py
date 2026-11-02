@@ -63,6 +63,14 @@ def patch_settings(payload: SettingsUpdate, session: Session = Depends(get_sessi
             status_code=422,
             detail="review_scan_interval: use a duration such as 30m, 1h or 1d, or leave it blank to stop scanning",
         )
+    cache_interval_text = values.get("ghx_cache_refresh_interval")
+    if cache_interval_text is not None and cache_interval_text.strip() and scan_interval(cache_interval_text) is None:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "ghx_cache_refresh_interval: use a duration such as 15m, 1h or 1d, or leave it blank to stop refreshing"
+            ),
+        )
     scan_default = values.get("review_scan_default")
     if scan_default is not None and scan_default not in ("include", "exclude"):
         raise HTTPException(status_code=422, detail="review_scan_default: must be include or exclude")

@@ -271,7 +271,8 @@ def test_repository_endpoint(monkeypatch):
         assert client.get("/api/github/repository", params={"owner": "o", "repo": "r"}).status_code == 502
 
 
-def test_repository_endpoint_refreshes_the_cache_without_forcing(monkeypatch):
+def test_repository_endpoint_never_runs_ghx_cache(monkeypatch):
+    """The listing only reads ghx's cache; the background job refreshes it."""
     seen: list[list[str]] = []
 
     def fake(cmd, timeout=60):
@@ -280,9 +281,10 @@ def test_repository_endpoint_refreshes_the_cache_without_forcing(monkeypatch):
 
     monkeypatch.setattr(shell, "_run_cli", fake)
     with TestClient(app) as client:
+        # A stray refresh flag from an older client is ignored, not honoured.
         client.get("/api/github/repository", params={"owner": "o", "repo": "r", "refresh": "true"})
-    assert seen and seen[0][:2] == ["ghx", "cache"]
-    assert "--force" not in seen[0]
+    assert seen
+    assert not [cmd for cmd in seen if cmd[:2] == ["ghx", "cache"]]
 
 
 def test_repository_endpoint_syncs_the_items_it_names(monkeypatch):

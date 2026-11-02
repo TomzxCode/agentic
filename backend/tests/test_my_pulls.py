@@ -1,6 +1,5 @@
 import json
 import threading
-import time
 from types import SimpleNamespace
 
 from fastapi.testclient import TestClient
@@ -233,14 +232,12 @@ def _row(number=1, repository="o/r"):
 
 def test_fetch_my_pulls_reuses_the_short_cache(monkeypatch):
     calls: list[tuple[tuple[str, ...], str]] = []
-    refreshed: list[list[str]] = []
 
     def fake(repositories, login):
         calls.append((tuple(repositories), login))
         return [_row()]
 
     monkeypatch.setattr(my_pulls, "list_my_open_pulls", fake)
-    monkeypatch.setattr(my_pulls, "_refresh_repositories", lambda repositories: refreshed.append(list(repositories)))
     my_pulls._cache.clear()
 
     first = my_pulls.fetch_my_pulls("tomzx", ["o/r"])
@@ -249,75 +246,20 @@ def test_fetch_my_pulls_reuses_the_short_cache(monkeypatch):
 
     assert first["counts"]["total"] == 1
     assert second == first
-    # A reload reuses the cache; an explicit refresh reads again. Both read
-    # paths refresh the repositories' ghx caches first.
+    # A reload reuses the cache; an explicit refresh reads again.
     assert calls == [(("o/r",), "tomzx")] * 2
-    assert refreshed == [["o/r"], ["o/r"]]
 
 
-def _warm_calls(monkeypatch, cached):
-    """Record cache refreshes and report *cached* as the warmable repositories."""
-    calls: list[dict] = []
-
-    def fake(owner, repo, timeout=300, types="both"):
-        calls.append({"repository": f"{owner}/{repo}", "timeout": timeout, "types": types})
-        return True
-
-    monkeypatch.setattr(my_pulls, "refresh_github_cache", fake)
-    monkeypatch.setattr(my_pulls, "list_cached_repositories", lambda: cached)
-    monkeypatch.setattr(my_pulls, "list_my_open_pulls", lambda repositories, login: [])
+def test_fetch_my_pulls_never_runs_ghx_cache(monkeypatch):
+    """The read only serves ghx's cache; the background job refreshes it."""
+    refreshes: list[tuple] = []
+    monkeypatch.setattr(my_pulls, "list_my_open_pulls", lambda repositories, login: [_row()])
+    monkeypatch.setattr(github, "refresh_github_cache", lambda *args, **kwargs: refreshes.append(args))
     my_pulls._cache.clear()
-    my_pulls._cache_refreshed.clear()
-    return calls
 
+    my_pulls.fetch_my_pulls("tomzx", ["o/r"], refresh=True)
 
-def test_fetch_my_pulls_refreshes_a_completed_cache_without_forcing(monkeypatch):
-    calls = _warm_calls(monkeypatch, {"o/r"})
-
-    my_pulls.fetch_my_pulls("tomzx", ["o/r"])
-
-    # A page load reads a pull-request delta, not a full fetch.
-    assert calls == [{"repository": "o/r", "timeout": my_pulls.CACHE_REFRESH_TIMEOUT, "types": "prs"}]
-
-
-def test_fetch_my_pulls_leaves_a_repository_without_a_cache_alone(monkeypatch):
-    calls = _warm_calls(monkeypatch, set())
-
-    my_pulls.fetch_my_pulls("tomzx", ["o/r"])
-
-    # `ghx cache` on this repository would walk its whole history, so the
-    # listing's own API read has to cover it.
-    assert calls == []
-
-
-def test_fetch_my_pulls_skips_the_refresh_when_the_caches_cannot_be_listed(monkeypatch):
-    calls = _warm_calls(monkeypatch, None)
-
-    my_pulls.fetch_my_pulls("tomzx", ["o/r"])
-
-    assert calls == []
-
-
-def test_fetch_my_pulls_refreshes_one_repository_once_per_window(monkeypatch):
-    calls = _warm_calls(monkeypatch, {"o/r", "o/s"})
-
-    my_pulls.fetch_my_pulls("tomzx", ["o/r", "o/s"])
-    my_pulls.fetch_my_pulls("tomzx", ["o/r", "o/s"], refresh=True)
-
-    # The page cache is bypassed, the repository window still holds, so one
-    # reload does not run a delta per repository again.
-    assert sorted(call["repository"] for call in calls) == ["o/r", "o/s"]
-
-
-def test_fetch_my_pulls_waits_longer_after_a_failed_refresh(monkeypatch):
-    _warm_calls(monkeypatch, {"o/r"})
-    monkeypatch.setattr(my_pulls, "refresh_github_cache", lambda *args, **kwargs: False)
-
-    my_pulls.fetch_my_pulls("tomzx", ["o/r"])
-
-    wait = my_pulls._cache_refreshed["o/r"] - time.monotonic()
-    assert wait > my_pulls.CACHE_REFRESH_INTERVAL
-    assert wait <= my_pulls.CACHE_REFRESH_RETRY
+    assert refreshes == []
 
 
 def test_fetch_my_pulls_keeps_a_changed_repository_set_apart(monkeypatch):
@@ -328,7 +270,6 @@ def test_fetch_my_pulls_keeps_a_changed_repository_set_apart(monkeypatch):
         return [_row()]
 
     monkeypatch.setattr(my_pulls, "list_my_open_pulls", fake)
-    monkeypatch.setattr(my_pulls, "_refresh_repositories", lambda repositories: None)
     my_pulls._cache.clear()
 
     my_pulls.fetch_my_pulls("tomzx", ["o/r"])
@@ -340,7 +281,6 @@ def test_fetch_my_pulls_keeps_a_changed_repository_set_apart(monkeypatch):
 
 def test_fetch_my_pulls_reports_a_failed_lookup(monkeypatch):
     monkeypatch.setattr(my_pulls, "list_my_open_pulls", lambda repositories, login: None)
-    monkeypatch.setattr(my_pulls, "_refresh_repositories", lambda repositories: None)
     my_pulls._cache.clear()
 
     report = my_pulls.fetch_my_pulls("tomzx", ["o/r"])
@@ -409,7 +349,6 @@ def _with_my_pulls(monkeypatch, rows):
     monkeypatch.setattr("agentic.routers.my_pulls.resolve_github_login", lambda session: "tomzx")
     monkeypatch.setattr("agentic.routers.my_pulls.known_github_repositories", lambda session: ["o/r"])
     monkeypatch.setattr(my_pulls, "list_my_open_pulls", lambda repositories, login: rows)
-    monkeypatch.setattr(my_pulls, "_refresh_repositories", lambda repositories: None)
     my_pulls._cache.clear()
 
 

@@ -44,7 +44,7 @@ The result toast reads `Added N repositories`, or `Added N, M skipped (not a git
 
 ### One repository (`/repositories/:id`)
 
-The head shows the repository name, its default branch, the remote URL, `Open in ghx`, `Refresh all`, `Refresh linked`, and `Columns`.
+The head shows the repository name, its default branch, the remote URL, `Open in ghx`, `Reload`, `Refresh linked`, and `Columns`.
 
 The grid has one row per issue and pull request:
 
@@ -66,14 +66,15 @@ Row actions:
 - `New task` appears on an unlinked row with a URL. It imports the issue or pull request into a new task, links it as an item, and stays on the page with the toast `Task created`.
 - `Record change` appears only when the row is merged, exactly one task links it, no change references it yet, and you authored it. It creates the change already accepted and dated to the merge.
 
-`Refresh all` refreshes the whole repository from GitHub through ghx with a delta fetch (not a forced re-download), and writes the listing state back onto the items linked to tasks.
+`Reload` re-reads the repository's issue and pull request listing from ghx's cache and writes the listing state back onto the items linked to tasks.
+The cache is refreshed by one background job (Settings → Refresh, `ghx_cache_refresh_interval`), never by this page, so `Reload` never waits on a GitHub fetch.
 `Refresh linked` re-fetches only the items tasks already use, four at a time, and reports how many succeeded and failed.
 
 ### Good to know
 
 - Rows arrive newest number first, and every column header sorts and filters.
 - Loading the list (or pressing `Refresh`) re-reads each checkout's `origin` and takes a changed URL, so a checkout that gained or retargeted its remote reads correctly without being removed and re-added. A name that came from the old remote, or a folder name left on a checkout whose GitHub remote is known, is repaired to `owner/repo`; a name set by hand stays. A checkout that was deleted, or whose `origin` is gone, keeps the values already stored.
-- ghx's own cache serves repeat visits until you press `Refresh all`, which delta-fetches what changed.
+- ghx's own cache serves every visit; the background job keeps it current, so a changed issue or pull request shows after the next pass.
 - A GitHub read failure keeps the items already linked to tasks and shows a banner saying so.
 - The review-scan policy per repository is not edited here; it is a select in **Settings → Review requests**.
 - Bulk add is API-only; the picker is the only UI for it.
@@ -87,7 +88,7 @@ Row actions:
 | Add several | none | `POST /api/repositories/bulk` |
 | Remove | `agentic repository remove <repository>` | `DELETE /api/repositories/{id}` |
 | Browse directories | none | `GET /api/fs/list?path=…` |
-| List a repository's issues and PRs | none | `GET /api/github/repository?repository_id=…&refresh=true` |
+| List a repository's issues and PRs | none | `GET /api/github/repository?repository_id=…` |
 | Create a task from an issue or PR | `agentic task create --github-url <url>` | `POST /api/tasks` with `github_url` |
 | Record a merged pull request | `agentic change create <task> --external-ref <url>` then `agentic change accept <change>` | `POST /api/changes` |
 | Set the review-scan policy | none | `PATCH /api/repositories/{id}` with `review_scan` |

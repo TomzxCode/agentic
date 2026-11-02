@@ -168,7 +168,7 @@ describe('RepositoryDetailView', () => {
 
     // The top section is up while the listing loads.
     expect(wrapper.find('h1').text()).toBe('api')
-    expect(wrapper.find('[aria-label="Refresh all issues and pull requests"]').exists()).toBe(true)
+    expect(wrapper.find('[aria-label="Reload issues and pull requests from ghx"]').exists()).toBe(true)
     // One spinner where the grid will land, and no grid yet.
     expect(wrapper.findAll('.spinner')).toHaveLength(1)
     expect(wrapper.find('.repo-grid').exists()).toBe(false)
@@ -496,7 +496,7 @@ describe('RepositoryDetailView', () => {
     expect(linksCell.get('a[title="Open on GitHub"]').attributes('href')).toBe('https://github.com/acme/api/issues/1')
   })
 
-  it('refreshes the repository listing from GitHub', async () => {
+  it('reloads the repository listing from ghx cache', async () => {
     mocks.githubRepository.mockResolvedValue({
       items: [
         { number: 1, kind: 'issue', title: 'Open issue', url: 'https://github.com/acme/api/issues/1', state: 'OPEN' },
@@ -510,19 +510,19 @@ describe('RepositoryDetailView', () => {
     // The unlinked PR appears alongside the stored, task-linked items.
     expect(wrapper.text()).toContain('Unlinked PR')
 
-    await wrapper.get('[aria-label="Refresh all issues and pull requests"]').trigger('click')
+    await wrapper.get('[aria-label="Reload issues and pull requests from ghx"]').trigger('click')
     await flushPromises()
 
-    // The refresh asks the backend to re-fetch from GitHub, not just re-read.
+    // The reload only reads ghx's cache; the background job refreshes it, so
+    // no request asks for a refresh.
     expect(mocks.githubRepository).toHaveBeenLastCalledWith({
       repository_id: 'r1',
       state: 'all',
-      limit: 1000,
-      refresh: true
+      limit: 1000
     })
     // The backend syncs the linked items, so the view reloads them too.
     expect(store.loadItems).toHaveBeenCalledTimes(2)
-    expect(store.toast.message).toBe('Refreshed 1 issue and 1 pull request')
+    expect(store.toast.message).toBe('Reloaded 1 issue and 1 pull request')
     expect(store.toast.isError).toBe(false)
   })
 
@@ -636,7 +636,9 @@ describe('RepositoryDetailView', () => {
       wrapper.get('[aria-label="Refresh issues and pull requests associated to tasks"]').attributes('disabled')
     ).toBeDefined()
     // The whole-repository refresh stays available: the remote is listable.
-    expect(wrapper.get('[aria-label="Refresh all issues and pull requests"]').attributes('disabled')).toBeUndefined()
+    expect(
+      wrapper.get('[aria-label="Reload issues and pull requests from ghx"]').attributes('disabled')
+    ).toBeUndefined()
   })
 
   it('keeps the stored items when the GitHub listing fails', async () => {

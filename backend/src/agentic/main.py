@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from contextlib import asynccontextmanager, suppress
+from typing import TYPE_CHECKING
 
 import structlog
 from fastapi import FastAPI, HTTPException
@@ -77,6 +78,9 @@ from .services.managed_tools import managed_tools
 log = structlog.get_logger(__name__)
 configure_logging()
 configure_request_logging()
+
+if TYPE_CHECKING:
+    from .ghx_cache import CacheReport
 
 
 def _refresh_due_once() -> dict:
@@ -152,6 +156,35 @@ async def _review_scan_forever() -> None:
             log.warning("review scan tick failed", error=str(exc))
 
 
+def _ghx_cache_once() -> CacheReport | dict[str, object]:
+    """Run the ghx cache refresh when its cadence says it is due (ghx blocks).
+
+    This is the only caller of ``ghx cache``: every page reads the cache this
+    pass keeps current. Opens its own session so the subprocess waits never
+    touch the event loop's connection.
+    """
+    from .ghx_cache import run_due_ghx_cache_refresh
+
+    with Session(engine) as session:
+        return run_due_ghx_cache_refresh(session)
+
+
+async def _ghx_cache_forever() -> None:
+    """Tick on a timer and keep the registered repositories' ghx caches current."""
+    tick = settings.ghx_cache_tick
+    if tick <= 0:
+        return
+    while True:
+        await asyncio.sleep(tick)
+        try:
+            result = await asyncio.to_thread(_ghx_cache_once)
+        except Exception as exc:  # noqa: BLE001
+            log.warning("ghx cache tick failed", error=str(exc))
+            continue
+        if result.get("refreshed"):
+            log.info("refreshed ghx caches", refreshed=result["refreshed"], failed=result.get("failed", 0))
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Sync endpoints run in the threadpool; binding the loop lets them wake SSE
@@ -182,6 +215,9 @@ async def lifespan(app: FastAPI):
     refresh_task = asyncio.create_task(_refresh_due_forever())
     # Ask GitHub which pull requests await the user's review, on its own cadence.
     scan_task = asyncio.create_task(_review_scan_forever())
+    # Keep the ghx caches the pages read current. This is the only place that
+    # runs `ghx cache`.
+    cache_task = asyncio.create_task(_ghx_cache_forever())
     # Fire the user-defined scheduled tasks whose time has come.
     schedule_task = asyncio.create_task(scheduler_loop())
     # Fire the execution graphs whose cron time has come.
@@ -201,12 +237,15 @@ async def lifespan(app: FastAPI):
     graphs_shutdown()
     refresh_task.cancel()
     scan_task.cancel()
+    cache_task.cancel()
     schedule_task.cancel()
     graph_schedule_task.cancel()
     with suppress(asyncio.CancelledError):
         await refresh_task
     with suppress(asyncio.CancelledError):
         await scan_task
+    with suppress(asyncio.CancelledError):
+        await cache_task
     with suppress(asyncio.CancelledError):
         await schedule_task
     with suppress(asyncio.CancelledError):

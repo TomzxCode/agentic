@@ -28,7 +28,7 @@ All sections stay mounted, so switching back and forth does not lose what you ty
 | `Refresh` | The Slack and GitHub refresh policies, their live preview, and a per-source force refresh. |
 | `Review requests` | The review-scan cadence, the default repository policy, each repository's own policy, `Scan now`, and the last scan's result. |
 | `Repository groups` | Named sets of repositories, with a description. |
-| `Sidebar` | Which pages the sidebar shows and in what order. |
+| `Sidebar` | The sidebar's layout (full or icon rail), and which pages it shows and in what order. |
 | `Debug bar` | Whether the bar pinned to the bottom of every page is shown. |
 | `Diagnostics` | Read-only presence, version, path, and cache statistics for every external command and harness. |
 
@@ -101,6 +101,10 @@ The preview re-parses what you type after a 300 ms pause and shows the resulting
 The status line reads `Last run: <age> · N refreshed · M failed · forced · N refreshed in the last 24h`.
 An empty policy disables that source.
 
+`GitHub cache refresh` is the cadence of the one background job that runs `ghx cache` over the registered GitHub repositories, a duration such as `15m` or `1h`; blank stops it.
+It is the only place the cache is refreshed: every page reads it, so this cadence is how fresh the GitHub pages are.
+A repository is refreshed with a delta when ghx already has a completed cache for it, and with a full history walk when it does not.
+
 ### Review requests
 
 `How often to scan` is a duration such as `30m`, `1h`, or `1d`; blank stops the scan.
@@ -122,6 +126,10 @@ Picking one on a task tells the agent which checkouts may hold information about
 `Remove` asks for confirmation and leaves the tasks that use the group working, just without a group.
 
 ### Sidebar
+
+`Layout` switches between `Full` (the task list above the page icons) and `Icon rail` (a thin column holding only the page icons, spread over the sidebar's full height).
+The rail is a desktop layout: below 760px the drawer still opens with the full sidebar.
+It is per device, under `agentic.sidebarLayout`.
 
 Each page has a checkbox, and each row has a drag grip and `ArrowUp`/`ArrowDown` to move it.
 `Reset to default` appears once you have changed something.
