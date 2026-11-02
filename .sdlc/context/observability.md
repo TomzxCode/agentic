@@ -30,6 +30,7 @@ Logs are not shipped anywhere.
 Each structlog event renders to the process stdout through uvicorn.
 The same rendered lines are appended, with ANSI codes stripped, to a log file.
 The default path is `<data_dir>/agentic.log`, and `AGENTIC_LOG_FILE` overrides it or disables the file with `none` or `off` (`config.log_path`).
+The file stays open for the life of the process, so a line costs one append rather than an open, write and close, and the size that drives rotation is tracked in memory and re-checked against the file every 64 KB.
 The file rotates at 10 MB and keeps 5 backups (`log_setup.py`).
 The level comes from `AGENTIC_LOG_LEVEL` (default `info`, applied by `log_setup.configure_logging` to structlog and by `agentic-server serve` to uvicorn).
 Notable events: `agentic ready`, `tool call` (carries `cmd` and the `mode` transport), `cli fetch failed`, `fetch_source failed`, `failed to persist agent event`, `agent run failed`.

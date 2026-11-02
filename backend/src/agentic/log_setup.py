@@ -17,9 +17,10 @@ from __future__ import annotations
 import contextlib
 import logging
 import os
+import re
 import threading
 from pathlib import Path
-from typing import Any
+from typing import Any, BinaryIO
 
 import structlog
 
@@ -30,6 +31,10 @@ LOG_FILE: Path | None = None
 LOG_LEVEL: int = logging.INFO
 _MAX_BYTES = 10 * 1024 * 1024
 _BACKUP_COUNT = 5
+#: How many bytes may be written before the file's real size is checked again.
+#: Tracking the size in memory keeps the common write down to one syscall.
+_CHECK_INTERVAL = 64 * 1024
+_ANSI_ESCAPE = re.compile(r"\x1b\[[0-9;]*m")
 
 
 def get_log_file() -> Path | None:
@@ -61,13 +66,8 @@ def millisecond_timestamp(logger: Any, method_name: str, event_dict: dict[str, A
     return event_dict
 
 
-def _rotate(path: Path) -> None:
-    """Rotate ``path`` when it grows past ``_MAX_BYTES``."""
-    try:
-        if not path.exists() or path.stat().st_size < _MAX_BYTES:
-            return
-    except OSError:
-        return
+def _rotate_files(path: Path) -> None:
+    """Shift ``path`` and its backups, so ``path`` can start empty again."""
     for index in range(_BACKUP_COUNT, 0, -1):
         src = path.with_name(f"{path.name}.{index}")
         dst = path.with_name(f"{path.name}.{index + 1}")
@@ -80,6 +80,91 @@ def _rotate(path: Path) -> None:
                 pass
     with contextlib.suppress(OSError):
         path.rename(path.with_name(f"{path.name}.1"))
+
+
+class _LogFile:
+    """One append handle kept open across lines, rotated by tracked size.
+
+    Opening, writing and closing per line costs a stat, an open, a write and a
+    close each time, and holds the shared lock for all of it. The handle stays
+    open instead, and the size that decides rotation is tracked in memory. The
+    file's real size is checked every ``_CHECK_INTERVAL`` bytes, which is also
+    when a file rotated by another process (a second server sharing the data
+    directory) is noticed: its inode differs from the open handle's, so the
+    sink reopens the current path rather than appending to the backup.
+    """
+
+    def __init__(self, path: Path) -> None:
+        self.path = path
+        self._handle: BinaryIO | None = None
+        self._size = 0
+        self._unchecked = 0
+
+    def close(self) -> None:
+        """Close the handle; the next write reopens the path."""
+        handle, self._handle = self._handle, None
+        self._size = 0
+        self._unchecked = 0
+        if handle is not None:
+            with contextlib.suppress(OSError):
+                handle.close()
+
+    def write(self, text: str) -> None:
+        """Append one rendered line, rotating first when it would pass the cap."""
+        data = text.encode("utf-8", "replace")
+        try:
+            if self._handle is None:
+                self._open()
+            if self._unchecked >= _CHECK_INTERVAL:
+                self._recheck()
+                if self._handle is None:
+                    self._open()
+            if self._size + len(data) > _MAX_BYTES:
+                self._rotate()
+            if self._handle is None:
+                return
+            self._handle.write(data)
+            self._handle.flush()
+        except (OSError, ValueError):
+            self.close()
+            return
+        self._size += len(data)
+        self._unchecked += len(data)
+
+    def _open(self) -> None:
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        handle = self.path.open("ab")
+        self._handle = handle
+        self._size = os.fstat(handle.fileno()).st_size
+
+    def _recheck(self) -> None:
+        handle = self._handle
+        self._unchecked = 0
+        if handle is None:
+            return
+        try:
+            open_stat = os.fstat(handle.fileno())
+            current = self.path.stat()
+        except OSError:
+            self.close()
+            return
+        if (open_stat.st_dev, open_stat.st_ino) != (current.st_dev, current.st_ino):
+            # Another process rotated it; follow the current path.
+            self.close()
+            with contextlib.suppress(OSError):
+                self._open()
+            return
+        self._size = current.st_size
+
+    def _rotate(self) -> None:
+        self.close()
+        _rotate_files(self.path)
+        with contextlib.suppress(OSError):
+            self._open()
+
+
+#: The sink lines are appended through, kept so a reconfigure reuses its handle.
+_SINK: _LogFile | None = None
 
 
 def _settings_level() -> str:
@@ -111,7 +196,7 @@ def _resolve_log_file(log_file: Any, log_path: Any, path: Any, file: Any, log_di
 
 def configure_logging(*args: Any, **kwargs: Any) -> None:
     """Set the processors both server processes log through."""
-    global LOG_FILE, LOG_LEVEL
+    global LOG_FILE, LOG_LEVEL, _SINK
     # Accept a variety of keyword names for the destination so callers and
     # tests can use whichever is natural.
     log_file = kwargs.pop("log_file", None)
@@ -139,24 +224,22 @@ def configure_logging(*args: Any, **kwargs: Any) -> None:
         level = _settings_level()
     LOG_LEVEL = level_value(level)
 
+    if _SINK is not None and _SINK.path != resolved:
+        _SINK.close()
+        _SINK = None
+    if resolved is not None and _SINK is None:
+        _SINK = _LogFile(resolved)
+    sink = _SINK
+
     def file_sink(_logger: Any, _method_name: str, rendered: Any) -> Any:
-        if resolved is None:
+        if sink is None:
             return rendered
         text = rendered if isinstance(rendered, str) else str(rendered)
-        import re as _re
-
-        text = _re.sub(r"\x1b\[[0-9;]*m", "", text)
+        text = _ANSI_ESCAPE.sub("", text)
         if not text.endswith("\n"):
             text = text + "\n"
-        try:
-            resolved.parent.mkdir(parents=True, exist_ok=True)
-            with _LOG_LOCK:
-                _rotate(resolved)
-                with resolved.open("a", encoding="utf-8") as handle:
-                    handle.write(text)
-                    handle.flush()
-        except OSError:
-            pass
+        with _LOG_LOCK:
+            sink.write(text)
         return rendered
 
     processors: list[Any] = [
