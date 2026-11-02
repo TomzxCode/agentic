@@ -2,7 +2,7 @@ import re
 
 import structlog
 
-from agentic.log_setup import configure_logging, millisecond_timestamp
+from agentic.log_setup import configure_logging, debug_enabled, millisecond_timestamp
 
 
 def test_millisecond_timestamp_has_three_fraction_digits():
@@ -20,3 +20,15 @@ def test_log_line_shows_milliseconds(capsys):
     plain = re.sub(r"\x1b\[[0-9;]*m", "", out)
     assert re.search(r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3} \[info     \] hello", plain)
     assert "answer=1" in plain
+
+
+def test_debug_level_emits_debug_events_and_enables_the_breakdown(capsys):
+    configure_logging(level="debug")
+    try:
+        assert debug_enabled() is True
+        structlog.get_logger("test").debug("debug detail", answer=1)
+        assert "debug detail" in capsys.readouterr().out
+    finally:
+        configure_logging(level="info")
+
+    assert debug_enabled() is False

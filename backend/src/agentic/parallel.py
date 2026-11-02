@@ -8,12 +8,17 @@ thread pool overlaps them instead of adding them up.
 ghx caches through a SQLite database opened in WAL mode with a busy timeout, so
 two of its processes may run at once: the second waits for the first's write
 rather than failing with ``database is locked``.
+
+Each call runs with a copy of the caller's context, so per-request state (the
+debug middleware's timings) still records what a worker thread did.
 """
 
 from __future__ import annotations
 
 from collections.abc import Callable, Sequence
 from concurrent.futures import ThreadPoolExecutor
+from contextvars import copy_context
+from typing import cast
 
 #: How many calls run at once. Small on purpose: each is a subprocess that
 #: talks to a network API, so a wider burst buys little over the wait and only
@@ -31,4 +36,5 @@ def run_parallel[T](calls: Sequence[Callable[[], T]], workers: int | None = None
     if len(calls) <= 1:
         return [call() for call in calls]
     with ThreadPoolExecutor(max_workers=workers or min(len(calls), MAX_WORKERS)) as pool:
-        return list(pool.map(lambda call: call(), calls))
+        futures = [pool.submit(copy_context().run, call) for call in calls]
+        return [cast(T, future.result()) for future in futures]

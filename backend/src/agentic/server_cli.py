@@ -17,6 +17,7 @@ from sqlmodel import Session, select
 from .agents.harnesses import get_harness, harness_available, seed_harnesses
 from .config import settings
 from .db import create_db_and_tables, engine
+from .log_setup import level_value
 from .models.agents import Harness
 
 
@@ -30,7 +31,7 @@ def serve(host: str = "127.0.0.1", port: int = 8600, reload: bool = False, api_u
         os.environ["AGENTIC_API_URL"] = api_url
     elif "AGENTIC_API_URL" not in os.environ:
         os.environ["AGENTIC_API_URL"] = f"http://{host if host != '0.0.0.0' else '127.0.0.1'}:{port}"
-    uvicorn.run("agentic.main:app", host=host, port=port, reload=reload)
+    uvicorn.run("agentic.main:app", host=host, port=port, reload=reload, log_level=level_value(settings.log_level))
 
 
 def worker(concurrency: int | None = None) -> None:

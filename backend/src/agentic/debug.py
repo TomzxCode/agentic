@@ -3,12 +3,17 @@
 from __future__ import annotations
 
 import time
+from collections.abc import Generator
+from contextlib import contextmanager
 from contextvars import ContextVar, Token
 from uuid import uuid4
 
+import structlog
 from sqlalchemy import event
 
 from .db import engine
+
+log = structlog.get_logger(__name__)
 
 # Mutable per-request state (a dict so worker threads mutate the same object).
 _debug_state: ContextVar[dict | None] = ContextVar("agentic_debug_state", default=None)
@@ -18,10 +23,87 @@ _recent_requests: list[dict] = []
 _recent_cli_calls: list[dict] = []
 
 
-def start_request() -> dict:
-    state = {"count": 0, "time_ms": 0.0, "start": time.perf_counter(), "queries": [], "cli_calls": []}
+def start_request(method: str = "", path: str = "") -> dict:
+    state = {
+        "method": method,
+        "path": path,
+        "count": 0,
+        "time_ms": 0.0,
+        "start": time.perf_counter(),
+        "queries": [],
+        "cli_calls": [],
+        "phases": [],
+    }
     _debug_state.set(state)
     return state
+
+
+@contextmanager
+def phase(name: str, aggregate: bool = False) -> Generator[None]:
+    """Time one named step of the request being served.
+
+    ``log_breakdown`` reports each step as its own debug line, so a slow request
+    says which part took the time (a store scan, a GitHub fetch) instead of only
+    how long it took. With *aggregate*, repeated steps of the same name (one per
+    pull request in a store scan) fold into a single line carrying their summed
+    time and how many times they ran. A phase outside a request is a no-op, so a
+    background caller can use the same code.
+    """
+    state = _debug_state.get()
+    if state is None:
+        yield
+        return
+    started = time.perf_counter()
+    try:
+        yield
+    finally:
+        duration_ms = round((time.perf_counter() - started) * 1000.0, 2)
+        phases = state.setdefault("phases", [])
+        existing = next((item for item in phases if item["name"] == name), None) if aggregate else None
+        if existing is not None:
+            existing["duration_ms"] = round(existing["duration_ms"] + duration_ms, 2)
+            existing["calls"] = existing.get("calls", 1) + 1
+        elif aggregate:
+            phases.append({"name": name, "duration_ms": duration_ms, "calls": 1})
+        else:
+            phases.append({"name": name, "duration_ms": duration_ms})
+
+
+def _slowest_cli(calls: list[dict]) -> str:
+    """The longest call, as "command (duration)", capped to a readable length."""
+    slowest = max(calls, key=lambda call: call.get("duration_ms", 0.0))
+    command = " ".join(str(part) for part in slowest.get("cmd") or [])
+    return f"{command[:120]} ({slowest.get('duration_ms')}ms)"
+
+
+def log_breakdown() -> None:
+    """Log the request's timings as separate debug lines.
+
+    One ``request phase`` line per named step, then a ``request db`` summary and
+    a ``request tools`` summary for the helper CLI calls. The total is already on
+    the access line; these say where it went. A no-op outside a request.
+    """
+    state = _debug_state.get()
+    if state is None:
+        return
+    path = state.get("path", "")
+    # By name, so a phase and its sub-phases sit together with the total first.
+    for item in sorted(state.get("phases") or [], key=lambda phase: phase["name"]):
+        fields = {"path": path, "phase": item["name"], "duration_ms": item["duration_ms"]}
+        if item.get("calls"):
+            fields["calls"] = item["calls"]
+        log.debug("request phase", **fields)
+    if state.get("count"):
+        log.debug("request db", path=path, queries=state["count"], time_ms=round(state.get("time_ms", 0.0), 2))
+    cli_calls = state.get("cli_calls") or []
+    if cli_calls:
+        log.debug(
+            "request tools",
+            path=path,
+            calls=len(cli_calls),
+            time_ms=round(sum(call.get("duration_ms", 0.0) for call in cli_calls), 2),
+            slowest=_slowest_cli(cli_calls),
+        )
 
 
 def record_query(statement: str, duration_ms: float) -> None:
@@ -95,7 +177,7 @@ class DebugMiddleware:
             await self.app(scope, receive, send)
             return
 
-        state = start_request()
+        state = start_request(scope.get("method", "GET"), scope.get("path", ""))
         token: Token = _debug_state.set(state)
         response_started = {"done": False}
         method = scope.get("method", "GET")
@@ -127,6 +209,7 @@ class DebugMiddleware:
                     "queries": list(state["queries"]),
                     "cli_calls": list(state.get("cli_calls", [])),
                     "cli_time_ms": round(sum(c.get("duration_ms", 0) for c in state.get("cli_calls", [])), 2),
+                    "phases": list(state.get("phases", [])),
                 }
                 _recent_requests.append(entry)
             if len(_recent_requests) > _RECENT_LIMIT:

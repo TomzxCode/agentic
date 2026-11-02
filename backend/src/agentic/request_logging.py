@@ -3,7 +3,11 @@
 The access line carries only the method, the path, and the status, so a failed
 request leaves "400" in the logs with no reason. ``RequestErrorMiddleware`` adds
 a second line for a failed response with the ``detail`` the API answered with,
-which is where every handler puts its explanation.
+which is where every handler puts its explanation. The same middleware times the
+request so the access line itself carries how long it took. At debug level the
+request's timings follow as separate ``request phase``, ``request db``, and
+``request tools`` lines, so the access line stays short and the detail says what
+took the time.
 """
 
 from __future__ import annotations
@@ -11,12 +15,22 @@ from __future__ import annotations
 import json
 import logging
 import time
+from contextvars import ContextVar
 from typing import Any
 
 import structlog
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
+from .debug import log_breakdown
+from .log_setup import debug_enabled
+
 log = structlog.get_logger(__name__)
+
+# Start of the request being served, so the access line (which Uvicorn writes
+# while the response starts) can report the duration. It stays set until the
+# middleware returns, and the handler skips it when a record comes from
+# somewhere other than a request.
+_request_started: ContextVar[float | None] = ContextVar("agentic_request_started", default=None)
 
 # An error body is a JSON envelope with a short detail; anything larger is not
 # one of ours, so stop buffering rather than hold a whole payload to parse.
@@ -25,9 +39,29 @@ _MAX_ERROR_BODY = 8 * 1024
 _MAX_DETAIL = 500
 
 
+def _elapsed_ms(started: float) -> float:
+    return round((time.perf_counter() - started) * 1000.0, 2)
+
+
+def _log_breakdown() -> None:
+    """Log the request's timings as separate debug lines, when debug is on."""
+    if not debug_enabled():
+        return
+    # A logging handler must never fail the response it is describing.
+    try:
+        log_breakdown()
+    except Exception as exc:  # noqa: BLE001
+        log.warning("request breakdown failed", error=str(exc))
+
+
 class AccessLogHandler(logging.Handler):
     def emit(self, record: logging.LogRecord) -> None:
-        log.info(record.getMessage())
+        started = _request_started.get()
+        if started is None:
+            log.info(record.getMessage())
+            return
+        log.info(record.getMessage(), duration_ms=_elapsed_ms(started))
+        _log_breakdown()
 
 
 def _detail_text(payload: Any) -> str | None:
@@ -80,6 +114,7 @@ class RequestErrorMiddleware:
             return
 
         started = time.perf_counter()
+        token = _request_started.set(started)
         status = 0
         chunks: list[bytes] = []
         size = 0
@@ -94,7 +129,10 @@ class RequestErrorMiddleware:
                 size += len(body)
             await send(message)
 
-        await self.app(scope, receive, send_wrapper)
+        try:
+            await self.app(scope, receive, send_wrapper)
+        finally:
+            _request_started.reset(token)
 
         if status < 400:
             return
@@ -103,7 +141,7 @@ class RequestErrorMiddleware:
             "method": scope.get("method", "GET"),
             "path": scope.get("path", ""),
             "status": status,
-            "duration_ms": round((time.perf_counter() - started) * 1000.0, 2),
+            "duration_ms": _elapsed_ms(started),
         }
         if detail:
             fields["detail"] = detail

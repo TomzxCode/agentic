@@ -8,6 +8,7 @@ from sqlmodel import Session, col, select
 from ..config import settings
 from ..crud import get_task_or_404
 from ..db import get_session
+from ..debug import phase
 from ..models.base import utcnow
 from ..models.items import Association, SourceItem
 from ..review_findings import DECISIONS, collect_findings, record_decisions
@@ -138,31 +139,34 @@ def _collect_enriched_rows(
     """
     items = _tracked_pull_requests(session)
     task_ids = _task_ids_for_items(session, [item.id for item in items.values()])
-    rows = collect_review_prs()
+    with phase("review store"):
+        rows = collect_review_prs()
     if keys is not None:
         rows = [pr for pr in rows if _key(pr) in keys]
     for pr in rows:
         item = items.get(_key(pr))
         _merge_item(pr, item, task_ids.get(item.id, []) if item else [])
-    enrich_from_github(rows, refresh=refresh)
+    with phase("github enrich"):
+        enrich_from_github(rows, refresh=refresh)
 
     # The scan's finds ride along: a PR it reports is awaiting a review whether
     # or not a report already exists for it, so a store row takes the source too.
-    scanned = {_key(_scan_row(recorded)): recorded for recorded in stored_review_requests(session)}
-    seen = set()
-    for pr in rows:
-        key = _key(pr)
-        seen.add(key)
-        recorded = scanned.get(key)
-        if recorded is not None:
-            pr["request_source"] = recorded.source
-    for key, recorded in scanned.items():
-        if key in seen or (keys is not None and key not in keys):
-            continue
-        row = _scan_row(recorded)
-        item = items.get(key)
-        _merge_item(row, item, task_ids.get(item.id, []) if item else [])
-        rows.append(row)
+    with phase("scan rows"):
+        scanned = {_key(_scan_row(recorded)): recorded for recorded in stored_review_requests(session)}
+        seen = set()
+        for pr in rows:
+            key = _key(pr)
+            seen.add(key)
+            recorded = scanned.get(key)
+            if recorded is not None:
+                pr["request_source"] = recorded.source
+        for key, recorded in scanned.items():
+            if key in seen or (keys is not None and key not in keys):
+                continue
+            row = _scan_row(recorded)
+            item = items.get(key)
+            _merge_item(row, item, task_ids.get(item.id, []) if item else [])
+            rows.append(row)
     rows.sort(key=lambda pr: (str(pr["repository"]).lower(), -int(pr["number"])))
     return rows
 

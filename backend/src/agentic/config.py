@@ -209,6 +209,10 @@ class Settings(BaseSettings):
     # Where application logs are written. Empty uses <data_dir>/logs/agentic.log.
     # Set to a path to override, or to "none"/"off" to disable file logging.
     log_file: str = Field(default="", validation_alias=AliasChoices("AGENTIC_LOG_FILE"))
+    # Verbosity of the application log: "debug", "info", "warning", or "error".
+    # "debug" also logs a per-request timing breakdown (database, helper CLI,
+    # named phases) as separate lines, so a slow request says what took the time.
+    log_level: str = "info"
 
     @property
     def log_path(self) -> Path | None:

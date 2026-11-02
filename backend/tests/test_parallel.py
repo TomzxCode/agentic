@@ -30,3 +30,18 @@ def test_run_parallel_propagates_a_failure():
 
     with pytest.raises(ValueError, match="nope"):
         run_parallel([boom, lambda: 1])
+
+
+def test_run_parallel_gives_each_call_the_callers_context():
+    import contextvars
+
+    token_var = contextvars.ContextVar("test_token", default="unset")
+    token_var.set("parent")
+
+    def child():
+        token_var.set("child")
+        return token_var.get()
+
+    assert run_parallel([child, child]) == ["child", "child"]
+    # A worker's own set stays in its copied context.
+    assert token_var.get() == "parent"

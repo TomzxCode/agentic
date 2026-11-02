@@ -8,11 +8,14 @@ In addition to the console, every rendered line is appended to a log file
 (default ``<data_dir>/logs/agentic.log``) so agents and operators can audit
 past runs and look for performance opportunities. The file path can be
 overridden with ``AGENTIC_LOG_FILE`` (or passed to ``configure_logging``).
+The level comes from ``AGENTIC_LOG_LEVEL`` (default ``info``); ``debug`` also
+logs the per-request timing breakdown as separate lines.
 """
 
 from __future__ import annotations
 
 import contextlib
+import logging
 import os
 import threading
 from pathlib import Path
@@ -22,6 +25,9 @@ import structlog
 
 _LOG_LOCK = threading.Lock()
 LOG_FILE: Path | None = None
+#: The level the logger filters at, so a caller can tell whether a debug-only
+#: detail (the request breakdown on the access line) is wanted.
+LOG_LEVEL: int = logging.INFO
 _MAX_BYTES = 10 * 1024 * 1024
 _BACKUP_COUNT = 5
 
@@ -29,6 +35,21 @@ _BACKUP_COUNT = 5
 def get_log_file() -> Path | None:
     """Return the path application logs are written to, if any."""
     return LOG_FILE
+
+
+def debug_enabled() -> bool:
+    """Whether the logger is configured to emit debug details."""
+    return LOG_LEVEL <= logging.DEBUG
+
+
+def level_value(level: str | int | None) -> int:
+    """A level name ("debug", "warning") or number as logging's level number."""
+    if isinstance(level, int):
+        return level
+    text = str(level or "").strip().upper()
+    if not text:
+        return logging.INFO
+    return logging.getLevelNamesMapping().get(text, logging.INFO)
 
 
 def millisecond_timestamp(logger: Any, method_name: str, event_dict: dict[str, Any]) -> dict[str, Any]:
@@ -61,6 +82,16 @@ def _rotate(path: Path) -> None:
         path.rename(path.with_name(f"{path.name}.1"))
 
 
+def _settings_level() -> str:
+    """The configured log level, read lazily so this module has no settings import."""
+    try:
+        from .config import settings
+
+        return settings.log_level
+    except Exception:  # noqa: BLE001
+        return "info"
+
+
 def _resolve_log_file(log_file: Any, log_path: Any, path: Any, file: Any, log_dir: Any) -> Path | None:
     for candidate in (log_file, log_path, path, file):
         if candidate is not None:
@@ -80,7 +111,7 @@ def _resolve_log_file(log_file: Any, log_path: Any, path: Any, file: Any, log_di
 
 def configure_logging(*args: Any, **kwargs: Any) -> None:
     """Set the processors both server processes log through."""
-    global LOG_FILE
+    global LOG_FILE, LOG_LEVEL
     # Accept a variety of keyword names for the destination so callers and
     # tests can use whichever is natural.
     log_file = kwargs.pop("log_file", None)
@@ -93,6 +124,9 @@ def configure_logging(*args: Any, **kwargs: Any) -> None:
     target = kwargs.pop("target", None)
     destination = kwargs.pop("destination", None)
     output = kwargs.pop("output", None)
+    level = kwargs.pop("log_level", None)
+    if level is None:
+        level = kwargs.pop("level", None)
     if args and log_file is None:
         # First positional argument is the log file path.
         log_file = args[0]
@@ -101,6 +135,9 @@ def configure_logging(*args: Any, **kwargs: Any) -> None:
             log_file = cand
     resolved = _resolve_log_file(log_file, log_path, path, file, log_dir)
     LOG_FILE = resolved
+    if level is None:
+        level = _settings_level()
+    LOG_LEVEL = level_value(level)
 
     def file_sink(_logger: Any, _method_name: str, rendered: Any) -> Any:
         if resolved is None:
@@ -133,6 +170,7 @@ def configure_logging(*args: Any, **kwargs: Any) -> None:
     ]
     structlog.configure(
         processors=processors,
+        wrapper_class=structlog.make_filtering_bound_logger(LOG_LEVEL),
         cache_logger_on_first_use=False,
     )
 

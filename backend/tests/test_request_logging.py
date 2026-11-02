@@ -4,6 +4,8 @@ from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
 from structlog.testing import capture_logs
 
+from agentic import debug
+from agentic.log_setup import configure_logging
 from agentic.request_logging import AccessLogHandler, RequestErrorMiddleware, configure_request_logging
 
 
@@ -27,6 +29,106 @@ def test_access_log_uses_structlog(monkeypatch):
     assert len(logger.handlers) == 1
     assert isinstance(logger.handlers[0], AccessLogHandler)
     assert logger.propagate is False
+
+
+def test_the_access_line_carries_the_request_duration(monkeypatch):
+    logger = logging.getLogger("uvicorn.access")
+    monkeypatch.setattr(logger, "handlers", [])
+    monkeypatch.setattr(logger, "propagate", True)
+    monkeypatch.setattr(logger, "level", logging.INFO)
+
+    # Stand in for Uvicorn, which writes its access line while the response
+    # starts, inside the middleware that times the request.
+    app = FastAPI()
+    app.add_middleware(RequestErrorMiddleware)
+
+    @app.get("/api/timed")
+    def timed() -> dict:
+        logger.info('%s - "%s %s HTTP/%s" %d', "127.0.0.1:52361", "GET", "/api/timed", "1.1", 200)
+        return {"ok": True}
+
+    configure_request_logging()
+    client = TestClient(app)
+    with capture_logs() as logs:
+        assert client.get("/api/timed").status_code == 200
+
+    access = [entry for entry in logs if entry["event"].startswith("127.0.0.1:52361")]
+    assert len(access) == 1
+    assert isinstance(access[0]["duration_ms"], float)
+    assert access[0]["duration_ms"] >= 0
+
+
+def test_each_timing_gets_its_own_debug_line(monkeypatch):
+    logger = logging.getLogger("uvicorn.access")
+    monkeypatch.setattr(logger, "handlers", [])
+    monkeypatch.setattr(logger, "propagate", True)
+    monkeypatch.setattr(logger, "level", logging.INFO)
+    configure_logging(level="debug")
+
+    # The debug middleware is added last, so it is the outermost one: its state
+    # is set before the middleware that writes the access line runs.
+    app = FastAPI()
+    app.add_middleware(RequestErrorMiddleware)
+    app.add_middleware(debug.DebugMiddleware)
+
+    @app.get("/api/slow")
+    def slow() -> dict:
+        with debug.phase("github enrich"):
+            debug.record_cli_call(["ghx", "pr", "view", "42", "--repo", "o/r"], 210.0)
+        logger.info('%s - "%s %s HTTP/%s" %d', "127.0.0.1:52361", "GET", "/api/slow", "1.1", 200)
+        return {"ok": True}
+
+    configure_request_logging()
+    try:
+        client = TestClient(app)
+        with capture_logs() as logs:
+            assert client.get("/api/slow").status_code == 200
+    finally:
+        configure_logging(level="info")
+
+    access = next(entry for entry in logs if entry["event"].startswith("127.0.0.1:52361"))
+    # The access line stays short: the timings are their own lines below it.
+    assert set(access) == {"event", "log_level", "duration_ms"}
+
+    phase = next(entry for entry in logs if entry["event"] == "request phase")
+    assert phase["log_level"] == "debug"
+    assert phase["path"] == "/api/slow"
+    assert phase["phase"] == "github enrich"
+    assert phase["duration_ms"] >= 0
+
+    tools = next(entry for entry in logs if entry["event"] == "request tools")
+    assert tools["log_level"] == "debug"
+    assert tools["calls"] == 1
+    assert tools["time_ms"] == 210.0
+    assert tools["slowest"] == "ghx pr view 42 --repo o/r (210.0ms)"
+
+
+def test_no_breakdown_lines_at_info_level(monkeypatch):
+    logger = logging.getLogger("uvicorn.access")
+    monkeypatch.setattr(logger, "handlers", [])
+    monkeypatch.setattr(logger, "propagate", True)
+    monkeypatch.setattr(logger, "level", logging.INFO)
+    configure_logging(level="info")
+
+    app = FastAPI()
+    app.add_middleware(RequestErrorMiddleware)
+    app.add_middleware(debug.DebugMiddleware)
+
+    @app.get("/api/quiet")
+    def quiet() -> dict:
+        debug.record_cli_call(["ghx", "pr", "view", "42"], 210.0)
+        logger.info('%s - "%s %s HTTP/%s" %d', "127.0.0.1:52361", "GET", "/api/quiet", "1.1", 200)
+        return {"ok": True}
+
+    configure_request_logging()
+    client = TestClient(app)
+    with capture_logs() as logs:
+        assert client.get("/api/quiet").status_code == 200
+
+    access = [entry for entry in logs if entry["event"].startswith("127.0.0.1:52361")]
+    assert len(access) == 1
+    assert set(access[0]) == {"event", "log_level", "duration_ms"}
+    assert [entry for entry in logs if entry["event"].startswith("request ")] == []
 
 
 def _error_app() -> FastAPI:

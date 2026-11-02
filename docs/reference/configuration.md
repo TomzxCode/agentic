@@ -17,6 +17,8 @@ The Slack credentials keep the names `slackx` uses (`SLACK_TOKEN`, `SLACK_COOKIE
 | `AGENTIC_NOTES_DIR` | `~/notes` | Markdown notes tree holding the colleague-decisions reports the Decisions page reads (`decisions/YYYY/MM/DD.md`). Also read as `NOTES_DIR`. Read-only. |
 | `AGENTIC_STATIC_DIR` | `backend/static` | Built SPA for the API to serve. |
 | `AGENTIC_CORS_ORIGINS` | `["http://localhost:5173","http://127.0.0.1:5173"]` | CORS origins allowed for the Vite dev server. |
+| `AGENTIC_LOG_LEVEL` | `info` | Log verbosity: `debug`, `info`, `warning`, or `error`. `debug` also logs a per-request timing breakdown as separate lines: one `request phase` line per timed step, a `request db` summary, and a `request tools` summary for helper CLI calls. |
+| `AGENTIC_LOG_FILE` | `<data_dir>/agentic.log` | Where rendered log lines are appended. `none` or `off` disables the file. |
 | `AGENTIC_DEFAULT_HARNESS` | `opencode` | Fallback harness by name, used when no harness is marked default. |
 | `AGENTIC_GITHUB_LOGIN` | (empty) | The GitHub login that counts as "you": a merged PR this account authored and a task links is recorded as a change automatically, and the inbox and a repository's pull requests only offer to record a change for the same PRs. Empty auto-detects the authenticated `gh` account. |
 | `SLACK_TOKEN` | (empty) | Slack token the item view's poke action sends with. Also read as `AGENTIC_SLACK_TOKEN`. A web token (`xoxc-`) needs `SLACK_COOKIE` (the `xoxd-` value); a bot token (`xoxb-`) does not. Empty disables poking. |
