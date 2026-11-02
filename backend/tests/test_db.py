@@ -4,6 +4,8 @@ Each test points `agentic.db.engine` at a throwaway SQLite file with a legacy
 schema, so the migrations can be exercised without touching the real database.
 """
 
+import json
+
 import pytest
 import sqlalchemy
 from sqlmodel import create_engine
@@ -183,6 +185,86 @@ def test_migrate_graph_schedules_to_triggers(monkeypatch, tmp_path):
     db._migrate_graph_schedules_to_triggers()
     with engine.connect() as conn:
         assert conn.execute(sqlalchemy.text("SELECT count(*) FROM graphtrigger")).scalar() == 1
+
+
+def test_migrate_graph_triggers_to_nodes_moves_schedules_into_the_definition(monkeypatch, tmp_path):
+    engine = _engine(tmp_path, "l.db")
+    with engine.begin() as conn:
+        conn.execute(
+            sqlalchemy.text(
+                "CREATE TABLE executiongraph "
+                "(id VARCHAR PRIMARY KEY, definition VARCHAR, schedule_state VARCHAR, schedule VARCHAR, "
+                "timezone VARCHAR, enabled BOOLEAN, next_run_at DATETIME, last_run_at DATETIME)"
+            )
+        )
+        conn.execute(
+            sqlalchemy.text(
+                "CREATE TABLE graphtrigger "
+                "(id VARCHAR PRIMARY KEY, graph_id VARCHAR, type VARCHAR, config VARCHAR, enabled BOOLEAN, "
+                "next_run_at DATETIME, last_run_at DATETIME)"
+            )
+        )
+        conn.execute(
+            sqlalchemy.text(
+                "INSERT INTO executiongraph (id, definition) VALUES "
+                '(\'g1\', \'{"nodes": [{"id": "a", "kind": "run", "title": "A"}], "edges": []}\')'
+            )
+        )
+        conn.execute(
+            sqlalchemy.text(
+                "INSERT INTO graphtrigger (id, graph_id, type, config, enabled, next_run_at) VALUES "
+                "('t1', 'g1', 'schedule', '{\"cron\": \"0 9 * * *\", \"timezone\": \"Europe/Paris\"}', 1, "
+                "'2026-11-02 08:00:00')"
+            )
+        )
+        conn.execute(
+            sqlalchemy.text(
+                "INSERT INTO graphtrigger (id, graph_id, type, config, enabled) VALUES "
+                "('t2', 'g1', 'webhook', '{\"secret\": \"x\"}', 1)"
+            )
+        )
+    monkeypatch.setattr(db, "engine", engine)
+
+    db._migrate_graph_triggers_to_nodes()
+
+    with engine.connect() as conn:
+        definition_raw, state_raw = conn.execute(
+            sqlalchemy.text("SELECT definition, schedule_state FROM executiongraph WHERE id='g1'")
+        ).one()
+        kept = conn.execute(sqlalchemy.text("SELECT count(*) FROM graphtrigger")).scalar()
+    definition = json.loads(definition_raw)
+    state = json.loads(state_raw)
+    trigger = next(node for node in definition["nodes"] if node["id"] != "a")
+    assert trigger["kind"] == "trigger" and trigger["triggerType"] == "schedule"
+    assert trigger["schedule"] == "0 9 * * *" and trigger["timezone"] == "Europe/Paris"
+    # Only the schedule moved; the webhook row is dropped with the table.
+    assert kept == 0
+    assert state[trigger["id"]]["cron"] == "0 9 * * *"
+    assert state[trigger["id"]]["nextRunAt"].startswith("2026-11-02 08:00:00")
+
+    # A second pass adds nothing.
+    db._migrate_graph_triggers_to_nodes()
+    with engine.connect() as conn:
+        definition_raw = conn.execute(sqlalchemy.text("SELECT definition FROM executiongraph WHERE id='g1'")).scalar()
+    assert len(json.loads(definition_raw)["nodes"]) == 2
+
+
+def test_migrate_graph_triggers_to_nodes_without_tables_is_a_noop(monkeypatch, tmp_path):
+    engine = _engine(tmp_path, "m.db")
+    monkeypatch.setattr(db, "engine", engine)
+    db._migrate_graph_triggers_to_nodes()
+
+
+def test_ensure_columns_adds_the_graph_schedule_state(monkeypatch, tmp_path):
+    engine = _engine(tmp_path, "n.db")
+    with engine.begin() as conn:
+        conn.execute(sqlalchemy.text("CREATE TABLE executiongraph (id VARCHAR PRIMARY KEY)"))
+    monkeypatch.setattr(db, "engine", engine)
+
+    db._ensure_columns()
+
+    columns = {column["name"] for column in sqlalchemy.inspect(engine).get_columns("executiongraph")}
+    assert "schedule_state" in columns
 
 
 def test_migrate_graph_schedules_to_triggers_without_tables_is_a_noop(monkeypatch, tmp_path):

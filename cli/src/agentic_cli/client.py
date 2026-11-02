@@ -527,20 +527,12 @@ class AgenticClient:
         name: str,
         *,
         description: str | None = None,
-        triggers: list[dict] | None = None,
         definition: dict | None = None,
     ) -> dict:
         return self._request(
             "POST",
             "/api/graphs",
-            json=_compact(
-                {
-                    "name": name,
-                    "description": description,
-                    "triggers": triggers,
-                    "definition": definition,
-                }
-            ),
+            json=_compact({"name": name, "description": description, "definition": definition}),
         )
 
     def update_graph(self, graph_id: str, **fields: Any) -> dict:

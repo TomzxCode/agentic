@@ -32,20 +32,20 @@ import json
 import os
 import re
 import shlex
+from datetime import UTC, datetime
 from typing import Any
 
 import structlog
-from sqlalchemy import or_
 from sqlmodel import Session, col, select
 
-from . import triggers
 from .checklists import apply_task_templates
 from .config import settings
 from .db import engine
 from .models.agents import AgentEvent, AgentRun
 from .models.base import GraphExecutionStatus, RunStatus, TaskStatus, utcnow
-from .models.graphs import ExecutionGraph, GraphExecution, GraphTrigger
+from .models.graphs import ExecutionGraph, GraphExecution
 from .models.tasks import Task
+from .schedules import compute_next_run, resolve_timezone, validate_schedule
 
 log = structlog.get_logger(__name__)
 
@@ -131,7 +131,15 @@ def normalize_definition(raw: Any) -> dict[str, Any]:
             clean["cwd"] = str(node.get("cwd") or "").strip()
             clean["inputs"] = _inputs(node.get("inputs"))
         elif kind == "trigger":
-            clean["outputs"] = _trigger_outputs(node.get("outputs"))
+            trigger_type = "schedule" if node.get("triggerType") == "schedule" else "event"
+            clean["triggerType"] = trigger_type
+            if trigger_type == "schedule":
+                clean["schedule"] = str(node.get("schedule") or "").strip()
+                clean["timezone"] = str(node.get("timezone") or "").strip()
+                clean["enabled"] = bool(node.get("enabled", True))
+                clean["outputs"] = []
+            else:
+                clean["outputs"] = _trigger_outputs(node.get("outputs"))
         else:
             clean["fields"] = _fields(node.get("fields"))
         nodes.append(clean)
@@ -262,11 +270,12 @@ def validate_definition(definition: dict[str, Any]) -> list[str]:
             issues.append(f"Two nodes are titled '{title}'")
 
     triggers = [node for node in nodes if node.get("kind") == "trigger"]
-    if len(triggers) > 1:
+    event_triggers = [node for node in triggers if node.get("triggerType") != "schedule"]
+    if len(event_triggers) > 1:
         issues.append("A graph holds at most one event trigger")
     for trigger in triggers:
         if any(edge.get("target") == trigger.get("id") for edge in edges):
-            issues.append(f"'{trigger.get('title')}' is an event trigger and cannot take a connection")
+            issues.append(f"'{trigger.get('title')}' is a trigger and cannot take a connection")
 
     seen_edges: set[str] = set()
     for edge in edges:
@@ -355,9 +364,26 @@ def _validate_form_node(node: dict[str, Any]) -> list[str]:
 
 
 def _validate_trigger_node(node: dict[str, Any]) -> list[str]:
-    """An event trigger: at least one JSON-path output, each with an id."""
-    issues: list[str] = []
+    """One trigger node: an event trigger's payload paths, or a cron schedule."""
     title = node.get("title") or node.get("id") or "trigger"
+    if node.get("triggerType") == "schedule":
+        issues: list[str] = []
+        cron = node.get("schedule") or ""
+        if not cron:
+            issues.append(f"Schedule '{title}' needs a cron expression")
+        else:
+            try:
+                validate_schedule(cron)
+            except ValueError as exc:
+                issues.append(f"Schedule '{title}': {exc}")
+        zone = node.get("timezone") or ""
+        if zone:
+            try:
+                resolve_timezone(zone)
+            except ValueError as exc:
+                issues.append(f"Schedule '{title}': {exc}")
+        return issues
+    issues = []
     outputs = node.get("outputs") or []
     if not outputs:
         issues.append(f"Trigger '{title}' needs at least one event field")
@@ -401,14 +427,15 @@ def _validate_edge(edge: dict[str, Any], by_id: dict[str, dict[str, Any]], seen_
         return issues
     if source.get("kind") == "trigger":
         if not any(item.get("id") == edge.get("sourceFieldId") for item in source.get("outputs") or []):
-            issues.append(f"'{source.get('title')}' has no event field for one connection")
+            label = "output" if source.get("triggerType") == "schedule" else "event field"
+            issues.append(f"'{source.get('title')}' has no {label} for one connection")
     elif source.get("kind") in OUTPUT_NODE_KINDS:
         if edge.get("sourceFieldId"):
             issues.append(f"'{source.get('title')}' has no field outputs")
     elif not any(field.get("id") == edge.get("sourceFieldId") for field in source.get("fields") or []):
         issues.append(f"'{source.get('title')}' has no field for one connection")
     if target.get("kind") == "trigger":
-        issues.append(f"'{target.get('title')}' is an event trigger and cannot take a connection")
+        issues.append(f"'{target.get('title')}' is a trigger and cannot take a connection")
     elif target.get("kind") in OUTPUT_NODE_KINDS:
         if edge.get("targetFieldId") or not any(
             item.get("id") == edge.get("targetInputId") for item in target.get("inputs") or []
@@ -1268,46 +1295,145 @@ def _finalize(
         )
 
 
+# --- schedule trigger nodes ------------------------------------------------
+# A schedule lives in a trigger node, so the scheduler reads the definition and
+# keeps only the derived next occurrence per node in ``graph.schedule_state``.
+SCHEDULE = "schedule"
+
+
+def trigger_nodes(definition: dict[str, Any], trigger_type: str | None = None) -> list[dict[str, Any]]:
+    """The definition's trigger nodes, optionally only one type."""
+    nodes = [node for node in definition.get("nodes") or [] if node.get("kind") == "trigger"]
+    if trigger_type is None:
+        return nodes
+    return [node for node in nodes if node.get("triggerType") == trigger_type]
+
+
+def schedule_triggers(definition: dict[str, Any]) -> list[dict[str, Any]]:
+    return trigger_nodes(definition, SCHEDULE)
+
+
+def _parse_instant(value: Any) -> datetime | None:
+    if not isinstance(value, str) or not value:
+        return None
+    try:
+        moment = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return moment if moment.tzinfo else moment.replace(tzinfo=UTC)
+
+
+def schedule_next_run(node: dict[str, Any], *, base: datetime | None = None) -> datetime | None:
+    """When a schedule trigger node fires next, or None when its cron is invalid."""
+    cron = node.get("schedule") or ""
+    if not cron:
+        return None
+    try:
+        return compute_next_run(cron, base=base, timezone=node.get("timezone") or None)
+    except (ValueError, KeyError):
+        return None
+
+
+def sync_schedule_state(graph: ExecutionGraph, definition: dict[str, Any], *, now: datetime | None = None) -> bool:
+    """Reconcile ``graph.schedule_state`` with the definition's schedule nodes.
+
+    A pending occurrence survives an unrelated edit; it is recomputed only when
+    the node's cron or timezone changed, or when it has none yet. Removed and
+    disabled nodes lose their entry. Returns whether the state changed.
+    """
+    now = now or utcnow()
+    previous = graph.schedule_state if isinstance(graph.schedule_state, dict) else {}
+    state: dict[str, Any] = {}
+    for node in schedule_triggers(definition):
+        if not node.get("enabled", True):
+            continue
+        prior = previous.get(node["id"]) or {}
+        cron = node.get("schedule") or ""
+        zone = node.get("timezone") or ""
+        next_run = prior.get("nextRunAt")
+        if not next_run or prior.get("cron") != cron or (prior.get("timezone") or "") != zone:
+            moment = schedule_next_run(node, base=now)
+            next_run = moment.isoformat() if moment else None
+        if not next_run:
+            continue
+        state[node["id"]] = {
+            "nextRunAt": next_run,
+            "lastRunAt": prior.get("lastRunAt"),
+            "cron": cron,
+            "timezone": zone,
+        }
+    if state != previous:
+        graph.schedule_state = state
+        return True
+    return False
+
+
+def next_schedule_at(graph: ExecutionGraph) -> datetime | None:
+    """The earliest pending occurrence across the graph's schedule nodes."""
+    state = graph.schedule_state if isinstance(graph.schedule_state, dict) else {}
+    moments = [
+        moment for entry in state.values() if (moment := _parse_instant((entry or {}).get("nextRunAt"))) is not None
+    ]
+    return min(moments) if moments else None
+
+
 # --- trigger scheduling ----------------------------------------------------
 async def run_due_once() -> int:
-    """Fire every enabled schedule trigger whose next occurrence has passed.
+    """Fire every enabled schedule trigger node whose next occurrence passed.
 
     The occurrence is advanced before the execution starts, so a slow one is
     never fired twice; when the graph's previous execution still runs, the fire
-    is skipped and only the trigger moves on.
+    is skipped and only the node's occurrence moves on.
     """
     now = utcnow()
+    due: list[tuple[str, str]] = []
     with Session(engine) as session:
-        due = session.exec(
-            select(GraphTrigger)
-            .where(col(GraphTrigger.type) == triggers.SCHEDULE)
-            .where(col(GraphTrigger.enabled) == True)  # noqa: E712
-            .where(or_(col(GraphTrigger.next_run_at).is_(None), col(GraphTrigger.next_run_at) <= now))
-        ).all()
-        trigger_ids = [row.id for row in due]
+        for graph in session.exec(select(ExecutionGraph)).all():
+            definition = normalize_definition(graph.definition)
+            if sync_schedule_state(graph, definition, now=now):
+                session.add(graph)
+            state = graph.schedule_state if isinstance(graph.schedule_state, dict) else {}
+            for node in schedule_triggers(definition):
+                entry = state.get(node["id"]) or {}
+                moment = _parse_instant(entry.get("nextRunAt"))
+                if moment is not None and moment <= now:
+                    due.append((graph.id, node["id"]))
+        session.commit()
+
     started = 0
-    for trigger_id in trigger_ids:
+    for graph_id, node_id in due:
         with Session(engine) as session:
-            row = session.get(GraphTrigger, trigger_id)
-            if row is None or not row.enabled or row.type != triggers.SCHEDULE:
-                continue
-            graph = session.get(ExecutionGraph, row.graph_id)
+            graph = session.get(ExecutionGraph, graph_id)
             if graph is None:
-                # A trigger whose graph went away is orphaned; drop it.
-                session.delete(row)
-                session.commit()
                 continue
-            row.last_run_at = utcnow()
-            row.next_run_at = triggers.next_run(
-                {"type": row.type, "config": row.config or {}, "enabled": row.enabled}, base=row.last_run_at
+            definition = normalize_definition(graph.definition)
+            node = next((item for item in schedule_triggers(definition) if item["id"] == node_id), None)
+            if node is None or not node.get("enabled", True):
+                continue
+            state = dict(graph.schedule_state or {})
+            entry = dict(state.get(node_id) or {})
+            moment = _parse_instant(entry.get("nextRunAt"))
+            if moment is None or moment > utcnow():
+                continue
+            fired_at = utcnow()
+            following = schedule_next_run(node, base=fired_at)
+            entry.update(
+                {
+                    "lastRunAt": fired_at.isoformat(),
+                    "nextRunAt": following.isoformat() if following else None,
+                    "cron": node.get("schedule") or "",
+                    "timezone": node.get("timezone") or "",
+                }
             )
-            session.add(row)
+            state[node_id] = entry
+            graph.schedule_state = state
+            session.add(graph)
             session.commit()
             if _active_execution_id(session, graph.id) is not None:
                 log.info("skipped graph execution, one is already running", graph_id=graph.id)
                 continue
             session.refresh(graph)
-            await start_execution(session, graph, trigger=row.type, trigger_id=row.id)
+            await start_execution(session, graph, trigger=SCHEDULE, trigger_id=node_id)
         started += 1
     return started
 

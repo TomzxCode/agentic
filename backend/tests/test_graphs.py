@@ -2,7 +2,7 @@
 
 import asyncio
 import time
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
@@ -14,7 +14,7 @@ from agentic.db import create_db_and_tables, engine
 from agentic.main import app
 from agentic.models.agents import AgentEvent, AgentRun
 from agentic.models.base import RunStatus, utcnow
-from agentic.models.graphs import ExecutionGraph, GraphExecution, GraphTrigger
+from agentic.models.graphs import ExecutionGraph, GraphExecution
 from agentic.models.tasks import Task
 
 # The executor polls at 1 Hz; a fast tick keeps the tests quick.
@@ -27,7 +27,6 @@ def _clear() -> None:
     with Session(engine) as session:
         session.exec(sa_delete(AgentEvent))
         session.exec(sa_delete(AgentRun))
-        session.exec(sa_delete(GraphTrigger))
         session.exec(sa_delete(GraphExecution))
         session.exec(sa_delete(ExecutionGraph))
         session.exec(sa_delete(TimelineEvent))
@@ -109,6 +108,21 @@ def edge(source: str, target: str, *, source_field: str = "", target_input: str 
         "target": target,
         "targetInputId": target_input,
         "targetFieldId": target_field,
+    }
+
+
+def schedule_node(node_id: str = "s1", cron: str = "*/5 * * * *", timezone: str = "UTC", **extra) -> dict:
+    return {
+        "id": node_id,
+        "kind": "trigger",
+        "triggerType": "schedule",
+        "title": "Schedule",
+        "position": {"x": 0, "y": 0},
+        "schedule": cron,
+        "timezone": timezone,
+        "enabled": True,
+        "outputs": [],
+        **extra,
     }
 
 
@@ -290,25 +304,29 @@ def test_graph_crud_api():
     create_db_and_tables()
     _clear()
     definition = _definition(
-        [run_node("a", "Do things"), run_node("b", "Then {{draft}}", ["draft"])],
+        [schedule_node(), run_node("a", "Do things"), run_node("b", "Then {{draft}}", ["draft"])],
         [edge("a", "b", target_input="draft")],
     )
     with TestClient(app) as client:
         created = client.post(
             "/api/graphs",
-            json={
-                "name": "pipeline",
-                "description": "two steps",
-                "triggers": [{"type": "schedule", "config": {"cron": "*/5 * * * *", "timezone": "UTC"}}],
-                "definition": definition,
-            },
+            json={"name": "pipeline", "description": "two steps", "definition": definition},
         )
         assert created.status_code == 201
         graph = created.json()
-        assert graph["triggers"][0]["type"] == "schedule"
-        assert graph["triggers"][0]["config"] == {"cron": "*/5 * * * *", "timezone": "UTC"}
+        assert graph["definition"]["nodes"][0] == {
+            "id": "s1",
+            "kind": "trigger",
+            "title": "Schedule",
+            "position": {"x": 0.0, "y": 0.0},
+            "triggerType": "schedule",
+            "schedule": "*/5 * * * *",
+            "timezone": "UTC",
+            "enabled": True,
+            "outputs": [],
+        }
         assert graph["next_run_at"] is not None
-        assert graph["definition"]["nodes"][0]["promptTemplate"] == "Do things"
+        assert graph["definition"]["nodes"][1]["promptTemplate"] == "Do things"
 
         # An empty definition is fine at create time (that is the "new graph"
         # flow: create a shell, then build it in the editor), but running one
@@ -334,50 +352,52 @@ def test_graph_crud_api():
         assert any("circular" in issue for issue in checked.json()["issues"])
         client.delete(f"/api/graphs/{wip_id}")
 
-        # Blank names and broken triggers are rejected before anything is saved.
+        # Blank names are still rejected. A bad schedule node is a definition
+        # problem: it stores (work in progress), and validate and run report it.
         assert client.post("/api/graphs", json={"name": " ", "definition": definition}).status_code == 400
         bad_cron = client.post(
             "/api/graphs",
-            json={"name": "bad-cron", "triggers": [{"type": "schedule", "config": {"cron": "nope"}}]},
+            json={"name": "bad-cron", "definition": _definition([schedule_node(cron="nope")], [])},
         )
-        assert bad_cron.status_code == 400
-        unknown_type = client.post("/api/graphs", json={"name": "bad-type", "triggers": [{"type": "pigeon"}]})
-        assert unknown_type.status_code == 400
-
-        # The editor's validate action reports issues without saving.
+        assert bad_cron.status_code == 201
+        assert bad_cron.json()["next_run_at"] is None
+        bad_id = bad_cron.json()["id"]
+        assert client.post(f"/api/graphs/{bad_id}/run").status_code == 400
         checked = client.post(
             "/api/graphs/validate",
-            json={
-                "name": "v",
-                "triggers": [{"type": "schedule", "config": {"cron": "nope"}}],
-                "definition": _definition([], []),
-            },
+            json={"name": "v", "definition": _definition([schedule_node(cron="nope")], [])},
         )
         assert checked.status_code == 200
         assert any("5 fields" in issue for issue in checked.json()["issues"])
+        client.delete(f"/api/graphs/{bad_id}")
 
         listing = client.get("/api/graphs")
         assert [row["id"] for row in listing.json()] == [graph["id"]]
 
-        # Disabling the trigger clears its next occurrence; renaming keeps it.
-        trigger = graph["triggers"][0]
+        # Disabling the schedule node clears its next occurrence; renaming
+        # keeps it.
+        disabled = definition | {"nodes": [{**definition["nodes"][0], "enabled": False}] + definition["nodes"][1:]}
         updated = client.patch(
             f"/api/graphs/{graph['id']}",
-            json={"triggers": [{**trigger, "enabled": False}], "name": "renamed"},
+            json={"definition": disabled, "name": "renamed"},
         ).json()
-        assert updated["triggers"][0]["enabled"] is False
+        assert updated["definition"]["nodes"][0]["enabled"] is False
         assert updated["next_run_at"] is None
         assert updated["name"] == "renamed"
 
-        # Renaming alone does not touch the triggers.
+        # Renaming alone does not touch the schedule state.
+        before = client.get(f"/api/graphs/{graph['id']}").json()
         renamed = client.patch(f"/api/graphs/{graph['id']}", json={"name": "renamed again"}).json()
-        assert renamed["triggers"] == updated["triggers"]
+        assert renamed["updated_at"] is not None
+        with Session(engine) as session:
+            row = session.get(ExecutionGraph, graph["id"])
+            assert row is not None
+            assert row.schedule_state == {}  # disabled node keeps no occurrence
+        assert before["next_run_at"] is None
 
         assert client.get(f"/api/graphs/{graph['id']}").status_code == 200
         assert client.delete(f"/api/graphs/{graph['id']}").status_code == 204
         assert client.get("/api/graphs").json() == []
-        with Session(engine) as session:
-            assert session.exec(select(GraphTrigger)).all() == []
     _clear()
 
 
@@ -780,34 +800,37 @@ def test_cli_node_failure_skips_downstream(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_scheduler_fires_due_graph_once(monkeypatch):
+async def test_scheduler_fires_due_schedule_node_once(monkeypatch):
     create_db_and_tables()
     _clear()
     _harness()
     _no_enqueue(monkeypatch)
     monkeypatch.setattr(graphs, "POLL_SECONDS", POLL)
-    definition = _definition([run_node("a", "Tick")], [])
+    definition = _definition([schedule_node("s1", cron="* * * * *"), run_node("a", "Tick")], [])
     graph_id = _make_graph(definition, name="scheduled")
     with Session(engine) as session:
-        trigger = GraphTrigger(
-            graph_id=graph_id,
-            type="schedule",
-            config={"cron": "* * * * *", "timezone": "UTC"},
-            next_run_at=utcnow() - timedelta(minutes=1),
-        )
-        session.add(trigger)
+        graph = session.get(ExecutionGraph, graph_id)
+        assert graph is not None
+        graph.schedule_state = {
+            "s1": {
+                "nextRunAt": (utcnow() - timedelta(minutes=1)).isoformat(),
+                "lastRunAt": None,
+                "cron": "* * * * *",
+                "timezone": "UTC",
+            }
+        }
+        session.add(graph)
         session.commit()
-        session.refresh(trigger)
-        trigger_id = trigger.id
 
     assert await graphs.run_due_once() == 1
     # The occurrence advanced, so a second tick does not fire again.
     with Session(engine) as session:
-        trigger = session.get(GraphTrigger, trigger_id)
-        assert trigger is not None and trigger.next_run_at is not None
-        assert trigger.next_run_at > utcnow()
+        graph = session.get(ExecutionGraph, graph_id)
+        assert graph is not None and isinstance(graph.schedule_state, dict)
+        entry = graph.schedule_state["s1"]
+        assert datetime.fromisoformat(entry["nextRunAt"]) > utcnow()
         execution = session.exec(select(GraphExecution)).first()
-        assert execution is not None and execution.trigger == "schedule" and execution.trigger_id == trigger_id
+        assert execution is not None and execution.trigger == "schedule" and execution.trigger_id == "s1"
     assert await graphs.run_due_once() == 0  # the busy execution suppresses a second fire
 
     run = await _await_for(_running_run, message="scheduled run never started")
@@ -821,84 +844,65 @@ async def test_scheduler_fires_due_graph_once(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_due_disabled_trigger_does_not_fire(monkeypatch):
+async def test_due_disabled_schedule_node_does_not_fire(monkeypatch):
     create_db_and_tables()
     _clear()
     _harness()
     _no_enqueue(monkeypatch)
-    graph_id = _make_graph(_definition([run_node("a", "Tick")], []), name="paused")
+    definition = _definition([schedule_node("s1", enabled=False), run_node("a", "Tick")], [])
+    graph_id = _make_graph(definition, name="paused")
     with Session(engine) as session:
-        session.add(
-            GraphTrigger(
-                graph_id=graph_id,
-                type="schedule",
-                config={"cron": "* * * * *", "timezone": "UTC"},
-                enabled=False,
-                next_run_at=utcnow() - timedelta(minutes=1),
-            )
-        )
+        graph = session.get(ExecutionGraph, graph_id)
+        assert graph is not None
+        # A stale occurrence must be dropped, not fired, for a disabled node.
+        graph.schedule_state = {
+            "s1": {
+                "nextRunAt": (utcnow() - timedelta(minutes=1)).isoformat(),
+                "lastRunAt": None,
+                "cron": "* * * * *",
+                "timezone": "UTC",
+            }
+        }
+        session.add(graph)
         session.commit()
 
     assert await graphs.run_due_once() == 0
     with Session(engine) as session:
+        graph = session.get(ExecutionGraph, graph_id)
+        assert graph is not None and graph.schedule_state == {}
         assert session.exec(select(GraphExecution)).first() is None
     _clear()
 
 
-def test_webhook_trigger_fires_graph(monkeypatch):
-    create_db_and_tables()
-    _clear()
-    _harness()
-    _no_enqueue(monkeypatch)
-    monkeypatch.setattr(graphs, "POLL_SECONDS", POLL)
-    graph_id = _make_graph(_definition([run_node("a", "Hook")], []), name="hooked")
-    with Session(engine) as session:
-        webhook = GraphTrigger(graph_id=graph_id, type="webhook", config={"secret": "s3cret"})
-        schedule = GraphTrigger(graph_id=graph_id, type="schedule", config={"cron": "0 9 * * *"})
-        session.add(webhook)
-        session.add(schedule)
-        session.commit()
-        session.refresh(webhook)
-        session.refresh(schedule)
-        webhook_id, schedule_id = webhook.id, schedule.id
+def test_schedule_trigger_nodes_validate():
+    # Several schedules are allowed and each must carry a valid cron and zone.
+    definition = _definition(
+        [
+            schedule_node("s1", cron="0 9 * * *", title="Morning"),
+            schedule_node("s2", cron="nope", timezone="Mars/Base", title="Broken"),
+        ],
+        [],
+    )
+    issues = graphs.validate_definition(definition)
+    assert any("Broken" in issue and "5 fields" in issue for issue in issues)
+    assert any("Mars/Base" in issue for issue in issues)
+    assert not any("at most one event trigger" in issue for issue in issues)
 
-    with TestClient(app) as client:
-        url = f"/api/graphs/{graph_id}/triggers/{webhook_id}/fire"
-        # The secret is required, and the wrong one is refused.
-        assert client.post(url).status_code == 403
-        assert client.post(url, headers={"X-Trigger-Secret": "wrong"}).status_code == 403
-        started = client.post(url, headers={"X-Trigger-Secret": "s3cret"})
-        assert started.status_code == 201
-        assert started.json()["trigger"] == "webhook"
-        # The graph is busy, so a second fire is refused.
-        assert client.post(url, headers={"X-Trigger-Secret": "s3cret"}).status_code == 409
-        # A trigger that is not a webhook cannot be fired this way.
-        schedule_url = f"/api/graphs/{graph_id}/triggers/{schedule_id}/fire"
-        assert client.post(schedule_url, headers={"X-Trigger-Secret": "s3cret"}).status_code == 400
-        # A webhook received for another graph's trigger is not found.
-        other = _make_graph(_definition([run_node("a", "Other")], []), name="other")
-        assert client.post(f"/api/graphs/{other}/triggers/{webhook_id}/fire").status_code == 404
+    # A schedule trigger is an entry point: no incoming edge, and no output to
+    # feed one out either.
+    wired = _definition(
+        [schedule_node("s1"), run_node("b", "Then {{v}}", ["v"])],
+        [edge("s1", "b", target_input="v")],
+    )
+    issues = graphs.validate_definition(wired)
+    assert any("has no output for one connection" in issue for issue in issues)
 
-        run = _wait_for(_running_run, message="webhook run never started")
-        _settle_run(run.id, "done")
-        _wait_for(
-            lambda: _execution(started.json()["id"]).status.value == "succeeded",
-            message="webhook execution never succeeded",
-        )
-
-        # A disabled trigger refuses the call even with the right secret.
-        disabled = client.patch(
-            f"/api/graphs/{graph_id}",
-            json={
-                "triggers": [
-                    {"id": webhook_id, "type": "webhook", "config": {"secret": "s3cret"}, "enabled": False},
-                    {"id": schedule_id, "type": "schedule", "config": {"cron": "0 9 * * *"}, "enabled": True},
-                ]
-            },
-        )
-        assert disabled.status_code == 200
-        assert client.post(url, headers={"X-Trigger-Secret": "s3cret"}).status_code == 403
-    _clear()
+    incoming = _definition(
+        [schedule_node("s1"), run_node("a", "Do it")],
+        [edge("a", "s1")],
+    )
+    issues = graphs.validate_definition(incoming)
+    assert any("cannot take a connection" in issue for issue in issues)
 
 
 def test_reconcile_marks_stale_executions_failed():

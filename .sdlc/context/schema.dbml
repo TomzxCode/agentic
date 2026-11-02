@@ -475,39 +475,22 @@ Table executiongraph {
   id varchar [pk]
   name varchar [not null]
   description text [not null, default: '']
-  definition json [not null] // {"nodes": [...], "edges": [...]}
+  definition json [not null] // {"nodes": [...], "edges": [...]} incl. trigger nodes
+  schedule_state json // {node_id: {nextRunAt, lastRunAt, cron, timezone}}, derived
   last_run_at datetime // when the graph last started an execution
   created_at datetime [not null]
   updated_at datetime [not null]
 
   // Legacy pre-trigger columns (schedule, timezone, enabled, next_run_at) linger
-  // on old databases; the migration emptied and stopped reading them.
-}
-
-// One way a graph starts without a manual run. A schedule is one type beside a
-// webhook, so the cron is not a column on the graph.
-Table graphtrigger {
-  id varchar [pk]
-  graph_id varchar [not null, ref: > executiongraph.id]
-  type varchar [not null, default: 'schedule'] // schedule | webhook
-  config json [not null] // {"cron", "timezone"} | {"secret"}
-  enabled boolean [not null, default: true] // a paused trigger never fires
-  next_run_at datetime // next occurrence, time-based types only
-  last_run_at datetime // when this trigger last started an execution
-  created_at datetime [not null]
-  updated_at datetime [not null]
-
-  Indexes {
-    graph_id
-  }
+  // on old databases; the migrations emptied and stopped reading them.
 }
 
 Table graphexecution {
   id varchar [pk]
   graph_id varchar [not null, ref: > executiongraph.id]
   task_id varchar [not null, ref: > task.id] // the task every run node attaches to
-  trigger varchar [not null, default: 'manual'] // manual | schedule | webhook
-  trigger_id varchar [not null, default: ''] // the trigger row, empty for a manual run
+  trigger varchar [not null, default: 'manual'] // manual | schedule | event:<type>
+  trigger_id varchar [not null, default: ''] // the trigger node id, empty for a manual run
   status varchar [not null, default: 'running'] // running | succeeded | failed | cancelled
   error text [not null, default: '']
   state json [not null] // node statuses, run outputs, form answers

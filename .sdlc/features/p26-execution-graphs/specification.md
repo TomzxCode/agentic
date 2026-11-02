@@ -9,10 +9,10 @@ session_link: "http://localhost:10000/?session=ses_ed778bb8affeJQ6f9Tkxe4MjUl"
 
 ## Overview
 
-`graphs.py` owns the orchestration: a definition contract (`normalize_definition`, `validate_definition`, `render_template`, `topological_order`), an async executor that walks the DAG in the API process, the form answer handoff, schedule-trigger firing, and startup reconciliation.
-`triggers.py` owns the trigger contract: each trigger's stored shape, the problems found in its config, and when a time-based trigger fires next.
-`models/graphs.py` defines three tables: `ExecutionGraph` holds the saved definition (nodes and edges as JSON, there are no graph node or edge tables), `GraphTrigger` holds one way the graph starts (a schedule, a webhook, or a later type), and `GraphExecution` holds one run of it, including the executor's working state as a JSON column.
-`routers/graphs.py` exposes CRUD with the trigger list, a validate-without-saving endpoint, run-now, the webhook fire endpoint, the execution history and detail, cancel, and the form-answer endpoint that unblocks a paused execution.
+`graphs.py` owns the orchestration: a definition contract (`normalize_definition`, `validate_definition`, `render_template`, `topological_order`), an async executor that walks the DAG in the API process, the form answer handoff, schedule-trigger node firing, and startup reconciliation.
+`models/graphs.py` defines two tables: `ExecutionGraph` holds the saved definition (nodes and edges as JSON, there are no graph node or edge tables) plus the derived `schedule_state` bookkeeping, and `GraphExecution` holds one run of it, including the executor's working state as a JSON column.
+A schedule is a trigger node in the definition (`kind: trigger`, `triggerType: schedule`), so the cron lives with the rest of the graph; a webhook event is a trigger node fed by the separate Webhooks subscriptions.
+`routers/graphs.py` exposes CRUD, a validate-without-saving endpoint, run-now, the execution history and detail, cancel, and the form-answer endpoint that unblocks a paused execution.
 Every run node becomes an `AgentRun` (kind `graph`) linked to the execution and node through `graph_execution_id` and `graph_node_id`, attached to a task the execution creates.
 The SPA adds the `/graphs` page (`GraphsList`, `GraphEditor`, `GraphExecutions`, `GraphMetaForm`, `ExecutionGraphsView`, plus the pure `executionGraph.js` editor logic), and the CLI adds an `agentic graphs` command group.
 
@@ -20,20 +20,21 @@ The SPA adds the `/graphs` page (`GraphsList`, `GraphEditor`, `GraphExecutions`,
 
 ```mermaid
 flowchart LR
-    G[ExecutionGraph] --> T[GraphTrigger: type + config]
+    G[ExecutionGraph] --> D[definition: nodes with schedule/event trigger nodes]
+    G --> SS[schedule_state: next and last occurrence per schedule node]
     G --> E[GraphExecution]
-    E --> S[state JSON: nodes, outputs, formValues, pendingForm]
+    E --> S[state JSON: nodes, outputs, formValues, pendingForm, trigger]
     EX[graphs.py executor] --> AR[AgentRun kind=graph]
     EX --> CLI[agentic CLI child process]
     AR --> Q[SAQ queue]
     S --> R[routers/graphs.py]
-    G --> R
-    T --> R
+    D --> R
+    SS --> R
     R --> SPA[GraphsList / GraphEditor / GraphExecutions]
     R --> C[agentic graphs]
-    SCH[scheduler_loop] --> T
-    WH[webhook fire endpoint] --> EX
+    SCH[scheduler_loop] --> SS
     SCH --> EX
+    WH[Webhooks event bus] --> EX
     REC[reconcile_graph_executions] --> E
 ```
 
@@ -46,27 +47,14 @@ flowchart LR
 | id | string | PK | Graph id |
 | name | string | not null | Label shown in lists and the task title |
 | description | string | default "" | What the graph does |
-| definition | JSON | default {} | `{"nodes": [...], "edges": [...]}` as the editor arranged it |
+| definition | JSON | default {} | `{"nodes": [...], "edges": [...]}` as the editor arranged it, including any trigger nodes |
+| schedule_state | JSON \| None | None | Derived: `{nodeId: {nextRunAt, lastRunAt, cron, timezone}}` for enabled schedule nodes |
 | last_run_at | datetime \| None | None | When the graph last started an execution |
 | created_at / updated_at | datetime | not null | Bookkeeping |
 
-The pre-trigger `schedule`, `timezone`, `enabled`, and `next_run_at` columns remain on old databases but are no longer read; `db._migrate_graph_schedules_to_triggers` moved each into a trigger row.
-
-### GraphTrigger
-
-| Field | Type | Constraints | Description |
-|---|---|---|---|
-| id | string | PK | Trigger id |
-| graph_id | string | FK executiongraph, index, not null | Owning graph |
-| type | string | default schedule | schedule or webhook |
-| config | JSON | default {} | `{"cron", "timezone"}` for a schedule; `{"secret"}` for a webhook |
-| enabled | bool | default true | A paused trigger never fires |
-| next_run_at | datetime \| None | None | The next occurrence, for time-based types; advanced before firing |
-| last_run_at | datetime \| None | None | When this trigger last started an execution |
-| created_at / updated_at | datetime | not null | Bookkeeping |
-
-A graph may have several triggers, and each type owns its config shape, its validation, and its next occurrence.
-A schedule trigger's config is validated with `schedules.validate_schedule` and its zone resolved; a webhook's secret is optional.
+The pre-trigger `schedule`, `timezone`, `enabled`, and `next_run_at` columns remain on old databases but are no longer read; the migrations moved a schedule into the definition.
+`schedule_state` is never user-edited: `sync_schedule_state` seeds it on save, keeps an unchanged node's pending occurrence, and drops entries for disabled or removed nodes.
+A graph may hold several schedule trigger nodes and at most one event trigger node.
 
 ### GraphExecution
 
@@ -75,7 +63,7 @@ A schedule trigger's config is validated with `schedules.validate_schedule` and 
 | id | string | PK | Execution id |
 | graph_id | string | FK executiongraph, index, not null | Owning graph |
 | task_id | string | FK task, index, not null | Task that groups the execution's runs |
-| trigger | string | default manual | manual, schedule, or webhook |
+| trigger | string | default manual | manual, schedule, or event:<type> |
 | trigger_id | string | default "" | The trigger row that started it, empty for a manual run |
 | status | GraphExecutionStatus | default running | running, succeeded, failed, cancelled |
 | error | string | default "" | Settling error, empty on success |
@@ -127,24 +115,22 @@ A connection is selected by tapping anywhere within 24 px of its curve, through 
 
 | Method | Path | Purpose |
 |---|---|---|
-| GET | /api/graphs | List graphs (soonest next trigger run first, manual-only last) |
-| POST | /api/graphs | Create a graph with its triggers |
-| POST | /api/graphs/validate | Check a definition and triggers without saving |
+| GET | /api/graphs | List graphs (soonest next schedule run first, manual-only last) |
+| POST | /api/graphs | Create a graph with its definition (including trigger nodes) |
+| POST | /api/graphs/validate | Check a definition without saving |
 | GET | /api/graphs/executions | Every execution across graphs, newest first (limit 1-500, default 100) |
 | GET | /api/graphs/executions/{execution_id} | One execution's nodes, outputs, and pending form |
 | POST | /api/graphs/executions/{execution_id}/cancel | Cancel a running execution |
 | POST | /api/graphs/executions/{execution_id}/forms/{node_id} | Answer or cancel the form the execution waits on |
-| GET | /api/graphs/{graph_id} | Read one graph with its triggers |
-| PATCH | /api/graphs/{graph_id} | Update name, description, triggers, and definition |
-| DELETE | /api/graphs/{graph_id} | Delete the graph, its triggers, and its execution history |
+| GET | /api/graphs/{graph_id} | Read one graph with its definition |
+| PATCH | /api/graphs/{graph_id} | Update name, description, and definition |
+| DELETE | /api/graphs/{graph_id} | Delete the graph, its definition, and its execution history |
 | POST | /api/graphs/{graph_id}/run | Start an execution now (trigger `manual`), in the background |
-| POST | /api/graphs/{graph_id}/triggers/{trigger_id}/fire | Start an execution from a webhook trigger |
 
-`ExecutionGraphCreate`, `ExecutionGraphUpdate`, and `ExecutionGraphRead` carry `triggers`, each `{id, type, config, enabled}` plus `next_run_at` and `last_run_at` on reads.
-Omitted triggers on update leave the set alone; a list replaces it, keeping the row (and its pending occurrence) of every trigger whose id, config, and enabled flag are unchanged.
-`ExecutionGraphRead` also derives `next_run_at` as the earliest enabled trigger's occurrence and adds `running_execution_id`, so the list can badge what is in flight.
+`ExecutionGraphCreate`, `ExecutionGraphUpdate`, and `ExecutionGraphRead` carry the definition, whose trigger nodes hold the schedule; there is no graph-level trigger payload.
+`ExecutionGraphRead` derives `next_run_at` as the earliest enabled schedule node's occurrence from `schedule_state` and adds `running_execution_id`, so the list can badge what is in flight.
 
-Status codes: 201 on create, run, and webhook fire; 200 on read, update, validate, cancel, and form answers; 204 on delete; 400 for a blank name, an unknown trigger type, an invalid cron or timezone, or a definition that fails validation at run time; 403 for a disabled webhook trigger or a missing/wrong secret; 404 for a missing graph, execution, or trigger; 409 when the graph already has a running execution, the execution is not running, or it is not waiting on that form.
+Status codes: 201 on create and run; 200 on read, update, validate, cancel, and form answers; 204 on delete; 400 for a blank name or a definition that fails validation at run time; 404 for a missing graph or execution; 409 when the graph already has a running execution, the execution is not running, or it is not waiting on that form. Webhook ingress lives under `/api/webhooks` and `/api/hooks`.
 
 The execution detail reads the live run row as the truth about a run node: succeeded maps to done, failed to failed, cancelled to skipped, and queued or running pass through.
 
@@ -179,16 +165,15 @@ sequenceDiagram
 sequenceDiagram
     autonumber
     participant SCH as scheduler_loop
-    participant WH as webhook caller
-    participant T as GraphTrigger row
+    participant WH as Webhooks event bus
+    participant D as definition schedule node
     participant X as graphs.py executor
     participant DB as SQLite
-    SCH->>T: enabled schedule trigger whose next_run_at passed
-    SCH->>T: advance next_run_at, stamp last_run_at
-    SCH->>X: start_execution(trigger="schedule", trigger_id)
-    WH->>T: POST /api/graphs/{id}/triggers/{tid}/fire (+ X-Trigger-Secret)
-    WH->>X: start_execution(trigger="webhook", trigger_id)
-    X->>DB: INSERT GraphExecution with the trigger type and id
+    SCH->>D: enabled schedule node whose state occurrence passed
+    SCH->>DB: advance schedule_state, stamp lastRunAt
+    SCH->>X: start_execution(trigger="schedule", trigger_id=node id)
+    WH->>X: start_execution(trigger="event:type", event=payload)
+    X->>DB: INSERT GraphExecution with the trigger and node id
 ```
 
 A disabled trigger, a webhook trigger whose secret does not match, a trigger of another type, and a graph that already has a running execution are all refused.
@@ -228,8 +213,8 @@ sequenceDiagram
 | CLI nodes | Shell out to the app's own `agentic` CLI in JSON mode | Lets a graph call every CLI capability without new internal APIs |
 | Scheduled fires | Advance the occurrence before starting, skip when busy | A slow execution is never fired twice for one occurrence, and a busy graph drops the tick rather than queueing it |
 | Restart handling | Mark lost executions failed, never resume | The walk holds in-process futures that cannot be reconstructed; the runs themselves are safe |
-| Triggers as rows | A `GraphTrigger` per way the graph starts, with a type and config | Keeps the schedule from being a special column, so a webhook (or a later type) plugs in beside it without touching the graph table |
-| Webhook auth | Optional shared secret in `X-Trigger-Secret`, compared in constant time | The app has no authentication, so a leaked URL alone should not let anyone start a graph |
+| Schedules as nodes | A schedule is a trigger node in the definition, with cron, zone, and enabled on the node; `schedule_state` holds only its derived next and last occurrence | The schedule is edited where the graph is built, and the graph row carries no trigger configuration |
+| Schedule state | A JSON map keyed by node id, seeded and pruned on save | The scheduler needs a pending occurrence per node, but the definition stays the source of truth |
 | Editor checks | Mirror server validation locally in `executionGraph.js` | Instant feedback while typing, with the server as the authority at save and run time |
 
 ## Risks and Unknowns
@@ -237,8 +222,8 @@ sequenceDiagram
 1. A restart kills a paused execution, so a user answering a form after a restart gets a 409 and the execution shows as failed; reconciliation is the designed behavior, not a bug, but it is worth knowing.
 2. Outputs and form defaults are truncated at 20,000 characters, so a very long answer loses its tail as a downstream input.
 3. A scheduled fire on a busy graph is skipped entirely, not queued; a graph that runs longer than its interval silently loses ticks.
-4. A webhook trigger without a secret is an unauthenticated way into the API; the secret is the only gate, and anyone holding the URL can start the graph.
-5. The user documentation site covers the dependency graph page but not execution graphs: no `docs/views` page, no `/api/graphs` section in the HTTP API reference, and no `agentic graphs` section in the CLI reference.
+4. A schedule node's next occurrence is computed from the definition; editing the definition outside the API leaves stale state until the next scheduler tick reconciles it.
+5. Webhook ingress is now the separate Webhooks feature; a graph that only has a schedule node will not start from an event until an event trigger node and a subscription exist.
 
 ## Out of Scope
 

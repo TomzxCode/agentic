@@ -1,6 +1,6 @@
 # Execution graphs
 
-`/graphs` holds workflows: named DAGs of steps that run by hand, from their own triggers (a schedule or a webhook URL), or from a webhook event delivered to the `Webhooks` page.
+`/graphs` holds workflows: named DAGs of steps that run by hand, from a schedule trigger node in the graph, or from a webhook event delivered to the `Webhooks` page.
 
 ## Problem
 
@@ -12,17 +12,18 @@ An execution graph stores the steps once and runs them with their statuses and o
 
 | Tab | What it shows |
 | --- | --- |
-| `Graphs` | One row per graph, with its triggers, next run, step count, a `Run` button, the editor, settings, and delete. |
+| `Graphs` | One row per graph, with its schedules, next run, step count, a `Run` button, the editor, settings, and delete. |
 | `Executions` | Every execution across graphs, newest first, expandable into each node's status and output, with a pending form and a cancel button. |
 
 ## Triggers
 
-`Settings` on a graph row edits its trigger list.
-A **schedule** trigger holds a five-field cron expression and the zone it is read in; its next run is shown with a preview of the next five.
-A **webhook** trigger holds an optional shared secret and has a URL that starts the graph when posted to, with the secret in `X-Trigger-Secret`.
-Triggers can be paused individually, and `Run` is always available.
+A trigger is a node in the graph, added from the **+ Add step** menu like any other step.
+A **schedule trigger** holds a five-field cron expression and the zone it is read in; the inspector previews the next five runs, and its enabled checkbox pauses it.
+An **event trigger** is the entry point for a webhook payload: each of its fields reads one JSON path and feeds a downstream input.
+A graph may hold several schedule triggers and at most one event trigger; neither takes an incoming connection.
+`Run` is always available, whatever triggers the graph has.
 
-The `Webhooks` page is the separate, richer entry point for inbound events: an endpoint with subscriptions that match event types and JSON paths, start a graph, and hand the payload to its event trigger node.
+The `Webhooks` page owns the inbound side of events: an endpoint with subscriptions that match event types and JSON paths, start a graph, and hand the payload to its event trigger node.
 
 ## Steps
 
@@ -36,6 +37,7 @@ An edge feeds one upstream output into one downstream named input.
 | **Shell script** | Runs a bash script with `bash -c`, timed out by `AGENTIC_SCHEDULED_TASK_TIMEOUT`. | The script's combined stdout and stderr. |
 | **Form** | Pauses the execution until someone answers fields in the web UI. | Each field's answer. |
 | **Event trigger** | The entry point for a webhook event. | One value per configured JSON path. |
+| **Schedule trigger** | Starts the graph on a cron expression; it produces nothing and feeds no step. | None. |
 
 Every non-form output step may declare named inputs and reference them in its text as `{{name}}`, `{{name[0]}}`, or `{{name.join(", ")}}`.
 A node whose upstream failed is skipped, and a failure settles the execution as failed.
@@ -88,7 +90,7 @@ A manual or scheduled run of a graph with an event trigger gives every event fie
 - `Check` reports problems; `Save` stores the draft; `Run` saves and starts an execution.
 
 A definition is stored in one JSON column and normalized on read, so a graph saved by an older version still loads.
-The internal kind names (`run`, `cli`, `shell`, `form`, `trigger`) stay stable; the editor shows the display names.
+The internal kind names (`run`, `cli`, `shell`, `form`, `trigger`) stay stable, and a trigger node carries its `triggerType` (`event` or `schedule`); the editor shows the display names.
 
 ## CLI and HTTP
 

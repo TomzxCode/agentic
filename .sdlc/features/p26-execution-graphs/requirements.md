@@ -8,7 +8,7 @@ session_link: "http://localhost:10000/?session=ses_ed778bb8affeJQ6f9Tkxe4MjUl"
 
 ## Overview
 
-An execution graph is a saved DAG of steps that the app runs on demand or from one of its triggers, such as a cron schedule or an incoming webhook.
+An execution graph is a saved DAG of steps that the app runs on demand or from a trigger node in the definition, either a cron schedule or an incoming webhook event.
 A step is either an agent run (a prompt template with named inputs), a CLI command (an `agentic` command line whose placeholders fill its arguments), or a form (fields a human answers in the web UI).
 An edge feeds one upstream output (an agent run's final answer, a command's stdout, or a form field's value) into one downstream input.
 Each execution creates a task that groups the agent runs it spawns, records per-node status and output as it walks the graph, and pauses on a form node until someone answers.
@@ -25,15 +25,15 @@ The web editor draws the graph on a canvas, and the CLI can list, create, edit, 
 
 | ID | Priority | Requirement |
 |---|---|---|
-| FR-1 | Must | The system shall store an execution graph with a name, description, a definition of nodes and edges (at most 32 nodes), and a list of triggers that start it without a manual run. |
+| FR-1 | Must | The system shall store an execution graph with a name, description, and a definition of nodes and edges (at most 32 nodes), where trigger nodes (a schedule or a webhook event) start it without a manual run. |
 | FR-2 | Must | The system shall support three node kinds: run (harness, model, working directory, prompt template, named inputs), cli (command line, working directory, named inputs), and form (at most 20 fields of type text, textarea, number, date, time, select, slider, or checkbox, each with required flag, placeholder, default value, select options, and numeric ranges). |
 | FR-3 | Must | The system shall let an edge wire one upstream output (a run node's answer, a cli node's stdout, or a form field) into one downstream named input or form field default, and shall refuse a self connection and a duplicate connection. |
 | FR-4 | Must | The system shall normalize every stored or submitted definition by dropping unknown keys, unknown node kinds, and unknown field types, coercing ids and positions, and keeping only the first entries within the caps. |
 | FR-5 | Must | The system shall validate a definition and report every problem in plain English: at least one node, unique node ids and titles, a non-empty prompt or command, every placeholder matched to a declared and connected input, form field rules (titled fields, select options, min below max, positive step), edges that point at existing ports, and no circular connection. |
 | FR-6 | Should | The system shall validate a definition (and its schedule and timezone) without saving it, so the editor can check work in progress. |
 | FR-7 | Must | The system shall create, list, read, update, and delete graphs, listing enabled ones first then soonest next run first, and shall normalize but never reject a definition at create time so an empty shell can be built in the editor; deleting a graph also deletes its execution history while past runs stay on their tasks. |
-| FR-8 | Should | The system shall compute each enabled schedule trigger's next occurrence on create, edit, and fire, keep a pending occurrence when only the graph's name or description changes, clear it when the trigger is disabled, and never fire the same occurrence twice. |
-| FR-9 | Should | The system shall tick on a timer and start every graph with an enabled schedule trigger whose next occurrence has passed, advancing that trigger's occurrence before starting so a slow execution is never fired twice, and skipping the fire when the graph already has a running execution. |
+| FR-8 | Should | The system shall compute each enabled schedule trigger node's next occurrence on create, definition edit, and fire, keep a pending occurrence when the node's cron and zone are unchanged, drop it when the node is disabled or removed, and never fire the same occurrence twice. |
+| FR-9 | Should | The system shall tick on a timer and start every graph with an enabled schedule trigger node whose next occurrence has passed, advancing that node's occurrence before starting so a slow execution is never fired twice, and skipping the fire when the graph already has a running execution. |
 | FR-10 | Must | The system shall start an execution on request: it creates a task titled `[Graph] <name>` that groups the runs, refuses a second execution while one is running (409), and refuses to run a definition that fails validation (400 with the reasons). |
 | FR-11 | Must | The system shall walk the graph in dependency order: render each ready run node's prompt from its gathered input values, enqueue an agent run (kind `graph`, linked to the execution and node) on the queue, poll the run row until it settles, and capture its final answer (messages, falling back to thoughts) as the node's output, truncated to 20,000 characters. |
 | FR-12 | Must | The system shall run a cli node by rendering its command line and invoking the app's own `agentic` CLI in JSON mode against the running server, using stdout as the node's output, and failing the node on a render error, a non-zero exit, or a timeout. |
@@ -44,10 +44,10 @@ The web editor draws the graph on a canvas, and the CLI can list, create, edit, 
 | FR-17 | Should | The system shall cancel a running execution on request, stopping the walk, aborting its active agent runs, marking their nodes skipped, and settling the row as cancelled. |
 | FR-18 | Must | The system shall expose execution history: every execution across graphs newest first, and one execution's detail with each node's kind, status, error, and output, reading the live run row as the truth about a run node's outcome, and exposing the form an execution waits on. |
 | FR-19 | Must | The system shall mark executions left `running` by a previous process as failed ("Interrupted by a server restart") when the API starts. |
-| FR-20 | Should | The web UI shall provide an Execution graphs page with a Graphs tab (list rows with run, edit, settings, and delete actions, a settings form that edits the graph's name, description, and trigger list, and a canvas editor that adds and drags nodes, wires ports by drag or by two taps, selects a connection and removes it without a keyboard, edits the selected node in an inspector, shows validation issues, saves, and runs, and can arrange every node by dependency layer on demand or automatically when nodes or connections are added or removed, as a per-device preference) and an Executions tab (rows that expand into node statuses and outputs, a pending form dialog, and cancel for a running execution). |
+| FR-20 | Should | The web UI shall provide an Execution graphs page with a Graphs tab (list rows with run, edit, settings, and delete actions, a settings form that edits the graph's name and description, and a canvas editor that adds and drags nodes including schedule and event trigger nodes, wires ports by drag or by two taps, selects a connection and removes it without a keyboard, edits the selected node in an inspector, shows validation issues, saves, and runs, and can arrange every node by dependency layer on demand or automatically when nodes or connections are added or removed, as a per-device preference) and an Executions tab (rows that expand into node statuses and outputs, a pending form dialog, and cancel for a running execution). |
 | FR-21 | Should | The CLI shall provide `agentic graphs` commands to list, get, create, update, delete, run, and inspect graphs and executions, loading a definition from a JSON file. |
-| FR-22 | Must | The system shall keep each trigger as its own row with a type, a type-specific config, an enabled flag, its next occurrence, and its last run, supporting schedule (a 5-field cron read in an IANA zone) and webhook (an optional shared secret), and shall refuse an unknown type or an invalid config. |
-| FR-23 | Should | The system shall start a graph from a webhook trigger on `POST /api/graphs/{graph_id}/triggers/{trigger_id}/fire`, requiring the trigger's secret in the `X-Trigger-Secret` header when it has one, and refusing a disabled trigger, another trigger type, a missing trigger, or a graph that already has a running execution. |
+| FR-22 | Must | The system shall store a schedule trigger as a trigger node in the definition with a 5-field cron, an IANA zone, and an enabled flag, validate both, allow several schedule nodes per graph, and allow at most one event trigger node; a trigger node may not take an incoming connection. |
+| FR-23 | Should | The system shall keep each schedule trigger node's derived next occurrence in the graph's schedule state, recompute it only when the node's cron or zone changes, drop it for disabled or removed nodes, and expose the earliest as the graph's next run. |
 
 ## Non-Functional Requirements
 
@@ -63,7 +63,8 @@ The web editor draws the graph on a canvas, and the CLI can list, create, edit, 
 ## Constraints
 
 - Nodes and edges live in the `ExecutionGraph.definition` JSON column; there are no graph node or edge tables.
-- Triggers are their own rows (`GraphTrigger`), each with a type and a type-specific config; a graph may have several, and a schedule is one type beside a webhook.
+- A schedule is a trigger node (`kind: trigger`, `triggerType: schedule`) in the definition, with its cron, zone, and enabled flag on the node; its next occurrence is derived bookkeeping in `ExecutionGraph.schedule_state`, never user-edited.
+- A webhook event reaches a graph through the separate Webhooks subscriptions and its event trigger node, not through a graph-level trigger setting.
 - The orchestration walk lives in the API process; the agent runs it enqueues are durable SAQ jobs that survive a restart on their own.
 - A graph has at most one running execution at a time.
 - Template placeholders are `{{name}}`, `{{name[2]}}`, and `{{name.join(", ")}}`; input names may not contain whitespace or placeholder grammar characters.
@@ -75,9 +76,9 @@ The web editor draws the graph on a canvas, and the CLI can list, create, edit, 
 
     ```gherkin
     @FR-1
-    Scenario: Create a graph with a schedule trigger
-      When a graph is created with name "pipeline", a schedule trigger for "*/5 * * * *", and a two-node definition
-      Then the response is 201, the trigger is stored with its cron and zone, and next_run_at is set
+    Scenario: Create a graph with a schedule trigger node
+      When a graph is created with name "pipeline" and a definition holding a schedule node for "*/5 * * * *"
+      Then the response is 201, the node keeps its cron and zone, and next_run_at is set
     ```
 
 - [ ] **FR-2**
@@ -140,36 +141,36 @@ The web editor draws the graph on a canvas, and the CLI can list, create, edit, 
 
     @FR-7
     Scenario: Delete removes the graph and its history
-      Given a graph with triggers and an execution
+      Given a graph with a schedule trigger node and an execution
       When the graph is deleted
-      Then the response is 204, the list is empty, its triggers are gone, and the execution's runs stay on their task
+      Then the response is 204, the list is empty, its definition is gone, and the execution's runs stay on their task
     ```
 
 - [ ] **FR-8**
 
     ```gherkin
     @FR-8
-    Scenario: Disabling a trigger clears its next occurrence
-      Given a graph with an enabled schedule trigger
-      When the trigger is disabled
-      Then next_run_at is null and the trigger and its cron text are kept
+    Scenario: Disabling a schedule node clears its next occurrence
+      Given a graph with an enabled schedule trigger node
+      When the definition is saved with the node disabled
+      Then next_run_at is null and the node and its cron text are kept
 
     @FR-8
     Scenario: Renaming keeps a pending occurrence
-      Given a graph with a schedule trigger whose next occurrence is set
+      Given a graph with a schedule node whose next occurrence is set
       When only the graph's name changes
-      Then the trigger's next_run_at is unchanged
+      Then the node's next occurrence is unchanged
     ```
 
 - [ ] **FR-9**
 
     ```gherkin
     @FR-9
-    Scenario: A due trigger fires once
-      Given a graph with an enabled schedule trigger whose next_run_at passed
+    Scenario: A due schedule node fires once
+      Given a graph with an enabled schedule node whose next occurrence passed
       When the scheduler ticks twice
-      Then exactly one execution with trigger "schedule" and that trigger's id started
-      And the trigger's occurrence moved into the future
+      Then exactly one execution with trigger "schedule" and that node's id started
+      And the node's occurrence moved into the future
     ```
 
 - [ ] **FR-10**
@@ -315,13 +316,13 @@ The web editor draws the graph on a canvas, and the CLI can list, create, edit, 
     @FR-20
     Scenario: The page shows both tabs
       When /graphs is opened
-      Then the Graphs tab lists rows with their triggers, step count, and Run action, and the Executions tab lists rows
+      Then the Graphs tab lists rows with their schedule nodes, step count, and Run action, and the Executions tab lists rows
 
     @FR-20
-    Scenario: The settings form edits the trigger list
-      Given a graph with a schedule trigger
-      When its settings are opened, a webhook trigger is added, and the form is saved
-      Then the update carries both triggers and the list is refreshed
+    Scenario: A schedule is added on the canvas
+      Given a graph open in the editor
+      When a schedule trigger is added from the Add step menu and its cron is edited
+      Then the card and the inspector show the node, and Save stores it in the definition
 
     @FR-20
     Scenario: The executions tab shows the pending form
@@ -344,27 +345,27 @@ The web editor draws the graph on a canvas, and the CLI can list, create, edit, 
 
     ```gherkin
     @FR-22
-    Scenario: Triggers are typed rows
-      When a graph is created with a schedule trigger and a webhook trigger
-      Then each is stored with its type, config, and enabled flag
-      And an unknown type or an invalid cron is refused with 400
+    Scenario: Schedules are nodes with their own config
+      When a graph is saved with two schedule nodes
+      Then each keeps its cron, zone, and enabled flag
+      And a schedule node with an invalid cron or zone is reported by validate
 
     @FR-22
-    Scenario: Saving the trigger list replaces it
-      Given a graph with two triggers
-      When the settings are saved with one of them
-      Then the other is deleted and the kept trigger's pending occurrence survives
+    Scenario: A trigger is an entry point
+      Given a graph with a schedule node and a run node
+      When an edge targets the schedule node or leaves it
+      Then validation refuses the connection
     ```
 
 - [ ] **FR-23**
 
     ```gherkin
     @FR-23
-    Scenario: A webhook starts the graph
-      Given a graph with an enabled webhook trigger that has a secret
-      When its fire URL is posted with the right X-Trigger-Secret header
-      Then the response is 201 with trigger "webhook" and the execution starts
-      And a missing or wrong secret, a disabled trigger, or a busy graph is refused
+    Scenario: Schedule state follows the definition
+      Given a graph with a schedule node whose next occurrence is pending
+      When only the graph's name changes
+      Then the pending occurrence is kept
+      And editing the node's cron recomputes it, while removing the node drops it
     ```
 
 - [ ] **NFR-1**

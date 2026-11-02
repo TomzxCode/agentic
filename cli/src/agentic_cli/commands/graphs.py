@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import uuid
 from pathlib import Path
 from typing import Any
 
@@ -38,27 +39,61 @@ def _load_definition(path: str | None) -> dict | None:
         raise ValueError(f"Could not read definition from {path}: {exc}") from exc
 
 
-def _load_triggers(path: str | None) -> list[dict] | None:
-    """Read a trigger list JSON file ('[{"type": "schedule", "config": {...}}]')."""
-    if not path:
-        return None
-    try:
-        data = json.loads(Path(path).read_text())
-    except (OSError, ValueError) as exc:
-        raise ValueError(f"Could not read triggers from {path}: {exc}") from exc
-    if not isinstance(data, list) or any(not isinstance(item, dict) for item in data):
-        raise ValueError(f"Triggers in {path} must be a JSON list of objects")
-    return data
+def _schedule_node(definition: dict, cron: str, timezone: str | None, *, enabled: bool = True) -> dict:
+    """A schedule trigger node for the definition, with a free title and spot.
+
+    A schedule is a node like any other step, so the CLI adds it to the
+    definition the graph is created or updated with rather than setting a
+    trigger on the graph.
+    """
+    nodes = definition.get("nodes") or []
+    title = "Schedule"
+    suffix = 2
+    while any(node.get("title") == title for node in nodes):
+        title = f"Schedule {suffix}"
+        suffix += 1
+    y = max([float((node.get("position") or {}).get("y") or 0) for node in nodes] or [0.0]) + 120
+    return {
+        "id": f"n{uuid.uuid4().hex[:12]}",
+        "kind": "trigger",
+        "triggerType": "schedule",
+        "title": title,
+        "position": {"x": 40.0, "y": y},
+        "schedule": cron.strip(),
+        "timezone": (timezone or "").strip(),
+        "enabled": enabled,
+        "outputs": [],
+    }
 
 
-def _shortcut_triggers(schedule: str | None, timezone: str | None, webhook: bool) -> list[dict]:
-    """The triggers the simple flags describe: one schedule and/or one webhook."""
-    built: list[dict] = []
-    if schedule is not None and schedule.strip():
-        built.append({"type": "schedule", "config": {"cron": schedule.strip(), "timezone": (timezone or "").strip()}})
-    if webhook:
-        built.append({"type": "webhook", "config": {}})
-    return built
+def _add_schedule_node(definition: dict | None, cron: str, timezone: str | None, *, enabled: bool = True) -> dict:
+    definition = definition or {"nodes": [], "edges": []}
+    definition = {**definition, "nodes": [*(definition.get("nodes") or [])]}
+    definition["nodes"].append(_schedule_node(definition, cron, timezone, enabled=enabled))
+    return definition
+
+
+def _replace_schedules(definition: dict, cron: str, timezone: str | None) -> dict:
+    """Drop every schedule trigger node, then add the one the flags describe."""
+    nodes = [
+        node
+        for node in definition.get("nodes") or []
+        if not (node.get("kind") == "trigger" and node.get("triggerType") == "schedule")
+    ]
+    trimmed = {**definition, "nodes": nodes}
+    if not cron.strip():
+        return trimmed
+    return _add_schedule_node(trimmed, cron, timezone)
+
+
+def _set_schedules_enabled(definition: dict, enabled: bool) -> dict:
+    nodes = []
+    for node in definition.get("nodes") or []:
+        if node.get("kind") == "trigger" and node.get("triggerType") == "schedule":
+            nodes.append({**node, "enabled": enabled})
+        else:
+            nodes.append(node)
+    return {**definition, "nodes": nodes}
 
 
 @graph_app.command(name="list")
@@ -92,8 +127,6 @@ def graph_create(
     description: str | None = None,
     schedule: str | None = None,
     timezone: str | None = None,
-    webhook: bool = False,
-    triggers: str | None = None,
     disabled: bool = False,
     definition: str | None = None,
 ) -> str:
@@ -106,29 +139,19 @@ def graph_create(
     description
         What the graph does.
     schedule
-        A 5-field cron expression for a schedule trigger; omitted adds no schedule.
+        A 5-field cron expression; adds a schedule trigger node to the definition.
     timezone
         IANA zone that cron is read in, for example ``Europe/Paris``. Defaults to the server's zone.
-    webhook
-        Also add a webhook trigger, fired by an HTTP call to its URL.
-    triggers
-        Path to a JSON file holding a list of triggers, for types the flags do not cover.
-        Takes precedence over the ``schedule``, ``timezone``, and ``webhook`` shortcuts.
     disabled
-        Create the triggers paused instead of enabled.
+        Add the schedule trigger paused instead of enabled.
     definition
         Path to a JSON file holding ``{"nodes": [...], "edges": [...]}``, as the web editor saves it.
     """
-    built = (_load_triggers(triggers) if triggers else None) or _shortcut_triggers(schedule, timezone, webhook)
-    if disabled:
-        built = [{**trigger, "enabled": False} for trigger in built]
+    built = _load_definition(definition) if definition else None
+    if schedule is not None and schedule.strip():
+        built = _add_schedule_node(built, schedule, timezone, enabled=not disabled)
     with runtime._client() as client:
-        graph = client.create_graph(
-            name,
-            description=description,
-            triggers=built or None,
-            definition=_load_definition(definition),
-        )
+        graph = client.create_graph(name, description=description, definition=built)
     return emit(graph, f"created {_execution_graph_line(graph)}")
 
 
@@ -141,12 +164,11 @@ def graph_update(
     description: str | None = None,
     schedule: str | None = None,
     timezone: str | None = None,
-    triggers: str | None = None,
     enable: bool = False,
     disable: bool = False,
     definition: str | None = None,
 ) -> str:
-    """Update a graph's fields, its triggers, or pause its triggers.
+    """Update a graph's fields, its schedule trigger nodes, or pause them.
 
     Parameters
     ----------
@@ -157,47 +179,29 @@ def graph_update(
     description
         New description.
     schedule
-        Replace every trigger with one schedule trigger using this 5-field cron
-        expression; pass an empty string to remove every trigger.
+        Replace every schedule trigger node with one using this 5-field cron
+        expression; pass an empty string to remove every schedule.
     timezone
         IANA zone the schedule is read in, used with ``schedule``.
-    triggers
-        Path to a JSON file holding the new list of triggers; replaces every
-        existing trigger, and takes precedence over ``schedule``.
     enable
-        Turn every trigger on.
+        Turn every schedule trigger node on.
     disable
-        Turn every trigger off.
+        Turn every schedule trigger node off.
     definition
         Path to a JSON file with a new ``{"nodes": [...], "edges": [...]}`` definition.
     """
-    fields: dict[str, Any] = {
-        "name": name,
-        "description": description,
-    }
-    if definition:
-        fields["definition"] = _load_definition(definition)
-    if triggers is not None:
-        fields["triggers"] = _load_triggers(triggers)
-    elif schedule is not None:
-        fields["triggers"] = _shortcut_triggers(schedule, timezone, False)
     if enable and disable:
         raise ValueError("Pass only one of --enable and --disable")
+    fields: dict[str, Any] = {"name": name, "description": description}
+    edited = _load_definition(definition) if definition else None
+    if schedule is not None:
+        edited = _replace_schedules(edited or {"nodes": [], "edges": []}, schedule, timezone)
     with runtime._client() as client:
         if enable or disable:
-            submitted = fields.get("triggers")
-            if submitted is None:
-                current = client.get_execution_graph(graph_id)
-                submitted = [
-                    {
-                        "id": trigger.get("id", ""),
-                        "type": trigger.get("type", ""),
-                        "config": trigger.get("config") or {},
-                        "enabled": True,
-                    }
-                    for trigger in current.get("triggers") or []
-                ]
-            fields["triggers"] = [{**trigger, "enabled": enable and not disable} for trigger in submitted or []]
+            current = client.get_execution_graph(graph_id)
+            edited = _set_schedules_enabled(edited or current.get("definition") or {"nodes": [], "edges": []}, enable)
+        if edited is not None:
+            fields["definition"] = edited
         graph = client.update_graph(graph_id, **fields)
     return emit(graph, _execution_graph_text(graph))
 

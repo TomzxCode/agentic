@@ -1,5 +1,7 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { nextRuns, scheduleError } from '../cron'
+import { formatDateTime } from '../store'
 import {
   NODE_WIDTH,
   HEADER_HEIGHT,
@@ -11,6 +13,7 @@ import {
   blankFormNode,
   blankInput,
   blankRunNode,
+  blankScheduleNode,
   blankShellNode,
   blankTriggerNode,
   blankTriggerOutput,
@@ -22,8 +25,9 @@ import {
   edgePath,
   editorIssues,
   nearestPort,
-  nodeRows,
   nodeKindLabel,
+  nodeLabel,
+  nodeRows,
   normalizeDefinition,
   portPoint,
   relayout,
@@ -86,15 +90,23 @@ const eligibleRows = computed(() => {
   return allowed
 })
 
-const hasTrigger = computed(() => definition.value.nodes.some((node) => node.kind === 'trigger'))
+const hasEventTrigger = computed(() =>
+  definition.value.nodes.some((node) => node.kind === 'trigger' && node.triggerType !== 'schedule')
+)
 
 // The "Add step" menu: one entry per node kind, with the shape of work it does.
 const ADD_STEP_OPTIONS = [
-  { kind: 'run', hint: 'Prompt an ACP harness and use its answer.' },
-  { kind: 'cli', hint: 'Call the agentic CLI against this server.' },
-  { kind: 'shell', hint: 'Run a bash script and use its output.' },
-  { kind: 'form', hint: 'Ask a person for input mid-run.' },
-  { kind: 'trigger', hint: 'Start the workflow from a webhook event.' }
+  { kind: 'run', label: 'Agent run', hint: 'Prompt an ACP harness and use its answer.' },
+  { kind: 'cli', label: 'Agentic command', hint: 'Call the agentic CLI against this server.' },
+  { kind: 'shell', label: 'Shell script', hint: 'Run a bash script and use its output.' },
+  { kind: 'form', label: 'Form', hint: 'Ask a person for input mid-run.' },
+  { kind: 'trigger', triggerType: 'event', label: 'Event trigger', hint: 'Start the workflow from a webhook event.' },
+  {
+    kind: 'trigger',
+    triggerType: 'schedule',
+    label: 'Schedule trigger',
+    hint: 'Start the workflow on a cron schedule.'
+  }
 ]
 
 const addMenuOpen = ref(false)
@@ -131,6 +143,35 @@ const selectedEdgeInfo = computed(() => {
 
 function nodeById(id) {
   return definition.value.nodes.find((node) => node.id === id)
+}
+
+// The next five runs of the selected schedule trigger, for the inspector, so
+// the cron can be checked where it is typed.
+function schedulePreview(node) {
+  const expression = (node.schedule || '').trim()
+  const zone = (node.timezone || '').trim() || Intl.DateTimeFormat().resolvedOptions().timeZone
+  if (!expression) return { error: '', runs: [], zone }
+  const invalid = scheduleError(expression)
+  if (invalid) return { error: invalid, runs: [], zone }
+  try {
+    return { error: '', runs: nextRuns(expression, zone, 5), zone }
+  } catch {
+    return { error: `'${zone}' is not a known timezone`, runs: [], zone }
+  }
+}
+
+// A trigger node's type is part of the node; switching it keeps the fields it
+// uses and seeds the new type's shape.
+function changeTriggerType(node, triggerType) {
+  node.triggerType = triggerType === 'schedule' ? 'schedule' : 'event'
+  if (node.triggerType === 'schedule') {
+    node.schedule = node.schedule || '0 9 * * *'
+    node.timezone = node.timezone || ''
+    node.enabled = node.enabled !== false
+    node.outputs = []
+  } else {
+    node.outputs = node.outputs?.length ? node.outputs : [blankTriggerOutput()]
+  }
 }
 
 function rowKey(node, row) {
@@ -183,7 +224,7 @@ function applyConnection(sourceId, sourceFieldId, targetId, port) {
   return true
 }
 
-function addNode(kind) {
+function addNode(kind, triggerType = 'event') {
   addMenuOpen.value = false
   const node =
     kind === 'form'
@@ -193,7 +234,9 @@ function addNode(kind) {
         : kind === 'shell'
           ? blankShellNode()
           : kind === 'trigger'
-            ? blankTriggerNode()
+            ? triggerType === 'schedule'
+              ? blankScheduleNode()
+              : blankTriggerNode()
             : blankRunNode()
   // Drop new nodes where the canvas is scrolled to, stepping each one down so
   // consecutive additions do not stack on top of each other.
@@ -516,16 +559,16 @@ onBeforeUnmount(() => {
           <div v-if="addMenuOpen" class="editor-add-menu" role="menu" aria-label="Add a step">
             <button
               v-for="option in ADD_STEP_OPTIONS"
-              :key="option.kind"
+              :key="`${option.kind}:${option.triggerType || ''}`"
               class="editor-add-item"
               type="button"
               role="menuitem"
-              :disabled="option.kind === 'trigger' && hasTrigger"
-              @click="addNode(option.kind)"
+              :disabled="option.triggerType === 'event' && hasEventTrigger"
+              @click="addNode(option.kind, option.triggerType)"
             >
-              <span class="editor-add-label">{{ nodeKindLabel(option.kind) }}</span>
+              <span class="editor-add-label">{{ option.label }}</span>
               <span class="editor-add-hint">
-                {{ option.kind === 'trigger' && hasTrigger ? 'Already added' : option.hint }}
+                {{ option.triggerType === 'event' && hasEventTrigger ? 'Already added' : option.hint }}
               </span>
             </button>
           </div>
@@ -553,8 +596,9 @@ onBeforeUnmount(() => {
     </p>
     <p v-else class="faint editor-hint">
       Tap a step's output row, then tap the input or form field it should feed (on a computer you can also drag from a
-      right-side dot). An Event trigger is the entry point for a webhook event. Tap a connection line to select it, then
-      press Remove. Drag a card by its header to move it. Select something and press Delete to remove it.
+      right-side dot). A trigger node starts the workflow, from a webhook event or a schedule. Tap a connection line to
+      select it, then press Remove. Drag a card by its header to move it. Select something and press Delete to remove
+      it.
     </p>
 
     <div v-if="armed" class="editor-armed" role="status">
@@ -648,7 +692,7 @@ onBeforeUnmount(() => {
 
       <aside v-if="selectedNode" class="editor-inspector">
         <div class="row" style="justify-content: space-between">
-          <h3 style="margin: 0">{{ nodeKindLabel(selectedNode.kind) }}</h3>
+          <h3 style="margin: 0">{{ nodeLabel(selectedNode) }}</h3>
           <button class="btn sm ghost" @click="deleteSelected">Delete</button>
         </div>
         <div class="field">
@@ -738,30 +782,86 @@ onBeforeUnmount(() => {
         </template>
 
         <template v-else-if="selectedNode.kind === 'trigger'">
-          <p class="faint" style="margin: 0 0 8px">
-            The webhook payload arrives here. Each field reads one JSON path (for example
-            <code>pull_request.title</code>) and can feed a downstream input.
-          </p>
-          <div v-for="(output, index) in selectedNode.outputs" :key="output.id" class="editor-field-group">
-            <div class="row" style="justify-content: space-between">
-              <strong>Event field {{ index + 1 }}</strong>
-              <button class="btn sm ghost" @click="removeNodeOutput(selectedNode, output.id)">×</button>
-            </div>
-            <div class="field">
-              <label :for="`output-name-${output.id}`">Label</label>
-              <input :id="`output-name-${output.id}`" v-model="output.name" class="input" placeholder="title" />
-            </div>
-            <div class="field">
-              <label :for="`output-path-${output.id}`">Payload path</label>
-              <input
-                :id="`output-path-${output.id}`"
-                v-model="output.path"
-                class="input"
-                placeholder="pull_request.title"
-              />
-            </div>
+          <div class="field">
+            <label for="node-trigger-type">Trigger type</label>
+            <select
+              id="node-trigger-type"
+              class="input"
+              :value="selectedNode.triggerType === 'schedule' ? 'schedule' : 'event'"
+              @change="changeTriggerType(selectedNode, $event.target.value)"
+            >
+              <option value="event">Webhook event</option>
+              <option value="schedule">Schedule</option>
+            </select>
           </div>
-          <button class="btn sm" @click="addOutput(selectedNode)">+ Event field</button>
+
+          <template v-if="selectedNode.triggerType === 'schedule'">
+            <div class="field">
+              <label for="node-schedule-cron">Cron expression</label>
+              <input
+                id="node-schedule-cron"
+                v-model="selectedNode.schedule"
+                class="input"
+                placeholder="0 9 * * *"
+                :style="{ fontFamily: 'var(--mono)' }"
+              />
+              <p class="faint" style="margin: 4px 0 0">
+                Examples: <code>0 9 * * *</code> daily at 09:00 · <code>*/15 * * * *</code> every 15 minutes.
+              </p>
+            </div>
+            <div class="field">
+              <label for="node-schedule-timezone">Timezone</label>
+              <input
+                id="node-schedule-timezone"
+                v-model="selectedNode.timezone"
+                class="input"
+                :placeholder="Intl.DateTimeFormat().resolvedOptions().timeZone"
+              />
+              <p class="faint" style="margin: 4px 0 0">Cron times are read in this timezone.</p>
+            </div>
+            <label class="row" style="gap: 6px; align-items: center">
+              <input v-model="selectedNode.enabled" type="checkbox" />
+              <span>Schedule enabled</span>
+            </label>
+            <div v-if="schedulePreview(selectedNode).runs.length" class="graphs-next">
+              <span class="faint">Next 5 runs in {{ schedulePreview(selectedNode).zone }}</span>
+              <ul>
+                <li v-for="t in schedulePreview(selectedNode).runs" :key="t">
+                  {{ formatDateTime(t, schedulePreview(selectedNode).zone) }}
+                </li>
+              </ul>
+            </div>
+            <p v-else-if="schedulePreview(selectedNode).error" class="faint" style="color: var(--danger)">
+              {{ schedulePreview(selectedNode).error }}
+            </p>
+          </template>
+
+          <template v-else>
+            <p class="faint" style="margin: 0 0 8px">
+              The webhook payload arrives here. Each field reads one JSON path (for example
+              <code>pull_request.title</code>) and can feed a downstream input.
+            </p>
+            <div v-for="(output, index) in selectedNode.outputs" :key="output.id" class="editor-field-group">
+              <div class="row" style="justify-content: space-between">
+                <strong>Event field {{ index + 1 }}</strong>
+                <button class="btn sm ghost" @click="removeNodeOutput(selectedNode, output.id)">×</button>
+              </div>
+              <div class="field">
+                <label :for="`output-name-${output.id}`">Label</label>
+                <input :id="`output-name-${output.id}`" v-model="output.name" class="input" placeholder="title" />
+              </div>
+              <div class="field">
+                <label :for="`output-path-${output.id}`">Payload path</label>
+                <input
+                  :id="`output-path-${output.id}`"
+                  v-model="output.path"
+                  class="input"
+                  placeholder="pull_request.title"
+                />
+              </div>
+            </div>
+            <button class="btn sm" @click="addOutput(selectedNode)">+ Event field</button>
+          </template>
         </template>
 
         <template v-else>

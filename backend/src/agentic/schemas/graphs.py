@@ -59,8 +59,13 @@ class GraphNode(BaseModel):
     script: str = ""
     # Form nodes
     fields: list[GraphFormField] = []
-    # Trigger nodes
+    # Trigger nodes: an event trigger (payload paths) or a schedule trigger
+    triggerType: str = "event"
     outputs: list[GraphTriggerOutput] = []
+    # Schedule trigger nodes
+    schedule: str = ""
+    timezone: str = ""
+    enabled: bool = True
 
 
 class GraphEdge(BaseModel):
@@ -79,38 +84,15 @@ class GraphDefinition(BaseModel):
     edges: list[GraphEdge] = []
 
 
-class GraphTriggerInput(BaseModel):
-    """One submitted trigger; an empty id asks the server to make a new one."""
-
-    id: str = ""
-    type: str = "schedule"
-    config: dict[str, Any] = {}
-    enabled: bool = True
-
-
-class GraphTriggerRead(ORMModel):
-    id: str
-    type: str
-    config: dict[str, Any] = {}
-    enabled: bool
-    next_run_at: datetime | None = None
-    last_run_at: datetime | None = None
-
-
 class ExecutionGraphCreate(BaseModel):
     name: str
     description: str = ""
-    # Triggers start the graph without a manual run; an empty list means manual
-    # only. The server normalizes and validates each one.
-    triggers: list[GraphTriggerInput] = []
     definition: GraphDefinition = GraphDefinition()
 
 
 class ExecutionGraphUpdate(BaseModel):
     name: str | None = None
     description: str | None = None
-    # Omitted leaves the triggers alone; a list replaces the whole set.
-    triggers: list[GraphTriggerInput] | None = None
     definition: GraphDefinition | None = None
 
 
@@ -118,7 +100,6 @@ class ExecutionGraphRead(ORMModel):
     id: str
     name: str
     description: str
-    triggers: list[GraphTriggerRead] = []
     definition: dict[str, Any]
     # The earliest enabled trigger's next occurrence, so the list can show when
     # the graph runs without walking its triggers.

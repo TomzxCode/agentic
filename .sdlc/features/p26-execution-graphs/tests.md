@@ -28,7 +28,7 @@ Out of scope: no automated test drives the `agentic graphs` CLI commands, and no
 
 | ID | Description | Preconditions | Expected Outcome |
 |---|---|---|---|
-| TC-8 | Graph CRUD over the API | Fresh tables | Create (201, next_run_at set), empty shell stored, broken definition stored but refused at run (400), validate endpoint reports definition and trigger issues, blank name, bad cron and unknown trigger type are 400, disabling a trigger clears its next_run_at, renaming keeps the triggers, delete 204 and removes them |
+| TC-8 | Graph CRUD over the API | Fresh tables | Create (201, next_run_at set from a schedule node), empty shell stored, broken definition stored but refused at run (400), validate reports a bad schedule node, blank name 400, disabling the node clears next_run_at, renaming keeps the state, delete 204 |
 | TC-9 | Two-node chain renders downstream | Enqueue stubbed, fast poll | First run linked to the "[Graph] chain" task, settling it enqueues the second with the answer rendered in, execution succeeds with outputs recorded, detail and history endpoints report the nodes |
 | TC-10 | Form pauses and an answer resumes | Chain run -> form -> run | Pending form appears with fields and defaults, the answer flows into the next prompt, answers stored in state |
 | TC-11 | Cancelling a form fails it | Pending form | Cancel fails the form, downstream skipped, execution failed |
@@ -36,7 +36,7 @@ Out of scope: no automated test drives the `agentic graphs` CLI commands, and no
 | TC-13 | Cancel aborts a running execution | Execution with an active run | 200 cancelled, node skipped, second cancel 409 |
 | TC-14 | Cli node runs and feeds stdout downstream | `_run_cli` stubbed to exit 0 | Command argv carries the rendered arguments and `--api-url`, stdout becomes the node output and the downstream prompt, no run row for the cli node |
 | TC-15 | Cli node failure skips downstream | `_run_cli` stubbed to exit 1 | Node failed with "exit 1" in the error, downstream skipped, detail shows the error |
-| TC-16 | Scheduler fires a due graph once | Graph with next_run_at in the past | First tick starts one schedule-triggered execution and advances the occurrence, second tick starts nothing while it runs |
+| TC-16 | Scheduler fires a due graph once | Graph with a schedule node whose next occurrence passed | First tick starts one schedule-triggered execution and advances the occurrence, second tick starts nothing while it runs |
 | TC-17 | Reconciliation fails stale executions | Execution row left running | Marked failed with "restart" in the error, ended_at stamped, second pass finds nothing |
 
 ## Edge Cases and Failure Scenarios
@@ -47,9 +47,9 @@ Out of scope: no automated test drives the `agentic graphs` CLI commands, and no
 | TC-19 | A run row disappears while the executor polls | The node fails with "The run row disappeared" |
 | TC-20 | A waiting form whose request future is lost | `_wait_for_progress` raises instead of spinning, failing the execution loudly |
 | TC-21 | A scheduled tick while an execution is already running | The occurrence advances, no second execution starts |
-| TC-22 | A disabled schedule trigger | `run_due_once` starts nothing and leaves the occurrence alone |
-| TC-23 | A webhook fire with the wrong, missing, or right secret, a disabled trigger, a non-webhook trigger, another graph's trigger, or a busy graph | 403, 403, 201 with trigger "webhook", 403, 400, 404, and 409 respectively |
-| TC-24 | Migration of the old schedule columns | Each graph with a schedule gains one schedule trigger carrying its cron, zone, enabled flag, and next run; the old columns are emptied; a second pass adds nothing |
+| TC-22 | A disabled schedule node | `run_due_once` drops its stale occurrence and starts nothing |
+| TC-23 | Schedule node validation | Bad cron, bad zone, two schedules, an edge into or out of a schedule node | Issues name the cron, the zone, and the refused connection; several schedules are allowed |
+| TC-24 | Migration of trigger rows into nodes | A graph with schedule and webhook trigger rows | The schedule becomes a trigger node with its cron and zone, the state is seeded, the webhook row is dropped, and a second pass adds nothing |
 | TC-25 | Tap-to-connect on a small screen | An armed source row, a second tap on an eligible row, the source again, Cancel, and a drag that lands near but not on a port; the same tap while Auto-layout is "always" | The banner appears, eligible rows are marked, the second tap draws one edge (and re-arranges the cards when the mode says so), both cancels leave none, and a drag snaps to the nearest port within 48 px |
 | TC-26 | Disconnecting a connection on a phone | A tap 9 px off the drawn curve, then Remove, with Auto-layout "on remove" | The banner names both ends, the edge selects, Remove deletes it with no keyboard, and the cards re-arrange |
 
@@ -84,10 +84,10 @@ Out of scope: no automated test drives the `agentic graphs` CLI commands, and no
 | FR-17 | TC-13, TC-12 |
 | FR-18 | TC-9, TC-10, frontend graphsView suite |
 | FR-19 | TC-17 |
-| FR-20 | frontend graphsView suite (tabs, rows, run, delete confirm, expand execution, form submit and cancel, Arrange, auto-layout modes, trigger editing and webhook URL, tap-to-connect and cancel, connection selection and Remove) |
-| FR-21 | none (manual; the CLI calls the same endpoints the backend suite covers; the trigger-file and shortcut helpers have unit tests) |
-| FR-22 | TC-8, TC-24 |
-| FR-23 | TC-23 |
+| FR-20 | frontend graphsView suite (tabs, rows, run, delete confirm, expand execution, form submit and cancel, Arrange, auto-layout modes, schedule trigger node add/edit, tap-to-connect and cancel, connection selection and Remove) |
+| FR-21 | none (manual; the CLI calls the same endpoints the backend suite covers; the schedule-node helpers have unit tests) |
+| FR-22 | TC-8, TC-23 |
+| FR-23 | TC-8, TC-22 |
 | NFR-1 | TC-10 (endpoint write survives the executor's next persist) |
 | NFR-2 | TC-1 to TC-4, TC-7 |
 | NFR-3 | TC-9 to TC-16 (fast poll) |

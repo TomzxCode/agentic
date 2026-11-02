@@ -281,18 +281,23 @@ def _schedule_run_text(run: dict) -> str:
     return "\n".join(lines)
 
 
-def _trigger_line(trigger: dict) -> str:
-    """A trigger as one short label: 'schedule 0 9 * * *' or 'webhook'."""
-    ttype = trigger.get("type") or ""
-    if ttype == "schedule":
-        return f"schedule {(trigger.get('config') or {}).get('cron') or '-'}"
-    return ttype or "trigger"
+def _definition_nodes(graph: dict) -> list[dict]:
+    return (graph.get("definition") or {}).get("nodes") or []
+
+
+def _schedule_nodes(graph: dict) -> list[dict]:
+    """The definition's schedule trigger nodes, the graph's own schedules."""
+    return [
+        node
+        for node in _definition_nodes(graph)
+        if node.get("kind") == "trigger" and node.get("triggerType") == "schedule"
+    ]
 
 
 def _execution_graph_line(graph: dict) -> str:
-    triggers = [trigger for trigger in graph.get("triggers") or [] if trigger.get("enabled")]
-    state = "on " if triggers else "off"
-    summary = ", ".join(_trigger_line(trigger) for trigger in triggers) or "manual"
+    enabled = [node for node in _schedule_nodes(graph) if node.get("enabled", True)]
+    state = "on " if enabled else "off"
+    summary = ", ".join(f"schedule {node.get('schedule') or '-'}" for node in enabled) or "manual"
     nxt = _format_in_zone(graph.get("next_run_at"), None)
     running = "RUNNING" if graph.get("running_execution_id") else "-"
     return f"{graph['id']}  {state}  {summary[:28]:<28} next {nxt:<16} {running:<7} {graph['name']}"
@@ -302,16 +307,18 @@ def _execution_graph_text(graph: dict) -> str:
     lines = [_execution_graph_line(graph)]
     if graph.get("description"):
         lines.append(f"  description: {graph['description']}")
-    nodes = (graph.get("definition") or {}).get("nodes") or []
+    nodes = _definition_nodes(graph)
     lines.append(f"  nodes: {len(nodes)}, connections: {len((graph.get('definition') or {}).get('edges') or [])}")
-    for trigger in graph.get("triggers") or []:
-        config = trigger.get("config") or {}
-        details = [f"{key} {value}" for key, value in config.items() if value and key != "secret"]
-        if trigger.get("type") == "webhook" and config.get("secret"):
-            details.append("secret set")
-        state = "on" if trigger.get("enabled") else "off"
-        suffix = f" ({(', '.join(details))})" if details else ""
-        lines.append(f"  trigger: {trigger.get('type')} [{state}]{suffix}")
+    for node in nodes:
+        if node.get("kind") != "trigger":
+            continue
+        state = "on" if node.get("enabled", True) else "off"
+        if node.get("triggerType") == "schedule":
+            zone = node.get("timezone") or "server zone"
+            lines.append(f"  schedule: {node.get('schedule') or '-'} ({zone}) [{state}]")
+        else:
+            paths = ", ".join(output.get("path") or "" for output in node.get("outputs") or [])
+            lines.append(f"  event trigger: {paths or 'no fields'}")
     return "\n".join(lines)
 
 

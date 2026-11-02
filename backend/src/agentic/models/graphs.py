@@ -1,9 +1,10 @@
 """SQLModel tables for execution graphs.
 
-An execution graph is a named DAG of agent runs and input forms that the app
-executes on demand or on a cron schedule. The graph holds the definition (its
-nodes and edges) as JSON; one execution of it creates a task, and every run
-node becomes an agent run attached to that task.
+An execution graph is a named DAG of agent runs, commands, scripts, forms, and
+trigger nodes (a webhook event or a schedule) that the app executes on demand or
+when a trigger node fires. The graph holds the definition (its nodes and edges)
+as JSON; one execution of it creates a task, and every agent run node becomes an
+agent run attached to that task.
 """
 
 from __future__ import annotations
@@ -22,16 +23,17 @@ from .base import (
 
 
 class ExecutionGraph(SQLModel, table=True):
-    """A saved graph definition, started by its triggers or by hand.
+    """A saved graph definition, started by its trigger nodes or by hand.
 
     ``definition`` holds ``{"nodes": [...], "edges": [...]}`` in the shape
-    ``agentic.graphs.normalize_definition`` produces; it is stored as the user
-    arranged it in the editor, and validated before a run.
+    ``agentic.graphs.normalize_definition`` produces; a schedule trigger is a
+    node in it, so the cron lives with the rest of the graph rather than in a
+    separate setting. ``schedule_state`` is the derived bookkeeping the
+    scheduler keeps per schedule trigger node: its next and last occurrence.
 
     The ``schedule``, ``timezone``, ``enabled``, and ``next_run_at`` columns are
     the pre-trigger design (one cron per graph). They stay for old databases but
-    nothing reads them: ``db._migrate_graph_schedules_to_triggers`` moved each
-    one into a :class:`GraphTrigger` row.
+    nothing reads them; the migrations moved a schedule into a node.
     """
 
     id: str = Field(default_factory=new_id, primary_key=True)
@@ -41,27 +43,9 @@ class ExecutionGraph(SQLModel, table=True):
     timezone: str | None = None
     enabled: bool = True
     definition: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
-    next_run_at: datetime | None = None
-    last_run_at: datetime | None = None
-    created_at: datetime = Field(default_factory=utcnow)
-    updated_at: datetime = Field(default_factory=utcnow)
-
-
-class GraphTrigger(SQLModel, table=True):
-    """One way a graph starts: a schedule, a webhook, or a later type.
-
-    ``config`` carries what the type needs: ``{"cron", "timezone"}`` for a
-    schedule and ``{"secret"}`` for a webhook. Adding a type means giving it a
-    config shape and a place that fires it, not a new column here.
-    """
-
-    id: str = Field(default_factory=new_id, primary_key=True)
-    graph_id: str = Field(foreign_key="executiongraph.id", index=True)
-    type: str = "schedule"
-    config: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
-    enabled: bool = True
-    # When the trigger fires next; only time-based types keep one. A schedule
-    # advances it before the execution starts, so one occurrence fires once.
+    # {node_id: {nextRunAt, lastRunAt, cron, timezone}}, maintained from the
+    # definition's schedule trigger nodes; never edited by the user.
+    schedule_state: dict[str, Any] | None = Field(default=None, sa_column=Column(JSON))
     next_run_at: datetime | None = None
     last_run_at: datetime | None = None
     created_at: datetime = Field(default_factory=utcnow)
@@ -81,8 +65,8 @@ class GraphExecution(SQLModel, table=True):
     id: str = Field(default_factory=new_id, primary_key=True)
     graph_id: str = Field(foreign_key="executiongraph.id", index=True)
     task_id: str = Field(foreign_key="task.id", index=True)
-    # manual | schedule | webhook: which trigger started it, and which of the
-    # graph's trigger rows when it was one of them.
+    # manual, schedule, or event:<type>: what started it, and the trigger
+    # node's id when a node did.
     trigger: str = "manual"
     trigger_id: str = ""
     status: GraphExecutionStatus = GraphExecutionStatus.running

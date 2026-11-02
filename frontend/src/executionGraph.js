@@ -5,6 +5,8 @@
 // editor fast and consistent, so every rule here mirrors one in
 // `backend/src/agentic/graphs.py`.
 
+import { scheduleError } from './cron'
+
 export const NODE_WIDTH = 208
 export const HEADER_HEIGHT = 34
 export const ROW_HEIGHT = 32
@@ -29,11 +31,17 @@ export const NODE_KIND_LABELS = {
   cli: 'Agentic command',
   shell: 'Shell script',
   form: 'Form',
-  trigger: 'Event trigger'
+  trigger: 'Trigger'
 }
 
 export function nodeKindLabel(kind) {
   return NODE_KIND_LABELS[kind] || kind
+}
+
+// A trigger node carries its type, so the card and the menu can name it.
+export function nodeLabel(node) {
+  if (node.kind !== 'trigger') return nodeKindLabel(node.kind)
+  return node.triggerType === 'schedule' ? 'Schedule trigger' : 'Event trigger'
 }
 
 export function newId(prefix = '') {
@@ -98,9 +106,26 @@ export function blankTriggerNode(position = { x: 40, y: 40 }) {
   return {
     id: newId('n'),
     kind: 'trigger',
+    triggerType: 'event',
     title: 'Event trigger',
     position,
     outputs: [{ id: newId('o'), name: 'value', path: 'body' }]
+  }
+}
+
+// A schedule triggers the graph on a cron expression; it has no outputs, so it
+// feeds nothing and only marks when the graph starts.
+export function blankScheduleNode(position = { x: 40, y: 40 }) {
+  return {
+    id: newId('n'),
+    kind: 'trigger',
+    triggerType: 'schedule',
+    title: 'Schedule',
+    position,
+    schedule: '0 9 * * *',
+    timezone: '',
+    enabled: true,
+    outputs: []
   }
 }
 
@@ -175,15 +200,23 @@ function normalizeNode(node) {
       ? node.inputs.map((input) => ({ id: String(input?.id || ''), name: String(input?.name || '') }))
       : []
   } else if (clean.kind === 'trigger') {
-    clean.outputs = Array.isArray(node?.outputs)
-      ? node.outputs
-          .filter((output) => String(output?.path || '').trim())
-          .map((output) => ({
-            id: String(output?.id || ''),
-            name: String(output?.name || output?.path || ''),
-            path: String(output?.path || '')
-          }))
-      : []
+    clean.triggerType = node?.triggerType === 'schedule' ? 'schedule' : 'event'
+    if (clean.triggerType === 'schedule') {
+      clean.schedule = String(node?.schedule || '')
+      clean.timezone = String(node?.timezone || '')
+      clean.enabled = node?.enabled !== false
+      clean.outputs = []
+    } else {
+      clean.outputs = Array.isArray(node?.outputs)
+        ? node.outputs
+            .filter((output) => String(output?.path || '').trim())
+            .map((output) => ({
+              id: String(output?.id || ''),
+              name: String(output?.name || output?.path || ''),
+              path: String(output?.path || '')
+            }))
+        : []
+    }
   } else {
     clean.fields = Array.isArray(node?.fields)
       ? node.fields.map((field) => {
@@ -347,14 +380,31 @@ export function editorIssues(definition) {
     if (titles.has(node.title)) issues.push(`Two nodes are titled '${node.title}'`)
     titles.set(node.title, node)
     if (node.kind === 'trigger') {
-      triggers += 1
-      if (!node.outputs.length) issues.push(`Trigger '${node.title || node.id}' needs at least one event field`)
-      const names = new Set()
-      for (const output of node.outputs) {
-        if (!output.id) issues.push(`Trigger '${node.title || node.id}' has an event field without an id`)
-        if (!output.path) issues.push(`Event field '${output.name || output.id}' needs a payload path`)
-        if (names.has(output.name)) issues.push(`Trigger '${node.title}' has two event fields named '${output.name}'`)
-        names.add(output.name)
+      if (node.triggerType === 'schedule') {
+        const title = node.title || node.id
+        if (!node.schedule) {
+          issues.push(`Schedule '${title}' needs a cron expression`)
+        } else {
+          const invalid = scheduleError(node.schedule)
+          if (invalid) issues.push(`Schedule '${title}': ${invalid}`)
+        }
+        if (node.timezone) {
+          try {
+            new Intl.DateTimeFormat('en-US', { timeZone: node.timezone })
+          } catch {
+            issues.push(`Schedule '${title}': '${node.timezone}' is not a known timezone`)
+          }
+        }
+      } else {
+        triggers += 1
+        if (!node.outputs.length) issues.push(`Trigger '${node.title || node.id}' needs at least one event field`)
+        const names = new Set()
+        for (const output of node.outputs) {
+          if (!output.id) issues.push(`Trigger '${node.title || node.id}' has an event field without an id`)
+          if (!output.path) issues.push(`Event field '${output.name || output.id}' needs a payload path`)
+          if (names.has(output.name)) issues.push(`Trigger '${node.title}' has two event fields named '${output.name}'`)
+          names.add(output.name)
+        }
       }
     } else if (node.kind !== 'form') {
       const text = node.kind === 'cli' ? node.command : node.kind === 'shell' ? node.script : node.promptTemplate
@@ -403,7 +453,7 @@ export function editorIssues(definition) {
   for (const node of definition.nodes) {
     if (node.kind !== 'trigger') continue
     if (definition.edges.some((edge) => edge.target === node.id)) {
-      issues.push(`'${node.title}' is an event trigger and cannot take a connection`)
+      issues.push(`'${node.title}' is a trigger and cannot take a connection`)
     }
   }
   const seenEdges = new Set()
@@ -418,7 +468,7 @@ export function editorIssues(definition) {
       continue
     }
     if (target.kind === 'trigger') {
-      issues.push(`'${target.title}' is an event trigger and cannot take a connection`)
+      issues.push(`'${target.title}' is a trigger and cannot take a connection`)
       continue
     }
     if (target.kind !== 'form' && !target.inputs.some((input) => input.id === edge.targetInputId)) {
@@ -431,7 +481,8 @@ export function editorIssues(definition) {
       issues.push(`'${source.title}' has no field for one connection`)
     }
     if (source.kind === 'trigger' && !source.outputs.some((output) => output.id === edge.sourceFieldId)) {
-      issues.push(`'${source.title}' has no event field for one connection`)
+      const label = source.triggerType === 'schedule' ? 'output' : 'event field'
+      issues.push(`'${source.title}' has no ${label} for one connection`)
     }
   }
   if (topologicalOrder(definition) === null) issues.push('The graph has a circular connection')
@@ -528,6 +579,7 @@ export function autoLayout(definition) {
 // --- canvas geometry --------------------------------------------------------
 export function nodeRows(node) {
   if (node.kind === 'trigger') {
+    if (node.triggerType === 'schedule') return []
     return node.outputs.map((output) => ({ kind: 'field', id: output.id, label: output.name || output.path }))
   }
   if (node.kind !== 'form') {

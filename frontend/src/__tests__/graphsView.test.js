@@ -86,22 +86,25 @@ const graphRow = (id, extra = {}) => ({
   id,
   name: `Graph ${id}`,
   description: '',
-  triggers: [
-    {
-      id: 'tr1',
-      type: 'schedule',
-      config: { cron: '0 9 * * *', timezone: 'UTC' },
-      enabled: true,
-      next_run_at: '2026-10-25T09:00:00Z',
-      last_run_at: null
-    }
-  ],
   next_run_at: '2026-10-25T09:00:00Z',
   last_run_at: null,
   created_at: '2026-10-25T00:00:00Z',
   updated_at: '2026-10-25T00:00:00Z',
   definition: {
-    nodes: [{ id: 'a', kind: 'run', title: 'Step A', position: { x: 0, y: 0 }, promptTemplate: 'hi', inputs: [] }],
+    nodes: [
+      {
+        id: 's1',
+        kind: 'trigger',
+        triggerType: 'schedule',
+        title: 'Schedule',
+        position: { x: 40, y: 40 },
+        schedule: '0 9 * * *',
+        timezone: 'UTC',
+        enabled: true,
+        outputs: []
+      },
+      { id: 'a', kind: 'run', title: 'Step A', position: { x: 40, y: 200 }, promptTemplate: 'hi', inputs: [] }
+    ],
     edges: []
   },
   running_execution_id: null,
@@ -183,7 +186,7 @@ describe('GraphsList', () => {
     await flushPromises()
     // The editor shows the node card and the toolbar.
     expect(wrapper.find('.editor-node').exists()).toBe(true)
-    expect(wrapper.find('.editor-node-title').text()).toBe('Step A')
+    expect(wrapper.findAll('.editor-node-title').map((title) => title.text())).toContain('Step A')
     expect(wrapper.find('.editor-canvas').exists()).toBe(true)
   })
 
@@ -219,10 +222,11 @@ describe('GraphsList', () => {
     await flushPromises()
 
     const cards = wrapper.findAll('.editor-node')
-    expect(cards).toHaveLength(2)
+    expect(cards).toHaveLength(3)
     // The added step takes the next free row of its layer.
-    expect(cards[1].attributes('style')).toContain('left: 40px')
-    expect(cards[1].attributes('style')).toContain('top: 190px')
+    const added = cards[cards.length - 1]
+    expect(added.attributes('style')).toContain('left: 40px')
+    expect(added.attributes('style')).toContain('top: 340px')
   })
 
   it('lays out as steps are removed when that mode is chosen', async () => {
@@ -386,59 +390,35 @@ describe('GraphsList', () => {
     expect(localStorage.getItem('agentic.executionGraph.autoLayout')).toBe('always')
   })
 
-  it('saves triggers edited in the settings form', async () => {
+  it('adds and edits a schedule trigger node on the canvas', async () => {
     mocks.graphsUpdate.mockResolvedValue(graphRow('g1'))
     const wrapper = mount(GraphsList, stub)
     await flushPromises()
-    await wrapper
-      .findAll('button')
-      .find((button) => button.text() === 'Settings')
-      .trigger('click')
-    await flushPromises()
-    // The existing schedule trigger's cron and its preview are visible.
-    const triggers = wrapper.findAll('.trigger-block')
-    expect(triggers).toHaveLength(1)
-    expect(wrapper.find('input[id="graph-g1-trigger-0-cron"]').element.value).toBe('0 9 * * *')
-    expect(wrapper.text()).toContain('Next 5 runs')
+    await openEditor(wrapper)
 
-    // A second trigger is added as a schedule, then switched to a webhook.
-    await wrapper
-      .findAll('button')
-      .find((button) => button.text() === '+ Trigger')
-      .trigger('click')
-    await wrapper.findAll('.trigger-type')[1].setValue('webhook')
-    expect(wrapper.text()).toContain('Save the graph to get the URL')
+    const add = wrapper.findAll('button').find((button) => button.text().includes('Add step'))
+    await add.trigger('click')
+    await wrapper.get('.editor-add-menu').findAll('.editor-add-item')[5].trigger('click')
+    await flushPromises()
+
+    // The new node is selected, so the inspector edits it in place.
+    expect(wrapper.text()).toContain('Schedule trigger')
+    // Two nodes titled "Schedule" would block the save, so give it its own.
+    await wrapper.find('#node-title').setValue('Nightly')
+    const cron = wrapper.find('#node-schedule-cron')
+    expect(cron.element.value).toBe('0 9 * * *')
+    await cron.setValue('*/15 * * * *')
 
     await wrapper
       .findAll('button')
-      .find((button) => button.text() === 'Save settings')
+      .find((button) => button.text() === 'Save')
       .trigger('click')
     await flushPromises()
-    expect(mocks.graphsUpdate).toHaveBeenCalledWith('g1', {
-      name: 'Graph g1',
-      description: '',
-      triggers: [
-        { id: 'tr1', type: 'schedule', config: { cron: '0 9 * * *', timezone: 'UTC' }, enabled: true },
-        { id: '', type: 'webhook', config: { secret: '' }, enabled: true }
-      ]
-    })
-  })
-
-  it('shows the URL of a saved webhook trigger', async () => {
-    mocks.graphsList.mockImplementation(async () => [
-      graphRow('g1', {
-        triggers: [{ id: 'tr2', type: 'webhook', config: { secret: '' }, enabled: true }],
-        next_run_at: null
-      })
-    ])
-    const wrapper = mount(GraphsList, stub)
-    await flushPromises()
-    await wrapper
-      .findAll('button')
-      .find((button) => button.text() === 'Settings')
-      .trigger('click')
-    await flushPromises()
-    expect(wrapper.text()).toContain('/api/graphs/g1/triggers/tr2/fire')
+    const definition = mocks.graphsUpdate.mock.calls.at(-1)[1].definition
+    const schedules = definition.nodes.filter((node) => node.kind === 'trigger' && node.triggerType === 'schedule')
+    expect(schedules).toHaveLength(2)
+    expect(schedules[1].schedule).toBe('*/15 * * * *')
+    expect(schedules[1].enabled).toBe(true)
   })
 
   it('adds a step from the Add step menu', async () => {
@@ -458,13 +438,14 @@ describe('GraphsList', () => {
       expect.stringContaining('Agentic command'),
       expect.stringContaining('Shell script'),
       expect.stringContaining('Form'),
-      expect.stringContaining('Event trigger')
+      expect.stringContaining('Event trigger'),
+      expect.stringContaining('Schedule trigger')
     ])
     await menu.findAll('.editor-add-item')[2].trigger('click')
     await flushPromises()
 
     expect(wrapper.find('.editor-add-menu').exists()).toBe(false)
-    expect(wrapper.findAll('.editor-node')).toHaveLength(2)
+    expect(wrapper.findAll('.editor-node')).toHaveLength(3)
     expect(wrapper.text()).toContain('Shell script')
   })
 

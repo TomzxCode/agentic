@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import json
+import uuid
 from collections.abc import Iterator
+from datetime import datetime
 
 from sqlalchemy import event, inspect, text
 from sqlmodel import Session, SQLModel, create_engine
@@ -58,6 +61,7 @@ def create_db_and_tables() -> None:
     _migrate_person_notes()
     _migrate_graph_schedules_to_triggers()
     _ensure_columns()
+    _migrate_graph_triggers_to_nodes()
     _initialized = True
 
 
@@ -171,6 +175,153 @@ def _migrate_graph_schedules_to_triggers() -> None:
             connection.execute(text("UPDATE executiongraph SET enabled = 1"))
 
 
+def _iso(value: object) -> str | None:
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return value.isoformat()
+    return str(value)
+
+
+def _migrate_graph_triggers_to_nodes() -> None:
+    """Move each graph's schedule trigger rows into schedule trigger nodes.
+
+    A schedule now lives in the graph definition as a trigger node, so the
+    scheduler reads the definition and keeps only the derived next occurrence in
+    ``executiongraph.schedule_state``. Webhook trigger rows have no node
+    equivalent (the Webhooks page owns events now); the table is emptied and
+    left in place like the other retired tables.
+    """
+    tables = set(inspect(engine).get_table_names())
+    if "executiongraph" not in tables:
+        return
+    with engine.begin() as connection:
+        graph_rows = connection.execute(
+            text(
+                "SELECT id, definition, schedule_state, schedule, timezone, enabled, next_run_at, last_run_at "
+                "FROM executiongraph"
+            )
+        ).all()
+        trigger_rows = []
+        if "graphtrigger" in tables:
+            trigger_rows = connection.execute(
+                text("SELECT graph_id, type, config, enabled, next_run_at, last_run_at FROM graphtrigger")
+            ).all()
+
+        by_graph: dict[str, list[dict]] = {}
+        for graph_id, kind, config, enabled, next_run, last_run in trigger_rows:
+            if kind != "schedule":
+                continue
+            parsed = config
+            if isinstance(parsed, str):
+                try:
+                    parsed = json.loads(parsed)
+                except ValueError:
+                    parsed = {}
+            parsed = parsed if isinstance(parsed, dict) else {}
+            by_graph.setdefault(graph_id, []).append(
+                {
+                    "cron": str(parsed.get("cron") or "").strip(),
+                    "timezone": str(parsed.get("timezone") or "").strip(),
+                    "enabled": bool(enabled),
+                    "next": next_run,
+                    "last": last_run,
+                }
+            )
+
+        for (
+            graph_id,
+            definition_raw,
+            state_raw,
+            legacy_schedule,
+            legacy_timezone,
+            legacy_enabled,
+            legacy_next,
+            legacy_last,
+        ) in graph_rows:
+            configs = by_graph.get(graph_id, [])
+            if not configs and legacy_schedule and str(legacy_schedule).strip():
+                configs = [
+                    {
+                        "cron": str(legacy_schedule).strip(),
+                        "timezone": str(legacy_timezone or "").strip(),
+                        "enabled": bool(legacy_enabled),
+                        "next": legacy_next,
+                        "last": legacy_last,
+                    }
+                ]
+            if not configs:
+                continue
+
+            definition = definition_raw
+            if isinstance(definition, str):
+                try:
+                    definition = json.loads(definition)
+                except ValueError:
+                    definition = {}
+            definition = definition if isinstance(definition, dict) else {}
+            state = state_raw
+            if isinstance(state, str):
+                try:
+                    state = json.loads(state)
+                except ValueError:
+                    state = {}
+            state = state if isinstance(state, dict) else {}
+
+            nodes = list(definition.get("nodes") or [])
+            titles = {str(node.get("title") or "") for node in nodes}
+            existing = {
+                (str(node.get("schedule") or ""), str(node.get("timezone") or ""))
+                for node in nodes
+                if node.get("kind") == "trigger" and node.get("triggerType") == "schedule"
+            }
+            base_y = max([float((node.get("position") or {}).get("y") or 0) for node in nodes] or [0.0]) + 120
+            changed = False
+            for index, config in enumerate(configs):
+                cron, zone = str(config["cron"]), str(config["timezone"])
+                if not cron or (cron, zone) in existing:
+                    continue
+                title = "Schedule"
+                suffix = 2
+                while title in titles:
+                    title = f"Schedule {suffix}"
+                    suffix += 1
+                node_id = f"n{uuid.uuid4().hex[:12]}"
+                nodes.append(
+                    {
+                        "id": node_id,
+                        "kind": "trigger",
+                        "triggerType": "schedule",
+                        "title": title,
+                        "position": {"x": 40.0, "y": base_y + index * 120.0},
+                        "schedule": cron,
+                        "timezone": zone,
+                        "enabled": bool(config["enabled"]),
+                        "outputs": [],
+                    }
+                )
+                titles.add(title)
+                existing.add((cron, zone))
+                changed = True
+                if config["enabled"] and config["next"] is not None:
+                    state[node_id] = {
+                        "nextRunAt": _iso(config["next"]),
+                        "lastRunAt": _iso(config["last"]),
+                        "cron": cron,
+                        "timezone": zone,
+                    }
+
+            if changed:
+                definition["nodes"] = nodes
+                connection.execute(
+                    text("UPDATE executiongraph SET definition = :definition, schedule_state = :state WHERE id = :id"),
+                    {"definition": json.dumps(definition), "state": json.dumps(state), "id": graph_id},
+                )
+
+        if "graphtrigger" in tables:
+            connection.execute(text("DELETE FROM graphtrigger"))
+
+
 def _migrate_problem_to_task() -> None:
     """Rename the 'problem' table/columns to 'task' on an existing database."""
     tables = set(inspect(engine).get_table_names())
@@ -274,6 +425,12 @@ def _ensure_columns() -> None:
                 connection.execute(
                     text("ALTER TABLE repository ADD COLUMN review_scan VARCHAR NOT NULL DEFAULT 'default'")
                 )
+    if "executiongraph" in inspector.get_table_names():
+        graph_columns = {column["name"] for column in inspector.get_columns("executiongraph")}
+        if "schedule_state" not in graph_columns:
+            with engine.begin() as connection:
+                # Derived from the definition's schedule trigger nodes.
+                connection.execute(text("ALTER TABLE executiongraph ADD COLUMN schedule_state JSON"))
     if "graphexecution" in inspector.get_table_names():
         execution_columns = {column["name"] for column in inspector.get_columns("graphexecution")}
         if "trigger_id" not in execution_columns:

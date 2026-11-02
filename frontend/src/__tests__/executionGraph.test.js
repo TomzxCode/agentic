@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   autoLayout,
   blankRunNode,
+  blankScheduleNode,
   blankShellNode,
   canConnect,
   connect,
@@ -11,6 +12,7 @@ import {
   nearestPort,
   nodeHeight,
   nodeKindLabel,
+  nodeLabel,
   nodeRows,
   normalizeDefinition,
   portPoint,
@@ -388,6 +390,75 @@ describe('trigger nodes', () => {
       nodes: [triggerNode('t', [['o1', 'title', 'title']]), definition.nodes[1]]
     }
     expect(dropDanglingEdges(without).edges).toEqual([])
+  })
+})
+
+const scheduleNode = (id, cron = '0 9 * * *', timezone = 'UTC', extra = {}) => ({
+  id,
+  kind: 'trigger',
+  triggerType: 'schedule',
+  title: id,
+  position: { x: 0, y: 0 },
+  schedule: cron,
+  timezone,
+  enabled: true,
+  outputs: [],
+  ...extra
+})
+
+describe('schedule trigger nodes', () => {
+  it('normalize their cron and drop outputs', () => {
+    const definition = normalizeDefinition({
+      nodes: [
+        {
+          id: 's',
+          kind: 'trigger',
+          triggerType: 'schedule',
+          title: 'S',
+          position: { x: 1, y: 2 },
+          schedule: '0 9 * * *',
+          timezone: 'Europe/Paris',
+          enabled: false,
+          outputs: [{ id: 'o', path: 'x' }]
+        }
+      ],
+      edges: []
+    })
+    const node = definition.nodes[0]
+    expect(node.triggerType).toBe('schedule')
+    expect(node.schedule).toBe('0 9 * * *')
+    expect(node.timezone).toBe('Europe/Paris')
+    expect(node.enabled).toBe(false)
+    expect(node.outputs).toEqual([])
+    expect(nodeRows(node)).toEqual([])
+  })
+
+  it('report a bad cron and timezone, and allow several schedules', () => {
+    const issues = editorIssues({
+      nodes: [scheduleNode('s1', 'nope', 'Mars/Base'), scheduleNode('s2', '0 9 * * *', 'UTC', { title: 'Nightly' })],
+      edges: []
+    })
+    expect(issues.some((issue) => issue.includes('5 fields'))).toBe(true)
+    expect(issues.some((issue) => issue.includes('Mars/Base'))).toBe(true)
+    expect(issues.some((issue) => issue.includes('at most one event trigger'))).toBe(false)
+  })
+
+  it('cannot be a connection source or target', () => {
+    const definition = { nodes: [scheduleNode('s'), runNode('a', 'go')], edges: [] }
+    expect(canConnect(definition, 's', '', 'a', { kind: 'input', id: 'v' })).toBe(false)
+    expect(canConnect(definition, 'a', '', 's', { kind: 'input', id: 'x' })).toBe(false)
+    const issues = editorIssues({ ...definition, edges: [edge('a', 's')] })
+    expect(issues.some((issue) => issue.includes('cannot take a connection'))).toBe(true)
+  })
+
+  it('make a blank node labelled by its trigger type', () => {
+    const node = blankScheduleNode()
+    expect(node.kind).toBe('trigger')
+    expect(node.triggerType).toBe('schedule')
+    expect(node.enabled).toBe(true)
+    expect(nodeLabel(node)).toBe('Schedule trigger')
+    expect(nodeLabel({ kind: 'trigger', triggerType: 'event' })).toBe('Event trigger')
+    expect(nodeKindLabel('trigger')).toBe('Trigger')
   })
 })
 

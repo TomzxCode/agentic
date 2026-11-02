@@ -30,7 +30,7 @@ const creating = ref(false)
 const editingGraph = computed(() => graphs.value.find((graph) => graph.id === editing.value) || null)
 
 function blankDraft() {
-  return { name: '', description: '', triggers: [] }
+  return { name: '', description: '' }
 }
 
 function cancelCreate() {
@@ -79,13 +79,7 @@ onMounted(() => {
 function draftFromGraph(graph) {
   return {
     name: graph.name,
-    description: graph.description || '',
-    triggers: (graph.triggers || []).map((trigger) => ({
-      id: trigger.id,
-      type: trigger.type,
-      config: { ...(trigger.config || {}) },
-      enabled: trigger.enabled
-    }))
+    description: graph.description || ''
   }
 }
 
@@ -98,35 +92,35 @@ function openSettings(graph) {
 function draftBody(draft) {
   return {
     name: draft.name.trim(),
-    description: draft.description.trim(),
-    triggers: (draft.triggers || []).map((trigger) => ({
-      id: trigger.id || '',
-      type: trigger.type,
-      config: trigger.config || {},
-      enabled: trigger.enabled
-    }))
+    description: draft.description.trim()
   }
 }
 
-// The triggers that are on, and a one-line label for each, for the list rows.
-function enabledTriggers(graph) {
-  return (graph.triggers || []).filter((trigger) => trigger.enabled)
+// Schedules are trigger nodes in the definition, so the row reads them from
+// there; the graph's next run still comes from the API's schedule bookkeeping.
+function scheduleNodes(graph) {
+  return (graph.definition?.nodes || []).filter((node) => node.kind === 'trigger' && node.triggerType === 'schedule')
+}
+
+function enabledSchedules(graph) {
+  return scheduleNodes(graph).filter((node) => node.enabled !== false)
 }
 
 function triggerSummary(graph) {
-  const enabled = enabledTriggers(graph)
+  const enabled = enabledSchedules(graph)
   if (!enabled.length) {
-    return (graph.triggers || []).length ? 'all triggers paused' : 'runs by hand only'
+    return scheduleNodes(graph).length ? 'all schedules paused' : 'runs by hand only'
   }
-  return enabled
-    .map((trigger) =>
-      trigger.type === 'schedule' ? `schedule ${trigger.config?.cron || '-'}` : trigger.type || 'trigger'
-    )
-    .join(' · ')
+  return enabled.map((node) => `schedule ${node.schedule || '-'}`).join(' · ')
 }
 
 function pausedGraph(graph) {
-  return (graph.triggers || []).length > 0 && !enabledTriggers(graph).length
+  return scheduleNodes(graph).length > 0 && !enabledSchedules(graph).length
+}
+
+// A trigger node starts the graph, so the step count leaves it out.
+function stepCount(graph) {
+  return (graph.definition?.nodes || []).filter((node) => node.kind !== 'trigger').length
 }
 
 async function saveNew() {
@@ -261,9 +255,7 @@ async function runFromEditor(graph, definition) {
               {{ triggerSummary(graph) }}
               <template v-if="graph.next_run_at"> · next {{ formatDateTime(graph.next_run_at) }}</template>
               ·
-              {{ (graph.definition?.nodes || []).length }} step{{
-                (graph.definition?.nodes || []).length === 1 ? '' : 's'
-              }}
+              {{ stepCount(graph) }} step{{ stepCount(graph) === 1 ? '' : 's' }}
             </p>
           </div>
           <div class="row" style="gap: 6px; flex-shrink: 0">
@@ -283,7 +275,6 @@ async function runFromEditor(graph, definition) {
         <GraphMetaForm
           v-if="settingsFor === graph.id"
           :id-prefix="`graph-${graph.id}`"
-          :graph-id="graph.id"
           :heading="`Settings: ${graph.name}`"
           submit-label="Save settings"
           :model-value="editingDraft"

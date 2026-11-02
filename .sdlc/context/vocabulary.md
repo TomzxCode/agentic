@@ -21,7 +21,7 @@
 | Current task | The task at the top of the stack (position 0); the one being worked on now. |
 | Cycle time | How long work takes, derived from GitHub issue and pull request events: issue close (opening to closing), review wait (first review request to first review), and review to merge. |
 | Deadline | The date and time by which a task should be done; a task without one has no due date. |
-| Execution graph | A named DAG of agent runs, Agentic commands, shell scripts, and forms, plus an optional event trigger, that the app executes on demand, from one of its schedule triggers, or from a webhook event; each execution creates a task, and every agent-run node becomes an agent run attached to it. |
+| Execution graph | A named DAG of agent runs, Agentic commands, shell scripts, forms, and trigger nodes, that the app executes on demand, from a schedule trigger node, or from a webhook event; each execution creates a task, and every agent-run node becomes an agent run attached to it. |
 | Feedback decision | The outcome recorded on a reviewer-feedback item: `implement`, `decline`, or `defer`. A decision with no `executed_at` is awaiting a run. |
 | Feedback item | One reviewer-comment analysis file the feedback skills write under the user-global store, triaged on the PR feedback page. |
 | Follow-up date | The date and time to check back with the person a task waits on; when it passes, the task rejoins the focus stack. |
@@ -29,7 +29,7 @@
 | Graph edge | A connection that feeds one upstream output (an agent run's final answer, a command's or script's stdout, a form field value, or an event field) into one downstream input. |
 | Graph execution | One run of an execution graph, carrying its statuses, each output node's result, the form answers, and the event that triggered it; it pauses while a form node waits to be answered. |
 | Graph node | One step of an execution graph: an agent run (a prompt template reading named inputs), an Agentic command (an `agentic` command line), a shell script (a bash script), a form (fields someone answers in the web UI), or the event trigger that receives a webhook payload. |
-| Graph trigger | One way an execution graph starts without a manual run, stored as a typed row: a schedule (a cron expression read in a zone) or a webhook URL (an HTTP call, optionally protected by a secret). Webhook events can also reach a graph through a Webhooks subscription and its event trigger node. |
+| Graph trigger | A trigger node in the execution graph definition: a schedule (a cron expression read in a zone, with an enabled flag) or an event trigger (the entry point for a webhook payload). A graph may hold several schedules and at most one event trigger. |
 | Harness | A coding-agent command reachable over ACP, stored as a row (`command` plus `args`). |
 | Human intervention | A recorded human touch on a change (question, correction, manual fix, rerun, or approval) that makes the change non-touchless. |
 | Inbox suggestion | A suggestion of something to do, recomputed on each read from the tasks, their items and changes, their worktrees, the pull requests awaiting the user's review, and the user's own unreviewed pull requests; nothing is stored, so acting on it makes it disappear. |

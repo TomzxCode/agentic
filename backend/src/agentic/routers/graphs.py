@@ -7,17 +7,15 @@ unblock a paused execution.
 
 from __future__ import annotations
 
-import hmac
-
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import delete as sa_delete
 from sqlmodel import Session, col, select
 
-from .. import graphs, triggers
+from .. import graphs
 from ..crud import get_or_404
 from ..db import get_session
 from ..models.base import RunStatus, utcnow
-from ..models.graphs import ExecutionGraph, GraphExecution, GraphTrigger
+from ..models.graphs import ExecutionGraph, GraphExecution
 from ..schemas.graphs import (
     ExecutionGraphCreate,
     ExecutionGraphRead,
@@ -29,8 +27,6 @@ from ..schemas.graphs import (
     GraphFormSubmit,
     GraphIssuesRead,
     GraphNodeStateRead,
-    GraphTriggerInput,
-    GraphTriggerRead,
 )
 
 router = APIRouter(prefix="/api/graphs", tags=["graphs"])
@@ -40,81 +36,18 @@ def _definition(payload: GraphDefinition) -> dict:
     return graphs.normalize_definition(payload.model_dump())
 
 
-def _trigger_rows(session: Session, graph_id: str) -> list[GraphTrigger]:
-    return list(
-        session.exec(
-            select(GraphTrigger)
-            .where(col(GraphTrigger.graph_id) == graph_id)
-            .order_by(col(GraphTrigger.created_at).asc())
-        ).all()
-    )
-
-
-def _trigger_read(row: GraphTrigger) -> GraphTriggerRead:
-    return GraphTriggerRead(
-        id=row.id,
-        type=row.type,
-        config=row.config or {},
-        enabled=row.enabled,
-        next_run_at=row.next_run_at,
-        last_run_at=row.last_run_at,
-    )
-
-
 def _read(session: Session, graph: ExecutionGraph) -> ExecutionGraphRead:
-    rows = _trigger_rows(session, graph.id)
-    upcoming = [row.next_run_at for row in rows if row.enabled and row.next_run_at is not None]
     return ExecutionGraphRead(
         id=graph.id,
         name=graph.name,
         description=graph.description,
-        triggers=[_trigger_read(row) for row in rows],
         definition=graphs.normalize_definition(graph.definition),
-        next_run_at=min(upcoming) if upcoming else None,
+        next_run_at=graphs.next_schedule_at(graph),
         last_run_at=graph.last_run_at,
         created_at=graph.created_at,
         updated_at=graph.updated_at,
         running_execution_id=graphs.active_execution_id(session, graph.id),
     )
-
-
-def _normalized_triggers(submitted: list[GraphTriggerInput]) -> list[dict]:
-    """The submitted triggers in stored shape, refusing any with a problem."""
-    cleaned = [triggers.normalize(trigger.model_dump()) for trigger in submitted]
-    problems = [problem for trigger in cleaned for problem in triggers.issues(trigger)]
-    if problems:
-        raise HTTPException(status_code=400, detail="; ".join(problems))
-    return cleaned
-
-
-def _apply_triggers(session: Session, graph: ExecutionGraph, submitted: list[dict]) -> None:
-    """Make the graph's trigger rows match the submitted set.
-
-    A trigger sent with an id of an existing row keeps that row (and its
-    pending occurrence, unless its type, config, or enabled flag changed); a
-    trigger without one, or with an id that is not this graph's, becomes a new
-    row. Rows the payload leaves out are deleted.
-    """
-    existing = {row.id: row for row in _trigger_rows(session, graph.id)}
-    keep: set[str] = set()
-    for entry in submitted:
-        row = existing.get(entry["id"]) if entry["id"] else None
-        if row is None:
-            row = GraphTrigger(graph_id=graph.id)
-        changed = row.type != entry["type"] or row.config != entry["config"] or row.enabled != entry["enabled"]
-        row.type = entry["type"]
-        row.config = entry["config"]
-        row.enabled = entry["enabled"]
-        if changed or row.next_run_at is None:
-            # Keep a pending occurrence when the trigger itself did not change,
-            # so saving a renamed graph does not push its next run out.
-            row.next_run_at = triggers.next_run(entry)
-        row.updated_at = utcnow()
-        session.add(row)
-        keep.add(row.id)
-    for trigger_id, row in existing.items():
-        if trigger_id not in keep:
-            session.delete(row)
 
 
 def _validated_name(name: str | None) -> str:
@@ -146,10 +79,8 @@ def create_graph(payload: ExecutionGraphCreate, session: Session = Depends(get_s
         description=(payload.description or "").strip(),
         definition=_definition(payload.definition),
     )
-    submitted = _normalized_triggers(payload.triggers)
+    graphs.sync_schedule_state(graph, graphs.normalize_definition(graph.definition))
     session.add(graph)
-    session.flush()
-    _apply_triggers(session, graph, submitted)
     session.commit()
     session.refresh(graph)
     return _read(session, graph)
@@ -157,12 +88,8 @@ def create_graph(payload: ExecutionGraphCreate, session: Session = Depends(get_s
 
 @router.post("/validate", response_model=GraphIssuesRead)
 def validate_graph(payload: ExecutionGraphCreate) -> GraphIssuesRead:
-    """Check a definition and its triggers without saving either."""
-    definition = _definition(payload.definition)
-    issues = graphs.validate_definition(definition)
-    for trigger in payload.triggers:
-        issues.extend(triggers.issues(triggers.normalize(trigger.model_dump())))
-    return GraphIssuesRead(issues=issues)
+    """Check a definition without saving it."""
+    return GraphIssuesRead(issues=graphs.validate_definition(_definition(payload.definition)))
 
 
 @router.get("/executions", response_model=list[GraphExecutionSummaryRead])
@@ -308,10 +235,9 @@ def update_graph(
         # Stored as given (normalized); the editor flags problems live, and a
         # run refuses to start while anything is wrong.
         graph.definition = _definition(payload.definition)
-    if payload.triggers is not None:
-        # Omitted leaves the triggers alone (the editor saves only definitions);
-        # a list replaces the whole set.
-        _apply_triggers(session, graph, _normalized_triggers(payload.triggers))
+        # A schedule trigger is a node, so its pending occurrence follows the
+        # definition: unchanged nodes keep theirs, new ones start now.
+        graphs.sync_schedule_state(graph, graphs.normalize_definition(graph.definition))
     graph.updated_at = utcnow()
     session.add(graph)
     session.commit()
@@ -337,7 +263,6 @@ def delete_graph(graph_id: str, session: Session = Depends(get_session)) -> None
     if subscription_ids:
         session.exec(sa_delete(EventDelivery).where(col(EventDelivery.subscription_id).in_(subscription_ids)))
         session.exec(sa_delete(EventSubscription).where(col(EventSubscription.id).in_(subscription_ids)))
-    session.exec(sa_delete(GraphTrigger).where(col(GraphTrigger.graph_id) == graph_id))
     session.exec(sa_delete(GraphExecution).where(col(GraphExecution.graph_id) == graph_id))
     session.exec(sa_delete(ExecutionGraph).where(col(ExecutionGraph.id) == graph_id))
     session.commit()
@@ -378,36 +303,6 @@ async def run_graph(graph_id: str, session: Session = Depends(get_session)) -> G
     """Start an execution immediately, in the background, and return its row."""
     graph = get_or_404(session, ExecutionGraph, graph_id, "Graph not found")
     return await _start_and_summarize(session, graph, trigger="manual")
-
-
-@router.post("/{graph_id}/triggers/{trigger_id}/fire", response_model=GraphExecutionSummaryRead, status_code=201)
-async def fire_webhook(
-    graph_id: str,
-    trigger_id: str,
-    request: Request,
-    session: Session = Depends(get_session),
-) -> GraphExecutionSummaryRead:
-    """Start the graph from a webhook trigger, for callers outside the app.
-
-    The trigger's secret, when it has one, must arrive in the
-    ``X-Trigger-Secret`` header, so a leaked URL alone does not start the graph.
-    """
-    graph = get_or_404(session, ExecutionGraph, graph_id, "Graph not found")
-    trigger = session.get(GraphTrigger, trigger_id)
-    if trigger is None or trigger.graph_id != graph_id:
-        raise HTTPException(status_code=404, detail="Trigger not found")
-    if trigger.type != triggers.WEBHOOK:
-        raise HTTPException(status_code=400, detail="This trigger is not a webhook")
-    if not trigger.enabled:
-        raise HTTPException(status_code=403, detail="The trigger is disabled")
-    secret = str((trigger.config or {}).get("secret") or "")
-    if secret and not hmac.compare_digest(secret, request.headers.get("X-Trigger-Secret", "")):
-        raise HTTPException(status_code=403, detail="The trigger secret does not match")
-    summary = await _start_and_summarize(session, graph, trigger=trigger.type, trigger_id=trigger.id)
-    trigger.last_run_at = utcnow()
-    session.add(trigger)
-    session.commit()
-    return summary
 
 
 __all__ = ["router"]
