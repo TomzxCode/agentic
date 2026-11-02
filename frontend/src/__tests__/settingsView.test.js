@@ -82,6 +82,7 @@ vi.mock('../api', () => ({
 import SettingsView from '../views/SettingsView.vue'
 import { store } from '../store'
 import { SIDEBAR_NAV_ITEMS, resetSidebarNav } from '../sidebarNav'
+import { debugBarVisible, setDebugBarVisible } from '../debugBar'
 
 const RouterLinkStub = { props: ['to'], template: '<a><slot /></a>' }
 
@@ -133,7 +134,7 @@ describe('SettingsView', () => {
     await flushPromises()
 
     const items = wrapper.findAll('.settings-nav-item')
-    expect(items.length).toBe(12)
+    expect(items.length).toBe(13)
     for (const item of items) {
       expect(item.find('svg').exists()).toBe(true)
     }
@@ -833,5 +834,26 @@ describe('SettingsView', () => {
     const tasks = wrapper.findAll('.nav-config-row').find((row) => row.text().includes('Tasks'))
     await tasks.get('.nav-config-grip').trigger('keydown', { key: 'ArrowDown' })
     expect(JSON.parse(localStorage.getItem('agentic.sidebarNav')).order[2]).toBe('tasks')
+  })
+
+  it('turns the debug bar off and on from its section, saving on the device', async () => {
+    localStorage.clear()
+    setDebugBarVisible(true)
+    const wrapper = mountView()
+    await flushPromises()
+
+    const section = wrapper.findAll('.settings-nav-item').find((b) => b.text() === 'Debug bar')
+    await section.trigger('click')
+    await flushPromises()
+
+    const toggle = wrapper.get('[data-testid="debug-bar-toggle"]')
+    expect(toggle.element.checked).toBe(true)
+    await toggle.setValue(false)
+    expect(localStorage.getItem('agentic.debugBarHidden')).toBe('1')
+    expect(debugBarVisible.value).toBe(false)
+
+    await toggle.setValue(true)
+    expect(localStorage.getItem('agentic.debugBarHidden')).toBe('0')
+    expect(debugBarVisible.value).toBe(true)
   })
 })

@@ -183,6 +183,12 @@ const ICONS = {
     ['rect', { x: 3, y: 4.5, width: 18, height: 15, rx: 2.6 }],
     ['path', { d: 'M9.1 5.4v13.2' }]
   ],
+  // A bar pinned to the bottom: a window with a strip along its foot.
+  terminal: [
+    ['rect', { x: 3, y: 4, width: 18, height: 16, rx: 2.6 }],
+    ['path', { d: 'M3 15.5h18' }],
+    ['path', { d: 'M6.5 18h3' }]
+  ],
   close: [['path', { d: 'M6 6l12 12M18 6L6 18' }]],
 
   // Task fields.

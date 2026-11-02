@@ -15,5 +15,6 @@ export const SETTINGS_SECTIONS = [
   { id: 'review-scan', label: 'Review requests', icon: 'search' },
   { id: 'groups', label: 'Repository groups', icon: 'group' },
   { id: 'sidebar', label: 'Sidebar', icon: 'panel' },
+  { id: 'debug-bar', label: 'Debug bar', icon: 'terminal' },
   { id: 'diagnostics', label: 'Diagnostics', icon: 'diagnostics' }
 ]

@@ -60,10 +60,16 @@ export function resetDebugStats() {
 
 export function clearApiCalls() {
   debugStats.requests = []
+  debugStats.calls = []
+  debugStats.apiCalls = 0
+  debugStats.apiTime = 0
+  debugStats.lastApiDuration = 0
 }
 
 export function clearDbQueries() {
   debugStats.dbRequests = []
+  debugStats.dbQueries = 0
+  debugStats.dbTime = 0
 }
 
 function clearCliLists() {

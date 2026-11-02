@@ -14,26 +14,16 @@
         {{ expanded ? 'Hide' : 'Show' }} details
       </button>
       <template v-if="!isMobile">
-        <span class="status-bar-item" data-testid="page-load-time"> Page loaded in {{ metrics.loadTime }} ms </span>
-        <span class="status-bar-item" data-testid="dom-content-loaded">
-          DOMContentLoaded: {{ metrics.domContentLoaded }} ms
-        </span>
-        <span class="status-bar-item" data-testid="ttfb"> TTFB: {{ metrics.ttfb }} ms </span>
-        <span v-if="metrics.firstPaint !== null" class="status-bar-item" data-testid="first-paint">
-          First paint: {{ metrics.firstPaint }} ms
-        </span>
         <span class="status-bar-item" data-testid="api-calls">
-          API: {{ debugStats.requests.length }} calls,
-          {{ debugStats.requests.reduce((s, r) => s + (r.duration_ms || 0), 0).toFixed(2) }} ms
+          API: {{ debugStats.apiCalls }} calls, {{ Number(debugStats.apiTime || 0).toFixed(2) }} ms
         </span>
         <span class="status-bar-item" data-testid="db-queries">
-          DB: {{ debugStats.dbRequests.reduce((s, r) => s + (r.db_queries || 0), 0) }} queries,
-          {{ debugStats.dbRequests.reduce((s, r) => s + (r.db_time_ms || 0), 0).toFixed(2) }} ms
+          DB: {{ debugStats.dbQueries }} queries, {{ Number(debugStats.dbTime || 0).toFixed(2) }} ms
         </span>
       </template>
-      <span v-if="lastRequest" class="status-bar-item" data-testid="last-api-call">
-        Last: {{ Number(lastRequest.duration_ms || 0).toFixed(2) }} ms ({{ lastRequest.db_queries || 0 }} queries,
-        {{ Number(lastRequest.db_time_ms || 0).toFixed(2) }} ms)
+      <span v-if="lastCall" class="status-bar-item" data-testid="last-api-call">
+        Last: {{ Number(lastCall.duration || 0).toFixed(2) }} ms ({{ lastCall.dbQueries || 0 }} queries,
+        {{ Number(lastCall.dbTime || 0).toFixed(2) }} ms)
       </span>
     </div>
     <div
@@ -42,6 +32,16 @@
       data-testid="status-bar-details"
       :style="{ height: detailsHeight + 'px' }"
     >
+      <div class="status-bar-load" data-testid="status-bar-load">
+        <span class="status-bar-item" data-testid="page-load-time"> Page loaded in {{ metrics.loadTime }} ms </span>
+        <span class="status-bar-item" data-testid="dom-content-loaded">
+          DOMContentLoaded: {{ metrics.domContentLoaded }} ms
+        </span>
+        <span class="status-bar-item" data-testid="ttfb"> TTFB: {{ metrics.ttfb }} ms </span>
+        <span v-if="metrics.firstPaint !== null" class="status-bar-item" data-testid="first-paint">
+          First paint: {{ metrics.firstPaint }} ms
+        </span>
+      </div>
       <input v-model="filter" class="status-bar-filter" data-testid="debug-filter" type="text" placeholder="Filter…" />
       <div class="status-bar-tabs">
         <button
@@ -270,7 +270,9 @@ watch(activeTab, (value) => {
   }
 })
 
-const lastRequest = computed(() => (debugStats.requests && debugStats.requests.length ? debugStats.requests[0] : null))
+const lastCall = computed(() =>
+  debugStats.calls && debugStats.calls.length ? debugStats.calls[debugStats.calls.length - 1] : null
+)
 
 const sortedRequests = computed(() => {
   const list = [
@@ -366,6 +368,9 @@ function startResize(event) {
 let refreshTimer
 
 function scheduleRefresh() {
+  // The details panel is the only thing that needs the server's request log;
+  // the summary is aggregated locally as each call returns.
+  if (!expanded.value) return
   clearTimeout(refreshTimer)
   refreshTimer = setTimeout(refreshDebugRequests, 100)
 }
@@ -373,14 +378,12 @@ function scheduleRefresh() {
 watch(() => route.fullPath, scheduleRefresh)
 watch(() => debugStats.apiCalls, scheduleRefresh)
 watch(expanded, (value) => {
-  if (value) {
-    clearTimeout(refreshTimer)
-    refreshDebugRequests()
-  }
+  clearTimeout(refreshTimer)
+  if (value) refreshDebugRequests()
 })
 
 onMounted(() => {
-  refreshDebugRequests()
+  if (expanded.value) refreshDebugRequests()
 })
 
 onUnmounted(() => {
@@ -411,6 +414,16 @@ onUnmounted(() => {
 }
 .status-bar-item {
   white-space: nowrap;
+}
+/* The page-load numbers live in the details panel, so the always-visible
+   summary keeps only the API and DB counts. */
+.status-bar-load {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 6px;
+  color: var(--faint, #666);
 }
 .status-bar-summary {
   display: flex;

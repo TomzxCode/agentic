@@ -29,6 +29,7 @@ vi.mock('../api', () => ({
 import App from '../App.vue'
 import { store } from '../store'
 import { SIDEBAR_NAV_ITEMS } from '../sidebarNav'
+import { setDebugBarVisible } from '../debugBar'
 
 const RouterLinkStub = { props: ['to'], template: '<a><slot /></a>' }
 const SearchSelectStub = {
@@ -101,6 +102,23 @@ describe('App', () => {
     expect(store.loadRepositories).toHaveBeenCalled()
     expect(store.loadSettings).toHaveBeenCalled()
     expect(wrapper.text()).toContain('Task A')
+  })
+
+  it('renders the debug bar unless the device turned it off', async () => {
+    setDebugBarVisible(true)
+    const onWrapper = mountApp()
+    await flushPromises()
+    expect(onWrapper.find('[data-testid="status-bar"]').exists()).toBe(true)
+    onWrapper.unmount()
+
+    setDebugBarVisible(false)
+    const offWrapper = mountApp()
+    await flushPromises()
+    expect(offWrapper.find('[data-testid="status-bar"]').exists()).toBe(false)
+    expect(offWrapper.get('.app').classes()).toContain('debug-bar-hidden')
+    offWrapper.unmount()
+
+    setDebugBarVisible(true)
   })
 
   it('hides done and archived tasks from the sidebar', async () => {

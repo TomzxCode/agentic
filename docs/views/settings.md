@@ -29,6 +29,7 @@ All sections stay mounted, so switching back and forth does not lose what you ty
 | `Review requests` | The review-scan cadence, the default repository policy, each repository's own policy, `Scan now`, and the last scan's result. |
 | `Repository groups` | Named sets of repositories, with a description. |
 | `Sidebar` | Which pages the sidebar shows and in what order. |
+| `Debug bar` | Whether the bar pinned to the bottom of every page is shown. |
 | `Diagnostics` | Read-only presence, version, path, and cache statistics for every external command and harness. |
 
 ### Session links
@@ -126,6 +127,13 @@ Each page has a checkbox, and each row has a drag grip and `ArrowUp`/`ArrowDown`
 `Reset to default` appears once you have changed something.
 This preference is per device, under `agentic.sidebarNav`, and never reaches the server.
 
+### Debug bar
+
+`Show the debug bar` turns the bar pinned to the bottom of every page on or off.
+While it is on, the bar summarizes the API calls and database queries the page has made, and `Show details` opens the request log by tab (API, DB, CLI, RPC) above the page's load timings: page load, `DOMContentLoaded`, TTFB, and first paint.
+With the bar off, the page's bottom padding shrinks back to its normal gap.
+This preference is per device, under `agentic.debugBarHidden`, and never reaches the server.
+
 ### Diagnostics
 
 Three groups: `Runtime`, `Helper tools`, and `Agent harnesses`, each row showing whether the command is installed, whether it is required, its version, and the path it resolved to.
@@ -159,7 +167,7 @@ Version probes time out after 5 seconds and cache listings after 30.
 | Send a test Slack notification | none | `POST /api/slack/test` |
 
 `agentic settings set` covers only the link templates and the two refresh policies.
-The GitHub login, the Slack ids and token, the local tool URLs, the agent prompts, the review-scan settings, the sidebar, and every diagnostics probe are UI or HTTP only, so an agent that needs them has to call the API directly.
+The GitHub login, the Slack ids and token, the local tool URLs, the agent prompts, the review-scan settings, the sidebar and debug bar choices, and every diagnostics probe are UI or HTTP only, so an agent that needs them has to call the API directly.
 
 ## Related
 

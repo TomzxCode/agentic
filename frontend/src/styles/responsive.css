@@ -115,6 +115,9 @@
   .main {
     padding: calc(64px + env(safe-area-inset-top)) 14px calc(72px + env(safe-area-inset-bottom));
   }
+  .app.debug-bar-hidden .main {
+    padding-bottom: calc(20px + env(safe-area-inset-bottom));
+  }
   .grid-2 {
     grid-template-columns: 1fr;
   }

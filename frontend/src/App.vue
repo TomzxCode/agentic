@@ -18,6 +18,7 @@ import { useFocusHints } from './composables/useFocusHints'
 import { useSidebar } from './composables/useSidebar'
 import { buildPaletteItems } from './palette'
 import { loadSidebarNav, sidebarNavColumns, visibleSidebarNav } from './sidebarNav'
+import { debugBarVisible } from './debugBar'
 
 const { hintBadges, handleHintKey, hasHintTargets, stopHints } = useFocusHints()
 
@@ -374,7 +375,8 @@ onUnmounted(() => {
       'sidebar-open': sidebarOpen,
       'sidebar-dragging': sidebarDragging,
       'sidebar-resizing': sidebarResizing,
-      'sidebar-hidden': sidebarHidden
+      'sidebar-hidden': sidebarHidden,
+      'debug-bar-hidden': !debugBarVisible
     }"
     :style="{ '--sidebar-width': `${sidebarWidth}px` }"
   >
@@ -634,6 +636,6 @@ onUnmounted(() => {
     >
 
     <CommandPalette v-if="paletteOpen" :items="paletteItems" @select="runPaletteItem" @close="paletteOpen = false" />
-    <StatusBar />
+    <StatusBar v-if="debugBarVisible" />
   </div>
 </template>

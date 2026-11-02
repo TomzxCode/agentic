@@ -16,6 +16,7 @@ import SettingsChecklists from '../components/SettingsChecklists.vue'
 import SettingsRefresh from '../components/SettingsRefresh.vue'
 import SettingsReviewScan from '../components/SettingsReviewScan.vue'
 import SettingsSidebar from '../components/SettingsSidebar.vue'
+import SettingsDebugBar from '../components/SettingsDebugBar.vue'
 import SettingsDiagnostics from '../components/SettingsDiagnostics.vue'
 
 const route = useRoute()
@@ -116,6 +117,7 @@ onMounted(load)
         </div>
 
         <SettingsSidebar v-show="active === 'sidebar'" />
+        <SettingsDebugBar v-show="active === 'debug-bar'" />
         <SettingsDiagnostics v-show="active === 'diagnostics'" :active="active === 'diagnostics'" />
       </div>
     </div>

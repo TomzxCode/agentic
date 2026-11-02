@@ -92,8 +92,19 @@
   padding: 20px 24px 96px;
   overscroll-behavior: contain;
 }
+/* The bar's own height is what the bottom padding reserves; with the bar off
+   there is only the page's normal bottom gap left to keep. */
+.app.debug-bar-hidden .main {
+  padding-bottom: 32px;
+}
 .app.sidebar-hidden .status-bar {
   left: 0;
+}
+/* The bar is not rendered at all when the Debug bar setting turns it off, so
+   the floating chrome that sits above it (the tasks bulk bar) moves down to the
+   window's edge instead of keeping the bar's height as a gap. */
+.app.debug-bar-hidden {
+  --status-bar-height: 0px;
 }
 @media (max-width: 760px) {
   .status-bar {

@@ -6,7 +6,18 @@ import StatusBar from '../components/StatusBar.vue'
 import { debugStats, refreshDebugRequests, clearApiCalls, clearDbQueries } from '../debug.js'
 
 vi.mock('../debug.js', async () => ({
-  debugStats: (await import('vue')).reactive({ requests: [], dbRequests: [], apiCalls: 0 }),
+  debugStats: (await import('vue')).reactive({
+    requests: [],
+    dbRequests: [],
+    calls: [],
+    apiCalls: 0,
+    apiTime: 0,
+    dbQueries: 0,
+    dbTime: 0,
+    lastApiDuration: 0,
+    lastDbQueries: 0,
+    lastDbTime: 0
+  }),
   refreshDebugRequests: vi.fn(),
   clearApiCalls: vi.fn(),
   clearDbQueries: vi.fn()
@@ -28,6 +39,10 @@ beforeEach(async () => {
     localStorage.removeItem(key)
   }
   debugStats.apiCalls = 0
+  debugStats.apiTime = 0
+  debugStats.dbQueries = 0
+  debugStats.dbTime = 0
+  debugStats.calls = []
   debugStats.requests = []
   debugStats.dbRequests = []
   useRoute().fullPath = '/'
@@ -39,12 +54,23 @@ afterEach(() => {
   vi.clearAllMocks()
 })
 
-it('refreshes after navigation and API responses, coalescing bursts without polling', async () => {
+it('refreshes the details only while they are expanded, coalescing bursts without polling', async () => {
   vi.useFakeTimers()
   const wrapper = mount(StatusBar)
 
   try {
+    // Collapsed: neither navigation nor API calls touch the debug endpoint.
     useRoute().fullPath = '/tasks'
+    await nextTick()
+    debugStats.apiCalls += 1
+    await nextTick()
+    await vi.advanceTimersByTimeAsync(10000)
+    expect(refreshDebugRequests).not.toHaveBeenCalled()
+
+    await wrapper.get('[data-testid="status-bar-toggle"]').trigger('click')
+    expect(refreshDebugRequests).toHaveBeenCalledTimes(1)
+
+    useRoute().fullPath = '/people'
     await nextTick()
     await vi.advanceTimersByTimeAsync(100)
     expect(refreshDebugRequests).toHaveBeenCalledTimes(2)
@@ -66,8 +92,49 @@ it('refreshes after navigation and API responses, coalescing bursts without poll
   }
 })
 
+it('summarizes calls locally while collapsed without asking the server', async () => {
+  const wrapper = mount(StatusBar)
+  try {
+    debugStats.apiCalls = 3
+    debugStats.apiTime = 42.5
+    debugStats.dbQueries = 7
+    debugStats.dbTime = 3.25
+    debugStats.calls = [{ duration: 4, dbQueries: 1, dbTime: 0.5 }]
+    await nextTick()
+
+    expect(wrapper.get('[data-testid="api-calls"]').text()).toBe('API: 3 calls, 42.50 ms')
+    expect(wrapper.get('[data-testid="db-queries"]').text()).toBe('DB: 7 queries, 3.25 ms')
+    expect(wrapper.get('[data-testid="last-api-call"]').text()).toBe('Last: 4.00 ms (1 queries, 0.50 ms)')
+    expect(refreshDebugRequests).not.toHaveBeenCalled()
+  } finally {
+    wrapper.unmount()
+  }
+})
+
+it('keeps the page-load timings in the details panel, not the always-visible summary', async () => {
+  const wrapper = mount(StatusBar)
+  try {
+    // Collapsed, the summary carries only the API and DB counts.
+    const summary = wrapper.get('.status-bar-summary')
+    expect(summary.find('[data-testid="page-load-time"]').exists()).toBe(false)
+    expect(summary.find('[data-testid="dom-content-loaded"]').exists()).toBe(false)
+    expect(summary.find('[data-testid="ttfb"]').exists()).toBe(false)
+    expect(summary.find('[data-testid="first-paint"]').exists()).toBe(false)
+
+    await wrapper.get('[data-testid="status-bar-toggle"]').trigger('click')
+    const details = wrapper.get('[data-testid="status-bar-details"]')
+    expect(details.find('[data-testid="page-load-time"]').exists()).toBe(true)
+    expect(details.find('[data-testid="dom-content-loaded"]').exists()).toBe(true)
+    expect(details.find('[data-testid="ttfb"]').exists()).toBe(true)
+    expect(details.find('[data-testid="first-paint"]').exists()).toBe(true)
+  } finally {
+    wrapper.unmount()
+  }
+})
+
 it('cancels a scheduled refresh when unmounted', async () => {
   vi.useFakeTimers()
+  localStorage.setItem('agentic.debugExpanded', 'true')
   const wrapper = mount(StatusBar)
   debugStats.apiCalls += 1
   await nextTick()
@@ -140,24 +207,24 @@ it('preserves the details height when API and DB entries are cleared', async () 
   }
 })
 
-it('refreshes on mount and opening details without polling', async () => {
+it('reads the details when they open and not again until they reopen', async () => {
   vi.useFakeTimers()
   const wrapper = mount(StatusBar)
 
   try {
+    expect(refreshDebugRequests).not.toHaveBeenCalled()
+    await vi.advanceTimersByTimeAsync(10000)
+    expect(refreshDebugRequests).not.toHaveBeenCalled()
+
+    await wrapper.get('[data-testid="status-bar-toggle"]').trigger('click')
     expect(refreshDebugRequests).toHaveBeenCalledTimes(1)
     await vi.advanceTimersByTimeAsync(10000)
     expect(refreshDebugRequests).toHaveBeenCalledTimes(1)
 
     await wrapper.get('[data-testid="status-bar-toggle"]').trigger('click')
-    expect(refreshDebugRequests).toHaveBeenCalledTimes(2)
-    await vi.advanceTimersByTimeAsync(10000)
-    expect(refreshDebugRequests).toHaveBeenCalledTimes(2)
-
+    expect(refreshDebugRequests).toHaveBeenCalledTimes(1)
     await wrapper.get('[data-testid="status-bar-toggle"]').trigger('click')
     expect(refreshDebugRequests).toHaveBeenCalledTimes(2)
-    await wrapper.get('[data-testid="status-bar-toggle"]').trigger('click')
-    expect(refreshDebugRequests).toHaveBeenCalledTimes(3)
   } finally {
     wrapper.unmount()
   }

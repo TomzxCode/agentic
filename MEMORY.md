@@ -102,6 +102,7 @@
 - 260px is the sidebar's floor because the bottom Search/New task row and the nav icon row start clipping below it; if that nav grows, re-measure before lowering the minimum.
 - The sidebar's visibility has two separate states on purpose: `sidebarOpen` is the transient mobile drawer (reset on every navigation) and `sidebarHidden` is the persisted desktop preference. Collapsing them makes either a route change hide the desktop column, or a drawer close persist as a desktop preference.
 - The desktop toggle is a floated element inside `.main`, not fixed chrome: that is what puts it at the page's left edge on the title's line with the title indented and the rest of the page at the edge, with no per-view markup. It therefore scrolls with the page; `data-no-hint` keeps it out of the focus-hint badges, which are scanned from `.main`.
+- The debug bar (bottom status bar) is a per-device preference too (`agentic.debugBarHidden`, owned by `debugBar.js` and surfaced as Settings → Debug bar). `App.vue` unmounts it through `v-if` and adds `debug-bar-hidden` to `.app`, which zeroes `--status-bar-height` and trims `.main`'s bottom padding: the bar is what publishes that variable, so unmounting alone would leave the tasks bulk bar floating over a gap.
 
 ## 2026-10-15: a screen-edge swipe never reaches the page on mobile
 
