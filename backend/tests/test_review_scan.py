@@ -13,7 +13,7 @@ from agentic.config import settings
 from agentic.db import create_db_and_tables, engine
 from agentic.main import app
 from agentic.models.repositories import Repository, ReviewScanPolicy
-from agentic.models.reviews import ReviewRequest
+from agentic.models.reviews import ReviewRequest, ReviewScanSource
 from agentic.services import shell
 
 
@@ -28,6 +28,7 @@ def _entry(repository: str, number: int, author: str = "alice", **over) -> dict:
         "repository": {"name": repository.split("/")[-1], "nameWithOwner": repository},
         "author": {"login": author},
         "createdAt": over.get("createdAt", "2026-10-01T00:00:00Z"),
+        "timeline": over.get("timeline", []),
     }
 
 
@@ -130,6 +131,30 @@ def test_search_awaiting_reviews_merges_and_filters(monkeypatch):
     assert rows[0]["url"] == "https://github.com/o/a/pull/1"
 
 
+def test_the_scan_dates_the_latest_ready_for_review_event(monkeypatch):
+    timeline = [
+        {"kind": "ready_for_review", "createdAt": "2026-10-20T10:00:00Z"},
+        {"kind": "review_requested", "createdAt": "2026-10-20T10:00:02Z"},
+        {"kind": "converted_to_draft", "createdAt": "2026-10-21T10:00:00Z"},
+        {"kind": "ready_for_review", "createdAt": "2026-10-22T10:00:00Z"},
+    ]
+    base = _fake_search([_entry("o/a", 1), _entry("o/a", 2, timeline=timeline)], [])
+
+    def fake(cmd: list[str], timeout: int = 60) -> str | None:
+        if cmd[:3] == ["ghx", "pr", "view"]:
+            return json.dumps({"timeline": timeline})
+        return base(cmd, timeout=timeout)
+
+    monkeypatch.setattr(shell, "_run_cli", fake)
+    rows = review_scan.search_awaiting_reviews(50, set())
+    assert rows is not None
+    assert rows[0]["ready_for_review_at"] == datetime(2026, 10, 22, 10, 0, tzinfo=UTC)
+    # The search row carries no timeline; the time is read per requested row.
+    assert "ready_for_review_at" not in review_scan._normalize(_entry("o/a", 2), ReviewScanSource.requested)
+    # A timeline with no ready event dates nothing.
+    assert review_scan._latest_ready_event({"timeline": []}) is None
+
+
 def test_search_awaiting_reviews_tolerates_one_failing_search(monkeypatch):
     def fake(cmd: list[str], timeout: int = 60) -> str | None:
         return json.dumps([_entry("o/a", 1)]) if "--review-requested" in cmd else None
@@ -175,7 +200,15 @@ def test_run_review_scan_stores_the_filtered_set_and_removes_the_rest(session, m
 
 
 def test_store_scan_results_leaves_unchanged_rows_alone(session, monkeypatch):
-    monkeypatch.setattr(shell, "_run_cli", _fake_search([_entry("o/a", 1), _entry("o/a", 2)], []))
+    timeline = [{"kind": "ready_for_review", "createdAt": "2026-10-01T00:00:00Z"}]
+    base = _fake_search([_entry("o/a", 1), _entry("o/a", 2)], [])
+
+    def fake(cmd: list[str], timeout: int = 60) -> str | None:
+        if cmd[:3] == ["ghx", "pr", "view"]:
+            return json.dumps({"timeline": timeline})
+        return base(cmd, timeout=timeout)
+
+    monkeypatch.setattr(shell, "_run_cli", fake)
     review_scan.run_review_scan(session, force=True)
     before = {row.number: row.updated_at for row in session.exec(select(ReviewRequest)).all()}
 

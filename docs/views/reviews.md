@@ -17,7 +17,7 @@ It reads the reports your review skills wrote under `AGENTIC_SDLC_DIR`, plus the
 Two sources, merged into one list:
 
 - The review reports in the store, at `{owner}/{repository}/pull-requests/{number}/`.
-- The review scan, which asks GitHub for the pull requests with a review requested from you (`review-requested:@me`) and the open ones you already reviewed (`reviewed-by:@me`). A pull request it finds joins the queue before any report exists for it.
+- The review scan, which asks ghx for the pull requests with a review requested from you (`review-requested:@me`, which includes your teams) and the open ones you already reviewed (`reviewed-by:@me`). A pull request it finds joins the queue before any report exists for it.
 
 The scan's cadence and its repository policy are configured in **Settings → Review requests**, not on this page.
 
@@ -42,6 +42,7 @@ When a filter hides the only matching rows, the empty state names the filter and
 
 - The number links to GitHub, shows the merge-readiness light beside it, and carries the pull request title plus the readiness text in its tooltip.
 - `✅` in the title means GitHub already approved the pull request, `draft` means it is a draft, `📨` means a review is requested from you, and `👀` means you reviewed it and it is still open.
+- A tinted row with a colored edge on its first cell means the pull request has awaited your review for longer than the SLO set in **Settings → Review requests**, counted from when it was last marked ready for review (or from when the scan first saw it waiting, when its timeline has no ready event). Hovering the edge explains why it is colored and states how long the pull request has waited and the SLO. Only an open pull request that still awaits your review is highlighted: one you reviewed, a draft, or a closed or merged one is not. The header adds `N past SLO` while the filtered rows include any.
 - The author cell links to the person page, or to a greyed `person/new` link when no person carries that login.
 - Age, last comment, the commit last reviewed, and when the last review ran are beside the number.
 - A pull request with no report still appears if the scan found it, and its readiness light is yellow until reports arrive.

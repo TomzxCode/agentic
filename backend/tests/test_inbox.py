@@ -305,6 +305,7 @@ def _review_request(
     *,
     source: ReviewScanSource = ReviewScanSource.requested,
     first_seen_at: datetime = NOW,
+    ready_for_review_at: datetime | None = None,
     draft: bool = False,
     state: str = "OPEN",
     title: str = "",
@@ -319,6 +320,7 @@ def _review_request(
         state=state,
         draft=draft,
         first_seen_at=first_seen_at,
+        ready_for_review_at=ready_for_review_at,
     )
 
 
@@ -337,6 +339,26 @@ def test_a_pull_request_past_the_review_slo_is_suggested():
     action = suggestion["actions"][0]
     assert action["kind"] == "open_url"
     assert action["url"] == "https://github.com/o/r/pull/5"
+
+
+def test_the_review_slo_counts_from_the_ready_for_review_time():
+    # First seen by the scan just now, but marked ready for review days ago.
+    recent = _review_request(
+        12,
+        first_seen_at=NOW - timedelta(hours=1),
+        ready_for_review_at=NOW - timedelta(days=2, hours=3),
+    )
+    overdue = build_review_suggestions([recent], timedelta(days=1), NOW)
+    assert [s["number"] for s in overdue] == [12]
+    assert overdue[0]["reason"] == "Has awaited your review for 2d 3h; the SLO is 1d."
+
+    # First seen days ago, but marked ready for review an hour ago.
+    old = _review_request(
+        13,
+        first_seen_at=NOW - timedelta(days=3),
+        ready_for_review_at=NOW - timedelta(hours=1),
+    )
+    assert build_review_suggestions([old], timedelta(days=1), NOW) == []
 
 
 def test_a_pull_request_within_the_review_slo_is_left_alone():

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, col, select
 
@@ -9,11 +11,18 @@ from ..config import settings
 from ..crud import get_task_or_404
 from ..db import get_session
 from ..debug import phase
+from ..inbox import review_slo_overdue
 from ..models.base import utcnow
 from ..models.items import Association, SourceItem
 from ..review_findings import DECISIONS, collect_findings, record_decisions
 from ..review_queue import collect_review_prs, enrich_from_github
-from ..review_scan import ReviewRequest, review_scan_state, run_review_scan, stored_review_requests
+from ..review_scan import (
+    ReviewRequest,
+    configured_review_slo,
+    review_scan_state,
+    run_review_scan,
+    stored_review_requests,
+)
 from ..reviews import read_report
 from ..schemas.items import (
     ItemReviewContent,
@@ -122,6 +131,28 @@ def _scan_row(recorded: ReviewRequest) -> dict:
     }
 
 
+def _mark_review_slo(pr: dict, recorded: ReviewRequest, slo: timedelta | None, now: datetime) -> None:
+    """Flag a row that has awaited the user's review past the SLO.
+
+    The wait comes from the scan row's ``first_seen_at``; the draft flag and
+    state come from the row, which carries ghx's live values, so a draft that
+    became ready is judged on what it is now.
+    """
+    waited = review_slo_overdue(
+        source=recorded.source,
+        draft=bool(pr.get("draft", recorded.draft)),
+        state=str(pr.get("state") or recorded.state or ""),
+        first_seen_at=recorded.first_seen_at,
+        ready_for_review_at=recorded.ready_for_review_at,
+        slo=slo,
+        now=now,
+    )
+    if waited is None or slo is None:
+        return
+    pr["slo_wait_seconds"] = waited.total_seconds()
+    pr["slo_seconds"] = slo.total_seconds()
+
+
 def _collect_enriched_rows(
     session: Session,
     keys: set[tuple[str, str, int]] | None = None,
@@ -153,6 +184,8 @@ def _collect_enriched_rows(
     # or not a report already exists for it, so a store row takes the source too.
     with phase("scan rows"):
         scanned = {_key(_scan_row(recorded)): recorded for recorded in stored_review_requests(session)}
+        slo = configured_review_slo(session)
+        now = utcnow()
         seen = set()
         for pr in rows:
             key = _key(pr)
@@ -160,12 +193,14 @@ def _collect_enriched_rows(
             recorded = scanned.get(key)
             if recorded is not None:
                 pr["request_source"] = recorded.source
+                _mark_review_slo(pr, recorded, slo, now)
         for key, recorded in scanned.items():
             if key in seen or (keys is not None and key not in keys):
                 continue
             row = _scan_row(recorded)
             item = items.get(key)
             _merge_item(row, item, task_ids.get(item.id, []) if item else [])
+            _mark_review_slo(row, recorded, slo, now)
             rows.append(row)
     rows.sort(key=lambda pr: (str(pr["repository"]).lower(), -int(pr["number"])))
     return rows

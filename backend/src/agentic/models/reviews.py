@@ -46,5 +46,10 @@ class ReviewRequest(SQLModel, table=True):
     state: str = ""
     draft: bool = False
     created_at: str | None = None
+    # When the pull request was last marked ready for review, from the scan's
+    # timeline read. The review SLO counts from here, since that is when a
+    # review could be requested; None when the timeline has no such event, and
+    # the SLO falls back to first_seen_at.
+    ready_for_review_at: datetime | None = None
     first_seen_at: datetime = Field(default_factory=utcnow)
     updated_at: datetime = Field(default_factory=utcnow)

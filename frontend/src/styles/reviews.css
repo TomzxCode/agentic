@@ -154,6 +154,16 @@
 .review-table tbody tr:hover td {
   background: var(--bg-2);
 }
+/* A row past the review SLO reads as a whole, not only from its badge: a warm
+   tint across every cell and a warn edge down the first one. The tint survives
+   hover, a shade stronger, so the row keeps saying what it is under the
+   pointer. */
+.review-table tbody tr.review-past-slo-row td {
+  background: color-mix(in srgb, var(--warn) 10%, transparent);
+}
+.review-table tbody tr.review-past-slo-row:hover td {
+  background: color-mix(in srgb, var(--warn) 16%, var(--bg-2));
+}
 /* The review-step columns (Behavior -> Review) center their header and cell so
    the verdict marks line up down the column. The header rule carries the table
    class so it beats the generic left-aligned `.review-table th`. */
@@ -171,11 +181,30 @@
   text-align: center;
   font-size: 9px;
 }
-.review-pr-cell {
+/* The PR cell stays a normal table cell, so it fills the row's height and its
+   background covers the whole cell (including a past-SLO tint). Its content is
+   a flex row in an inner element, which also centers it vertically. */
+.review-table td.review-pr-cell {
+  position: relative;
+  min-width: 0;
+}
+.review-pr-cell-inner {
   display: flex;
   align-items: center;
   gap: 6px;
   min-width: 0;
+}
+/* The warn edge down a past-SLO row's first cell is its own hover target, so its
+   tooltip can say why the row is tinted. The 8px width is a comfortable target
+   while only the first 3px paint. */
+.review-slo-edge {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 8px;
+  background: linear-gradient(to right, var(--warn) 0 3px, transparent 3px);
+  cursor: help;
 }
 .review-pr-cell a {
   color: var(--accent);

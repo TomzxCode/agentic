@@ -7,7 +7,7 @@ You want one place that shows which pull requests still need your review and wha
 ## Prerequisites
 
 - A running API and the web app open (see the [tutorial](../tutorials/getting-started.md)).
-- `ghx` on your `PATH`: the queue reads each pull request's own fields (title, state, author, age) from it, the review scan searches its cache, and a pull request item's reviewer list comes from it too.
+- `ghx` on your `PATH`: the queue reads each pull request's own fields (title, state, author, age) from it, the review scan searches its cache (including the team memberships `ghx cache` records), and a pull request item's reviewer list comes from it too.
 - The repositories you want scanned cached by `ghx`: the scan reads that cache, not GitHub directly. The app's background cache job warms the registered repositories on its cadence (Settings → Refresh); a manual `ghx cache --repo owner/name` also works.
 - Review reports in the store for the pull requests you have already reviewed.
   Run `/review-pr-full` (or the individual review skills) on a PR to write them.
@@ -38,6 +38,7 @@ The reports live under `AGENTIC_SDLC_DIR` (`~/.sdlc` by default), at `{owner}/{r
    Click the number to open the pull request on GitHub.
    A **✅** after the number means GitHub has already approved the pull request (the reviews its branch requires are in), so it needs no further review from you.
    A **📨** means a review is requested from you, and **👀** means you already reviewed the pull request and it is still open.
+   A tint across the whole row and a colored edge on its first cell mean the pull request has awaited your review for longer than the review SLO; hover the edge to read why, with the wait and the SLO. The header counts the highlighted rows.
 4. Read the merge-readiness light beside the number:
    - 🟢 green: the collected signals could be approved automatically.
    - 🟡 yellow: something still needs attention.
@@ -58,14 +59,15 @@ The reports live under `AGENTIC_SDLC_DIR` (`~/.sdlc` by default), at `{owner}/{r
 
 ## Where the pull requests come from
 
-The review scan asks GitHub which pull requests await your review: the ones with a review requested from you (`review-requested:@me`), and the open ones you have already reviewed (`reviewed-by:@me`).
-Discovery runs through `ghx`'s cache: the scan searches what `ghx` has cached, so a repository it has never cached is not searched.
+The review scan asks GitHub which pull requests await your review: the ones with a review requested from you (`review-requested:@me`), which includes a review requested from a team you belong to, and the open ones you have already reviewed (`reviewed-by:@me`).
+Both searches run through `ghx`'s cache, so a repository it has never cached is not searched.
+`ghx cache` also records your team memberships, which is what lets `@me` match a team request; a cache that has never recorded them matches your own login only.
 A pull request the scan finds joins the queue even before any review report exists for it.
 
 Configure the scan under **Settings → Review requests**:
 
 - **How often to scan** is a duration such as `30m`, `1h`, or `1d`; leave it blank to stop scanning.
-- **Review SLO** is a duration such as `8h` or `1d`: a pull request the scan has seen awaiting your review longer than that appears in the inbox. The wait starts when the scan first sees it waiting, and leaving the field blank turns the SLO off.
+- **Review SLO** is a duration such as `8h` or `1d`: a pull request awaiting your review longer than that is highlighted in the review queue and appears in the inbox. The wait starts when the pull request was last marked ready for review; a pull request with no such event falls back to when the scan first saw it waiting. Leaving the field blank turns the SLO off.
 - **Review nudge SLO** is a duration such as `1h30m` or `1d` for your own pull requests: one that has waited that long since it was opened without any review from anyone (a comment review counts, the author's own does not) appears in the inbox with a `Poke reviewers` button that DMs each requested reviewer on Slack. Leaving the field blank turns the nudge off. This read does not go through the scan: it uses the same read as the [My PRs](../views/my-pulls.md) page, over the registered GitHub repositories.
 - **Repositories with no policy of their own** is what a repository that has no policy of its own does: **Include** (scan every repository except the excluded ones) or **Exclude** (scan only the repositories marked include).
 - Each repository can be left on **Default** to follow that choice, or set to **Include** or **Exclude** on its own.

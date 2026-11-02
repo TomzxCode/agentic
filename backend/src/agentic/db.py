@@ -425,6 +425,11 @@ def _ensure_columns() -> None:
                 connection.execute(
                     text("ALTER TABLE repository ADD COLUMN review_scan VARCHAR NOT NULL DEFAULT 'default'")
                 )
+    if "reviewrequest" in inspector.get_table_names():
+        request_columns = {column["name"] for column in inspector.get_columns("reviewrequest")}
+        if "ready_for_review_at" not in request_columns:
+            with engine.begin() as connection:
+                connection.execute(text("ALTER TABLE reviewrequest ADD COLUMN ready_for_review_at DATETIME"))
     if "executiongraph" in inspector.get_table_names():
         graph_columns = {column["name"] for column in inspector.get_columns("executiongraph")}
         if "schedule_state" not in graph_columns:

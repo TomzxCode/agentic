@@ -14,7 +14,7 @@ The review skills themselves and their report format are out of scope; tests bui
 
 | File | Coverage |
 |---|---|
-| `backend/tests/test_review_scan.py` (12 tests) | Cadence parsing including the off spellings, the due check, repository policy resolution, the two searches merged with requested winning and excluded authors dropped, one failing search tolerated, both searches failing returns None, replace-set storage preserving `first_seen_at`, a failed scan keeping the stored set, the scan skipped when the cadence is off, the scan endpoints and the queue union, the per-repository policy PATCH, and a manual scan recording a gh failure |
+| `backend/tests/test_review_scan.py` (12 tests) | Cadence parsing including the off spellings, the due check, repository policy resolution, the two searches merged with requested winning and excluded authors dropped, one failing search tolerated, both searches failing returns None, replace-set storage preserving `first_seen_at` and refreshing `ready_for_review_at`, a failed scan keeping the stored set, the scan skipped when the cadence is off, the scan endpoints and the queue union, the per-repository policy PATCH, and a manual scan recording a gh failure |
 | `backend/tests/test_review_queue.py` (20 tests) | Store collection with markers and the view cache, the view cache's review line reading as a review decision, in-progress markers shown and ignored for other commits, a running step with no report yet, a marker matched against ghx's newer head, staleness of a step behind the newest commit, `reviewed_at` as the newest report, a commitless alias still reporting its verdict, the bare repository layout, the chain gating in `determine_stale_steps`, the red/yellow/green readiness signal, the queue endpoint, the tracked-item merge, task ids riding along (and absent when the item has no tasks), the task-scoped queue (populated and empty), live fields from ghx, and concurrent lookups |
 | `backend/tests/test_reviews.py` (8 tests) | Directory resolution with different owner casing, the bare-repo fallback, listing reports newest first with skill and commit tags, report-name splitting, path-traversal rejection, truncation of a large report, and the item reviews endpoints |
 | `backend/tests/test_review_findings.py` (10 tests) | Severity ordering across state files, entries without a severity skipped, an empty list without a review directory, tolerant reading of an invalid YAML file, the findings endpoint, a recorded decision read back, a line-preserving single-entry write, decision replacement, an all-or-nothing batch with a missing finding, and the decisions endpoint |
@@ -57,7 +57,7 @@ The review skills themselves and their report format are out of scope; tests bui
 |---|---|
 | FR-1 | `test_review_scan.py`: search merge, requested priority, author filter |
 | FR-2 | `test_review_scan.py`: cadence parsing, due check, off skip |
-| FR-3 | `test_review_scan.py`: replace-set storage, first_seen_at kept |
+| FR-3 | `test_review_scan.py`: replace-set storage, first_seen_at kept, ready_for_review_at read from the timeline |
 | FR-4 | `test_review_scan.py`: failing scan keeps set, one failing search tolerated, both failing |
 | FR-5 | `test_review_scan.py`: include_repository, policy PATCH |
 | FR-6 | `test_review_scan.py`: stored set minus excluded repositories |
@@ -76,9 +76,10 @@ The review skills themselves and their report format are out of scope; tests bui
 | FR-19 | `test_review_findings.py`: ordering, severity filter, empty, tolerant read, endpoint |
 | FR-20 | `test_review_findings.py`: single-entry write, replacement, all-or-nothing, decisions endpoint |
 | FR-21 | `reviewQueue.test.js`, `reviews.test.js` |
+| FR-24 | `test_review_queue.py`: past-SLO fields; `reviewQueue.test.js`: row highlight, edge tooltip, and header count |
 | FR-22 | `reviewFindings.test.js`, `shareFindingsModal.test.js`, `taskReviewPanel.test.js` |
 | FR-23 | `settingsReviewScan.test.js` |
 | NFR-1 | `test_review_queue.py`: concurrent lookups, cache behavior |
 | NFR-2 | `test_review_queue.py`: ghx failure fallback; `test_review_scan.py`: failed scan |
 | NFR-3 | `test_reviews.py`: traversal rejection |
-| NFR-4 | `test_review_scan.py`: first_seen_at preserved across scans |
+| NFR-4 | `test_review_scan.py`: first_seen_at preserved across scans and ready_for_review_at refreshed |

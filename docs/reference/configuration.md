@@ -60,7 +60,7 @@ The Slack credentials keep the names `slackx` uses (`SLACK_TOKEN`, `SLACK_COOKIE
 | `AGENTIC_REVIEW_SCAN_DEFAULT` | `include` | What a repository with no review-scan policy of its own does: `include` (scan every repository except the excluded ones) or `exclude` (scan only the repositories marked include). |
 | `AGENTIC_REVIEW_SCAN_LIMIT` | `100` | How many results each of the review scan's two searches returns. |
 | `AGENTIC_REVIEW_SCAN_EXCLUDE_AUTHORS` | `dependabot[bot]` | Comma-separated logins the review scan leaves out of its results. |
-| `AGENTIC_REVIEW_SLO` | (empty) | How long a pull request may await your review before the inbox flags it. A duration such as `8h` or `1d`; empty disables it. Measured from when the scan first saw the pull request waiting. |
+| `AGENTIC_REVIEW_SLO` | (empty) | How long a pull request may await your review before the inbox flags it and the review queue highlights it. A duration such as `8h` or `1d`; empty disables it. Measured from when the pull request was last marked ready for review, falling back to when the scan first saw it waiting when the timeline has no such event. |
 | `AGENTIC_REVIEW_NUDGE_SLO` | (empty) | How long a pull request of yours may wait without any review from anyone before the inbox offers to poke its reviewers on Slack. A duration such as `1h30m` or `1d`; empty disables it. Measured from when the pull request was opened. |
 | `AGENTIC_SCHEDULED_TASK_TICK` | `30` | Seconds between checks for scheduled shell tasks that are due. `0` disables the loop. |
 | `AGENTIC_SCHEDULED_TASK_TIMEOUT` | `3600` | Seconds a scheduled shell task may run before it is stopped and marked failed. |
@@ -95,6 +95,7 @@ No page, endpoint, or CLI command refreshes a repository's cache: the pages read
 The job uses a delta fetch for a repository whose cache is warm and a full history walk for one ghx has never completed, which is why it runs off the request path.
 
 The review scan is editable under **Settings → Review requests**: how often it runs (`review_scan_interval`), the review SLO (`review_slo`), and what a repository with no policy of its own does (`review_scan_default`).
+The scan covers reviews requested from a team you belong to through ghx's `@me` expansion, which reads the team memberships `ghx cache` records.
 Each registered repository can also be set to include or exclude on its own.
 See [How to read the review queue](../how-to/review-pull-requests.md).
 

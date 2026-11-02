@@ -257,6 +257,39 @@ def _review_suggestion(request: ReviewRequest, waited: timedelta, slo: timedelta
     }
 
 
+def review_slo_overdue(
+    *,
+    source: str,
+    draft: bool,
+    state: str,
+    first_seen_at: datetime,
+    ready_for_review_at: datetime | None = None,
+    slo: timedelta | None,
+    now: datetime,
+) -> timedelta | None:
+    """How long past the review SLO a pull request has waited, or None.
+
+    Only a review the scan found requested from the user counts: a pull request
+    they already reviewed is not waiting on them, and one that is a draft or no
+    longer open is not ready. The wait runs from when the scan saw the pull
+    request marked ready for review, which is when a review could be requested;
+    a row the timeline cannot date falls back to ``first_seen_at``. With no SLO
+    configured, every pull request is left alone.
+
+    The inbox and the review queue both read this rule, so a row flagged in one
+    is flagged in the other.
+    """
+    if slo is None:
+        return None
+    if source != ReviewScanSource.requested.value:
+        return None
+    if draft or str(state or "").upper() not in ("", "OPEN"):
+        return None
+    reference = _as_utc(ready_for_review_at or first_seen_at)
+    waited = _as_utc(now) - reference
+    return waited if waited > slo else None
+
+
 def build_review_suggestions(
     requests: Sequence[ReviewRequest],
     slo: timedelta | None,
@@ -264,24 +297,23 @@ def build_review_suggestions(
 ) -> list[dict[str, Any]]:
     """Pull requests that have awaited the user's review past its SLO.
 
-    Only a review the scan found requested from the user counts: a pull request
-    they already reviewed is not waiting on them, and one that is a draft or no
-    longer open is not ready. The wait runs from ``first_seen_at``, the moment
-    the scan first saw the pull request awaiting a review, so a pull request the
-    app has just found is not immediately overdue. With no SLO configured, every
-    pull request is left alone.
+    The rules live in ``review_slo_overdue``; with no SLO configured, every pull
+    request is left alone.
     """
     if slo is None:
         return []
-    reference = _as_utc(now)
     suggestions: list[dict[str, Any]] = []
     for request in requests:
-        if request.source != ReviewScanSource.requested.value:
-            continue
-        if request.draft or str(request.state or "").upper() not in ("", "OPEN"):
-            continue
-        waited = reference - _as_utc(request.first_seen_at)
-        if waited <= slo:
+        waited = review_slo_overdue(
+            source=request.source,
+            draft=request.draft,
+            state=request.state,
+            first_seen_at=request.first_seen_at,
+            ready_for_review_at=request.ready_for_review_at,
+            slo=slo,
+            now=now,
+        )
+        if waited is None:
             continue
         suggestions.append(_review_suggestion(request, waited, slo))
     return suggestions

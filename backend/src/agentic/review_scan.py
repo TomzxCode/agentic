@@ -5,16 +5,20 @@ only holds pull requests a review has already run against. This module covers th
 other half of the ``review_requested_prs`` script: asking GitHub which pull
 requests are waiting, so the queue can show them before any report exists.
 
-Two searches make up the set, matching the script: ``review-requested:@me`` (a
-review is asked of the user) and ``reviewed-by:@me`` (the user reviewed it and it
-is still open). Both go through ``ghx search prs``, which answers only from the
-local cache, across every repository it has cached. The scan never refreshes
-that cache itself (a refresh per repository is slow), so a scheduled refresh
-keeps it current and a repository ghx has never cached is not searched.
+The set is what a review is owed on: ``review-requested:@me`` (a review is asked
+of the user, directly or from a team they belong to) and ``reviewed-by:@me`` (the
+user reviewed it and it is still open).
+
+Both searches go through ``ghx search prs``, which answers only from the local
+cache, across every repository it has cached. ``@me`` covers the user's teams
+because ``ghx cache`` records the team memberships alongside the repositories; a
+cache that has never recorded them matches the user alone. The scan never
+refreshes that cache itself (a refresh per repository is slow), so a scheduled
+refresh keeps it current and a repository ghx has never cached is not searched.
 
 The script's ``--notifications`` recovery of dropped team review requests is not
 ported: it needs the notifications API plus a batched GraphQL drop check, and the
-plain searches do not surface those pull requests at all.
+plain searches do not surface a request that a teammate's review already removed.
 """
 
 from __future__ import annotations
@@ -38,11 +42,12 @@ from .settings_store import get_review_scan_status, get_settings, record_review_
 
 log = structlog.get_logger(__name__)
 
-#: The fields ``ghx search prs`` returns for a row.
+#: The fields every search returns for a row.
 SEARCH_FIELDS = "number,title,url,state,isDraft,repository,author,createdAt"
 SEARCH_TIMEOUT = 90
 
-#: The login both searches ask about. ghx resolves it from gh's local config.
+#: The login both searches ask about. ghx resolves it from gh's local config,
+#: and expands it to the user's teams for the requested-reviewer search.
 ME_SHORTHAND = "@me"
 
 #: The two searches, in priority order: a pull request asking for the user's
@@ -125,6 +130,44 @@ def _search(flag: str, limit: int) -> list[dict[str, Any]] | None:
     return results if isinstance(results, list) else None
 
 
+def _latest_ready_event(payload: dict[str, Any]) -> datetime | None:
+    """The latest ``ready_for_review`` event in a pull request's timeline.
+
+    That is when the current review round began, and the moment the review SLO
+    counts from. None when the timeline has none (a pull request opened ready
+    has no such event).
+    """
+    latest: datetime | None = None
+    for event in payload.get("timeline") or []:
+        if not isinstance(event, dict) or event.get("kind") != "ready_for_review":
+            continue
+        at = _parse_timestamp(event.get("createdAt"))
+        if at is not None and (latest is None or at > latest):
+            latest = at
+    return latest
+
+
+def _ready_for_review_at(repository: str, number: int) -> datetime | None:
+    """When the scan last saw the pull request marked ready for review.
+
+    The search result does not carry the timeline, and asking each search for
+    it serializes every match's timeline (seconds per team search), so the
+    timeline is read per requested row from ghx's cache instead: a single
+    pull request's view is a few milliseconds.
+    """
+    raw = shell._run_cli(
+        ["ghx", "pr", "view", str(number), "--repo", repository, "--json"],
+        timeout=60,
+    )
+    if not raw:
+        return None
+    try:
+        payload = json.loads(raw)
+    except json.JSONDecodeError:
+        return None
+    return _latest_ready_event(payload) if isinstance(payload, dict) else None
+
+
 def _normalize(entry: dict[str, Any], source: ReviewScanSource) -> dict[str, Any] | None:
     """One search result as a stored row, or None when it names no pull request."""
     repository = str((entry.get("repository") or {}).get("nameWithOwner") or "").strip()
@@ -155,19 +198,26 @@ def search_awaiting_reviews(limit: int, exclude_authors: set[str]) -> list[dict[
     found: dict[tuple[str, int], dict[str, Any]] = {}
     ran = False
     searches = run_parallel([lambda flag=flag: _search(flag, limit) for flag, _ in SEARCHES])
-    for (flag, source), results in zip(SEARCHES, searches, strict=True):
-        if results is None:
+    for (flag, source), search_results in zip(SEARCHES, searches, strict=True):
+        if search_results is None:
             log.warning("review scan search failed", flag=flag)
             continue
         ran = True
-        for entry in results:
+        for entry in search_results:
             row = _normalize(entry, source)
             if row is None or row["author"].lower() in exclude_authors:
                 continue
             found.setdefault((row["repository"].lower(), row["number"]), row)
     if not ran:
         return None
-    return list(found.values())
+    rows = list(found.values())
+    # Only a requested row has an SLO clock, and the timeline is read per row so
+    # a search does not serialize every match's timeline.
+    requested = [row for row in rows if row["source"] == ReviewScanSource.requested.value]
+    ready = run_parallel([lambda row=row: _ready_for_review_at(row["repository"], row["number"]) for row in requested])
+    for row, at in zip(requested, ready, strict=True):
+        row["ready_for_review_at"] = at
+    return rows
 
 
 def include_repository(repository: str, policies: dict[str, str], default: str) -> bool:
@@ -220,6 +270,20 @@ def stored_review_requests(session: Session) -> list[ReviewRequest]:
     ]
 
 
+def _same_value(current: Any, value: Any) -> bool:
+    """Whether a stored field already holds *value*.
+
+    SQLite hands back a naive datetime for one written as aware UTC, so a plain
+    equality would look different on every scan and rewrite the row. Comparing
+    both sides as UTC keeps a steady scan write-free.
+    """
+    if isinstance(current, datetime) and isinstance(value, datetime):
+        left = current if current.tzinfo else current.replace(tzinfo=UTC)
+        right = value if value.tzinfo else value.replace(tzinfo=UTC)
+        return left == right
+    return current == value
+
+
 def store_scan_results(session: Session, rows: list[dict[str, Any]]) -> tuple[int, int]:
     """Replace the stored set with *rows*: upsert what was found, drop the rest.
 
@@ -237,7 +301,9 @@ def store_scan_results(session: Session, rows: list[dict[str, Any]]) -> tuple[in
             session.add(ReviewRequest(**row))
             changed = True
             continue
-        changed_fields = {field: value for field, value in row.items() if getattr(current, field) != value}
+        changed_fields = {
+            field: value for field, value in row.items() if not _same_value(getattr(current, field), value)
+        }
         if changed_fields:
             for field, value in changed_fields.items():
                 setattr(current, field, value)

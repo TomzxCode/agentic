@@ -10,7 +10,7 @@ status: done
 Reviewing a pull request is several steps, and the reports those steps write land as files under the user-global `~/.sdlc` store, invisible unless the user opens that tree.
 At the same time GitHub knows which pull requests are waiting for the user's review, including ones no review has ever run against.
 This feature turns both sources into one review queue: a background scan stores the pull requests awaiting a review, the report store supplies what each review step concluded, ghx overlays the live GitHub fields, and the must/should/may findings the skills recorded can be selected and handed to an agent.
-The scan's `first_seen_at` also feeds the review SLO nudge, which is specified separately in `p18-review-slo` and out of scope here.
+The scan's `ready_for_review_at` (falling back to `first_seen_at`) also feeds the review SLO, which marks overdue rows here and is specified in `p18-review-slo`.
 
 ## Stakeholders
 
@@ -24,9 +24,9 @@ The scan's `first_seen_at` also feeds the review SLO nudge, which is specified s
 
 | ID | Priority | Requirement |
 |---|---|---|
-| FR-1 | Must | The system shall search GitHub for pull requests awaiting the user's review with two searches, `review-requested:@me` and `reviewed-by:@me`, run through `gh search prs`, and store the merged set keyed by repository and number, with the requested source winning on overlap. |
+| FR-1 | Must | The system shall search GitHub for pull requests awaiting the user's review with `review-requested:@me` (which ghx expands to the user's teams, using the memberships its cache records) and `reviewed-by:@me`, and store the merged set keyed by repository and number, with the requested source winning on overlap. Both searches read ghx's cache. |
 | FR-2 | Must | The scan shall run on a cadence from the `review_scan_interval` setting, checked on a background tick; an empty or off value disables it, and a manual "Scan now" run ignores the cadence. |
-| FR-3 | Must | Each scan shall replace the stored set: found pull requests are upserted and the rest deleted, while `first_seen_at` is preserved for rows that survive. |
+| FR-3 | Must | Each scan shall replace the stored set: found pull requests are upserted and the rest deleted, while `first_seen_at` is preserved for rows that survive and `ready_for_review_at` is refreshed from each requested row's timeline. |
 | FR-4 | Must | A scan whose searches could not run at all shall record the error, leave the stored set untouched, and be retried on the next cadence; one failing search is tolerated when the other ran. |
 | FR-5 | Must | The scan shall filter by repository policy: a repository's own `review_scan` policy (default, include, exclude) wins, the app-wide `review_scan_default` decides for the rest, and authors on the exclude list (default `dependabot[bot]`) are dropped. |
 | FR-6 | Must | The stored set shall stop feeding the queue as soon as its repository's policy excludes it, before the next scan runs. |
@@ -47,6 +47,7 @@ The scan's `first_seen_at` also feeds the review SLO nudge, which is specified s
 | FR-21 | Should | The web app shall show the queue at `/reviews` as one row per pull request with a column per review step and the readiness light, filterable by status, drafts, approval, reviewed state, repository, author, and search, with those choices remembered on the device. |
 | FR-22 | Should | The Share action shall list the PR's findings grouped by severity, preselect the actionable must and should findings with an earlier recorded decision winning, preview the prompt, and start an agent run on a linked task, offering to import a task when none is linked. |
 | FR-23 | Should | The Settings review requests section shall edit the cadence, the app-wide default, the per-repository policies, and the review SLO durations, show the scan's last pass, and offer a Scan now button. |
+| FR-24 | Should | A row the review SLO considers overdue shall carry the wait and the SLO, and the SPA shall highlight that row with a tint and a colored edge whose tooltip names the wait and SLO, plus a count in the header. |
 
 ## Non-Functional Requirements
 
@@ -55,13 +56,13 @@ The scan's `first_seen_at` also feeds the review SLO nudge, which is specified s
 | NFR-1 | Must | Performance | GitHub metadata lookups shall be cached in process (300 s on success, 60 s on failure) and fetched concurrently, and a task-scoped read shall enrich only that task's pull requests. |
 | NFR-2 | Must | Resilience | A failed ghx lookup or a failed scan leaves the queue renderable from the store's snapshot; no failure empties the queue. |
 | NFR-3 | Must | Security | Report reads resolve inside the PR directory only, and the app posts nothing to GitHub: decisions and findings travel through files and agent runs. |
-| NFR-4 | Must | Data integrity | A stored scan row is unique per (repository, number), and `first_seen_at` survives every scan, which the review SLO depends on. |
+| NFR-4 | Must | Data integrity | A stored scan row is unique per (repository, number); `first_seen_at` survives every scan, and `ready_for_review_at` is re-read from the timeline, so the review SLO keeps the true wait even when a row is re-added. |
 | NFR-5 | Should | Usability | The queue, its filters, and the findings modal stay usable at phone widths, and filter choices persist in localStorage rather than in settings. |
 
 ## Constraints
 
 - The report store is the user-global `AGENTIC_SDLC_DIR` tree shared with the review skills; the app reads and writes only what the skills' own conventions define.
-- The scan goes through the `gh` CLI because ghx caches reads but has no search qualifiers.
+- The scan reads ghx's cache. A team request is covered by ghx's `@me` expansion, which uses the team memberships `ghx cache` records; a cache without them matches the user's login alone.
 - Scan rows live in the `reviewrequest` table; report state and findings are never copied into the database.
 
 ## Acceptance Criteria
@@ -328,6 +329,19 @@ The scan's `first_seen_at` also feeds the review SLO nudge, which is specified s
       Then the values persist and the scan status shows the last pass
       When Scan now is pressed
       Then a forced scan runs and its result is shown
+    ```
+
+- [ ] **FR-24**
+
+    ```gherkin
+    @FR-24
+    Scenario: A row past the review SLO is marked
+      Given a review SLO of one day and a scan row first seen two days ago
+      When the queue is read
+      Then the row carries the wait and the SLO, and the page highlights it with a tint and a colored edge naming both on hover
+      And the header counts the highlighted rows
+      When the pull request was already reviewed, is a draft, or is no longer open
+      Then the row carries neither value and is not highlighted
     ```
 
 - [ ] **NFR-1**

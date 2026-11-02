@@ -323,6 +323,33 @@ describe('ReviewsView', () => {
     )
   })
 
+  it('highlights a pull request past the review SLO', async () => {
+    mocks.queue.mockResolvedValue({
+      root: null,
+      counts: { total: 2 },
+      prs: [
+        pr({ number: 42, request_source: 'requested', slo_wait_seconds: 183600, slo_seconds: 86400 }),
+        pr({ number: 9, request_source: 'requested' })
+      ]
+    })
+    const wrapper = mount(ReviewsView, stub)
+    await flushPromises()
+
+    // No badge: the row is tinted and its colored edge explains why on hover.
+    expect(wrapper.find('.review-past-slo').exists()).toBe(false)
+    const edges = wrapper.findAll('.review-slo-edge')
+    expect(edges).toHaveLength(1)
+    expect(edges[0].text()).toBe('')
+    expect(edges[0].attributes('title')).toBe('Past the review SLO: awaited your review for 2d 3h; the SLO is 1d.')
+    expect(edges[0].attributes('aria-label')).toBe(edges[0].attributes('title'))
+    // The whole row carries the highlight, and only the flagged row does.
+    const rows = wrapper.findAll('tbody tr')
+    expect(rows[0].classes()).toContain('review-past-slo-row')
+    expect(rows[1].classes()).not.toContain('review-past-slo-row')
+    // The header counts the flagged rows alongside the other totals.
+    expect(wrapper.text()).toContain('2 PRs · 0 ready · 0 blocked · 1 past SLO')
+  })
+
   it('marks a pull request GitHub has already approved', async () => {
     mocks.queue.mockResolvedValue({
       root: null,
@@ -450,7 +477,7 @@ describe('ReviewsView', () => {
     expect(link.attributes('aria-label')).toBe('Task: Land the PR (opens in PR view)')
     expect(wrapper.find('.review-task-new').exists()).toBe(false)
     // The task link comes first in the PR cell, before the readiness light.
-    expect(wrapper.get('.review-pr-cell').element.firstElementChild.getAttribute('href')).toBe('/task/t1?view=pr')
+    expect(wrapper.get('.review-pr-cell-inner').element.firstElementChild.getAttribute('href')).toBe('/task/t1?view=pr')
   })
 
   it('offers a "+" before the readiness light that imports the PR into a task when none is linked', async () => {
@@ -465,7 +492,7 @@ describe('ReviewsView', () => {
 
     const add = wrapper.get('.review-task-new')
     expect(add.attributes('title')).toBe('Create a task from PR #42')
-    expect(wrapper.get('.review-pr-cell').element.firstElementChild).toBe(add.element)
+    expect(wrapper.get('.review-pr-cell-inner').element.firstElementChild).toBe(add.element)
     await add.trigger('click')
     await flushPromises()
 

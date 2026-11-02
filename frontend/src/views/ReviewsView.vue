@@ -8,6 +8,7 @@ import {
   draftFilterCount,
   groupQueueByRepository,
   isApproved,
+  isPastSlo,
   isReviewedByMe,
   KIND_FILTER_LABELS,
   KIND_FILTER_STATES,
@@ -26,6 +27,7 @@ import {
   READINESS_LIGHTS,
   READINESS_TITLES,
   REQUEST_SOURCE_BADGES,
+  reviewSloTitle,
   reviewedFilterCount,
   riskTone,
   runningStep,
@@ -270,7 +272,8 @@ const authorOptions = computed(() =>
 const counts = computed(() => ({
   total: filteredPrs.value.length,
   ready: filteredPrs.value.filter((pr) => pr.readiness === 'green').length,
-  blocked: filteredPrs.value.filter((pr) => pr.readiness === 'red').length
+  blocked: filteredPrs.value.filter((pr) => pr.readiness === 'red').length,
+  pastSlo: filteredPrs.value.filter(isPastSlo).length
 }))
 
 async function load(refresh = false) {
@@ -469,7 +472,7 @@ onMounted(load)
       <span class="row" style="gap: 8px; align-items: center">
         <span v-if="!loading && !error" class="faint">
           {{ counts.total }} PR{{ counts.total === 1 ? '' : 's' }} · {{ counts.ready }} ready ·
-          {{ counts.blocked }} blocked
+          {{ counts.blocked }} blocked<template v-if="counts.pastSlo"> · {{ counts.pastSlo }} past SLO</template>
         </span>
         <button class="btn sm ghost" :disabled="loading" title="Re-read the store and GitHub" @click="load(true)">
           <span v-if="loading" class="spinner" aria-hidden="true"></span>
@@ -631,79 +634,92 @@ onMounted(load)
               </tr>
             </thead>
             <tbody>
-              <tr v-for="pr in group.prs" :key="`${pr.repository}#${pr.number}`">
+              <tr
+                v-for="pr in group.prs"
+                :key="`${pr.repository}#${pr.number}`"
+                :class="{ 'review-past-slo-row': isPastSlo(pr) }"
+              >
                 <td class="review-pr-cell">
-                  <router-link
-                    v-if="taskFor(pr)"
-                    class="review-task-link"
-                    :to="`/task/${taskFor(pr).id}?view=pr`"
-                    :title="`Task: ${taskFor(pr).title} · opens in PR view`"
-                    :aria-label="`Task: ${taskFor(pr).title} (opens in PR view)`"
-                    >📝</router-link
-                  >
-                  <button
-                    v-else
-                    class="review-task-new"
-                    :disabled="creatingKey === prKey(pr)"
-                    :title="`Create a task from PR #${pr.number}`"
-                    :aria-label="`Create a task from PR #${pr.number}`"
-                    @click="createTaskFrom(pr)"
-                  >
-                    <span v-if="creatingKey === prKey(pr)" class="spinner" aria-hidden="true"></span>
-                    <span v-else aria-hidden="true">➕</span>
-                  </button>
-                  <a
-                    v-if="ghxLink(pr)"
-                    class="review-tool-link"
-                    :href="ghxLink(pr)"
-                    target="_blank"
-                    rel="noopener"
-                    title="Open in ghx"
-                    >ghx</a
-                  >
-                  <a
-                    v-if="pr.url"
-                    class="review-tool-link"
-                    :href="pr.url"
-                    target="_blank"
-                    rel="noopener"
-                    title="Open on GitHub"
-                    >gh</a
-                  >
                   <span
-                    class="review-readiness"
+                    v-if="isPastSlo(pr)"
+                    class="review-slo-edge"
                     role="img"
-                    :title="readinessTitle(pr)"
-                    :aria-label="readinessTitle(pr)"
-                    >{{ READINESS_LIGHTS[pr.readiness] }}</span
-                  >
-                  <span class="review-number">#{{ pr.number }}</span>
-                  <span
-                    v-if="isApproved(pr)"
-                    class="review-approved"
-                    role="img"
-                    title="Approved on GitHub"
-                    aria-label="Approved on GitHub"
-                    >✅</span
-                  >
-                  <span v-if="pr.draft" class="badge st-draft">draft</span>
-                  <span
-                    v-if="pr.request_source"
-                    class="review-source"
-                    role="img"
-                    :title="sourceTitle(pr)"
-                    :aria-label="sourceTitle(pr)"
-                    >{{ sourceBadge(pr) }}</span
-                  >
-                  <router-link
-                    class="review-pr-link"
-                    :to="pullPath(pr)"
-                    :title="pr.title"
-                    :aria-label="
-                      pr.title ? `Open PR #${pr.number} in the app: ${pr.title}` : `Open PR #${pr.number} in the app`
-                    "
-                    >{{ pr.title || `#${pr.number}` }}</router-link
-                  >
+                    :title="reviewSloTitle(pr)"
+                    :aria-label="reviewSloTitle(pr)"
+                  ></span>
+                  <div class="review-pr-cell-inner">
+                    <router-link
+                      v-if="taskFor(pr)"
+                      class="review-task-link"
+                      :to="`/task/${taskFor(pr).id}?view=pr`"
+                      :title="`Task: ${taskFor(pr).title} · opens in PR view`"
+                      :aria-label="`Task: ${taskFor(pr).title} (opens in PR view)`"
+                      >📝</router-link
+                    >
+                    <button
+                      v-else
+                      class="review-task-new"
+                      :disabled="creatingKey === prKey(pr)"
+                      :title="`Create a task from PR #${pr.number}`"
+                      :aria-label="`Create a task from PR #${pr.number}`"
+                      @click="createTaskFrom(pr)"
+                    >
+                      <span v-if="creatingKey === prKey(pr)" class="spinner" aria-hidden="true"></span>
+                      <span v-else aria-hidden="true">➕</span>
+                    </button>
+                    <a
+                      v-if="ghxLink(pr)"
+                      class="review-tool-link"
+                      :href="ghxLink(pr)"
+                      target="_blank"
+                      rel="noopener"
+                      title="Open in ghx"
+                      >ghx</a
+                    >
+                    <a
+                      v-if="pr.url"
+                      class="review-tool-link"
+                      :href="pr.url"
+                      target="_blank"
+                      rel="noopener"
+                      title="Open on GitHub"
+                      >gh</a
+                    >
+                    <span
+                      class="review-readiness"
+                      role="img"
+                      :title="readinessTitle(pr)"
+                      :aria-label="readinessTitle(pr)"
+                      >{{ READINESS_LIGHTS[pr.readiness] }}</span
+                    >
+                    <span class="review-number">#{{ pr.number }}</span>
+                    <span
+                      v-if="isApproved(pr)"
+                      class="review-approved"
+                      role="img"
+                      title="Approved on GitHub"
+                      aria-label="Approved on GitHub"
+                      >✅</span
+                    >
+                    <span v-if="pr.draft" class="badge st-draft">draft</span>
+                    <span
+                      v-if="pr.request_source"
+                      class="review-source"
+                      role="img"
+                      :title="sourceTitle(pr)"
+                      :aria-label="sourceTitle(pr)"
+                      >{{ sourceBadge(pr) }}</span
+                    >
+                    <router-link
+                      class="review-pr-link"
+                      :to="pullPath(pr)"
+                      :title="pr.title"
+                      :aria-label="
+                        pr.title ? `Open PR #${pr.number} in the app: ${pr.title}` : `Open PR #${pr.number} in the app`
+                      "
+                      >{{ pr.title || `#${pr.number}` }}</router-link
+                    >
+                  </div>
                 </td>
                 <td class="faint">
                   <router-link

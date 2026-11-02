@@ -22,7 +22,7 @@ flowchart LR
         F[Findings state files]
         V[gh-pr-view.md cache]
     end
-    GH[gh search prs] --> S[review_scan.py]
+    GH[ghx search prs, cached, @me includes teams] --> S[review_scan.py]
     S --> DB[(reviewrequest table)]
     R --> RS[review_store.py]
     V --> RS
@@ -55,6 +55,7 @@ flowchart LR
 | draft | bool | default false | Draft flag at scan time |
 | created_at | string | nullable | GitHub's creation time as text |
 | first_seen_at | datetime | not null | Set on first storage, preserved across scans |
+| ready_for_review_at | datetime | null | Latest `ready_for_review` event in the requested search's timeline; the review SLO's wait start |
 | updated_at | datetime | not null | Touched on each upsert |
 
 Unique constraint `(repository, number)` (`uq_review_request`).
@@ -106,6 +107,7 @@ Row union:
 
 - Store rows and scan rows merge on (owner, repo, number), lowercased.
 - A store row the scan also found takes the scan's source (`request_source`).
+- A row past the review SLO (`p18-review-slo`) carries `slo_wait_seconds` and `slo_seconds`; both are null otherwise.
 - A scan row without reports has empty steps, readiness yellow, status `unreviewed`.
 - Status is `ready` (nothing stale) or `needs-review` for store rows, `unreviewed` for scan-only rows.
 
@@ -113,7 +115,7 @@ Scan semantics:
 
 - `review_scan_interval` holds a duration (`30m`, `1h`); empty or one of off/never/none/`-` disables the scan.
 - The background tick (default 300 s) calls `run_due_review_scan`, which runs when the cadence has elapsed.
-- A run replaces the set: upserts keep `first_seen_at`, rows the search no longer finds are deleted.
+- A run replaces the set: upserts keep `first_seen_at` and refresh `ready_for_review_at` from the requested search's timeline, rows the search no longer finds are deleted.
 - A run whose searches all fail records the error and changes nothing.
 - Repository policy comes from each `Repository.review_scan` column (default/include/exclude); with default, the app-wide `review_scan_default` decides.
 
@@ -121,7 +123,7 @@ Scan semantics:
 
 | Method | Path | Purpose |
 |---|---|---|
-| GET | /api/reviews | The whole queue, live from ghx unless cached (`?refresh=true` bypasses) |
+| GET | /api/reviews | The whole queue, live from ghx unless cached (`?refresh=true` bypasses), with the review SLO mark on overdue rows |
 | GET | /api/reviews/task/{task_id} | The queue scoped to the pull requests the task's items link to |
 | GET | /api/reviews/scan | The scan's cadence, policy, stored count, and last pass |
 | POST | /api/reviews/scan | Run the scan now, ignoring the cadence |
@@ -140,7 +142,7 @@ Error codes:
 | 422 | A malformed review_scan_interval, review_scan_default, review_slo, or review_nudge_slo |
 
 `GET /api/reviews` returns `root` (the store path), `generated_at`, `counts` (total, ready, blocked), and `prs`.
-Each row carries the PR identity and live fields (repository, number, title, url, author, state, draft, created_at, labels, review_decision, head_branch, base_branch, last_comment_at, last_comment_by), the review state (head_commit, reviewed_at, steps, in_progress, stale_steps, reviewed_steps, readiness, status), and the links (item_id, task_ids, request_source, store_dir).
+Each row carries the PR identity and live fields (repository, number, title, url, author, state, draft, created_at, labels, review_decision, head_branch, base_branch, last_comment_at, last_comment_by), the review state (head_commit, reviewed_at, steps, in_progress, stale_steps, reviewed_steps, readiness, status), the review SLO mark (slo_wait_seconds, slo_seconds), and the links (item_id, task_ids, request_source, store_dir).
 Each step state carries step, commit, verdict, risk, confidence, report, modified_at, and stale.
 
 ## Sequences
@@ -156,9 +158,9 @@ sequenceDiagram
     participant DB as SQLite
     T->>S: run_due_review_scan
     S->>S: scan_due(last_run_at, interval)
-    S->>GH: review-requested:@me and reviewed-by:@me, in parallel
-    GH-->>S: results, or None when the search could not run
-    S->>DB: upsert kept rows keeping first_seen_at, delete the rest
+    S->>GH: review-requested:@me (expanded to the user's teams) and reviewed-by:@me, in parallel
+    GH-->>S: results, or None when a search could not run
+    S->>DB: upsert kept rows keeping first_seen_at, refresh ready_for_review_at, delete the rest
     S->>DB: record last run (found, stored, error, origin)
 ```
 
@@ -206,7 +208,7 @@ sequenceDiagram
 | Scan search | `gh search prs` through the CLI, two searches in parallel | ghx caches reads but has no search qualifiers |
 | Staleness reference | Newest reviewed commit, not the head | The queue answers "is the review current"; matching against the head would mark everything stale on every push |
 | Running signal | The skills' in-progress markers, matched to ghx's head when known | No app-side run state to start or clean up |
-| Scan rows | Replace-set upsert preserving `first_seen_at` | The set mirrors GitHub, while the review SLO (p18) needs a stable first-seen time |
+| Scan rows | Replace-set upsert preserving `first_seen_at`, refreshing `ready_for_review_at` | The set mirrors GitHub, while the review SLO (p18) needs the pull request's ready-for-review time |
 | Findings decisions | Written back into the skill's state file, line-preserving | One source of truth both sides read; real files are not always valid YAML, so they are edited per line rather than re-serialized |
 | Decision batch | All or nothing with one shared timestamp | A select-all cannot half-land or stamp twice |
 | Notifications recovery | Not ported | Needs the notifications API plus a batched GraphQL drop check, and the plain searches never surface those pull requests |

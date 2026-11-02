@@ -285,6 +285,30 @@ export function isReviewedByMe(pr) {
   return pr?.request_source === 'reviewed'
 }
 
+// Whether the row is past the review SLO. The backend sets the wait only while
+// the pull request still awaits the user's review and has waited longer than
+// the SLO set in Settings → Review requests, so the queue and the inbox agree.
+export function isPastSlo(pr) {
+  return pr?.slo_wait_seconds != null
+}
+
+// A duration in the compact form the inbox reason uses: "2d 3h", "1d", "45m".
+function compactDuration(totalSeconds) {
+  const seconds = Math.max(0, Math.floor(totalSeconds || 0))
+  const days = Math.floor(seconds / 86400)
+  const hours = Math.floor((seconds % 86400) / 3600)
+  const minutes = Math.floor((seconds % 3600) / 60)
+  if (days) return hours ? `${days}d ${hours}h` : `${days}d`
+  if (hours) return minutes ? `${hours}h ${minutes}m` : `${hours}h`
+  return minutes ? `${minutes}m` : 'less than a minute'
+}
+
+// Why a row carries the past-SLO badge, for its tooltip and screen readers.
+export function reviewSloTitle(pr) {
+  if (!isPastSlo(pr)) return ''
+  return `Past the review SLO: awaited your review for ${compactDuration(pr.slo_wait_seconds)}; the SLO is ${compactDuration(pr.slo_seconds)}.`
+}
+
 // Whether a row passes the reviewed filter for a kind-filter state: hidden keeps
 // the pull requests the user already reviewed out, only keeps just those, and
 // all keeps everything.

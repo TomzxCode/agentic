@@ -4,17 +4,18 @@ import json
 import os
 import threading
 import time
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlmodel import Session
+from sqlmodel import Session, select
 
 from agentic import review_queue, review_store
 from agentic.config import settings
 from agentic.db import engine
 from agentic.main import app
 from agentic.models.items import Association
+from agentic.models.reviews import ReviewRequest
 from agentic.review_queue import collect_review_prs, determine_stale_steps, readiness_signal
 
 
@@ -424,6 +425,83 @@ def test_review_queue_endpoint_merges_a_tracked_item(tmp_path, monkeypatch):
         assert pr["item_id"] == item["id"]
         assert pr["state"] == "MERGED" and pr["author"] == "carol"
         client.delete(f"/api/items/{item['id']}")
+
+
+def test_review_queue_marks_a_pull_request_past_the_review_slo(tmp_path, monkeypatch):
+    monkeypatch.setattr(settings, "sdlc_dir", tmp_path)
+    now = datetime.now(UTC)
+    rows = [
+        ReviewRequest(
+            repository="slo/repo",
+            number=1,
+            source="requested",
+            state="OPEN",
+            # The scan only saw it recently, but the timeline dates the ready
+            # for review event days ago: that is the wait the SLO counts.
+            first_seen_at=now - timedelta(hours=2),
+            ready_for_review_at=now - timedelta(days=2, hours=3),
+        ),
+        ReviewRequest(
+            repository="slo/repo",
+            number=2,
+            source="requested",
+            state="OPEN",
+            first_seen_at=now - timedelta(hours=2),
+        ),
+        ReviewRequest(
+            repository="slo/repo",
+            number=3,
+            source="reviewed",
+            state="OPEN",
+            first_seen_at=now - timedelta(days=3),
+        ),
+        ReviewRequest(
+            repository="slo/repo",
+            number=4,
+            source="requested",
+            state="OPEN",
+            draft=True,
+            first_seen_at=now - timedelta(days=3),
+        ),
+        ReviewRequest(
+            repository="slo/repo",
+            number=5,
+            source="requested",
+            state="MERGED",
+            first_seen_at=now - timedelta(days=3),
+        ),
+        # No ready for review event: the wait falls back to first seen.
+        ReviewRequest(
+            repository="slo/repo",
+            number=6,
+            source="requested",
+            state="OPEN",
+            first_seen_at=now - timedelta(days=2, hours=3),
+        ),
+    ]
+    with TestClient(app) as client:
+        with Session(engine) as session:
+            for row in rows:
+                session.add(row)
+            session.commit()
+        client.patch("/api/settings", json={"review_slo": "1d"})
+        try:
+            prs = {pr["number"]: pr for pr in client.get("/api/reviews").json()["prs"]}
+            # Only an open pull request that still awaits the review, and has
+            # waited longer than the SLO, carries the wait and the SLO.
+            assert prs[1]["slo_seconds"] == 86400
+            assert abs(prs[1]["slo_wait_seconds"] - (2 * 86400 + 3 * 3600)) < 60
+            assert prs[6]["slo_seconds"] == 86400
+            assert abs(prs[6]["slo_wait_seconds"] - (2 * 86400 + 3 * 3600)) < 60
+            for number in (2, 3, 4, 5):
+                assert prs[number]["slo_wait_seconds"] is None
+                assert prs[number]["slo_seconds"] is None
+        finally:
+            client.patch("/api/settings", json={"review_slo": ""})
+            with Session(engine) as session:
+                for row in session.exec(select(ReviewRequest).where(ReviewRequest.repository == "slo/repo")).all():
+                    session.delete(row)
+                session.commit()
 
 
 def test_review_queue_reports_the_tasks_a_tracked_pr_is_associated_to(tmp_path, monkeypatch):

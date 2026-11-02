@@ -267,6 +267,12 @@ class ReviewPrRead(BaseModel):
     # or "reviewed" (you reviewed it and it is still open). Empty for a PR that
     # is only in the report store.
     request_source: str = ""
+    # Set when the PR is past the review SLO: how long it has awaited your
+    # review (measured from when the scan first saw it waiting), and the SLO it
+    # passed. Both None when it is within the SLO, no longer awaits a review
+    # (already reviewed, a draft, or closed), or has no scan row.
+    slo_wait_seconds: float | None = None
+    slo_seconds: float | None = None
 
 
 class ReviewScanRead(BaseModel):

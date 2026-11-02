@@ -126,7 +126,7 @@ A manual item has no template and always applies.
 
 | Method | Path | Purpose |
 | --- | --- | --- |
-| `GET` | `/api/reviews` | Every pull request with review reports in the store, with its review-step state (`?refresh=true` re-reads each PR's GitHub fields). |
+| `GET` | `/api/reviews` | Every pull request with review reports in the store, with its review-step state and, for a row past the review SLO, `slo_wait_seconds` and `slo_seconds` (`?refresh=true` re-reads each PR's GitHub fields). |
 | `GET` | `/api/reviews/task/{task_id}` | The same rows, scoped to the pull requests a task is linked to. |
 | `GET` | `/api/reviews/findings/{number}` | The must/should/may findings the review skills recorded, by `repository` (`owner/name`). |
 | `POST` | `/api/reviews/findings/{number}/decisions` | Record the reviewer's `include`/`skip` decision on each named finding in its skill's state file; returns the updated findings. |
