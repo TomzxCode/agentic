@@ -6,7 +6,15 @@ import { computed } from 'vue'
 import { SETTINGS_SECTIONS } from './settings'
 import { aliasLabel, sourceLabel, store } from './store'
 
-export function buildPaletteItems({ route, router, showNew, sidebarHidden, toggleSidebar }) {
+export function buildPaletteItems({
+  route,
+  router,
+  showNew,
+  sidebarHidden,
+  toggleSidebar,
+  sidebarIsRail,
+  toggleSidebarLayout
+}) {
   // Command palette: navigate anywhere (and a couple of actions) from the keyboard.
   const taskFieldItems = computed(() =>
     route.name === 'task'
@@ -158,6 +166,12 @@ export function buildPaletteItems({ route, router, showNew, sidebarHidden, toggl
     }))
   )
 
+  // The visibility label names what the toggle hides: the rail has no task list.
+  function sidebarToggleLabel() {
+    const subject = sidebarIsRail.value ? 'sidebar' : 'task list'
+    return `${sidebarHidden.value ? 'Show' : 'Hide'} ${subject}`
+  }
+
   return [
     {
       id: 'new-task',
@@ -177,12 +191,20 @@ export function buildPaletteItems({ route, router, showNew, sidebarHidden, toggl
     },
     {
       id: 'toggle-sidebar',
-      label: sidebarHidden.value ? 'Show task list' : 'Hide task list',
+      label: sidebarToggleLabel(),
       hint: '⌘B',
       group: 'Actions',
       icon: 'panel',
       keywords: 'sidebar panel collapse',
       run: toggleSidebar
+    },
+    {
+      id: 'toggle-sidebar-layout',
+      label: sidebarIsRail.value ? 'Use the full sidebar' : 'Use the icon rail sidebar',
+      group: 'Actions',
+      icon: 'panel',
+      keywords: 'sidebar rail icons compact layout width',
+      run: toggleSidebarLayout
     },
     ...(store.tagFilter
       ? [

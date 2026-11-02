@@ -82,6 +82,7 @@ vi.mock('../api', () => ({
 import SettingsView from '../views/SettingsView.vue'
 import { store } from '../store'
 import { SIDEBAR_NAV_ITEMS, resetSidebarNav } from '../sidebarNav'
+import { setSidebarLayout, sidebarLayout } from '../sidebarLayout'
 import { debugBarVisible, setDebugBarVisible } from '../debugBar'
 
 const RouterLinkStub = { props: ['to'], template: '<a><slot /></a>' }
@@ -823,6 +824,29 @@ describe('SettingsView', () => {
       order: SIDEBAR_NAV_ITEMS.map((item) => item.id),
       hidden: []
     })
+  })
+
+  it('switches the sidebar layout from its section, saving on the device', async () => {
+    localStorage.clear()
+    setSidebarLayout('full')
+    const wrapper = mountView()
+    await flushPromises()
+
+    const section = wrapper.findAll('.settings-nav-item').find((b) => b.text() === 'Sidebar')
+    await section.trigger('click')
+    await flushPromises()
+
+    const rail = wrapper.findAll('.sidebar-layout-option').find((b) => b.text() === 'Icon rail')
+    await rail.trigger('click')
+    expect(localStorage.getItem('agentic.sidebarLayout')).toBe('rail')
+    expect(sidebarLayout.value).toBe('rail')
+    expect(rail.attributes('aria-checked')).toBe('true')
+
+    const full = wrapper.findAll('.sidebar-layout-option').find((b) => b.text() === 'Full')
+    await full.trigger('click')
+    expect(localStorage.getItem('agentic.sidebarLayout')).toBe('full')
+    expect(sidebarLayout.value).toBe('full')
+    expect(full.attributes('aria-checked')).toBe('true')
   })
 
   it('reorders the sidebar nav from the keyboard on the grip', async () => {

@@ -339,3 +339,74 @@
 .sidebar-nav .new-task {
   justify-content: center;
 }
+
+/* Icon rail: the thin sidebar variant (Settings → Sidebar). It drops the task
+   list and keeps only the page icons, which take the sidebar's full height so
+   the page gets the width back without leaving a dead column. The draggable
+   width is kept aside for the full sidebar, and the resize handle goes away
+   because the rail has a fixed width. Desktop only: below 760px the sidebar
+   stays the full-width drawer either way. */
+@media (min-width: 761px) {
+  .app.sidebar-rail .sidebar {
+    align-items: center;
+    padding: 8px 5px;
+    padding-top: max(8px, env(safe-area-inset-top));
+    padding-left: max(5px, env(safe-area-inset-left));
+  }
+  .app.sidebar-rail .sidebar-resizer {
+    display: none;
+  }
+  .app.sidebar-rail .side-brand {
+    justify-content: center;
+    margin-bottom: 6px;
+    padding: 0;
+  }
+  .app.sidebar-rail .side-brand .brand span {
+    display: none;
+  }
+  .app.sidebar-rail .side-scroll {
+    display: none;
+  }
+  /* The nav fills the column below the brand, and scrolls rather than clipping
+     when the icons are taller than the window. */
+  .app.sidebar-rail .sidebar-nav {
+    flex: 1;
+    margin-top: 0;
+    width: 100%;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+  .app.sidebar-rail .sidebar-nav-actions {
+    flex-direction: column;
+  }
+  .app.sidebar-rail .sidebar-nav-actions > * {
+    flex: none;
+  }
+  .app.sidebar-rail .sidebar-nav .palette-trigger,
+  .app.sidebar-rail .sidebar-nav .new-task {
+    justify-content: center;
+    padding: 5px 0;
+  }
+  .app.sidebar-rail .palette-label,
+  .app.sidebar-rail .palette-kbd,
+  .app.sidebar-rail .new-task-label {
+    display: none;
+  }
+  /* One icon per row, spread over the whole height so the rail reads as a
+     column rather than a block parked at the bottom. */
+  .app.sidebar-rail .sidebar-nav-links {
+    flex: 1;
+    grid-template-columns: minmax(0, 1fr);
+    align-content: space-between;
+    gap: 4px;
+    padding: 3px;
+  }
+  .app.sidebar-rail .sidebar-nav .nav-link {
+    padding: 5px 0;
+  }
+  .app.sidebar-rail .sidebar-nav .nav-link svg {
+    width: 18px;
+    height: 18px;
+  }
+}

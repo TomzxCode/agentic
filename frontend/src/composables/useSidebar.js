@@ -3,6 +3,8 @@
 // as layout and the gesture math lives on its own.
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 
+import { sidebarIsRail } from '../sidebarLayout'
+
 export function useSidebar({ sidebarOpen, showNew, paletteOpen }) {
   // --- Sidebar drawer swipe ---------------------------------------------------
   // Below 760px the sidebar is an off-canvas drawer. Swiping right opens it and
@@ -179,14 +181,16 @@ export function useSidebar({ sidebarOpen, showNew, paletteOpen }) {
   }
 
   function sidebarToggleLabel() {
-    return sidebarExpanded() ? 'Hide the task list (⌘B)' : 'Show the task list (⌘B)'
+    const subject = sidebarIsRail.value ? 'the sidebar' : 'the task list'
+    return sidebarExpanded() ? `Hide ${subject} (⌘B)` : `Show ${subject} (⌘B)`
   }
 
   let resizeFrom = null
 
   function startResize(event) {
-    // Below 760px the sidebar is an off-canvas drawer, not a column to size.
-    if (!isDesktop() || event.button > 0) return
+    // The icon rail has no width to drag, and below 760px the sidebar is an
+    // off-canvas drawer, not a column to size.
+    if (sidebarIsRail.value || !isDesktop() || event.button > 0) return
     resizeFrom = { x: event.clientX, width: sidebarWidth.value }
     sidebarResizing.value = true
     window.addEventListener('pointermove', moveResize)

@@ -18,12 +18,23 @@ import { useFocusHints } from './composables/useFocusHints'
 import { useSidebar } from './composables/useSidebar'
 import { buildPaletteItems } from './palette'
 import { loadSidebarNav, sidebarNavColumns, visibleSidebarNav } from './sidebarNav'
+import { loadSidebarLayout, SIDEBAR_RAIL_PX, sidebarIsRail, toggleSidebarLayout } from './sidebarLayout'
 import { debugBarVisible } from './debugBar'
 
 const { hintBadges, handleHintKey, hasHintTargets, stopHints } = useFocusHints()
 
 const route = useRoute()
-const paletteItems = computed(() => buildPaletteItems({ route, router, showNew, sidebarHidden, toggleSidebar }))
+const paletteItems = computed(() =>
+  buildPaletteItems({
+    route,
+    router,
+    showNew,
+    sidebarHidden,
+    toggleSidebar,
+    sidebarIsRail,
+    toggleSidebarLayout
+  })
+)
 const router = useRouter()
 const showNew = ref(false)
 const sidebarOpen = ref(false)
@@ -31,6 +42,7 @@ const paletteOpen = ref(false)
 // Read the per-device nav choice before the first render, so a reordered or
 // trimmed nav never flashes the default order.
 loadSidebarNav()
+loadSidebarLayout()
 const {
   SIDEBAR_MIN_PX,
   SIDEBAR_MAX_PX,
@@ -46,6 +58,9 @@ const {
   onResizerKeydown,
   resetSidebarWidth
 } = useSidebar({ sidebarOpen, showNew, paletteOpen })
+// The rail is a fixed-width column; the draggable width stays saved so switching
+// back to the full sidebar restores the size the user chose.
+const sidebarColumnWidth = computed(() => (sidebarIsRail.value ? SIDEBAR_RAIL_PX : sidebarWidth.value))
 const draft = ref({
   title: '',
   description: '',
@@ -376,9 +391,10 @@ onUnmounted(() => {
       'sidebar-dragging': sidebarDragging,
       'sidebar-resizing': sidebarResizing,
       'sidebar-hidden': sidebarHidden,
+      'sidebar-rail': sidebarIsRail,
       'debug-bar-hidden': !debugBarVisible
     }"
-    :style="{ '--sidebar-width': `${sidebarWidth}px` }"
+    :style="{ '--sidebar-width': `${sidebarColumnWidth}px` }"
   >
     <aside class="sidebar" :style="sidebarDragStyle">
       <div class="side-brand">
@@ -436,11 +452,16 @@ onUnmounted(() => {
             <span class="palette-label">Search</span>
             <kbd class="palette-kbd">⌘K</kbd>
           </button>
-          <button class="btn primary new-task" title="New task (Ctrl/Cmd+N)" @click="showNew = true">
+          <button
+            class="btn primary new-task"
+            title="New task (Ctrl/Cmd+N)"
+            aria-label="New task"
+            @click="showNew = true"
+          >
             <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
               <path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none" />
             </svg>
-            New task
+            <span class="new-task-label">New task</span>
           </button>
         </div>
         <div v-if="visibleSidebarNav.length" class="sidebar-nav-links" :style="{ '--nav-cols': sidebarNavColumns }">

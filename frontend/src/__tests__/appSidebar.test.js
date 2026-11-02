@@ -28,6 +28,7 @@ vi.mock('../api', () => ({
 
 import App from '../App.vue'
 import { store } from '../store'
+import { setSidebarLayout } from '../sidebarLayout'
 
 const RouterLinkStub = { props: ['to'], template: '<a><slot /></a>' }
 const SearchSelectStub = {
@@ -409,6 +410,79 @@ describe('App', () => {
       expect(wrapper.get('.app').classes()).not.toContain('sidebar-open')
       expect(wrapper.get('.app').classes()).not.toContain('sidebar-hidden')
       expect(localStorage.getItem('agentic.sidebarHidden')).toBeNull()
+      window.innerWidth = 1024
+    })
+  })
+
+  describe('sidebar layout', () => {
+    const appWidth = (wrapper) => wrapper.get('.app').element.style.getPropertyValue('--sidebar-width')
+
+    beforeEach(() => {
+      localStorage.clear()
+      window.innerWidth = 1024
+    })
+    afterEach(() => {
+      setSidebarLayout('full')
+    })
+
+    it('renders the icon rail from the stored choice, at the rail width', async () => {
+      localStorage.setItem('agentic.sidebarLayout', 'rail')
+      const wrapper = mountApp()
+      await flushPromises()
+      expect(wrapper.get('.app').classes()).toContain('sidebar-rail')
+      expect(appWidth(wrapper)).toBe('56px')
+    })
+
+    it('keeps the saved width for the full sidebar and restores it on a switch', async () => {
+      localStorage.setItem('agentic.sidebarWidth', '420')
+      localStorage.setItem('agentic.sidebarLayout', 'rail')
+      const wrapper = mountApp()
+      await flushPromises()
+      expect(appWidth(wrapper)).toBe('56px')
+
+      setSidebarLayout('full')
+      await nextTick()
+      expect(wrapper.get('.app').classes()).not.toContain('sidebar-rail')
+      expect(appWidth(wrapper)).toBe('420px')
+    })
+
+    it('does not resize the icon rail', async () => {
+      localStorage.setItem('agentic.sidebarLayout', 'rail')
+      const wrapper = mountApp()
+      await flushPromises()
+
+      const event = new Event('pointerdown', { bubbles: true, cancelable: true })
+      event.clientX = 500
+      event.button = 0
+      wrapper.get('.sidebar-resizer').element.dispatchEvent(event)
+      await nextTick()
+      expect(wrapper.get('.app').classes()).not.toContain('sidebar-resizing')
+      expect(appWidth(wrapper)).toBe('56px')
+    })
+
+    it('switches layouts from the command palette', async () => {
+      const wrapper = mountAppWithPalette()
+      await flushPromises()
+
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true }))
+      await nextTick()
+      const item = wrapper.findAll('.palette-item').find((i) => i.text().includes('Use the icon rail sidebar'))
+      expect(item).toBeTruthy()
+      await item.trigger('click')
+      expect(wrapper.get('.app').classes()).toContain('sidebar-rail')
+      expect(localStorage.getItem('agentic.sidebarLayout')).toBe('rail')
+    })
+
+    it('keeps the full sidebar in the mobile drawer', async () => {
+      window.innerWidth = 375
+      localStorage.setItem('agentic.sidebarLayout', 'rail')
+      const wrapper = mountApp()
+      await flushPromises()
+      // The rail class is still there, but only the desktop stylesheet reads it;
+      // the drawer keeps the task list and the labels.
+      expect(wrapper.get('.app').classes()).toContain('sidebar-rail')
+      expect(wrapper.find('.side-scroll').exists()).toBe(true)
+      expect(wrapper.find('.new-task-label').exists()).toBe(true)
       window.innerWidth = 1024
     })
   })

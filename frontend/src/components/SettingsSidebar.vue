@@ -1,5 +1,5 @@
 <script setup>
-import { onUnmounted, ref } from 'vue'
+import { computed, onUnmounted, ref } from 'vue'
 import Icon from './Icon.vue'
 import {
   moveNavItem,
@@ -9,15 +9,24 @@ import {
   sidebarNavCustomized,
   sidebarNavList
 } from '../sidebarNav'
+import { setSidebarLayout, sidebarLayout } from '../sidebarLayout'
 
-// The "Sidebar" settings section: which page icons the sidebar's bottom row
-// shows, and their order. A per-device choice in localStorage (owned by
-// sidebarNav.js), so there is no server round trip and no save button.
+// The "Sidebar" settings section: the sidebar's shape (full or icon rail), and
+// which page icons the bottom nav shows, and their order. A per-device choice in
+// localStorage (owned by sidebarLayout.js and sidebarNav.js), so there is no
+// server round trip and no save button.
 //
 // Rows are reordered by dragging the grip. Pointer events (not the HTML5 drag
 // API, which touch browsers do not fire) so a drag works on a phone too, and
 // the grip also answers to the arrow keys so the order is editable from the
 // keyboard.
+
+const LAYOUTS = [
+  { id: 'full', label: 'Full', hint: 'The task list above the page icons.' },
+  { id: 'rail', label: 'Icon rail', hint: 'A thin column with only the page icons, over the full height.' }
+]
+
+const layoutHint = computed(() => LAYOUTS.find((option) => option.id === sidebarLayout.value).hint)
 
 const listEl = ref(null)
 const draggingId = ref(null)
@@ -81,9 +90,28 @@ onUnmounted(onDragEnd)
       <h2>Sidebar</h2>
       <button v-if="sidebarNavCustomized" class="btn sm" @click="resetSidebarNav">Reset to default</button>
     </div>
+
+    <div class="field">
+      <label>Layout</label>
+      <div class="row" role="radiogroup" aria-label="Sidebar layout">
+        <button
+          v-for="option in LAYOUTS"
+          :key="option.id"
+          type="button"
+          class="btn sm sidebar-layout-option"
+          :class="{ primary: sidebarLayout === option.id }"
+          role="radio"
+          :aria-checked="sidebarLayout === option.id"
+          @click="setSidebarLayout(option.id)"
+        >
+          {{ option.label }}
+        </button>
+      </div>
+      <p class="faint" style="margin: 6px 0 0">{{ layoutHint }}</p>
+    </div>
+
     <p class="faint" style="margin-top: 0">
-      Choose which page icons appear in the sidebar's bottom row, and drag the grip to reorder them. Saved on this
-      device.
+      Choose which page icons appear in the sidebar, and drag the grip to reorder them. Saved on this device.
     </p>
 
     <ul ref="listEl" class="nav-config">
