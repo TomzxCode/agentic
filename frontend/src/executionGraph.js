@@ -109,6 +109,10 @@ export function blankTriggerNode(position = { x: 40, y: 40 }) {
     triggerType: 'event',
     title: 'Event trigger',
     position,
+    endpointId: '',
+    events: [],
+    filters: [],
+    enabled: true,
     outputs: [{ id: newId('o'), name: 'value', path: 'body' }]
   }
 }
@@ -207,6 +211,10 @@ function normalizeNode(node) {
       clean.enabled = node?.enabled !== false
       clean.outputs = []
     } else {
+      clean.endpointId = String(node?.endpointId || '').trim()
+      clean.events = cleanEventTypes(node?.events)
+      clean.filters = cleanEventFilters(node?.filters)
+      clean.enabled = node?.enabled !== false
       clean.outputs = Array.isArray(node?.outputs)
         ? node.outputs
             .filter((output) => String(output?.path || '').trim())
@@ -241,6 +249,31 @@ function normalizeNode(node) {
       : []
   }
   return clean
+}
+
+function cleanEventTypes(raw) {
+  const events = []
+  for (const item of Array.isArray(raw) ? raw : []) {
+    const text = String(item || '').trim()
+    if (text && !events.includes(text)) events.push(text)
+  }
+  return events
+}
+
+// A filter keeps one operator, matching the subscription's stored shape.
+function cleanEventFilters(raw) {
+  const filters = []
+  for (const item of Array.isArray(raw) ? raw : []) {
+    const path = String(item?.path || '').trim()
+    if (!path) continue
+    const filter = { path }
+    if (item?.equals !== undefined && item?.equals !== null) filter.equals = item.equals
+    else if (String(item?.contains || '').trim()) filter.contains = String(item.contains).trim()
+    else if (item?.exists !== undefined && item?.exists !== null) filter.exists = Boolean(item.exists)
+    else continue
+    filters.push(filter)
+  }
+  return filters
 }
 
 function normalizeEdge(edge) {
@@ -397,6 +430,9 @@ export function editorIssues(definition) {
         }
       } else {
         triggers += 1
+        ;(node.filters || []).forEach((filter, index) => {
+          if (!String(filter.path || '').trim()) issues.push(`Event filter ${index + 1} needs a payload path`)
+        })
         if (!node.outputs.length) issues.push(`Trigger '${node.title || node.id}' needs at least one event field`)
         const names = new Set()
         for (const output of node.outputs) {

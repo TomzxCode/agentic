@@ -406,6 +406,52 @@ const scheduleNode = (id, cron = '0 9 * * *', timezone = 'UTC', extra = {}) => (
   ...extra
 })
 
+describe('event trigger sources and filters', () => {
+  it('normalize the source, event types, filters, and enabled flag', () => {
+    const definition = normalizeDefinition({
+      nodes: [
+        {
+          id: 't',
+          kind: 'trigger',
+          triggerType: 'event',
+          title: 'Event',
+          position: { x: 1, y: 2 },
+          endpointId: ' ep-1 ',
+          events: [' issues ', '', 'issues', 'push'],
+          filters: [
+            { path: 'action', equals: 'opened' },
+            { path: 'draft', exists: false },
+            { path: 'title', contains: ' bug ' },
+            { path: ' ', equals: 'x' },
+            { path: 'nooperator' }
+          ],
+          enabled: false,
+          outputs: [{ id: 'o1', name: 'title', path: 'issue.title' }]
+        }
+      ],
+      edges: []
+    })
+    const node = definition.nodes[0]
+    expect(node.endpointId).toBe('ep-1')
+    expect(node.events).toEqual(['issues', 'push'])
+    expect(node.filters).toEqual([
+      { path: 'action', equals: 'opened' },
+      { path: 'draft', exists: false },
+      { path: 'title', contains: 'bug' }
+    ])
+    expect(node.enabled).toBe(false)
+    expect(node.outputs).toEqual([{ id: 'o1', name: 'title', path: 'issue.title' }])
+  })
+
+  it('report a filter row without a path', () => {
+    const issues = editorIssues({
+      nodes: [{ ...triggerNode('t', [['o1', 'title', 'title']]), filters: [{ path: '', equals: 'x' }] }],
+      edges: []
+    })
+    expect(issues.some((issue) => issue.includes('Event filter 1 needs a payload path'))).toBe(true)
+  })
+})
+
 describe('schedule trigger nodes', () => {
   it('normalize their cron and drop outputs', () => {
     const definition = normalizeDefinition({

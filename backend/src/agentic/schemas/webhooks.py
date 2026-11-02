@@ -70,6 +70,8 @@ class EventSubscriptionRead(ORMModel):
     id: str
     endpoint_id: str
     graph_id: str
+    # Set when an event trigger node owns this subscription.
+    node_id: str = ""
     graph_name: str = ""
     name: str
     events: list[str]

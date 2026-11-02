@@ -79,8 +79,11 @@ def create_graph(payload: ExecutionGraphCreate, session: Session = Depends(get_s
         description=(payload.description or "").strip(),
         definition=_definition(payload.definition),
     )
-    graphs.sync_schedule_state(graph, graphs.normalize_definition(graph.definition))
     session.add(graph)
+    session.flush()
+    definition = graphs.normalize_definition(graph.definition)
+    graphs.sync_schedule_state(graph, definition)
+    graphs.sync_event_subscription(session, graph, definition)
     session.commit()
     session.refresh(graph)
     return _read(session, graph)
@@ -235,9 +238,11 @@ def update_graph(
         # Stored as given (normalized); the editor flags problems live, and a
         # run refuses to start while anything is wrong.
         graph.definition = _definition(payload.definition)
-        # A schedule trigger is a node, so its pending occurrence follows the
-        # definition: unchanged nodes keep theirs, new ones start now.
-        graphs.sync_schedule_state(graph, graphs.normalize_definition(graph.definition))
+        # Trigger configuration is a node too, so both the schedule's pending
+        # occurrence and the event subscription follow the definition.
+        definition = graphs.normalize_definition(graph.definition)
+        graphs.sync_schedule_state(graph, definition)
+        graphs.sync_event_subscription(session, graph, definition)
     graph.updated_at = utcnow()
     session.add(graph)
     session.commit()

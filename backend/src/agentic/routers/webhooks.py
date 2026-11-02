@@ -90,6 +90,7 @@ def _subscription_read(
         endpoint_id=subscription.endpoint_id,
         graph_id=subscription.graph_id,
         graph_name=names.get(subscription.graph_id, ""),
+        node_id=subscription.node_id,
         name=subscription.name,
         events=list(subscription.events or []),
         filters=list(subscription.filters or []),

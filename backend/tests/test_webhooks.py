@@ -192,6 +192,92 @@ def test_trigger_definition_validation():
 
 
 # --- generic webhooks ------------------------------------------------------
+def test_event_trigger_node_normalizes_source_and_filters():
+    node = trigger_node(
+        [output("o1", "title", "title")],
+        endpointId=" ep-1 ",
+        enabled=False,
+        events=[" issues ", "", "issues", "push"],
+        filters=[
+            {"path": "action", "equals": "opened"},
+            {"path": "draft", "exists": False},
+            {"path": "title", "contains": " bug "},
+            {"path": " ", "equals": "x"},
+            {"path": "nooperator"},
+        ],
+    )
+    normalized = graphs.normalize_definition(definition([node]))["nodes"][0]
+    assert normalized["endpointId"] == "ep-1"
+    assert normalized["events"] == ["issues", "push"]
+    assert normalized["enabled"] is False
+    assert normalized["filters"] == [
+        {"path": "action", "equals": "opened"},
+        {"path": "draft", "exists": False},
+        {"path": "title", "contains": "bug"},
+    ]
+
+
+def test_event_trigger_node_owns_its_subscription(monkeypatch):
+    create_db_and_tables()
+    _clear()
+    monkeypatch.setattr(graphs, "POLL_SECONDS", POLL)
+    with TestClient(app) as client:
+        endpoint = _endpoint(client)
+        node = trigger_node(
+            [output("o1", "title", "title")],
+            endpointId=endpoint["id"],
+            events=["issues"],
+            filters=[{"path": "action", "equals": "opened"}],
+        )
+        created = client.post("/api/graphs", json={"name": "owned", "definition": definition([node])})
+        assert created.status_code == 201, created.text
+        graph_id = created.json()["id"]
+
+        subscriptions = client.get("/api/webhooks/subscriptions").json()
+        assert len(subscriptions) == 1
+        owned = subscriptions[0]
+        assert owned["node_id"] == "t"
+        assert owned["events"] == ["issues"]
+        assert owned["filters"] == [{"path": "action", "equals": "opened"}]
+
+        url = f"/api/hooks/{endpoint['id']}"
+        # The node's event type and filter decide whether the graph starts.
+        assert client.post(f"{url}?event=push", json={"action": "opened", "title": "x"}).json()["deliveries"] == []
+        assert client.post(f"{url}?event=issues", json={"action": "closed", "title": "x"}).json()["deliveries"] == []
+        matched = client.post(f"{url}?event=issues", json={"action": "opened", "title": "x"})
+        assert matched.status_code == 202
+        delivery = matched.json()["deliveries"][0]
+        assert delivery["status"] == "started"
+        execution = _wait_for(
+            lambda: delivery["graph_execution_id"] and _execution(delivery["graph_execution_id"]),
+            message="node-driven execution never appeared",
+        )
+        assert execution.trigger == "event:issues"
+
+        # Saving the definition keeps the subscription in step with the node.
+        changed = {
+            "nodes": [{**node, "events": ["push"], "filters": [], "enabled": False}],
+            "edges": [],
+        }
+        updated = client.patch(f"/api/graphs/{graph_id}", json={"definition": changed})
+        assert updated.status_code == 200, updated.text
+        subscriptions = client.get("/api/webhooks/subscriptions").json()
+        assert [(row["node_id"], row["events"], row["enabled"]) for row in subscriptions] == [("t", ["push"], False)]
+
+        # A hand-wired subscription is left alone, and clearing the source
+        # removes only the node-managed one.
+        hand = _subscribe(client, endpoint["id"], graph_id, name="hand", events=["other"])
+        assert hand["node_id"] == ""
+        cleared = client.patch(
+            f"/api/graphs/{graph_id}",
+            json={"definition": {"nodes": [{**node, "endpointId": ""}], "edges": []}},
+        )
+        assert cleared.status_code == 200
+        remaining = client.get("/api/webhooks/subscriptions").json()
+        assert [(row["id"], row["node_id"]) for row in remaining] == [(hand["id"], "")]
+    _clear()
+
+
 def test_generic_webhook_starts_a_matching_workflow(monkeypatch):
     create_db_and_tables()
     _clear()

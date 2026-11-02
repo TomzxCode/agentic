@@ -42,7 +42,9 @@ import {
 // sends it to the server (the authority on validity).
 const props = defineProps({
   graph: { type: Object, required: true },
-  harnesses: { type: Array, default: () => [] }
+  harnesses: { type: Array, default: () => [] },
+  // The webhook endpoints an event trigger can pick as its source.
+  endpoints: { type: Array, default: () => [] }
 })
 const emit = defineEmits(['save', 'close', 'run'])
 
@@ -170,8 +172,55 @@ function changeTriggerType(node, triggerType) {
     node.enabled = node.enabled !== false
     node.outputs = []
   } else {
+    node.endpointId = node.endpointId || ''
+    node.events = node.events || []
+    node.filters = node.filters || []
+    node.enabled = node.enabled !== false
     node.outputs = node.outputs?.length ? node.outputs : [blankTriggerOutput()]
   }
+}
+
+function splitEventTypes(value) {
+  const events = []
+  for (const item of String(value || '').split(',')) {
+    const text = item.trim()
+    if (text && !events.includes(text)) events.push(text)
+  }
+  return events
+}
+
+function addEventFilter(node) {
+  node.filters = [...(node.filters || []), { path: '', equals: '' }]
+}
+
+function removeEventFilter(node, index) {
+  node.filters.splice(index, 1)
+}
+
+// A filter stores exactly one operator; the inspector derives the operator
+// from the stored keys and rewrites them when it changes.
+function filterOperator(condition) {
+  if (condition.exists !== undefined && condition.exists !== null) return 'exists'
+  if (condition.contains !== undefined && condition.contains !== null) return 'contains'
+  return 'equals'
+}
+
+function filterValue(condition) {
+  const value = condition[filterOperator(condition)]
+  return value === undefined || value === null ? '' : String(value)
+}
+
+function setFilterOperator(condition, operator) {
+  const previous = filterValue(condition)
+  delete condition.equals
+  delete condition.contains
+  delete condition.exists
+  condition[operator] = operator === 'exists' ? previous === 'true' : previous
+}
+
+function setFilterValue(condition, value) {
+  const operator = filterOperator(condition)
+  condition[operator] = operator === 'exists' ? value === 'true' : value
 }
 
 function rowKey(node, row) {
@@ -837,7 +886,85 @@ onBeforeUnmount(() => {
           </template>
 
           <template v-else>
-            <p class="faint" style="margin: 0 0 8px">
+            <div class="field">
+              <label for="node-event-endpoint">Event source</label>
+              <select id="node-event-endpoint" v-model="selectedNode.endpointId" class="input">
+                <option value="">Choose a webhook source…</option>
+                <option v-for="endpoint in endpoints" :key="endpoint.id" :value="endpoint.id">
+                  {{ endpoint.name }} ({{ endpoint.kind }})
+                </option>
+              </select>
+              <p v-if="!endpoints.length" class="faint" style="margin: 4px 0 0">
+                No webhook endpoints yet; create one on the Webhooks page.
+              </p>
+              <p v-else-if="!selectedNode.endpointId" class="faint" style="margin: 4px 0 0">
+                Pick the endpoint whose events should start this graph.
+              </p>
+            </div>
+            <div class="field">
+              <label for="node-event-types">Event types (comma separated, empty for all)</label>
+              <input
+                id="node-event-types"
+                :value="(selectedNode.events || []).join(', ')"
+                class="input"
+                placeholder="pull_request, issues"
+                @input="selectedNode.events = splitEventTypes($event.target.value)"
+              />
+            </div>
+            <div class="field">
+              <span>Payload filters</span>
+              <div
+                v-for="(filter, index) in selectedNode.filters"
+                :key="index"
+                class="row"
+                style="gap: 6px; margin-top: 6px; flex-wrap: wrap"
+              >
+                <input
+                  v-model="filter.path"
+                  class="input grow"
+                  placeholder="action"
+                  :aria-label="`Filter ${index + 1} path`"
+                />
+                <select
+                  class="input"
+                  style="width: auto; min-width: 96px"
+                  :value="filterOperator(filter)"
+                  :aria-label="`Filter ${index + 1} operator`"
+                  @change="setFilterOperator(filter, $event.target.value)"
+                >
+                  <option value="equals">equals</option>
+                  <option value="contains">contains</option>
+                  <option value="exists">exists</option>
+                </select>
+                <select
+                  v-if="filterOperator(filter) === 'exists'"
+                  class="input"
+                  style="width: auto; min-width: 84px"
+                  :value="String(filter.exists)"
+                  :aria-label="`Filter ${index + 1} value`"
+                  @change="setFilterValue(filter, $event.target.value)"
+                >
+                  <option value="true">true</option>
+                  <option value="false">false</option>
+                </select>
+                <input
+                  v-else
+                  class="input grow"
+                  :value="filterValue(filter)"
+                  placeholder="opened"
+                  :aria-label="`Filter ${index + 1} value`"
+                  @input="setFilterValue(filter, $event.target.value)"
+                />
+                <button class="btn sm ghost" @click="removeEventFilter(selectedNode, index)">×</button>
+              </div>
+              <button class="btn sm" style="margin-top: 6px" @click="addEventFilter(selectedNode)">+ Filter</button>
+              <p class="faint" style="margin: 4px 0 0">Every filter must match for the event to start the graph.</p>
+            </div>
+            <label class="row" style="gap: 6px; align-items: center">
+              <input v-model="selectedNode.enabled" type="checkbox" />
+              <span>Trigger enabled</span>
+            </label>
+            <p class="faint" style="margin: 8px 0">
               The webhook payload arrives here. Each field reads one JSON path (for example
               <code>pull_request.title</code>) and can feed a downstream input.
             </p>

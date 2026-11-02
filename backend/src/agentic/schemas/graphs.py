@@ -40,6 +40,15 @@ class GraphTriggerOutput(BaseModel):
     path: str = ""
 
 
+class GraphEventFilter(BaseModel):
+    """One condition a webhook payload must satisfy for the trigger to fire."""
+
+    path: str = ""
+    equals: str | bool | int | float | None = None
+    contains: str | None = None
+    exists: bool | None = None
+
+
 class GraphNode(BaseModel):
     """One node of the definition, as the editor draws it."""
 
@@ -62,6 +71,10 @@ class GraphNode(BaseModel):
     # Trigger nodes: an event trigger (payload paths) or a schedule trigger
     triggerType: str = "event"
     outputs: list[GraphTriggerOutput] = []
+    # Event trigger nodes: the source endpoint and the events it wants
+    endpointId: str = ""
+    events: list[str] = []
+    filters: list[GraphEventFilter] = []
     # Schedule trigger nodes
     schedule: str = ""
     timezone: str = ""

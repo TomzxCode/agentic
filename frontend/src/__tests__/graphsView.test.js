@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
   graphsCancel: vi.fn(),
   graphsSubmitForm: vi.fn(),
   harnessesList: vi.fn(),
+  webhooksEndpoints: vi.fn(),
   confirm: vi.fn()
 }))
 
@@ -30,7 +31,8 @@ vi.mock('../api', () => ({
       cancelExecution: mocks.graphsCancel,
       submitForm: mocks.graphsSubmitForm
     },
-    harnesses: { list: mocks.harnessesList }
+    harnesses: { list: mocks.harnessesList },
+    webhooks: { endpoints: mocks.webhooksEndpoints }
   }
 }))
 
@@ -149,6 +151,7 @@ beforeEach(() => {
     ended_at: null
   })
   mocks.harnessesList.mockResolvedValue([{ id: 'h1', name: 'opencode' }])
+  mocks.webhooksEndpoints.mockResolvedValue([{ id: 'ep1', name: 'GitHub', kind: 'github', enabled: true }])
   vi.stubGlobal('confirm', mocks.confirm)
 })
 
@@ -419,6 +422,70 @@ describe('GraphsList', () => {
     expect(schedules).toHaveLength(2)
     expect(schedules[1].schedule).toBe('*/15 * * * *')
     expect(schedules[1].enabled).toBe(true)
+  })
+
+  it('picks the event source and filters on the trigger node', async () => {
+    mocks.graphsUpdate.mockResolvedValue(graphRow('g1'))
+    const wrapper = mount(GraphsList, stub)
+    await flushPromises()
+    await openEditor(wrapper)
+
+    const add = wrapper.findAll('button').find((button) => button.text().includes('Add step'))
+    await add.trigger('click')
+    // The event trigger is the fifth menu entry.
+    await wrapper.get('.editor-add-menu').findAll('.editor-add-item')[4].trigger('click')
+    await flushPromises()
+    expect(wrapper.text()).toContain('Event trigger')
+
+    // The inspector asks for the source endpoint and what it should match.
+    await wrapper.find('#node-event-endpoint').setValue('ep1')
+    await wrapper.find('#node-event-types').setValue('pull_request, issues')
+    await wrapper
+      .findAll('button')
+      .find((button) => button.text() === '+ Filter')
+      .trigger('click')
+    await wrapper.find('input[aria-label="Filter 1 path"]').setValue('action')
+    await wrapper.find('input[aria-label="Filter 1 value"]').setValue('opened')
+
+    await wrapper
+      .findAll('button')
+      .find((button) => button.text() === 'Save')
+      .trigger('click')
+    await flushPromises()
+
+    const definition = mocks.graphsUpdate.mock.calls.at(-1)[1].definition
+    const node = definition.nodes.find((item) => item.kind === 'trigger' && item.triggerType === 'event')
+    expect(node.endpointId).toBe('ep1')
+    expect(node.events).toEqual(['pull_request', 'issues'])
+    expect(node.filters).toEqual([{ path: 'action', equals: 'opened' }])
+    expect(node.enabled).toBe(true)
+  })
+
+  it('shows the event source in the graph row', async () => {
+    mocks.graphsList.mockImplementation(async () => [
+      graphRow('g1', {
+        definition: {
+          nodes: [
+            {
+              id: 't1',
+              kind: 'trigger',
+              triggerType: 'event',
+              title: 'Event trigger',
+              position: { x: 40, y: 40 },
+              endpointId: 'ep1',
+              events: [],
+              filters: [],
+              enabled: true,
+              outputs: []
+            }
+          ],
+          edges: []
+        }
+      })
+    ])
+    const wrapper = mount(GraphsList, stub)
+    await flushPromises()
+    expect(wrapper.text()).toContain('event GitHub')
   })
 
   it('adds a step from the Add step menu', async () => {

@@ -49,6 +49,8 @@ An inbound URL is one of:
 
 ### Workflows
 
+A workflow whose event trigger node names this endpoint is listed here as `from graph` and is managed from that node; the page cannot pause or remove it, because saving the graph would restore it.
+
 A workflow is an execution graph wired to an endpoint.
 The editor's **Event trigger** step is what receives the payload; its event fields are JSON paths into the event, and downstream steps read them like any other input.
 

@@ -509,6 +509,7 @@ async function replayEvent(event) {
               <div v-for="subscription in subscriptions" :key="subscription.id" class="item webhook-subscription">
                 <div class="grow" style="min-width: 0">
                   <strong>{{ subscription.name || subscription.graph_name || subscription.graph_id }}</strong>
+                  <span v-if="subscription.node_id" class="badge" style="margin-left: 6px">from graph</span>
                   <span v-if="!subscription.enabled" class="badge webhook-paused" style="margin-left: 6px">paused</span>
                   <p class="faint" style="margin: 2px 0 0; font-size: 12px">
                     {{ subscription.graph_name || subscription.graph_id }} ·
@@ -525,7 +526,10 @@ async function replayEvent(event) {
                     </template>
                   </p>
                 </div>
-                <span class="row" style="gap: 6px">
+                <span v-if="subscription.node_id" class="faint" style="font-size: 12px">
+                  Managed by its event trigger node
+                </span>
+                <span v-else class="row" style="gap: 6px">
                   <button
                     class="btn sm ghost"
                     :disabled="busy === subscription.id"

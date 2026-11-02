@@ -55,6 +55,7 @@ flowchart LR
 The pre-trigger `schedule`, `timezone`, `enabled`, and `next_run_at` columns remain on old databases but are no longer read; the migrations moved a schedule into the definition.
 `schedule_state` is never user-edited: `sync_schedule_state` seeds it on save, keeps an unchanged node's pending occurrence, and drops entries for disabled or removed nodes.
 A graph may hold several schedule trigger nodes and at most one event trigger node.
+An event trigger node carries `endpointId` (its source), `events`, `filters`, and `enabled`; saving the graph keeps one `EventSubscription` whose `node_id` is the node id in step with those fields, while subscriptions wired by hand on the Webhooks page (empty `node_id`) are left alone.
 
 ### GraphExecution
 

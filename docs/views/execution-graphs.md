@@ -19,7 +19,8 @@ An execution graph stores the steps once and runs them with their statuses and o
 
 A trigger is a node in the graph, added from the **+ Add step** menu like any other step.
 A **schedule trigger** holds a five-field cron expression and the zone it is read in; the inspector previews the next five runs, and its enabled checkbox pauses it.
-An **event trigger** is the entry point for a webhook payload: each of its fields reads one JSON path and feeds a downstream input.
+An **event trigger** names its source on the node: pick a webhook endpoint, list the event types it wants (empty for all), and add payload filters such as `action equals opened`. Saving the graph keeps one subscription in step with the node, so the source does not have to be wired on the `Webhooks` page.
+Each of its fields reads one JSON path and feeds a downstream input.
 A graph may hold several schedule triggers and at most one event trigger; neither takes an incoming connection.
 `Run` is always available, whatever triggers the graph has.
 
@@ -36,7 +37,7 @@ An edge feeds one upstream output into one downstream named input.
 | **Agentic command** | Runs an `agentic` CLI command line against this server (`agentic --format json …`). | The command's stdout (JSON in practice). |
 | **Shell script** | Runs a bash script with `bash -c`, timed out by `AGENTIC_SCHEDULED_TASK_TIMEOUT`. | The script's combined stdout and stderr. |
 | **Form** | Pauses the execution until someone answers fields in the web UI. | Each field's answer. |
-| **Event trigger** | The entry point for a webhook event. | One value per configured JSON path. |
+| **Event trigger** | The entry point for a webhook event: it picks the source endpoint and the event types and payload filters it accepts. | One value per configured JSON path. |
 | **Schedule trigger** | Starts the graph on a cron expression; it produces nothing and feeds no step. | None. |
 
 Every non-form output step may declare named inputs and reference them in its text as `{{name}}`, `{{name[0]}}`, or `{{name.join(", ")}}`.

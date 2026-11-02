@@ -23,6 +23,7 @@ const editing = ref('')
 const settingsFor = ref('')
 const editingDraft = ref({})
 const harnesses = ref([])
+const endpoints = ref([])
 
 const newDraft = ref(blankDraft())
 const creating = ref(false)
@@ -71,9 +72,18 @@ async function loadHarnesses() {
   }
 }
 
+async function loadEndpoints() {
+  try {
+    endpoints.value = await api.webhooks.endpoints()
+  } catch {
+    // The event trigger falls back to "no webhook source yet".
+  }
+}
+
 onMounted(() => {
   load()
   loadHarnesses()
+  loadEndpoints()
 })
 
 function draftFromGraph(graph) {
@@ -106,16 +116,26 @@ function enabledSchedules(graph) {
   return scheduleNodes(graph).filter((node) => node.enabled !== false)
 }
 
+function eventTriggerNode(graph) {
+  return (graph.definition?.nodes || []).find((node) => node.kind === 'trigger' && node.triggerType !== 'schedule')
+}
+
+function endpointName(node) {
+  return endpoints.value.find((endpoint) => endpoint.id === node?.endpointId)?.name || 'no source'
+}
+
 function triggerSummary(graph) {
-  const enabled = enabledSchedules(graph)
-  if (!enabled.length) {
-    return scheduleNodes(graph).length ? 'all schedules paused' : 'runs by hand only'
-  }
-  return enabled.map((node) => `schedule ${node.schedule || '-'}`).join(' · ')
+  const parts = []
+  const event = eventTriggerNode(graph)
+  if (event) parts.push(`event ${endpointName(event)}${event.enabled === false ? ' (paused)' : ''}`)
+  for (const node of enabledSchedules(graph)) parts.push(`schedule ${node.schedule || '-'}`)
+  if (parts.length) return parts.join(' · ')
+  return scheduleNodes(graph).length ? 'all schedules paused' : 'runs by hand only'
 }
 
 function pausedGraph(graph) {
-  return scheduleNodes(graph).length > 0 && !enabledSchedules(graph).length
+  const triggers = (graph.definition?.nodes || []).filter((node) => node.kind === 'trigger')
+  return triggers.length > 0 && triggers.every((node) => node.enabled === false)
 }
 
 // A trigger node starts the graph, so the step count leaves it out.
@@ -215,6 +235,7 @@ async function runFromEditor(graph, definition) {
         :key="editingGraph.id"
         :graph="editingGraph"
         :harnesses="harnesses"
+        :endpoints="endpoints"
         @save="(definition) => saveDefinition(editingGraph, definition)"
         @close="editing = ''"
         @run="(definition) => runFromEditor(editingGraph, definition)"

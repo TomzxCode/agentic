@@ -47,6 +47,9 @@ class EventSubscription(SQLModel, table=True):
     name: str = ""
     endpoint_id: str = Field(foreign_key="webhookendpoint.id", index=True)
     graph_id: str = Field(foreign_key="executiongraph.id", index=True)
+    # The event trigger node this subscription belongs to, when the graph owns
+    # it; empty for one wired by hand on the Webhooks page.
+    node_id: str = ""
     events: list[str] = Field(default_factory=list, sa_column=Column(JSON))
     filters: list[dict[str, Any]] = Field(default_factory=list, sa_column=Column(JSON))
     enabled: bool = True

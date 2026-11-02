@@ -52,6 +52,7 @@ Out of scope: no automated test drives the `agentic graphs` CLI commands, and no
 | TC-24 | Migration of trigger rows into nodes | A graph with schedule and webhook trigger rows | The schedule becomes a trigger node with its cron and zone, the state is seeded, the webhook row is dropped, and a second pass adds nothing |
 | TC-25 | Tap-to-connect on a small screen | An armed source row, a second tap on an eligible row, the source again, Cancel, and a drag that lands near but not on a port; the same tap while Auto-layout is "always" | The banner appears, eligible rows are marked, the second tap draws one edge (and re-arranges the cards when the mode says so), both cancels leave none, and a drag snaps to the nearest port within 48 px |
 | TC-26 | Disconnecting a connection on a phone | A tap 9 px off the drawn curve, then Remove, with Auto-layout "on remove" | The banner names both ends, the edge selects, Remove deletes it with no keyboard, and the cards re-arrange |
+| TC-27 | An event trigger node owns its subscription | A node naming an endpoint, event types, and a filter; a matching and a non-matching event; a graph save that changes and then clears the source; a hand-wired subscription | Only matching events start the graph, the subscription follows the node, the hand-wired one survives, and clearing the source removes only the node-managed one |
 
 ## Test Infrastructure
 
@@ -88,6 +89,7 @@ Out of scope: no automated test drives the `agentic graphs` CLI commands, and no
 | FR-21 | none (manual; the CLI calls the same endpoints the backend suite covers; the schedule-node helpers have unit tests) |
 | FR-22 | TC-8, TC-23 |
 | FR-23 | TC-8, TC-22 |
+| FR-24 | TC-27, frontend graphsView suite (event source and filter editing) |
 | NFR-1 | TC-10 (endpoint write survives the executor's next persist) |
 | NFR-2 | TC-1 to TC-4, TC-7 |
 | NFR-3 | TC-9 to TC-16 (fast poll) |

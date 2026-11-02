@@ -437,6 +437,13 @@ def _ensure_columns() -> None:
             with engine.begin() as connection:
                 # DEFAULT backfills executions recorded before triggers existed.
                 connection.execute(text("ALTER TABLE graphexecution ADD COLUMN trigger_id VARCHAR NOT NULL DEFAULT ''"))
+    if "eventsubscription" in inspector.get_table_names():
+        subscription_columns = {column["name"] for column in inspector.get_columns("eventsubscription")}
+        if "node_id" not in subscription_columns:
+            with engine.begin() as connection:
+                # DEFAULT backfills hand-wired subscriptions from before the
+                # event trigger node owned one.
+                connection.execute(text("ALTER TABLE eventsubscription ADD COLUMN node_id VARCHAR NOT NULL DEFAULT ''"))
     if "scheduledtask" in inspector.get_table_names():
         schedule_columns = {column["name"] for column in inspector.get_columns("scheduledtask")}
         if "timezone" not in schedule_columns:

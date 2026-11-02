@@ -544,6 +544,7 @@ Table eventsubscription {
   name varchar [not null, default: '']
   endpoint_id varchar [not null, ref: > webhookendpoint.id]
   graph_id varchar [not null, ref: > executiongraph.id]
+  node_id varchar [not null, default: ''] // the owning event trigger node, '' when hand-wired
   events json [not null] // event types; empty matches all
   filters json [not null] // [{path, equals|contains|exists}]
   enabled boolean [not null, default: true]

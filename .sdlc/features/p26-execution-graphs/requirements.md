@@ -48,6 +48,7 @@ The web editor draws the graph on a canvas, and the CLI can list, create, edit, 
 | FR-21 | Should | The CLI shall provide `agentic graphs` commands to list, get, create, update, delete, run, and inspect graphs and executions, loading a definition from a JSON file. |
 | FR-22 | Must | The system shall store a schedule trigger as a trigger node in the definition with a 5-field cron, an IANA zone, and an enabled flag, validate both, allow several schedule nodes per graph, and allow at most one event trigger node; a trigger node may not take an incoming connection. |
 | FR-23 | Should | The system shall keep each schedule trigger node's derived next occurrence in the graph's schedule state, recompute it only when the node's cron or zone changes, drop it for disabled or removed nodes, and expose the earliest as the graph's next run. |
+| FR-24 | Should | The system shall let an event trigger node name its webhook source endpoint, event types, and payload filters, and shall keep one subscription in step with the node when the graph is saved, leaving hand-wired subscriptions alone. |
 
 ## Non-Functional Requirements
 
@@ -366,6 +367,23 @@ The web editor draws the graph on a canvas, and the CLI can list, create, edit, 
       When only the graph's name changes
       Then the pending occurrence is kept
       And editing the node's cron recomputes it, while removing the node drops it
+    ```
+
+- [ ] **FR-24**
+
+    ```gherkin
+    @FR-24
+    Scenario: The event trigger picks its source and filters
+      Given a graph with an event trigger node and a webhook endpoint
+      When the node names the endpoint, the event types "issues", and the filter action equals opened
+      Then a subscription for the graph is stored with that endpoint and filter
+      And switching the endpoint or the filters updates it, and clearing it removes it
+
+    @FR-24
+    Scenario: A hand-wired subscription is left alone
+      Given a subscription created on the Webhooks page
+      When the graph is saved with an event trigger node
+      Then only the node-managed subscription changes
     ```
 
 - [ ] **NFR-1**

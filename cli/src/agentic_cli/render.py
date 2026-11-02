@@ -317,8 +317,11 @@ def _execution_graph_text(graph: dict) -> str:
             zone = node.get("timezone") or "server zone"
             lines.append(f"  schedule: {node.get('schedule') or '-'} ({zone}) [{state}]")
         else:
+            source = node.get("endpointId") or "no source"
+            events = ", ".join(node.get("events") or []) or "all events"
+            filters = len(node.get("filters") or [])
             paths = ", ".join(output.get("path") or "" for output in node.get("outputs") or [])
-            lines.append(f"  event trigger: {paths or 'no fields'}")
+            lines.append(f"  event trigger: {source} · {events} · {filters} filter(s) · {paths or 'no fields'}")
     return "\n".join(lines)
 
 

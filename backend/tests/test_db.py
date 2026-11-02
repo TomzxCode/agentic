@@ -249,6 +249,19 @@ def test_migrate_graph_triggers_to_nodes_moves_schedules_into_the_definition(mon
     assert len(json.loads(definition_raw)["nodes"]) == 2
 
 
+def test_ensure_columns_adds_the_event_subscription_node_id(monkeypatch, tmp_path):
+    engine = _engine(tmp_path, "o.db")
+    with engine.begin() as conn:
+        conn.execute(sqlalchemy.text("CREATE TABLE eventsubscription (id VARCHAR PRIMARY KEY)"))
+        conn.execute(sqlalchemy.text("INSERT INTO eventsubscription (id) VALUES ('s1')"))
+    monkeypatch.setattr(db, "engine", engine)
+
+    db._ensure_columns()
+
+    with engine.connect() as conn:
+        assert conn.execute(sqlalchemy.text("SELECT node_id FROM eventsubscription WHERE id='s1'")).scalar() == ""
+
+
 def test_migrate_graph_triggers_to_nodes_without_tables_is_a_noop(monkeypatch, tmp_path):
     engine = _engine(tmp_path, "m.db")
     monkeypatch.setattr(db, "engine", engine)

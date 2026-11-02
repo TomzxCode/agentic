@@ -115,6 +115,32 @@ describe('WebhooksView', () => {
     )
   })
 
+  it('marks a subscription owned by an event trigger node as managed', async () => {
+    mocks.subscriptions.mockResolvedValue([
+      {
+        id: 's-node',
+        endpoint_id: 'e1',
+        graph_id: 'g1',
+        graph_name: 'Triage PR',
+        node_id: 't1',
+        name: 'Event trigger',
+        events: ['pull_request'],
+        filters: [],
+        enabled: true,
+        created_at: '2026-11-01T00:00:00Z',
+        updated_at: '2026-11-01T00:00:00Z'
+      }
+    ])
+    const wrapper = mount(WebhooksView)
+    await flushPromises()
+    await button(wrapper, 'Workflows').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('from graph')
+    expect(wrapper.text()).toContain('Managed by its event trigger node')
+    expect(button(wrapper, 'Remove')).toBeUndefined()
+  })
+
   it('wires a graph to an endpoint with event types and a payload filter', async () => {
     const wrapper = mount(WebhooksView)
     await flushPromises()

@@ -64,6 +64,7 @@ MAX_FIELDS = 20
 MAX_SELECT_OPTIONS = 20
 # Trigger outputs are the JSON paths an event payload exposes downstream.
 MAX_TRIGGER_OUTPUTS = 20
+MAX_EVENT_FILTERS = 20
 # Beyond this a trigger node's event values are stored truncated, like run output.
 MAX_TRIGGER_VALUE = 20_000
 
@@ -139,6 +140,13 @@ def normalize_definition(raw: Any) -> dict[str, Any]:
                 clean["enabled"] = bool(node.get("enabled", True))
                 clean["outputs"] = []
             else:
+                # The node names its source endpoint and what it wants from it,
+                # so the editor asks once instead of wiring a subscription
+                # elsewhere.
+                clean["endpointId"] = str(node.get("endpointId") or "").strip()
+                clean["events"] = _clean_event_types(node.get("events"))
+                clean["filters"] = _event_filters(node.get("filters"))
+                clean["enabled"] = bool(node.get("enabled", True))
                 clean["outputs"] = _trigger_outputs(node.get("outputs"))
         else:
             clean["fields"] = _fields(node.get("fields"))
@@ -179,6 +187,39 @@ def _inputs(raw: Any) -> list[dict[str, str]]:
             continue
         inputs.append({"id": str(item.get("id") or "").strip(), "name": name})
     return inputs
+
+
+def _clean_event_types(raw: Any) -> list[str]:
+    events: list[str] = []
+    for item in raw or []:
+        text = str(item or "").strip()
+        if text and text not in events:
+            events.append(text)
+    return events
+
+
+def _event_filters(raw: Any) -> list[dict[str, Any]]:
+    """The payload conditions that must match, one operator per condition."""
+    filters: list[dict[str, Any]] = []
+    for item in raw or []:
+        if len(filters) >= MAX_EVENT_FILTERS:
+            break
+        if not isinstance(item, dict):
+            continue
+        path = str(item.get("path") or "").strip()
+        if not path:
+            continue
+        clean: dict[str, Any] = {"path": path}
+        if item.get("equals") is not None:
+            clean["equals"] = item["equals"]
+        elif str(item.get("contains") or "").strip():
+            clean["contains"] = str(item["contains"]).strip()
+        elif item.get("exists") is not None:
+            clean["exists"] = bool(item["exists"])
+        else:
+            continue
+        filters.append(clean)
+    return filters
 
 
 def _trigger_outputs(raw: Any) -> list[dict[str, str]]:
@@ -1366,6 +1407,49 @@ def sync_schedule_state(graph: ExecutionGraph, definition: dict[str, Any], *, no
         graph.schedule_state = state
         return True
     return False
+
+
+def sync_event_subscription(session: Session, graph: ExecutionGraph, definition: dict[str, Any]) -> None:
+    """Keep the graph's node-managed webhook subscription in step with its node.
+
+    The event trigger node is the source of truth for the endpoint, the event
+    types, the filters, and the enabled flag; the row is what the event bus
+    reads. A subscription wired by hand on the Webhooks page has no node id and
+    is left alone.
+    """
+    from sqlalchemy import delete as sa_delete
+
+    from .models.webhooks import EventDelivery, EventSubscription, WebhookEndpoint
+
+    nodes = trigger_nodes(definition, "event")
+    node = nodes[0] if nodes else None
+    managed = [
+        row
+        for row in session.exec(select(EventSubscription).where(col(EventSubscription.graph_id) == graph.id)).all()
+        if row.node_id
+    ]
+    endpoint_id = str((node or {}).get("endpointId") or "")
+    endpoint = session.get(WebhookEndpoint, endpoint_id) if endpoint_id else None
+    if node is None or endpoint is None:
+        for row in managed:
+            session.exec(sa_delete(EventDelivery).where(col(EventDelivery.subscription_id) == row.id))
+            session.delete(row)
+        return
+
+    subscription = next((row for row in managed if row.node_id == node["id"]), None)
+    if subscription is None:
+        subscription = EventSubscription(endpoint_id=endpoint.id, graph_id=graph.id, node_id=node["id"])
+    subscription.endpoint_id = endpoint.id
+    subscription.name = str(node.get("title") or "")
+    subscription.events = list(node.get("events") or [])
+    subscription.filters = [dict(condition) for condition in node.get("filters") or []]
+    subscription.enabled = bool(node.get("enabled", True))
+    subscription.updated_at = utcnow()
+    session.add(subscription)
+    for row in managed:
+        if row.id != subscription.id:
+            session.exec(sa_delete(EventDelivery).where(col(EventDelivery.subscription_id) == row.id))
+            session.delete(row)
 
 
 def next_schedule_at(graph: ExecutionGraph) -> datetime | None:
