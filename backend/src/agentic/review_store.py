@@ -48,16 +48,6 @@ from .reviews import report_identity
 
 log = structlog.get_logger(__name__)
 
-#: How long a ghx lookup of a pull request's GitHub fields is reused, so a page
-#: reload does not shell out again. A Refresh (``?refresh=true``) bypasses it.
-GITHUB_METADATA_TTL = 300
-#: A lookup that failed (ghx missing, offline) is retried after this long rather
-#: than on every request.
-GITHUB_METADATA_FAILED_TTL = 60
-
-#: (owner, repo, number) -> (monotonic fetch time, ghx metadata or None).
-_metadata_cache: dict[tuple[str, str, int], tuple[float, dict[str, Any] | None]] = {}
-
 #: The review steps, in the order review-pr-full dispatches them: the three
 #: parallel steps first, then the conditional surface reviews, then the chain
 #: (coverage advisory, then validate -> verify -> review).

@@ -1,7 +1,9 @@
 """The review queue: PRs in the local store with their review-step state."""
 
+import json
 import os
 import threading
+import time
 from datetime import datetime
 
 import pytest
@@ -550,3 +552,48 @@ def test_github_lookups_run_together(monkeypatch):
     ]
     review_queue.enrich_from_github(prs)
     assert [pr["title"] for pr in prs] == ["PR 901", "PR 902"]
+
+
+def test_metadata_cache_survives_a_restart(tmp_path, monkeypatch):
+    monkeypatch.setattr(settings, "sdlc_dir", tmp_path)
+    _write_pr(tmp_path, "TomzxCode", "agentic", 42, sha="abc1234", steps=ALL_STEPS, view=False)
+    monkeypatch.setattr(
+        review_queue,
+        "fetch_github_issue",
+        lambda *args, **kwargs: {"title": "Fetched from ghx", "head_sha": "abc1234"},
+    )
+    prs = collect_review_prs()
+    review_queue.enrich_from_github(prs)
+    assert review_queue.save_metadata_cache() == 1
+
+    # A new process starts with an empty cache and reads the saved one.
+    review_queue._metadata_cache.clear()
+    assert review_queue.load_metadata_cache() == 1
+
+    calls: list = []
+    monkeypatch.setattr(review_queue, "fetch_github_issue", lambda *args, **kwargs: calls.append(args))
+    prs = collect_review_prs()
+    review_queue.enrich_from_github(prs)
+    assert prs[0]["title"] == "Fetched from ghx"
+    assert calls == []
+
+
+def test_an_expired_lookup_is_not_restored(tmp_path, monkeypatch):
+    path = review_queue._cache_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(
+            {
+                "version": review_queue.CACHE_VERSION,
+                "entries": [["TomzxCode", "agentic", 42, time.time() - 3600, {"title": "Old"}]],
+            }
+        )
+    )
+
+    assert review_queue.load_metadata_cache() == 0
+    assert review_queue._metadata_cache == {}
+
+
+def test_a_failed_lookup_is_not_persisted(monkeypatch):
+    review_queue._metadata_cache[("tomzxcode", "agentic", 42)] = (time.monotonic(), None)
+    assert review_queue.save_metadata_cache() == 0

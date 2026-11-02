@@ -27,6 +27,7 @@ from .jobs import close_queue, get_queue, reconcile_runs
 from .log_setup import configure_logging
 from .provenance import ProvenanceMiddleware
 from .request_logging import RequestErrorMiddleware, configure_request_logging
+from .review_queue import load_metadata_cache, save_metadata_cache
 from .routers import (
     agent_runs,
     agent_streams,
@@ -153,6 +154,11 @@ async def _review_scan_forever() -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     create_db_and_tables()
+    # Reuse the GitHub lookups the previous process left behind, so the first
+    # review page load after a restart does not fetch every pull request again.
+    restored = load_metadata_cache()
+    if restored:
+        log.info("restored review metadata cache", entries=restored)
     with Session(engine) as session:
         seed_harnesses(session)
     # Connect the run queue and fail any run left behind by a previous process.
@@ -201,6 +207,11 @@ async def lifespan(app: FastAPI):
         await schedule_task
     with suppress(asyncio.CancelledError):
         await graph_schedule_task
+    # Persist the GitHub lookups so a restart picks them up instead of
+    # re-fetching every pull request on the next page load.
+    saved = save_metadata_cache()
+    if saved:
+        log.info("saved review metadata cache", entries=saved)
     await close_queue()
 
 

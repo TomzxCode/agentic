@@ -2,17 +2,22 @@
 
 The store read lives in ``review_store``; this module overlays the pull
 request's own fields (title, state, author, creation time) from ghx, cached for
-a short time so a page reload does not shell out again.
+a short time so a page reload does not shell out again. The fresh part of that
+cache is written on shutdown and read back on startup, so a restart does not
+re-fetch every pull request.
 """
 
 from __future__ import annotations
 
+import json
+import os
 import time
 from pathlib import Path
 from typing import Any
 
 import structlog
 
+from .config import settings
 from .parallel import run_parallel
 from .review_store import (
     collect_review_prs as collect_review_prs,
@@ -39,6 +44,83 @@ GITHUB_METADATA_FAILED_TTL = 60
 
 #: (owner, repo, number) -> (monotonic fetch time, ghx metadata or None).
 _metadata_cache: dict[tuple[str, str, int], tuple[float, dict[str, Any] | None]] = {}
+
+#: The file the still-fresh lookups are written to, under the data directory.
+#: A restart would otherwise start from an empty cache and re-fetch every pull
+#: request on the first page load.
+CACHE_FILE = Path("cache") / "review-metadata.json"
+#: Bumped when the file's shape changes, so an older file is ignored rather
+#: than misread.
+CACHE_VERSION = 1
+
+
+def _cache_path() -> Path:
+    """Where the persisted lookups live. Resolved per call so a test can move it."""
+    return settings.data_dir / CACHE_FILE
+
+
+def save_metadata_cache() -> int:
+    """Persist the still-fresh lookups so the next process can reuse them.
+
+    Only a successful lookup younger than ``GITHUB_METADATA_TTL`` is written: an
+    expired one would be fetched again on load, and a failed one is worth
+    retrying in a new process (the failure may have been the reason for the
+    restart). The fetch time is stored as wall-clock time, because the monotonic
+    clock the cache reads by means nothing to another process.
+    """
+    now = time.monotonic()
+    wall = time.time()
+    entries = [
+        [owner, name, number, wall - (now - fetched_at), metadata]
+        for (owner, name, number), (fetched_at, metadata) in _metadata_cache.items()
+        if metadata and now - fetched_at < GITHUB_METADATA_TTL
+    ]
+    if not entries:
+        return 0
+    path = _cache_path()
+    temporary = path.with_name(f".{path.name}.tmp")
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        temporary.write_text(json.dumps({"version": CACHE_VERSION, "entries": entries}))
+        os.replace(temporary, path)
+    except (OSError, TypeError, ValueError) as exc:
+        log.warning("review metadata cache not saved", error=str(exc))
+        return 0
+    return len(entries)
+
+
+def load_metadata_cache() -> int:
+    """Restore the lookups the previous process saved, keeping only fresh ones.
+
+    The process was down for some of each entry's lifetime, so the wall-clock
+    time it was fetched is turned back into this process's monotonic clock. An
+    entry older than ``GITHUB_METADATA_TTL`` by now is dropped: the page would
+    have re-fetched it anyway.
+    """
+    try:
+        payload = json.loads(_cache_path().read_text())
+    except (OSError, ValueError):
+        return 0
+    if not isinstance(payload, dict) or payload.get("version") != CACHE_VERSION:
+        return 0
+    entries = payload.get("entries")
+    if not isinstance(entries, list):
+        return 0
+    now = time.monotonic()
+    wall = time.time()
+    loaded = 0
+    for entry in entries:
+        try:
+            owner, name, number, saved_at, metadata = entry
+            key = (str(owner).lower(), str(name).lower(), int(number))
+            age = max(0.0, wall - float(saved_at))
+        except (TypeError, ValueError):
+            continue
+        if not isinstance(metadata, dict) or age >= GITHUB_METADATA_TTL:
+            continue
+        _metadata_cache[key] = (now - age, metadata)
+        loaded += 1
+    return loaded
 
 
 def _apply_github(pr: dict[str, Any], metadata: dict[str, Any]) -> None:

@@ -46,3 +46,15 @@ def _no_github_login_detection(monkeypatch):
     from agentic import settings_store
 
     monkeypatch.setattr(settings_store, "detect_github_login", lambda: "")
+
+
+@pytest.fixture(autouse=True)
+def _isolated_review_metadata_cache(monkeypatch, tmp_path):
+    """Keep the persisted GitHub lookups out of the shared data directory.
+
+    The app loads and saves them around every lifespan, so one test's lookups
+    would otherwise answer the next test's instead of its own stub.
+    """
+    from agentic import review_queue
+
+    monkeypatch.setattr(review_queue, "_cache_path", lambda: tmp_path / "review-metadata.json")
