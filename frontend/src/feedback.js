@@ -86,13 +86,14 @@ export function slugify(value) {
 }
 
 // How the list groups, keyed by the group-by select's value. `key` is the group
-// a card belongs to; `link` is the URL its heading opens (a PR or a repo), when
-// the group names one; `order` pins a known value set to its own order.
+// a card belongs to; `link` is the URL its heading opens (a repo), and `path`
+// the app page it opens (a pull request), when the group names one; `order`
+// pins a known value set to its own order.
 export const FEEDBACK_GROUPINGS = {
   pr: {
     title: 'Pull requests',
     key: (item) => (item.repo || '?') + '#' + (item.pr || '?'),
-    link: (item) => item.pr_url || null
+    path: (item) => (item.repo && item.pr ? `/pr/${item.repo}/${item.pr}` : null)
   },
   repo: {
     title: 'Repositories',
@@ -128,8 +129,9 @@ export const FEEDBACK_SORTS = {
 
 // Group and sort the items for display. Returns one entry per group, in the
 // group's own order (a pinned value set, or numeric-aware alphabetical), each
-// with its sorted items, its heading link (when the group names a PR or repo),
-// and how many of its items still await a decision.
+// with its sorted items, its heading link (an app page or an external URL, when
+// the group names a PR or repo), and how many of its items still await a
+// decision.
 export function groupFeedback(items, groupBy = 'pr', sortBy = 'date-desc') {
   const grouping = FEEDBACK_GROUPINGS[groupBy] || FEEDBACK_GROUPINGS.pr
   const compare = FEEDBACK_SORTS[sortBy] || FEEDBACK_SORTS['date-desc']
@@ -155,6 +157,7 @@ export function groupFeedback(items, groupBy = 'pr', sortBy = 'date-desc') {
       key,
       label: key,
       url: grouping.link ? grouping.link(rows[0]) : null,
+      path: grouping.path ? grouping.path(rows[0]) : null,
       items: rows,
       pending: rows.filter((item) => item.status === 'pending').length
     }

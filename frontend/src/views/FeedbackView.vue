@@ -15,6 +15,7 @@ import {
 } from '../feedback'
 import { renderMarkdown } from '../markdown'
 import { store, timeAgo } from '../store'
+import { ghxItemUrl } from '../toolLinks'
 
 // The PR-feedback queue: one card per reviewer comment the
 // handle-pr-reviewer-feedback skill analyzed, read from the user-global ~/.sdlc
@@ -131,6 +132,18 @@ const groups = computed(() => groupFeedback(filtered.value, groupBy.value, sortB
 const shownGroups = computed(() =>
   selectedGroup.value ? groups.value.filter((group) => group.key === selectedGroup.value) : groups.value
 )
+
+// The app's own page for the card's pull request, the card's primary link: the
+// same page My PRs and the review queue open. Null when the file names no
+// repository or number, since that page could not be built.
+function prPath(item) {
+  return item.repo && item.pr ? `/pr/${item.repo}/${item.pr}` : null
+}
+
+// The pull request's page in the local ghx web UI, when one is configured.
+function ghxLink(item) {
+  return ghxItemUrl({ url: item.pr_url }, store.settings?.ghx_url)
+}
 
 // A group can disappear when another filter narrows the items, so drop a
 // selection that no longer names a group rather than leave an empty list.
@@ -363,6 +376,7 @@ onMounted(load)
           <section v-for="group in shownGroups" :key="group.key" class="feedback-group">
             <div :id="slugify(group.key)" class="group-head">
               <a v-if="group.url" :href="group.url" target="_blank" rel="noopener">{{ group.label }}</a>
+              <router-link v-else-if="group.path" :to="group.path">{{ group.label }}</router-link>
               <span v-else>{{ group.label }}</span>
               <span class="faint">
                 {{ group.items.length }} item{{ group.items.length === 1 ? '' : 's' }}
@@ -407,10 +421,32 @@ onMounted(load)
 
                 <h3 class="card-title">{{ item.title }}</h3>
                 <div class="card-meta">
-                  <a v-if="item.pr_url" :href="item.pr_url" target="_blank" rel="noopener"
-                    >{{ item.repo }}#{{ item.pr }}</a
+                  <router-link
+                    v-if="prPath(item)"
+                    class="feedback-pr-link"
+                    :to="prPath(item)"
+                    :title="`Open PR #${item.pr} in the app`"
+                    >{{ item.repo }}#{{ item.pr }}</router-link
                   >
                   <span v-else>{{ item.repo }}#{{ item.pr }}</span>
+                  <a
+                    v-if="ghxLink(item)"
+                    class="feedback-tool-link"
+                    :href="ghxLink(item)"
+                    target="_blank"
+                    rel="noopener"
+                    title="Open in ghx"
+                    >ghx</a
+                  >
+                  <a
+                    v-if="item.pr_url"
+                    class="feedback-tool-link"
+                    :href="item.pr_url"
+                    target="_blank"
+                    rel="noopener"
+                    title="Open on GitHub"
+                    >gh</a
+                  >
                   <span>·</span><span>{{ item.author }}</span> <span>·</span
                   ><span class="mono">{{ item.feedback_id }}</span>
                 </div>
@@ -438,7 +474,6 @@ onMounted(load)
                   <a v-if="threadUrl(item)" class="btn sm ghost" :href="threadUrl(item)" target="_blank" rel="noopener"
                     >Thread</a
                   >
-                  <a v-if="item.pr_url" class="btn sm ghost" :href="item.pr_url" target="_blank" rel="noopener">PR</a>
                 </div>
 
                 <details

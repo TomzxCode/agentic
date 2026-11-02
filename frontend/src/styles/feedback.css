@@ -298,6 +298,27 @@
   gap: 6px;
   flex-wrap: wrap;
 }
+/* The card's links: the pull request itself opens the app's page, and the two
+   external copies beside it are compact, the same pills My PRs and the review
+   queue use. Neither external copy is where the triage work happens, so it
+   reads faint until hovered. */
+.feedback-card .feedback-pr-link {
+  color: var(--accent);
+}
+.feedback-card .feedback-tool-link {
+  align-self: center;
+  padding: 0 5px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--faint);
+  font-size: 10px;
+  line-height: 1.6;
+}
+.feedback-card .feedback-tool-link:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+  text-decoration: none;
+}
 .feedback-card .card-actions {
   display: flex;
   gap: 6px;

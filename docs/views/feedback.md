@@ -47,6 +47,8 @@ The search and the selects reset on navigation.
 
 The pills show the recommendation, its confidence, the comment kind, whether the pull request is closed, the decision status, and the run state (`awaiting run` or `executed`).
 
+The line under the title names the pull request and opens it three ways, the same as the review queue and My PRs: `ghx` opens the local ghx web UI when its URL is configured, `gh` opens the pull request on GitHub, and the `repo#n` link opens the app's PR page.
+
 The sections, with the first one open, are `Comment` (with a `Thread` link), `Analysis`, `Recommended action`, `Suggested reply` (with `copy`), and `Suggested change` when the comment asks for code.
 
 ### Deciding
@@ -69,7 +71,7 @@ There is no confirmation step and no undo other than `Reset`.
 - The tiles and the header count only the items the filters show.
 - The sidebar keeps every group under the current filters, so you can switch without clearing the pick first.
 - Cards come from `~/.sdlc/{owner}/{repository}/pull-requests/{number}/feedback/`, one file per analyzed comment.
-- Group headings link to GitHub, not to an app page.
+- A pull-request group heading opens the pull request's page in the app; a repository group heading opens the repository on GitHub.
 - A pull request whose state cannot be read stays under `Active PRs`.
 - `Refresh` re-reads the store and each pull request's state.
 

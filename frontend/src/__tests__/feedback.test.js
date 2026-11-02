@@ -72,11 +72,12 @@ describe('feedback helpers', () => {
     expect(groups[0].pending).toBe(2)
   })
 
-  it('groups by pull request and links the heading to the PR', () => {
+  it('groups by pull request and links the heading to the app page', () => {
     const groups = groupFeedback([item()], 'pr', 'date-desc')
     expect(groups).toHaveLength(1)
     expect(groups[0].label).toBe('TomzxCode/agentic#42')
-    expect(groups[0].url).toBe('https://github.com/TomzxCode/agentic/pull/42')
+    expect(groups[0].path).toBe('/pr/TomzxCode/agentic/42')
+    expect(groups[0].url).toBeNull()
   })
 
   it('counts decisions and the ones awaiting a run', () => {
@@ -90,6 +91,10 @@ describe('feedback helpers', () => {
 })
 
 describe('FeedbackView', () => {
+  const RouterLinkStub = { props: ['to'], template: '<a :href="to"><slot /></a>' }
+
+  const mountView = () => mount(FeedbackView, { global: { stubs: { RouterLink: RouterLinkStub } } })
+
   const settle = async () => {
     await flushPromises()
   }
@@ -98,6 +103,7 @@ describe('FeedbackView', () => {
     vi.clearAllMocks()
     localStorage.clear()
     store.toast = null
+    store.settings = {}
     mocks.list.mockResolvedValue({ root: '/home/u/.sdlc', counts: {}, items: [item()] })
     mocks.setDecision.mockImplementation((id, decision) =>
       Promise.resolve(item({ decision, status: decision || 'pending', run_state: decision ? 'awaiting' : 'none' }))
@@ -105,7 +111,7 @@ describe('FeedbackView', () => {
   })
 
   it('lists the feedback with its recommendation and sections', async () => {
-    const wrapper = mount(FeedbackView)
+    const wrapper = mountView()
     await settle()
     expect(wrapper.text()).toContain('Tighten the error message')
     expect(wrapper.text()).toContain('implement')
@@ -119,8 +125,19 @@ describe('FeedbackView', () => {
     expect(bodies[1].html()).toContain('foo.py:12')
   })
 
+  it('opens the pull request in the app, with ghx and GitHub beside it', async () => {
+    store.settings = { ghx_url: 'http://localhost:8080' }
+    const wrapper = mountView()
+    await settle()
+    expect(wrapper.get('.feedback-pr-link').attributes('href')).toBe('/pr/TomzxCode/agentic/42')
+    const links = wrapper.findAll('.feedback-tool-link')
+    expect(links.map((link) => link.text())).toEqual(['ghx', 'gh'])
+    expect(links[0].attributes('href')).toBe('http://localhost:8080/#/TomzxCode/agentic/pulls/42')
+    expect(links[1].attributes('href')).toBe('https://github.com/TomzxCode/agentic/pull/42')
+  })
+
   it('records a decision and reflects it on the card', async () => {
-    const wrapper = mount(FeedbackView)
+    const wrapper = mountView()
     await settle()
     await wrapper.get('button.implement').trigger('click')
     await settle()
@@ -130,7 +147,7 @@ describe('FeedbackView', () => {
   })
 
   it('resets a decision to null', async () => {
-    const wrapper = mount(FeedbackView)
+    const wrapper = mountView()
     await settle()
     await wrapper.get('button.pending').trigger('click')
     await settle()
@@ -142,7 +159,7 @@ describe('FeedbackView', () => {
       root: '/home/u/.sdlc',
       items: [item({ feedback_id: 'open-1' }), item({ feedback_id: 'closed-1', state: 'closed' })]
     })
-    const wrapper = mount(FeedbackView)
+    const wrapper = mountView()
     await settle()
     expect(wrapper.findAll('.feedback-card')).toHaveLength(1)
 
@@ -155,7 +172,7 @@ describe('FeedbackView', () => {
       root: '/home/u/.sdlc',
       items: [item({ feedback_id: 'keep', title: 'Alpha' }), item({ feedback_id: 'drop', title: 'Beta' })]
     })
-    const wrapper = mount(FeedbackView)
+    const wrapper = mountView()
     await settle()
     await wrapper.get('input[type="search"]').setValue('alpha')
     expect(wrapper.findAll('.feedback-card')).toHaveLength(1)
@@ -171,7 +188,7 @@ describe('FeedbackView', () => {
         item({ feedback_id: 'on-43', pr: '43', title: 'On pull 43' })
       ]
     })
-    const wrapper = mount(FeedbackView)
+    const wrapper = mountView()
     await settle()
     expect(wrapper.findAll('.feedback-card')).toHaveLength(2)
 
@@ -213,7 +230,7 @@ describe('FeedbackView', () => {
         item({ feedback_id: 'on-43', pr: '43', author: 'bob', title: 'On pull 43' })
       ]
     })
-    const wrapper = mount(FeedbackView)
+    const wrapper = mountView()
     await settle()
     await wrapper.findAll('.feedback-nav .nav-item').at(1).trigger('click')
     expect(wrapper.findAll('.feedback-card')).toHaveLength(1)
@@ -225,7 +242,7 @@ describe('FeedbackView', () => {
 
   it('shows the empty state when the store has no feedback', async () => {
     mocks.list.mockResolvedValue({ root: '/home/u/.sdlc', items: [] })
-    const wrapper = mount(FeedbackView)
+    const wrapper = mountView()
     await settle()
     expect(wrapper.text()).toContain('No reviewer feedback in the store yet')
   })
