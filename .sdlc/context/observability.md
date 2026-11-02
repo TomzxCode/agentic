@@ -31,8 +31,14 @@ Each structlog event renders to the process stdout through uvicorn.
 The same rendered lines are appended, with ANSI codes stripped, to a log file.
 The default path is `<data_dir>/agentic.log`, and `AGENTIC_LOG_FILE` overrides it or disables the file with `none` or `off` (`config.log_path`).
 The file rotates at 10 MB and keeps 5 backups (`log_setup.py`).
+The level comes from `AGENTIC_LOG_LEVEL` (default `info`, applied by `log_setup.configure_logging` to structlog and by `agentic-server serve` to uvicorn).
 Notable events: `agentic ready`, `tool call` (carries `cmd` and the `mode` transport), `cli fetch failed`, `fetch_source failed`, `failed to persist agent event`, `agent run failed`.
 `RequestErrorMiddleware` adds a `request failed` event for every 4xx or 5xx with method, path, status, duration, and the API error detail, logged at error level for 5xx and warning otherwise.
+At `debug` level, each request is followed by the breakdown the `DebugMiddleware` collected, as separate lines: `request phase` for each named step a handler timed, a `request db` summary (`queries`, `time_ms`), and a `request tools` summary (`calls`, `time_ms`, `slowest`) for the helper CLI calls (`ghx`, `slackx`).
+The review queue times its store scan as `review store dirs` (finding the PR directories) and `review store check` (the per-directory mtime check), with `review store view`, `review store reports`, and `review store state` appearing only for the directories that changed.
+`review_store._DIR_CACHE` keeps each PR directory's parsed state keyed by the name, mtime, and size of its report files and in-progress markers, so an unchanged directory is not read again; the `calls` count on those lines says how many directories were read.
+A step that repeats (once per pull request) folds into one line carrying its summed `duration_ms` and a `calls` count.
+`run_parallel` copies the requesting context into its worker threads, so a CLI call made there is still charged to the request that caused it.
 
 ## Operation Audit Trail
 

@@ -34,14 +34,16 @@ that marker is what the queue reads to show the step as running.
 from __future__ import annotations
 
 import json
+import os
 import re
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, NamedTuple
 
 import structlog
 
 from .config import settings
+from .debug import phase
 from .reviews import report_identity
 
 log = structlog.get_logger(__name__)
@@ -160,17 +162,19 @@ def _step_for_file(name: str) -> tuple[str | None, str | None]:
 
 
 def _candidate_reports(directory: Path) -> dict[str, list[tuple[Path, str | None]]]:
-    """The per-step report files under *directory*, skipping aliases and dot dirs."""
+    """The per-step report files in *directory*, skipping aliases and symlinks.
+
+    Reports live directly in the PR directory (the skills write
+    ``<skill>.<sha>.md`` there); the only nested tree, ``feedback/``, holds no
+    reports, so a flat scan is enough and stays cheap on a large store.
+    """
     candidates: dict[str, list[tuple[Path, str | None]]] = {}
-    for path in directory.rglob("*.md"):
+    for path in directory.glob("*.md"):
         # The stable ``<step>.report.md`` names are usually symlinks to the
         # per-run files; a symlink would only duplicate its target.
         if path.is_symlink() or not path.is_file():
             continue
-        rel = path.relative_to(directory)
-        if any(part.startswith(".") for part in rel.parts):
-            continue
-        step, commit = _step_for_file(rel.as_posix())
+        step, commit = _step_for_file(path.name)
         if step is None:
             continue
         candidates.setdefault(step, []).append((path, commit))
@@ -421,51 +425,124 @@ def _pull_url(owner: str, name: str, number: int) -> str:
     return f"https://github.com/{repository}/pull/{number}"
 
 
-def collect_review_prs() -> list[dict[str, Any]]:
-    """Every PR in the store with the state of its review steps."""
-    prs: list[dict[str, Any]] = []
-    for owner, name, number, directory in iter_review_dirs():
+class _ParsedDir(NamedTuple):
+    """The parsed state of one PR directory, as read from its files."""
+
+    view: dict[str, Any]
+    steps: dict[str, dict[str, Any]]
+    reference: str
+
+
+#: A PR directory's parsed state, keyed by the directory, with the signature of
+#: the files it was built from. A directory whose report names, mtimes, and
+#: sizes are unchanged is not read again, so a page load only re-reads the pull
+#: requests a review step touched. The skills write new files from other
+#: processes, so the filesystem is the only signal the app can check.
+_DIR_CACHE: dict[Path, tuple[tuple[tuple[str, int, int], ...], _ParsedDir]] = {}
+
+
+def _signature(directory: Path) -> tuple[tuple[str, int, int], ...]:
+    """The directory's report files as (name, mtime, size), its cache key.
+
+    Only the entries the parsed state depends on count: regular ``.md`` files
+    (reports and ``gh-pr-view.md``) and ``.in-progress`` markers. A stable
+    ``<step>.report.md`` alias is a symlink the reader skips, so it is left out.
+    A report for a new commit adds a name; a re-review at the same commit
+    rewrites the same name, which its mtime (or size) catches.
+    """
+    entries: list[tuple[str, int, int]] = []
+    try:
+        with os.scandir(directory) as scan:
+            for entry in scan:
+                name = entry.name
+                if not (name.endswith(".md") or name.endswith(IN_PROGRESS_SUFFIX)):
+                    continue
+                if entry.is_symlink():
+                    continue
+                try:
+                    stat = entry.stat(follow_symlinks=False)
+                except OSError:
+                    continue
+                entries.append((name, stat.st_mtime_ns, stat.st_size))
+    except OSError:
+        return ()
+    entries.sort()
+    return tuple(entries)
+
+
+def _read_dir(directory: Path) -> _ParsedDir:
+    """Read one PR directory: its view cache and every step's newest report."""
+    with phase("review store view", aggregate=True):
         view = parse_view_cache(_read_text(directory / "gh-pr-view.md"))
+    with phase("review store reports", aggregate=True):
         steps, reference = _step_state(directory)
-        stale_steps = determine_stale_steps(steps, reference)
-        in_progress = in_progress_steps(directory, reference)
-        # The last review event: the modification time of the newest step
-        # report, i.e. when a review skill last wrote for this PR.
-        reviewed_at = max((state["modified_at"] for state in steps.values()), default=None)
-        for state in steps.values():
-            # A step is stale when its own report does not cover the newest
-            # reviewed commit; stale_steps also carries the chain steps a
-            # staleness cuts off, which may be current themselves.
-            state["stale"] = state["commit"] != reference
-        draft = bool(view.get("draft", False))
-        prs.append(
-            {
-                "owner": owner,
-                "name": name,
-                "repository": f"{owner}/{name}" if owner else name,
-                "number": number,
-                "title": view.get("title", ""),
-                "url": view.get("url", "") or _pull_url(owner, name, number),
-                "author": view.get("author", ""),
-                "state": view.get("state", ""),
-                "draft": draft,
-                "head_branch": view.get("head_branch", ""),
-                "base_branch": view.get("base_branch", ""),
-                "labels": view.get("labels", []),
-                "created_at": view.get("created_at"),
-                "review_decision": view.get("review_decision", ""),
-                "last_comment_at": view.get("last_comment_at"),
-                "last_comment_by": view.get("last_comment_by", ""),
-                "head_commit": reference,
-                "reviewed_at": reviewed_at,
-                "steps": steps,
-                "in_progress": in_progress,
-                "stale_steps": stale_steps,
-                "reviewed_steps": len(steps),
-                "readiness": readiness_signal(steps, stale_steps, draft),
-                "status": "ready" if not stale_steps else "needs-review",
-                "store_dir": str(directory),
-            }
-        )
+    return _ParsedDir(view=view, steps=steps, reference=reference)
+
+
+def collect_review_prs() -> list[dict[str, Any]]:
+    """Every PR in the store with the state of its review steps.
+
+    A PR directory whose report files kept their names, mtimes, and sizes since
+    the last read is served from ``_DIR_CACHE``; only a changed one is read again.
+    """
+    prs: list[dict[str, Any]] = []
+    with phase("review store dirs"):
+        directories = iter_review_dirs()
+    live: set[Path] = set()
+    for owner, name, number, directory in directories:
+        live.add(directory)
+        with phase("review store check", aggregate=True):
+            signature = _signature(directory)
+        cached = _DIR_CACHE.get(directory)
+        if cached is not None and cached[0] == signature:
+            parsed = cached[1]
+        else:
+            parsed = _read_dir(directory)
+            _DIR_CACHE[directory] = (signature, parsed)
+        view, steps, reference = parsed
+        with phase("review store state", aggregate=True):
+            stale_steps = determine_stale_steps(steps, reference)
+            in_progress = in_progress_steps(directory, reference)
+            # The last review event: the modification time of the newest step
+            # report, i.e. when a review skill last wrote for this PR.
+            reviewed_at = max((state["modified_at"] for state in steps.values()), default=None)
+            for state in steps.values():
+                # A step is stale when its own report does not cover the newest
+                # reviewed commit; stale_steps also carries the chain steps a
+                # staleness cuts off, which may be current themselves.
+                state["stale"] = state["commit"] != reference
+            draft = bool(view.get("draft", False))
+            prs.append(
+                {
+                    "owner": owner,
+                    "name": name,
+                    "repository": f"{owner}/{name}" if owner else name,
+                    "number": number,
+                    "title": view.get("title", ""),
+                    "url": view.get("url", "") or _pull_url(owner, name, number),
+                    "author": view.get("author", ""),
+                    "state": view.get("state", ""),
+                    "draft": draft,
+                    "head_branch": view.get("head_branch", ""),
+                    "base_branch": view.get("base_branch", ""),
+                    "labels": view.get("labels", []),
+                    "created_at": view.get("created_at"),
+                    "review_decision": view.get("review_decision", ""),
+                    "last_comment_at": view.get("last_comment_at"),
+                    "last_comment_by": view.get("last_comment_by", ""),
+                    "head_commit": reference,
+                    "reviewed_at": reviewed_at,
+                    "steps": steps,
+                    "in_progress": in_progress,
+                    "stale_steps": stale_steps,
+                    "reviewed_steps": len(steps),
+                    "readiness": readiness_signal(steps, stale_steps, draft),
+                    "status": "ready" if not stale_steps else "needs-review",
+                    "store_dir": str(directory),
+                }
+            )
+    # A PR directory that left the store leaves its parsed state behind too.
+    for gone in set(_DIR_CACHE) - live:
+        _DIR_CACHE.pop(gone, None)
     prs.sort(key=lambda pr: (pr["repository"].lower(), -pr["number"]))
     return prs

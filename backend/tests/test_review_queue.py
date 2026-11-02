@@ -8,7 +8,7 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlmodel import Session
 
-from agentic import review_queue
+from agentic import review_queue, review_store
 from agentic.config import settings
 from agentic.db import engine
 from agentic.main import app
@@ -24,6 +24,7 @@ def _no_github(monkeypatch):
     itself.
     """
     review_queue._metadata_cache.clear()
+    review_store._DIR_CACHE.clear()
     monkeypatch.setattr(review_queue, "fetch_github_issue", lambda *args, **kwargs: None)
 
 
@@ -95,6 +96,56 @@ def test_collect_review_prs_reads_markers_and_the_view_cache(tmp_path, monkeypat
     assert pr["steps"]["review-pr"]["verdict"] == "pass"
     assert pr["steps"]["review-pr"]["report"] == "review-pr.abc1234.md"
     assert pr["steps"]["review-pr"]["stale"] is False
+
+
+def test_an_unchanged_pr_dir_is_not_read_again(tmp_path, monkeypatch):
+    monkeypatch.setattr(settings, "sdlc_dir", tmp_path)
+    _write_pr(tmp_path, "TomzxCode", "agentic", 42, sha="abc1234", steps=ALL_STEPS)
+    assert collect_review_prs()[0]["reviewed_steps"] == len(ALL_STEPS)
+
+    reads: list = []
+    original = review_store._read_text
+    monkeypatch.setattr(review_store, "_read_text", lambda path: reads.append(path) or original(path))
+    assert collect_review_prs()[0]["reviewed_steps"] == len(ALL_STEPS)
+    assert reads == []
+
+
+def test_a_report_rewritten_in_place_is_read_again_because_its_mtime_changed(tmp_path, monkeypatch):
+    monkeypatch.setattr(settings, "sdlc_dir", tmp_path)
+    directory = _write_pr(tmp_path, "TomzxCode", "agentic", 42, sha="abc1234", steps={"review-pr": "pass"})
+    assert collect_review_prs()[0]["steps"]["review-pr"]["verdict"] == "pass"
+
+    report = directory / "review-pr.abc1234.md"
+    report.write_text(_marker("review-pr", "abc1234", "fail") + "# Report\n\nBody.\n")
+    # A same-size rewrite on a coarse filesystem could keep the mtime; make the
+    # change explicit so the test pins the mtime signal, not the size one.
+    stat = report.stat()
+    os.utime(report, ns=(stat.st_atime_ns, stat.st_mtime_ns + 1_000_000))
+
+    assert collect_review_prs()[0]["steps"]["review-pr"]["verdict"] == "fail"
+
+
+def test_a_new_report_file_is_read(tmp_path, monkeypatch):
+    monkeypatch.setattr(settings, "sdlc_dir", tmp_path)
+    directory = _write_pr(tmp_path, "TomzxCode", "agentic", 42, sha="abc1234", steps={"review-pr": "pass"})
+    assert collect_review_prs()[0]["reviewed_steps"] == 1
+
+    (directory / "validate-pr.abc1234.md").write_text(_marker("validate-pr", "abc1234", "pass") + "# Report\n\nBody.\n")
+    assert collect_review_prs()[0]["reviewed_steps"] == 2
+
+
+def test_a_removed_pr_dir_leaves_the_cache(tmp_path, monkeypatch):
+    monkeypatch.setattr(settings, "sdlc_dir", tmp_path)
+    directory = _write_pr(tmp_path, "TomzxCode", "agentic", 42, sha="abc1234", steps={"review-pr": "pass"})
+    collect_review_prs()
+    assert directory in review_store._DIR_CACHE
+
+    for path in directory.iterdir():
+        path.unlink()
+    directory.rmdir()
+
+    assert collect_review_prs() == []
+    assert directory not in review_store._DIR_CACHE
 
 
 def test_the_view_cache_review_line_reads_as_the_review_decision(tmp_path, monkeypatch):
