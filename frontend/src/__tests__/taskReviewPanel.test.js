@@ -207,6 +207,9 @@ describe('TaskReviewPanel', () => {
     // body belongs to the description pane.
     expect(wrapper.get('.task-item-title .badge').text()).toBe('Open')
     expect(wrapper.get('.task-item-meta .badge').text()).toBe('enhancement')
+    // The author line sits on the head row, above the panes.
+    const html = wrapper.html()
+    expect(html.indexOf('task-item-meta')).toBeLessThan(html.indexOf('pr-panel-tabs'))
     expect(wrapper.find('.task-item-body').exists()).toBe(false)
     // The panes are one switch at the top of the pull request, with the
     // description first and the reports only when there are any.

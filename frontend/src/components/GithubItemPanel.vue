@@ -108,6 +108,18 @@ watch(() => props.url, load)
         <span v-if="status" class="badge" :class="status.className">{{ status.label }}</span>
         <span v-if="entry.title" class="faint task-item-name" :title="entry.title">{{ entry.title }}</span>
       </h2>
+      <!-- Who opened the item, when, and its labels: on the title row, so the
+           panes below the tabs start with their own content. -->
+      <div class="task-item-meta">
+        <span v-if="entry.author">
+          by
+          <router-link :to="authorLink.path" :class="{ faint: authorLink.missing }">{{ entry.author }}</router-link>
+        </span>
+        <span v-if="entry.created_at"
+          >opened <span class="mono">{{ timeAgo(entry.created_at) }}</span></span
+        >
+        <span v-for="label in entry.labels" :key="label" class="badge">{{ label }}</span>
+      </div>
       <!-- Extra head content the host adds (a readiness light, a refresh
            button), grouped with the links out so the actions sit together at
            the end of the row instead of spreading across it. -->
@@ -120,24 +132,14 @@ watch(() => props.url, load)
       </div>
     </div>
 
-    <!-- Host tabs (the PR view's Description / Review / Reports panes), at the
-         top of the item so they are the first control after its title. -->
+    <!-- Host tabs (the PR view's Description / Review / Reports / Feedback
+         panes), under the header so they are the first control before the
+         pane's content. -->
     <slot name="tabs" />
 
-    <div class="task-item-meta">
-      <span v-if="entry.author">
-        by
-        <router-link :to="authorLink.path" :class="{ faint: authorLink.missing }">{{ entry.author }}</router-link>
-      </span>
-      <span v-if="entry.created_at"
-        >opened <span class="mono">{{ timeAgo(entry.created_at) }}</span></span
-      >
-      <span v-for="label in entry.labels" :key="label" class="badge">{{ label }}</span>
-    </div>
-
-    <!-- A pull request's reviewers sit right under its author line, since they
-         are the people the PR is waiting on. A host with panes (the PR view)
-         keeps them on its description pane with the body. -->
+    <!-- A pull request's reviewers follow the header, since they are the
+         people the PR is waiting on. A host with panes (the PR view) keeps
+         them on its description pane with the body. -->
     <PullRequestReviewers
       v-if="kind === 'pr' && reviewersMounted"
       v-show="showReviewers"

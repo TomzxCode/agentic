@@ -76,7 +76,7 @@ The section shows when the scan last ran, how many it found and kept, and any er
 ## Request a review from a reviewer
 
 Open a pull request item: from a row's **📝** in the queue, a task's PR view, or the Resources list.
-Its **Description** tab lists the reviewers under the author line: the ones who already reviewed (with their latest state and when they last reviewed), and the ones a review is still requested from, shown as **Awaiting review**.
+Its **Description** tab lists the reviewers under the header: the ones who already reviewed (with their latest state and when they last reviewed), and the ones a review is still requested from, shown as **Awaiting review**.
 The standalone pull request page (opened from a repository's issue and PR grid) shows the same list on its Description tab.
 
 Click the **👉** beside a reviewer to send them a Slack DM asking for their review.
