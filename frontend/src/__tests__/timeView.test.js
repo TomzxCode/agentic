@@ -143,6 +143,32 @@ describe('TimeView', () => {
 
     expect(wrapper.text()).toContain('The end must come after the start.')
     expect(mocks.visits.mock.calls.length).toBe(before)
+    expect(wrapper.get('button[aria-label="Previous period"]').attributes('disabled')).toBeDefined()
+    expect(wrapper.get('button[aria-label="Next period"]').attributes('disabled')).toBeDefined()
+  })
+
+  it('moves the range back and forward by the period it defines', async () => {
+    const wrapper = mount(TimeView, stub)
+    await flushPromises()
+
+    const start = new Date(2026, 9, 28, 9, 30)
+    const end = new Date(2026, 9, 28, 11, 15)
+    await wrapper.get('input[aria-label="Range start"]').setValue('2026-10-28T09:30')
+    await wrapper.get('input[aria-label="Range end"]').setValue('2026-10-28T11:15')
+    await flushPromises()
+
+    await wrapper.get('button[aria-label="Previous period"]').trigger('click')
+    await flushPromises()
+
+    expect(mocks.visits).toHaveBeenLastCalledWith({
+      start: new Date(2026, 9, 28, 7, 45).toISOString(),
+      end: start.toISOString()
+    })
+
+    await wrapper.get('button[aria-label="Next period"]').trigger('click')
+    await flushPromises()
+
+    expect(mocks.visits).toHaveBeenLastCalledWith({ start: start.toISOString(), end: end.toISOString() })
   })
 
   it('reads an empty history without pretending there is data', async () => {

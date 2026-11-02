@@ -108,6 +108,17 @@ function showToday() {
   showDay(localDayKey())
 }
 
+// Move the range by the period it defines, so the same span is shown one
+// period earlier or later. The buttons are disabled while the range is invalid.
+function shiftRange(direction) {
+  const start = fromDateTimeLocal(rangeStart.value)
+  const end = fromDateTimeLocal(rangeEnd.value)
+  if (!start || !end || end.getTime() <= start.getTime()) return
+  const span = end.getTime() - start.getTime()
+  const nextStart = start.getTime() + direction * span
+  setRange(new Date(nextStart), new Date(nextStart + span))
+}
+
 function showLast24h() {
   const end = new Date()
   setRange(new Date(end.getTime() - DAY_MS), end)
@@ -231,6 +242,24 @@ onMounted(refresh)
             <span>To</span>
             <input v-model="rangeEnd" class="input time-range-input" type="datetime-local" aria-label="Range end" />
           </label>
+          <button
+            class="btn sm ghost"
+            :disabled="!!rangeError"
+            title="Move the range back by its length"
+            aria-label="Previous period"
+            @click="shiftRange(-1)"
+          >
+            ‹ Back
+          </button>
+          <button
+            class="btn sm ghost"
+            :disabled="!!rangeError"
+            title="Move the range forward by its length"
+            aria-label="Next period"
+            @click="shiftRange(1)"
+          >
+            Forward ›
+          </button>
           <button class="btn sm ghost" @click="showToday">Today</button>
           <button class="btn sm ghost" @click="showLast24h">Last 24h</button>
         </div>
