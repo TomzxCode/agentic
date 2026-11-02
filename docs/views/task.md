@@ -76,7 +76,7 @@ The variable chips insert `{task_id}`, `{owner}`, `{number}`, `{li.a.item_url}`,
 
 `Issue` shows one panel per linked issue and one agent panel scoped to it.
 `PR` shows each linked pull request with its merge-readiness light, the reviewed commit, a `Refresh`, a cell per review step, a `Surfaces` cell for the conditional surface reviews, and the findings selector.
-A `Description` / `Review` / `Reports` switch sits under the pull request's title: `Description` shows the body, `Review` shows the step cells and the findings selector, and `Reports` shows one tab per step that wrote a report (Behavior, Risk, Adversarial, Coverage, Validate, Verify, Review, plus CLI, SDK, API, and DB for the surface reviews that ran), with the selected report read in place instead of a modal.
+A `Description` / `Review` / `Reports` / `Feedback` switch sits under the pull request's title: `Description` shows the body, `Review` shows the step cells and the findings selector, `Reports` shows one tab per step that wrote a report (Behavior, Risk, Adversarial, Coverage, Validate, Verify, Review, plus CLI, SDK, API, and DB for the surface reviews that ran), with the selected report read in place instead of a modal, and `Feedback` shows the analyzed reviewer comments that pull request has in the [PR feedback](feedback.md) store, with the same decision cards. `Reports` and `Feedback` appear only when the pull request has something for them.
 Clicking a cell switches to the reports pane on that step's report.
 The standalone pull request page uses the same panel, so it has the same switch.
 `Share` picks the must, should, and may findings and hands the selection to an agent run, which posts the review comments.

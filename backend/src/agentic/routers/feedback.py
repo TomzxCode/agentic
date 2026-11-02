@@ -104,14 +104,23 @@ def _counts(items: list[FeedbackItemRead]) -> dict[str, int]:
 
 
 @router.get("", response_model=FeedbackListRead)
-def list_feedback(refresh: bool = False) -> FeedbackListRead:
+def list_feedback(refresh: bool = False, repo: str = "", pr: str = "") -> FeedbackListRead:
     """Every reviewer-feedback file in the store, with its decision state.
 
-    ``refresh`` re-reads each pull request's state from GitHub instead of the
-    short ghx cache, the same way the review queue's Refresh works.
+    ``repo`` and ``pr`` narrow the read to one pull request (``owner/name`` and
+    its number), which is what the PR view asks for: only that pull request's
+    files are parsed and only its GitHub state is looked up. ``refresh``
+    re-reads that state from GitHub instead of the short ghx cache, the same way
+    the review queue's Refresh works.
     """
     root = settings.sdlc_dir.expanduser()
     items = discover_feedback(root)
+    wanted_repo = repo.strip().lower()
+    if wanted_repo:
+        items = [item for item in items if item.repo.lower() == wanted_repo]
+    wanted_pr = pr.strip()
+    if wanted_pr:
+        items = [item for item in items if item.pr == wanted_pr]
     states = _pr_states(items, refresh)
     reads = [_read(item, _state_for(states, item)) for item in items]
     return FeedbackListRead(

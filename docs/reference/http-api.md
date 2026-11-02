@@ -145,7 +145,7 @@ A manual item has no template and always applies.
 
 | Method | Path | Purpose |
 | --- | --- | --- |
-| `GET` | `/api/feedback` | Every reviewer-comment analysis file in the store, with its recommendation and decision state (`?refresh=true` re-reads each PR's GitHub state). |
+| `GET` | `/api/feedback` | Every reviewer-comment analysis file in the store, with its recommendation and decision state (`?refresh=true` re-reads each PR's GitHub state). `repo` (`owner/name`, case-insensitive) and `pr` narrow the read to one pull request, which is what the PR view's Feedback tab asks for. |
 | `POST` | `/api/feedback/{feedback_id}/decision` | Record an `implement` / `decline` / `defer` decision, or `null` to reset it, in one analysis file's frontmatter. |
 
 ## Decisions

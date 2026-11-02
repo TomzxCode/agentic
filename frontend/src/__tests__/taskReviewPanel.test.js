@@ -10,14 +10,17 @@ const mocks = vi.hoisted(() => ({
   findings: vi.fn(),
   createRun: vi.fn(),
   githubIssue: vi.fn(),
-  pullReviewers: vi.fn()
+  pullReviewers: vi.fn(),
+  feedbackList: vi.fn(),
+  setFeedbackDecision: vi.fn()
 }))
 
 vi.mock('../api', () => ({
   api: {
     github: { issue: mocks.githubIssue, pullReviewers: mocks.pullReviewers },
     reviews: { task: mocks.taskReviews, report: mocks.report, findings: mocks.findings },
-    runs: { create: mocks.createRun }
+    runs: { create: mocks.createRun },
+    feedback: { list: mocks.feedbackList, setDecision: mocks.setFeedbackDecision }
   }
 }))
 
@@ -88,6 +91,33 @@ function pr(overrides = {}) {
   }
 }
 
+function feedbackItem(overrides = {}) {
+  return {
+    feedback_id: 'comment-1',
+    kind: 'comment',
+    repo: 'acme/api',
+    pr: '42',
+    author: 'carol',
+    created_at: '2026-01-11T00:00:00Z',
+    head_commit: 'abc1234',
+    analyzed_at: '2026-01-11T01:00:00Z',
+    recommendation: 'implement',
+    confidence: 'high',
+    session_link: '',
+    decision: null,
+    decided_at: null,
+    executed_at: null,
+    title: 'Tighten the check',
+    path: '/home/u/.sdlc/acme/api/pull-requests/42/feedback/comment-1.md',
+    sections: { Comment: '> please fix this', 'Suggested reply': 'Fixed.' },
+    status: 'pending',
+    run_state: 'none',
+    state: 'open',
+    pr_url: 'https://github.com/acme/api/pull/42',
+    ...overrides
+  }
+}
+
 const task = {
   id: 't1',
   title: 'Review the thing',
@@ -115,6 +145,7 @@ beforeEach(() => {
   mocks.taskReviews.mockResolvedValue({ root: null, counts: { total: 1 }, prs: [pr()] })
   mocks.findings.mockResolvedValue([finding()])
   mocks.pullReviewers.mockResolvedValue({ reviewers: [], error: null })
+  mocks.feedbackList.mockResolvedValue({ root: '/home/u/.sdlc', items: [] })
   mocks.createRun.mockResolvedValue({ id: 'r1', status: 'queued' })
   mocks.githubIssue.mockResolvedValue({
     number: 42,
@@ -237,6 +268,49 @@ describe('TaskReviewPanel', () => {
 
     expect(wrapper.text()).toContain('acme/api#42')
     expect(wrapper.text()).toContain('No review reports')
+  })
+
+  it("shows the pull request's analyzed reviewer feedback as a tab", async () => {
+    mocks.feedbackList.mockResolvedValue({ items: [feedbackItem()] })
+    mocks.setFeedbackDecision.mockImplementation(async (_id, decision) =>
+      feedbackItem({ decision, status: decision, run_state: 'awaiting' })
+    )
+    const wrapper = mount(TaskReviewPanel, { props: { task }, ...stub })
+    await flushPromises()
+
+    // Only this pull request is read, and the tab counts what it holds.
+    expect(mocks.feedbackList).toHaveBeenCalledWith({ refresh: false, repo: 'acme/api', pr: '42' })
+    const tabs = wrapper.findAll('.pr-panel-tabs button')
+    expect(tabs.map((tab) => tab.text())).toEqual(['Description', 'Review', 'Reports 1', 'Feedback 1'])
+
+    await tabs[3].trigger('click')
+    await flushPromises()
+    expect(wrapper.get('.feedback-card').text()).toContain('Tighten the check')
+    expect(wrapper.find('.task-pr-steps').exists()).toBe(false)
+
+    // The card's decision works the same as on the PR feedback page.
+    await wrapper.get('.feedback-card button.implement').trigger('click')
+    await flushPromises()
+    expect(mocks.setFeedbackDecision).toHaveBeenCalledWith('comment-1', 'implement')
+    expect(wrapper.get('.feedback-card .pill.decision').text()).toBe('implement')
+  })
+
+  it('offers the feedback pane even without review reports', async () => {
+    mocks.taskReviews.mockResolvedValue({ root: null, counts: { total: 0 }, prs: [] })
+    mocks.feedbackList.mockResolvedValue({ items: [feedbackItem()] })
+    const wrapper = mount(TaskReviewPanel, { props: { task }, ...stub })
+    await flushPromises()
+
+    expect(wrapper.findAll('.pr-panel-tabs button').map((tab) => tab.text())).toEqual([
+      'Description',
+      'Review',
+      'Feedback 1'
+    ])
+    expect(wrapper.text()).toContain('No review reports')
+
+    await wrapper.get('.pr-panel-tabs button:nth-of-type(3)').trigger('click')
+    await flushPromises()
+    expect(wrapper.get('.feedback-card').exists()).toBe(true)
   })
 
   it('opens a step report in the viewer', async () => {

@@ -49,7 +49,7 @@ The reports live under `AGENTIC_SDLC_DIR` (`~/.sdlc` by default), at `{owner}/{r
    **Surfaces** folds the four conditional surface reviews into one cell: one token per surface that ran (**CLI**, **SDK**, **API**, **DB**) with its verdict, each opening its own report.
    A surface the diff did not touch leaves no token and is not counted as stale.
 6. Click a cell to open that step's report.
-   The PR view (a task's PR mode or the pull request page) shows a `Description` / `Review` / `Reports` switch under the pull request's title: `Reports` lists one tab per step that wrote a report, and clicking a step cell there opens it in that pane.
+   The PR view (a task's PR mode or the pull request page) shows a `Description` / `Review` / `Reports` / `Feedback` switch under the pull request's title: `Reports` lists one tab per step that wrote a report, and clicking a step cell there opens it in that pane; `Feedback` lists the analyzed reviewer comments for that pull request, with the same decision cards as the PR feedback page.
 7. Use the row's **📝** to open the linked task in its PR view, or **➕** to import the pull request into a new task, the same as the repository view's **New task**.
 8. Use **Share** to pick the must/should/may findings the skills recorded and hand the selection to an agent run on the task, whose skills post them inline on the pull request (one review comment per finding, on the file and line it is about).
    Each check or uncheck writes your decision (`include` or `skip`) onto that finding in its skill's state file, so the selection is still there when you come back.

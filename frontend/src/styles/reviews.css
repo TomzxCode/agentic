@@ -410,6 +410,11 @@
 .pr-report-tabs {
   margin-top: 12px;
 }
+/* The feedback pane: the same cards the PR feedback page shows, scoped to this
+   pull request. */
+.pr-feedback-cards {
+  margin-top: 12px;
+}
 /* One labelled cell per review step, wrapping to as many rows as the width
    needs. */
 .task-pr-steps {

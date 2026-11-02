@@ -15,8 +15,8 @@ from agentic.main import app
 FRONTMATTER = """---
 feedback_id: {feedback_id}
 kind: comment
-repo: TomzxCode/agentic
-pr: "42"
+repo: {repo}
+pr: "{pr}"
 author: alice
 created_at: "{created_at}"
 head_commit: abc1234
@@ -60,8 +60,16 @@ def _no_ghx(monkeypatch):
     monkeypatch.setattr("agentic.routers.feedback.enrich_from_github", fake)
 
 
-def _write(root, feedback_id, created_at="2026-10-01T00:00:00Z", recommendation="implement", extra=""):
-    directory = root / "TomzxCode" / "agentic" / "pull-requests" / "42" / "feedback"
+def _write(
+    root,
+    feedback_id,
+    created_at="2026-10-01T00:00:00Z",
+    recommendation="implement",
+    extra="",
+    repo="TomzxCode/agentic",
+    pr="42",
+):
+    directory = root / repo / "pull-requests" / pr / "feedback"
     directory.mkdir(parents=True, exist_ok=True)
     path = directory / f"{feedback_id}.md"
     path.write_text(
@@ -70,6 +78,8 @@ def _write(root, feedback_id, created_at="2026-10-01T00:00:00Z", recommendation=
             created_at=created_at,
             recommendation=recommendation,
             extra=extra,
+            repo=repo,
+            pr=pr,
         )
     )
     return path
@@ -176,6 +186,27 @@ def test_list_feedback_endpoint(tmp_path, monkeypatch):
         assert first["state"] == "open"
         assert first["pr_url"] == "https://github.com/TomzxCode/agentic/pull/42"
         assert first["sections"]["Comment"].startswith("> please fix")
+
+
+def test_list_feedback_filters_to_one_pull_request(tmp_path, monkeypatch):
+    monkeypatch.setattr(settings, "sdlc_dir", tmp_path)
+    _write(tmp_path, "comment-1")
+    _write(tmp_path, "comment-2", repo="acme/api", pr="7")
+
+    with TestClient(app) as client:
+        # The repository match ignores case, as the PR view passes the URL's
+        # casing and the store keeps its own.
+        payload = client.get("/api/feedback", params={"repo": "tomzxcode/AGENTIC", "pr": "42"}).json()
+        assert [item["feedback_id"] for item in payload["items"]] == ["comment-1"]
+        assert payload["counts"]["pending"] == 1
+
+        by_repo = client.get("/api/feedback", params={"repo": "acme/api"}).json()
+        assert [item["feedback_id"] for item in by_repo["items"]] == ["comment-2"]
+
+        # A PR in another repository matches nothing rather than falling back to
+        # the whole store.
+        none = client.get("/api/feedback", params={"repo": "acme/api", "pr": "42"}).json()
+        assert none["items"] == []
 
 
 def test_set_decision_endpoint(tmp_path, monkeypatch):

@@ -1,21 +1,9 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
 import { api } from '../api'
-import {
-  DECISIONS,
-  FEEDBACK_GROUPINGS,
-  decisionColor,
-  feedbackCounts,
-  feedbackSearchBlob,
-  groupFeedback,
-  orderedSections,
-  recommendationColor,
-  slugify,
-  threadUrl
-} from '../feedback'
-import { renderMarkdown } from '../markdown'
-import { store, timeAgo } from '../store'
-import { ghxItemUrl } from '../toolLinks'
+import FeedbackCard from '../components/FeedbackCard.vue'
+import { FEEDBACK_GROUPINGS, feedbackCounts, feedbackSearchBlob, groupFeedback, slugify } from '../feedback'
+import { store } from '../store'
 
 // The PR-feedback queue: one card per reviewer comment the
 // handle-pr-reviewer-feedback skill analyzed, read from the user-global ~/.sdlc
@@ -40,8 +28,6 @@ const items = ref([])
 const root = ref(null)
 const loading = ref(true)
 const error = ref(false)
-// The feedback id whose decision is being saved, so its buttons disable.
-const saving = ref('')
 
 const search = ref('')
 const stateFilter = ref('active')
@@ -133,18 +119,6 @@ const shownGroups = computed(() =>
   selectedGroup.value ? groups.value.filter((group) => group.key === selectedGroup.value) : groups.value
 )
 
-// The app's own page for the card's pull request, the card's primary link: the
-// same page My PRs and the review queue open. Null when the file names no
-// repository or number, since that page could not be built.
-function prPath(item) {
-  return item.repo && item.pr ? `/pr/${item.repo}/${item.pr}` : null
-}
-
-// The pull request's page in the local ghx web UI, when one is configured.
-function ghxLink(item) {
-  return ghxItemUrl({ url: item.pr_url }, store.settings?.ghx_url)
-}
-
 // A group can disappear when another filter narrows the items, so drop a
 // selection that no longer names a group rather than leave an empty list.
 watch(groups, (value) => {
@@ -179,37 +153,11 @@ function toggleGroup(key) {
   selectedGroup.value = selectedGroup.value === key ? '' : key
 }
 
-async function setDecision(item, value) {
-  const decision = value === 'pending' ? null : value
-  saving.value = item.feedback_id
-  try {
-    const saved = await api.feedback.setDecision(item.feedback_id, decision)
-    Object.assign(item, saved)
-    store.notify(decision ? `${item.feedback_id} → ${decision}` : `${item.feedback_id} reset`)
-  } catch (e) {
-    store.notify(e.message, true)
-  } finally {
-    saving.value = ''
-  }
-}
-
-async function copyReply(item) {
-  const text = item.sections?.['Suggested reply']
-  if (!text) return
-  try {
-    await navigator.clipboard.writeText(text)
-    store.notify('Reply copied')
-  } catch {
-    store.notify('Copy failed', true)
-  }
-}
-
-function isActive(item, value) {
-  return (item.decision || 'pending') === value
-}
-
-function runLabel(item) {
-  return item.run_state === 'executed' ? 'executed' : item.run_state === 'awaiting' ? 'awaiting run' : ''
+// A card saves its own decision; the list only needs the saved row so the pill,
+// the counts, and the sidebar pick follow the change.
+function onChanged(saved) {
+  const item = items.value.find((entry) => entry.feedback_id === saved.feedback_id)
+  if (item) Object.assign(item, saved)
 }
 
 onMounted(load)
@@ -384,120 +332,7 @@ onMounted(load)
               </span>
             </div>
 
-            <article
-              v-for="item in group.items"
-              :key="item.feedback_id"
-              class="feedback-card"
-              :class="{ pending: item.status === 'pending' }"
-              :style="{
-                '--rec-color': recommendationColor(item.recommendation),
-                '--decision-color': decisionColor(item.decision || 'pending')
-              }"
-            >
-              <div class="card-rail"></div>
-              <div class="card-main">
-                <div class="card-top">
-                  <div class="pills">
-                    <span class="pill rec">{{ item.recommendation || 'n/a' }}</span>
-                    <span class="pill">{{ item.confidence || '?' }} confidence</span>
-                    <span class="pill">{{ item.kind || 'comment' }}</span>
-                    <span v-if="item.state === 'closed'" class="pill closed">closed</span>
-                    <span
-                      class="pill decision"
-                      :class="item.status"
-                      :style="{ '--c': decisionColor(item.decision || 'pending') }"
-                    >
-                      {{ item.status }}
-                    </span>
-                    <span v-if="item.run_state !== 'none'" class="pill run" :class="item.run_state">{{
-                      runLabel(item)
-                    }}</span>
-                  </div>
-                  <div class="card-when faint">
-                    <span :title="item.created_at">{{ timeAgo(item.created_at) }}</span>
-                    <span v-if="!(item.created_at || '').slice(0, 10)" class="faint">—</span>
-                  </div>
-                </div>
-
-                <h3 class="card-title">{{ item.title }}</h3>
-                <div class="card-meta">
-                  <router-link
-                    v-if="prPath(item)"
-                    class="feedback-pr-link"
-                    :to="prPath(item)"
-                    :title="`Open PR #${item.pr} in the app`"
-                    >{{ item.repo }}#{{ item.pr }}</router-link
-                  >
-                  <span v-else>{{ item.repo }}#{{ item.pr }}</span>
-                  <a
-                    v-if="ghxLink(item)"
-                    class="feedback-tool-link"
-                    :href="ghxLink(item)"
-                    target="_blank"
-                    rel="noopener"
-                    title="Open in ghx"
-                    >ghx</a
-                  >
-                  <a
-                    v-if="item.pr_url"
-                    class="feedback-tool-link"
-                    :href="item.pr_url"
-                    target="_blank"
-                    rel="noopener"
-                    title="Open on GitHub"
-                    >gh</a
-                  >
-                  <span>·</span><span>{{ item.author }}</span> <span>·</span
-                  ><span class="mono">{{ item.feedback_id }}</span>
-                </div>
-
-                <div class="card-actions">
-                  <button
-                    v-for="action in DECISIONS"
-                    :key="action.value"
-                    class="btn sm"
-                    :class="[action.value, { active: isActive(item, action.value) }]"
-                    :disabled="saving === item.feedback_id"
-                    @click="setDecision(item, action.value)"
-                  >
-                    {{ action.label }}
-                  </button>
-                  <button
-                    class="btn sm pending"
-                    :class="{ active: isActive(item, 'pending') }"
-                    :disabled="saving === item.feedback_id"
-                    @click="setDecision(item, 'pending')"
-                  >
-                    Reset
-                  </button>
-                  <span class="grow"></span>
-                  <a v-if="threadUrl(item)" class="btn sm ghost" :href="threadUrl(item)" target="_blank" rel="noopener"
-                    >Thread</a
-                  >
-                </div>
-
-                <details
-                  v-for="(section, index) in orderedSections(item)"
-                  :key="section.name"
-                  class="feedback-section"
-                  :open="index === 0"
-                >
-                  <summary>
-                    {{ section.name }}
-                    <button
-                      v-if="section.name === 'Suggested reply'"
-                      type="button"
-                      class="btn sm ghost reply-copy"
-                      @click.prevent.stop="copyReply(item)"
-                    >
-                      copy
-                    </button>
-                  </summary>
-                  <!-- eslint-disable-next-line vue/no-v-html -->
-                  <div class="md feedback-section-body" v-html="renderMarkdown(section.body)"></div>
-                </details>
-              </div>
-            </article>
+            <FeedbackCard v-for="item in group.items" :key="item.feedback_id" :item="item" @changed="onChanged" />
           </section>
         </main>
       </div>

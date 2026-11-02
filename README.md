@@ -366,7 +366,8 @@ reviewer comments on the pull requests you authored. It reads the analysis files
 the `handle-pr-reviewer-feedback` skill writes under
 `~/.sdlc/{owner}/{repo}/pull-requests/{n}/feedback/`, one card per comment, with
 the recommendation and confidence the analysis reached and its sections (the
-comment, the analysis, a recommended action, and a draft reply). **Implement**,
+comment, the analysis, a recommended action, and a draft reply). The same cards
+appear under the `Feedback` tab of a pull request's own page. **Implement**,
 **Decline**, or **Defer** records the decision into the file's frontmatter
 (`decision` + `decided_at`, leaving `executed_at` unset), which is the "decided
 but not run" state `handle-pr-reviewer-feedback` picks up and carries out on its

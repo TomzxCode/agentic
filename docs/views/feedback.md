@@ -49,6 +49,9 @@ The pills show the recommendation, its confidence, the comment kind, whether the
 
 The line under the title names the pull request and opens it three ways, the same as the review queue and My PRs: `ghx` opens the local ghx web UI when its URL is configured, `gh` opens the pull request on GitHub, and the `repo#n` link opens the app's PR page.
 
+The same cards appear in the pull request's own page, under its `Feedback` tab, when the store has analyzed comments for that pull request.
+Decisions made there are the same write.
+
 The sections, with the first one open, are `Comment` (with a `Thread` link), `Analysis`, `Recommended action`, `Suggested reply` (with `copy`), and `Suggested change` when the comment asks for code.
 
 ### Deciding
