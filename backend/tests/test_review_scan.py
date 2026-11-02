@@ -5,6 +5,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import event
 from sqlmodel import Session, select
 
 from agentic import review_scan
@@ -171,6 +172,38 @@ def test_run_review_scan_stores_the_filtered_set_and_removes_the_rest(session, m
     rows = session.exec(select(ReviewRequest)).all()
     assert [(row.repository, row.number) for row in rows] == [("o/a", 1)]
     assert rows[0].first_seen_at == first_seen["o/a"]
+
+
+def test_store_scan_results_leaves_unchanged_rows_alone(session, monkeypatch):
+    monkeypatch.setattr(shell, "_run_cli", _fake_search([_entry("o/a", 1), _entry("o/a", 2)], []))
+    review_scan.run_review_scan(session, force=True)
+    before = {row.number: row.updated_at for row in session.exec(select(ReviewRequest)).all()}
+
+    statements: list[str] = []
+
+    def capture(conn, cursor, statement, parameters, context, executemany):
+        statements.append(statement)
+
+    event.listen(engine, "before_cursor_execute", capture)
+    try:
+        report = review_scan.run_review_scan(session, force=True)
+    finally:
+        event.remove(engine, "before_cursor_execute", capture)
+
+    # The same results again: nothing changed, so no row is rewritten.
+    assert report == {"found": 2, "stored": 2, "removed": 0}
+    updates = [
+        stmt for stmt in statements if "reviewrequest" in stmt.lower() and stmt.lstrip().upper().startswith("UPDATE")
+    ]
+    assert not updates
+    assert {row.number: row.updated_at for row in session.exec(select(ReviewRequest)).all()} == before
+
+    # A changed field is still written, and bumps updated_at.
+    monkeypatch.setattr(shell, "_run_cli", _fake_search([_entry("o/a", 1, title="Renamed"), _entry("o/a", 2)], []))
+    review_scan.run_review_scan(session, force=True)
+    changed = {row.number: row for row in session.exec(select(ReviewRequest)).all()}
+    assert changed[1].title == "Renamed"
+    assert changed[1].updated_at > before[1]
 
 
 def test_run_review_scan_keeps_the_set_when_ghx_fails(session, monkeypatch):

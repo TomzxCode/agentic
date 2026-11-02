@@ -224,22 +224,30 @@ def store_scan_results(session: Session, rows: list[dict[str, Any]]) -> tuple[in
     """Replace the stored set with *rows*: upsert what was found, drop the rest.
 
     ``first_seen_at`` is kept from the existing row, so a pull request keeps the
-    time it was first seen waiting. Returns ``(stored, removed)``.
+    time it was first seen waiting. A row whose fields are all unchanged is left
+    untouched (no UPDATE, no ``updated_at`` bump), so a steady scan writes
+    nothing. Returns ``(stored, removed)``.
     """
     existing = {(row.repository.lower(), row.number): row for row in session.exec(select(ReviewRequest)).all()}
     now = utcnow()
+    changed = False
     for row in rows:
         current = existing.pop((row["repository"].lower(), row["number"]), None)
         if current is None:
             session.add(ReviewRequest(**row))
+            changed = True
             continue
-        for field, value in row.items():
-            setattr(current, field, value)
-        current.updated_at = now
-        session.add(current)
+        changed_fields = {field: value for field, value in row.items() if getattr(current, field) != value}
+        if changed_fields:
+            for field, value in changed_fields.items():
+                setattr(current, field, value)
+            current.updated_at = now
+            changed = True
     for stale in existing.values():
         session.delete(stale)
-    session.commit()
+        changed = True
+    if changed:
+        session.commit()
     return len(rows), len(existing)
 
 
