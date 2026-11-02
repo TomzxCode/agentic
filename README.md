@@ -712,6 +712,7 @@ POST                /api/stack/{id}/promote              (make an entry current)
 PATCH/DELETE        /api/stack/{id}                      (edit the task / remove the entry)
 GET                 /api/stack/history                   (soft-deleted entries)
 GET                 /api/stack/current                   (the current task)
+GET                 /api/stack/stream                    (server-sent stack snapshots)
 GET/POST/PATCH      /api/harnesses   /api/repositories   /api/items
 GET                 /api/items/{id}/reviewers       (a PR's reviewers, live from GitHub)
 POST                /api/items/{id}/poke                (DM a reviewer on Slack)

@@ -38,7 +38,7 @@ There is no SPA page for the operations log; it is read through the HTTP API and
 | FR-11 | Must | `DebugMiddleware` shall add `x-debug-duration-ms`, `x-debug-db-queries`, and `x-debug-db-time-ms` response headers and keep the last 20 requests with their SQL snippets and helper-CLI calls, excluding `/api/debug` reads from the list |
 | FR-12 | Must | `GET /api/debug/requests` shall return the recent request snapshots and `GET /api/debug/cli` (with its aliases) the recent helper-CLI calls |
 | FR-13 | Must | The Settings page's Diagnostics section shall probe the Python runtime, git, ghx, gh, slackx, and every configured harness for presence, path, and version, and list the ghx and slackx local caches, via `GET /api/settings/diagnostics` |
-| FR-14 | Must | The status bar's debug bar shall aggregate API calls, database queries, and helper-CLI calls with tabs, a text filter, clear actions, and header-derived per-call database stats, polling `GET /api/debug/requests` for server-side snapshots |
+| FR-14 | Must | The status bar's debug bar shall aggregate API calls, database queries, and helper-CLI calls with tabs, a text filter, clear actions, and header-derived per-call database stats, keeping its always-visible summary from local response data and reading `GET /api/debug/requests` only while the details panel is expanded |
 
 ## Non-Functional Requirements
 

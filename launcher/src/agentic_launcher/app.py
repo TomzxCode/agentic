@@ -16,12 +16,12 @@ from collections.abc import Callable
 import pystray
 
 from . import hotkey as hk
-from .client import StackClient
+from .client import StackClient, sse_entries
 from .icon import make_icon
 from .opener import open_url
 
-# How often the tray re-reads the stack, so changes made in the PWA show up.
-POLL_SECONDS = 30.0
+# How long to wait before reconnecting a dropped stack stream.
+RECONNECT_SECONDS = 30.0
 
 
 def _on_main(fn: Callable[[], None]) -> None:
@@ -157,7 +157,7 @@ class HotkeyListener:
 
 
 class TrayApp:
-    """The tray icon, its menu, and the periodic stack refresh."""
+    """The tray icon, its menu, and the stack stream that keeps them current."""
 
     def __init__(
         self,
@@ -251,14 +251,21 @@ class TrayApp:
         icon.visible = True
         if self._listener is not None:
             self._listener.start()
-        threading.Thread(target=self._poll, name="agentic-stack-poll", daemon=True).start()
+        threading.Thread(target=self._follow, name="agentic-stack-stream", daemon=True).start()
 
-    def _poll(self) -> None:
-        while not self._stop.wait(POLL_SECONDS):
-            self.refresh()
+    def _follow(self) -> None:
+        """Apply the stack snapshots the server pushes, reconnecting on a drop."""
+        while not self._stop.is_set():
+            try:
+                with self._client.stream_stack() as response:
+                    for entries in sse_entries(response.iter_lines()):
+                        self._apply(entries)
+            except Exception:
+                pass
+            self._stop.wait(RECONNECT_SECONDS)
 
     def stop(self) -> None:
-        """Stop the listener, the poll thread, and the icon (idempotent)."""
+        """Stop the listener, the stream thread, and the icon (idempotent)."""
         self._stop.set()
         if self._listener is not None:
             self._listener.stop()

@@ -84,6 +84,7 @@ A manual item has no template and always applies.
 | Method | Path | Purpose |
 | --- | --- | --- |
 | `GET` / `POST` | `/api/stack` | List the focus queue and push a task onto it. A parked task is absent until its date passes; pushing it clears its snooze and wait. |
+| `GET` | `/api/stack/stream` | Server-sent events carrying the whole stack, sent on connect, on every write, and when a parked task's date passes. The tray follows this instead of polling. |
 | `GET` | `/api/stack/history` | Soft-deleted entries, excluding those parked by a deferral. |
 | `GET` | `/api/stack/current` | The current task. |
 | `POST` | `/api/stack/pop` | Complete the current task and promote the next. |

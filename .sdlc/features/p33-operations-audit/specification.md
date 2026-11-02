@@ -83,7 +83,7 @@ The body is passed through to the client untouched.
 
 `DebugMiddleware` starts a per-request state (contextvar), and engine events (`before_cursor_execute`/`after_cursor_execute`) accumulate query counts, total time, and per-query SQL snippets capped at 300 characters.
 The response gains the three `x-debug-*` headers; afterwards the snapshot joins the last-20 requests list (unless the path starts with `/api/debug`), and helper-CLI invocations recorded through `record_cli_call` join both the request state and their own last-20 list.
-The status bar derives per-call stats from the response headers, polls `GET /api/debug/requests` (deduplicating on stable request ids), and offers tabs, a filter, and clear actions, with its layout preferences in localStorage.
+The status bar aggregates API calls, database queries, and helper-CLI calls in its summary as each response returns, reads `GET /api/debug/requests` only while its details panel is open (deduplicating on stable request ids), and offers tabs, a filter, clear actions, and header-derived per-call database stats, with its layout preferences in localStorage.
 
 ### Diagnostics probes
 

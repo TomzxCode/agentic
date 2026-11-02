@@ -1,11 +1,17 @@
+import asyncio
+import json
+from datetime import UTC, datetime, timedelta
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import delete as sa_delete
 from sqlmodel import Session
 
+from agentic import stack as service
 from agentic.db import create_db_and_tables, engine
 from agentic.main import app
 from agentic.models.agents import AgentEvent, AgentRun
+from agentic.models.base import TaskStatus
 from agentic.models.changes import Change, ChangeIntervention
 from agentic.models.items import Association, TaskPerson
 from agentic.models.repositories import TaskRepository, Worktree
@@ -261,3 +267,53 @@ def test_push_requires_a_title():
     with TestClient(app) as client:
         response = client.post("/api/stack", json={"title": "   "})
         assert response.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_stack_stream_pushes_a_snapshot_when_the_stack_changes():
+    from agentic.events import bus
+    from agentic.routers.stack import stack_events
+
+    with Session(engine) as session:
+        service.push(session, title="first")
+
+    stream = stack_events()
+    try:
+        first = json.loads((await anext(stream))["data"])
+        assert _titles(first) == ["first"]
+
+        with Session(engine) as session:
+            service.push(session, title="second")
+        await bus.publish("stack", {"kind": "stack"})
+
+        second = json.loads((await asyncio.wait_for(anext(stream), timeout=2))["data"])
+        assert _titles(second) == ["second", "first"]
+    finally:
+        await stream.aclose()
+
+
+def test_stack_writes_announce_on_the_bus(monkeypatch):
+    from agentic.routers import stack as stack_router
+
+    announced: list[str] = []
+    monkeypatch.setattr(stack_router.bus, "publish_threadsafe", lambda topic, _event: announced.append(topic))
+    with TestClient(app) as client:
+        _push(client, "announced")
+        assert announced == ["stack"]
+        client.post("/api/stack/pop")
+        assert announced == ["stack", "stack"]
+
+
+def test_seconds_until_change_counts_down_to_the_earliest_date():
+    now = datetime(2026, 1, 1, tzinfo=UTC)
+    with Session(engine) as session:
+        # Nothing is parked, so the caller's cap is the next resync.
+        assert service.seconds_until_change(session, now=now, cap=30.0) == 30.0
+
+        task = Task(title="later", status=TaskStatus.open, snoozed_until=now + timedelta(seconds=90))
+        session.add(task)
+        session.commit()
+
+        assert service.seconds_until_change(session, now=now, cap=300.0) == pytest.approx(90.0)
+        # A date beyond the resync window waits for the cap instead.
+        assert service.seconds_until_change(session, now=now, cap=30.0) == 30.0

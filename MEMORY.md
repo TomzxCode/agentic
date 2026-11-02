@@ -1,5 +1,12 @@
 # Memory
 
+## 2026-11-02: the tray follows a push stream, not a poll
+
+- `agentic-stack` keeps one SSE connection to `GET /api/stack/stream` open (reconnecting on a drop) instead of polling `/api/stack` every 30 s. The stream sends the stack on connect, on every announce, and when a parked task's date passes; a 300 s cap is the resync for anything the bus missed (a graph-created task, for example).
+- A new stack mutation must announce or the tray stays stale until that resync: sync endpoints call `bus.publish_threadsafe("stack", ...)` (they run in the threadpool; the loop is bound in the lifespan), async endpoints `await bus.publish("stack", ...)`. Task writes announce too because a status, snooze, or waiting change moves an entry.
+- The stream computes one `now` and passes it to both `sync_stack` and `seconds_until_change`: computing it twice lets the sync see a deferral as future while the wait sees it as past, which then sleeps the whole cap and misses the return.
+- The status bar's always-visible API/DB summary is aggregated locally from the response headers; `GET /api/debug/requests` is read only while its details panel is expanded.
+
 ## 2026-10-31: The review scan reads ghx's cache, and cycle time stays on gh
 
 - The review scan runs `ghx search prs --review-requested @me` and `--reviewed-by @me`, which are cache-only and span every cached repository. The scan never refreshes the cache itself: a repository ghx has never cached is outside the scan, and keeping the cache current is left to a scheduled refresh, so a scan never waits on several repository fetches.

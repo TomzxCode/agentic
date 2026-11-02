@@ -51,7 +51,7 @@ ignore = ["B008"]
 python-version = "3.12"
 
 [tool.pytest.ini_options]
-testpaths = ["backend/tests", "cli/tests"]
+testpaths = ["backend/tests", "cli/tests", "launcher/tests"]
 # Coverage is off by default so `pytest` and `make test-backend` are fast. Turn it
 # on with the coverage flags, or `make coverage-backend` (which also writes XML):
 #   uv run pytest --cov=agentic --cov=agentic_cli --cov-report=term-missing

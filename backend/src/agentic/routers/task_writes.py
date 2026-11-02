@@ -159,6 +159,8 @@ async def create_task(payload: TaskCreate, session: Session = Depends(get_sessio
             {"item_id": item.id} if item is not None else {},
         )
     await bus.publish(f"task:{task.id}", {"kind": "task", "action": "created"})
+    # A new in-flight task joins the stack at the bottom.
+    await bus.publish("stack", {"kind": "stack"})
     return _task_read(session, task)
 
 
@@ -229,6 +231,8 @@ async def _apply_task_update(
             {"changes": changes},
         )
     await bus.publish(f"task:{task.id}", {"kind": "task", "action": "updated"})
+    # A status, snooze, or waiting change can add or drop a stack entry.
+    await bus.publish("stack", {"kind": "stack"})
     return _task_read(session, task)
 
 
@@ -373,6 +377,8 @@ async def _delete_task(session: Session, task: Task) -> None:
     session.exec(sa_delete(Task).where(col(Task.id) == task.id))
     session.commit()
     await bus.publish("tasks", {"kind": "task", "action": "deleted", "id": task.id})
+    # Its stack entry went with it.
+    await bus.publish("stack", {"kind": "stack"})
 
 
 @router.delete("/{task_id}", status_code=204)

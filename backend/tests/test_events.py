@@ -1,5 +1,8 @@
 """The in-process event bus."""
 
+import asyncio
+import threading
+
 import pytest
 
 from agentic.events import EventBus
@@ -51,3 +54,17 @@ async def test_second_subscriber_is_removed_without_dropping_the_topic():
         # One subscriber remains, so the topic is kept.
         assert "t" in bus._subscribers
     assert bus._subscribers == {}
+
+
+@pytest.mark.asyncio
+async def test_publish_threadsafe_reaches_the_loop_from_a_worker_thread():
+    bus = EventBus()
+    bus.bind_loop(asyncio.get_running_loop())
+    async with bus.subscribe("t") as queue:
+        threading.Thread(target=bus.publish_threadsafe, args=("t", {"a": 1})).start()
+        assert await asyncio.wait_for(queue.get(), timeout=2) == {"a": 1}
+
+
+def test_publish_threadsafe_without_a_bound_loop_is_a_noop():
+    bus = EventBus()
+    bus.publish_threadsafe("t", {"a": 1})

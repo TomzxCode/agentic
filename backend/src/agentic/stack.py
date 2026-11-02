@@ -403,6 +403,28 @@ def current_entry(session: Session) -> StackEntry | None:
     return entries[0] if entries else None
 
 
+def seconds_until_change(session: Session, *, now: datetime | None = None, cap: float = 300.0) -> float:
+    """How long until a parked task's date passes, capped at *cap* seconds.
+
+    A stack changes without a write only when a snooze or follow-up date passes.
+    The cap keeps a caller that streams the stack on a slow resync for anything
+    the event bus could not announce (a graph-created task, for example).
+    """
+    now = now or utcnow()
+    dates: list[datetime] = []
+    for snoozed_until, follow_up_at in session.exec(
+        select(Task.snoozed_until, Task.follow_up_at).where(col(Task.status).in_(IN_FLIGHT_STATUSES))
+    ).all():
+        for value in (snoozed_until, follow_up_at):
+            moment = _as_utc(value)
+            if moment is not None and moment > now:
+                dates.append(moment)
+    if not dates:
+        return cap
+    # A date a hair away wakes almost immediately, but never in a busy loop.
+    return max(0.01, min((min(dates) - now).total_seconds(), cap))
+
+
 __all__ = [
     "EntryStats",
     "IN_FLIGHT_STATUSES",
@@ -417,6 +439,7 @@ __all__ = [
     "push",
     "remove",
     "reorder",
+    "seconds_until_change",
     "sessions_for",
     "sync_stack",
     "update_entry",

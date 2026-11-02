@@ -5,7 +5,9 @@ itself lives in the Agentic backend and PWA; this process only adds the two
 things a browser cannot provide: a **global hotkey** and a **tray icon**.
 
 - Tray icon with the current task as the tooltip and a coloured badge for the
-  stack depth.
+  stack depth. The tray follows the server's stack stream, so a change made in
+  the PWA, the CLI, or the tray itself shows up immediately and an idle tray
+  makes no requests.
 - **Open Stack (Ctrl+Shift+T)** brings the stack page forward from anywhere.
 - **Mark Done (pop)** pops the current task without opening the app.
 

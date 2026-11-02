@@ -38,7 +38,7 @@ Out of scope: real subprocess probes against installed CLIs (monkeypatched), and
 | TC-16 | The diagnostics endpoint returns the probe results | app TestClient, probes monkeypatched | `GET /api/settings/diagnostics` answers with the collected report |
 | TC-17 | `agentic operation list` prints the filtered operations | CLI test harness with a fake client | rows render in text form; filters pass through to the client |
 | TC-18 | The CLI client sends the filters to `/api/operations` | fake transport | the request path and query match client/actor/limit |
-| TC-19 | The status bar debug bar refreshes, coalesces bursts, tabs, clears, and preserves layout | jsdom mount with mocked performance composable | tab and clear behavior verified without polling |
+| TC-19 | The status bar's summary aggregates locally and its details read the server only while expanded, coalescing bursts, with tabs, clears, and a preserved layout | jsdom mount with mocked performance composable | tab and clear behavior verified without polling; no debug request while collapsed |
 
 ## Edge Cases and Failure Scenarios
 

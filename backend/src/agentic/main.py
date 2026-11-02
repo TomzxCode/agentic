@@ -20,6 +20,7 @@ from .agents.pool import pool
 from .config import settings
 from .db import create_db_and_tables, engine
 from .debug import DebugMiddleware, recent_cli_calls, recent_requests
+from .events import bus
 from .graphs import reconcile_graph_executions
 from .graphs import scheduler_loop as graph_scheduler_loop
 from .graphs import shutdown as graphs_shutdown
@@ -153,6 +154,9 @@ async def _review_scan_forever() -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Sync endpoints run in the threadpool; binding the loop lets them wake SSE
+    # subscribers (the tray's stack stream) without blocking it.
+    bus.bind_loop(asyncio.get_running_loop())
     create_db_and_tables()
     # Reuse the GitHub lookups the previous process left behind, so the first
     # review page load after a restart does not fetch every pull request again.
@@ -213,6 +217,7 @@ async def lifespan(app: FastAPI):
     if saved:
         log.info("saved review metadata cache", entries=saved)
     await close_queue()
+    bus.bind_loop(None)
 
 
 app = FastAPI(title="Agentic", version="0.1.0", lifespan=lifespan, docs_url=None, redoc_url=None)

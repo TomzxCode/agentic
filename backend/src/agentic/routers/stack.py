@@ -2,18 +2,34 @@
 
 from __future__ import annotations
 
+import asyncio
+import contextlib
+import json
+from collections.abc import AsyncGenerator
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, col, select
+from sse_starlette.sse import EventSourceResponse
 
 from .. import stack as service
 from ..crud import get_task_or_404
-from ..db import get_session
+from ..db import engine, get_session
+from ..events import bus
 from ..models.base import utcnow
 from ..models.tasks import StackEntry, Task, TaskSession
 from ..schemas.stack import StackEntryRead, StackEntryUpdate, StackPush, StackReorder
 from .task_service import _task_read, _task_reads
 
 router = APIRouter(prefix="/api/stack", tags=["stack"])
+
+
+def _announce() -> None:
+    """Wake the tray's stack stream; a sync endpoint runs off the event loop."""
+    bus.publish_threadsafe("stack", {"kind": "stack"})
+
+
+def _sse(entries: list[StackEntryRead]) -> dict:
+    return {"event": "message", "data": json.dumps([entry.model_dump(mode="json") for entry in entries])}
 
 
 def _read(session: Session, entry: StackEntry) -> StackEntryRead:
@@ -76,6 +92,35 @@ def list_stack(session: Session = Depends(get_session)) -> list[StackEntryRead]:
     return _read_all(session, service.sync_stack(session))
 
 
+@router.get("/stream")
+async def stack_stream() -> EventSourceResponse:
+    """Push the stack to the tray whenever it changes.
+
+    The tray used to re-read the stack every 30 seconds, and each read synced
+    the whole stack. A stream sends the same snapshot only on a write (the
+    event bus) or when a parked task's date passes, so an idle tray costs
+    nothing between the slow resyncs.
+    """
+    return EventSourceResponse(stack_events(), ping=15)
+
+
+async def stack_events() -> AsyncGenerator[dict, None]:
+    async with bus.subscribe("stack") as queue:
+        while True:
+            with Session(engine) as session:
+                # One timestamp for both, so a date seen as future by the sync
+                # is also the one the wait counts down to (and vice versa).
+                now = utcnow()
+                entries = _read_all(session, service.sync_stack(session, now))
+                wait = service.seconds_until_change(session, now=now)
+            yield _sse(entries)
+            with contextlib.suppress(TimeoutError):
+                await asyncio.wait_for(queue.get(), timeout=wait)
+            # A burst (a bulk edit) only needs the last snapshot.
+            while not queue.empty():
+                queue.get_nowait()
+
+
 @router.get("/history", response_model=list[StackEntryRead])
 def stack_history(session: Session = Depends(get_session)) -> list[StackEntryRead]:
     """Soft-deleted entries, most recently removed first."""
@@ -103,6 +148,7 @@ def push_stack(payload: StackPush, session: Session = Depends(get_session)) -> l
         if not payload.title.strip():
             raise HTTPException(status_code=400, detail="Title is required (or provide a task_id)")
         entries = service.push(session, title=payload.title, description=payload.description, position=payload.position)
+    _announce()
     return _read_all(session, entries)
 
 
@@ -110,21 +156,27 @@ def push_stack(payload: StackPush, session: Session = Depends(get_session)) -> l
 def pop_stack(session: Session = Depends(get_session)) -> list[StackEntryRead]:
     """Pop the current task (mark it done) and return the new stack."""
     service.sync_stack(session)
-    return _read_all(session, service.pop(session))
+    entries = _read_all(session, service.pop(session))
+    _announce()
+    return entries
 
 
 @router.post("/reorder", response_model=list[StackEntryRead])
 def reorder_stack(payload: StackReorder, session: Session = Depends(get_session)) -> list[StackEntryRead]:
     """Move an entry to a new position and return the new stack."""
     service.sync_stack(session)
-    return _read_all(session, service.reorder(session, payload.entry_id, payload.position))
+    entries = _read_all(session, service.reorder(session, payload.entry_id, payload.position))
+    _announce()
+    return entries
 
 
 @router.post("/{entry_id}/promote", response_model=list[StackEntryRead])
 def promote_stack(entry_id: str, session: Session = Depends(get_session)) -> list[StackEntryRead]:
     """Move an entry to the top of the stack and return the new stack."""
     service.sync_stack(session)
-    return _read_all(session, service.promote(session, entry_id))
+    entries = _read_all(session, service.promote(session, entry_id))
+    _announce()
+    return entries
 
 
 @router.patch("/{entry_id}", response_model=list[StackEntryRead])
@@ -134,7 +186,9 @@ def update_stack_entry(
     """Edit the task behind an entry (title and/or description)."""
     service.sync_stack(session)
     data = payload.model_dump(exclude_unset=True)
-    return _read_all(session, service.update_entry(session, entry_id, **data))
+    entries = _read_all(session, service.update_entry(session, entry_id, **data))
+    _announce()
+    return entries
 
 
 @router.delete("/{entry_id}", status_code=204)
@@ -144,6 +198,7 @@ def remove_stack_entry(entry_id: str, session: Session = Depends(get_session)) -
     if not any(entry.id == entry_id for entry in service.active_entries(session)):
         raise HTTPException(status_code=404, detail="Stack entry not found")
     service.remove(session, entry_id)
+    _announce()
 
 
 __all__ = ["router"]
