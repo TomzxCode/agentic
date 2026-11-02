@@ -12,7 +12,7 @@ session_link: "http://localhost:10000/?session=ses_ed778bb8affeJQ6f9Tkxe4MjUl"
 The feature answers "how did this work enter the system" and "why did that request fail".
 `provenance.py` is ASGI middleware: it reads the two declaring headers, sets a contextvar pair (`OperationClient`, `OperationActor`) for the request, and after the response writes one `Operation` row for every mutating `/api` request.
 `crud.add_timeline` stamps the same pair onto task timeline events, and the harness environment sets `AGENTIC_ACTOR=agent` so agent-driven CLI calls declare themselves end to end.
-`request_logging.py` funnels Uvicorn access lines into structlog and adds the failure reason to the log through `RequestErrorMiddleware`.
+`request_logging.py` funnels Uvicorn access lines into structlog with the request's duration, and adds the failure reason to the log through `RequestErrorMiddleware`.
 `debug.py` adds per-request timing, database query counting (SQLAlchemy engine events), and helper-CLI call tracking, exposed as response headers and two read-only debug endpoints.
 `routers/operations.py` is the read-only audit log API, mirrored in the CLI's `operation list` command, and `diagnostics.py` probes the external commands and caches the Settings page shows.
 
@@ -76,7 +76,9 @@ After the response completes, the middleware records the operation for POST, PUT
 
 ### Failure logging
 
-`RequestErrorMiddleware` wraps the response: for status 400 and above it buffers up to 8 KB of the body, extracts the `detail` (a string, or FastAPI's validation list joined into `loc: msg` pairs), collapses whitespace, truncates at 500 characters, and logs one structlog line with method, path, status, and duration in milliseconds, error level for 5xx and warning otherwise.
+`RequestErrorMiddleware` times the request and keeps the start in a contextvar, so the access line the handler routes through structlog also carries `duration_ms`, measured from when the request entered the middleware to when the response starts (the point Uvicorn writes the line).
+At `debug` level the breakdown follows as separate `request phase`, `request db`, and `request tools` lines, so the access line stays short (see `.sdlc/context/observability.md`).
+The same middleware wraps the response: for status 400 and above it buffers up to 8 KB of the body, extracts the `detail` (a string, or FastAPI's validation list joined into `loc: msg` pairs), collapses whitespace, truncates at 500 characters, and logs one structlog line with method, path, status, and duration in milliseconds, error level for 5xx and warning otherwise.
 The body is passed through to the client untouched.
 
 ### Debug bar data

@@ -18,7 +18,7 @@ Out of scope: real subprocess probes against installed CLIs (monkeypatched), and
 | TC-1 | `resolve` maps declared values (case and whitespace tolerated) and falls back to api/human for missing or unknown ones | test_provenance.py |
 | TC-2 | `using` sets and restores the context around a block | test_provenance.py |
 | TC-3 | `harness_env` adds `AGENTIC_ACTOR=agent` to the harness environment | test_provenance.py |
-| TC-4 | The access log handler routes Uvicorn lines through structlog and replaces the handlers idempotently | test_request_logging.py |
+| TC-4 | The access log handler routes Uvicorn lines through structlog, adds the request's duration when a request is in flight, and replaces the handlers idempotently | test_request_logging.py |
 | TC-5 | Probe reports a missing command as not present | test_diagnostics.py |
 | TC-6 | A command served by a configured RPC server reports present without a path | test_diagnostics.py |
 | TC-7 | Version reads take the first stdout line, fall back to stderr, tolerate no version, close stdin, and report timeouts | test_diagnostics.py |

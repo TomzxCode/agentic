@@ -34,7 +34,7 @@ There is no SPA page for the operations log; it is read through the HTTP API and
 | FR-7 | Must | `GET /api/operations` shall list recorded operations newest first with optional `client` and `actor` filters and a `limit` clamped to 1 through 500 (default 100) |
 | FR-8 | Should | The CLI shall expose `agentic operation list` with `--client`, `--actor`, and `--limit` reading the same log |
 | FR-9 | Must | `RequestErrorMiddleware` shall log a failed request's method, path, status, duration, and the `detail` from the JSON error body, at error level for 5xx and warning otherwise, with the response body passed through untouched |
-| FR-10 | Must | Uvicorn's access log shall be routed through the application's structlog logger in every server process |
+| FR-10 | Must | Uvicorn's access log shall be routed through the application's structlog logger in every server process, with the request's duration in milliseconds on each line |
 | FR-11 | Must | `DebugMiddleware` shall add `x-debug-duration-ms`, `x-debug-db-queries`, and `x-debug-db-time-ms` response headers and keep the last 20 requests with their SQL snippets and helper-CLI calls, excluding `/api/debug` reads from the list |
 | FR-12 | Must | `GET /api/debug/requests` shall return the recent request snapshots and `GET /api/debug/cli` (with its aliases) the recent helper-CLI calls |
 | FR-13 | Must | The Settings page's Diagnostics section shall probe the Python runtime, git, ghx, gh, slackx, and every configured harness for presence, path, and version, and list the ghx and slackx local caches, via `GET /api/settings/diagnostics` |
@@ -159,8 +159,8 @@ There is no SPA page for the operations log; it is read through the HTTP API and
     @FR-10
     Scenario: Access lines go through structlog
       Given the server configured its request logging
-      When an access record is emitted
-      Then it appears as a structlog event and uvicorn keeps exactly one handler with propagation off
+      When an access record is emitted during a request
+      Then it appears as a structlog event carrying the request's duration, and uvicorn keeps exactly one handler with propagation off
     ```
 
 - [ ] **FR-11**

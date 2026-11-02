@@ -34,6 +34,7 @@ The file stays open for the life of the process, so a line costs one append rath
 The file rotates at 10 MB and keeps 5 backups (`log_setup.py`).
 The level comes from `AGENTIC_LOG_LEVEL` (default `info`, applied by `log_setup.configure_logging` to structlog and by `agentic-server serve` to uvicorn).
 Notable events: `agentic ready`, `tool call` (carries `cmd` and the `mode` transport), `cli fetch failed`, `fetch_source failed`, `failed to persist agent event`, `agent run failed`.
+`RequestErrorMiddleware` times each request, and the access line it routes through structlog carries the result as `duration_ms`, measured from when the request entered the middleware to when the response starts.
 `RequestErrorMiddleware` adds a `request failed` event for every 4xx or 5xx with method, path, status, duration, and the API error detail, logged at error level for 5xx and warning otherwise.
 At `debug` level, each request is followed by the breakdown the `DebugMiddleware` collected, as separate lines: `request phase` for each named step a handler timed, a `request db` summary (`queries`, `time_ms`), and a `request tools` summary (`calls`, `time_ms`, `slowest`) for the helper CLI calls (`ghx`, `slackx`).
 The review queue times its store scan as `review store dirs` (finding the PR directories) and `review store check` (the per-directory mtime check), with `review store view`, `review store reports`, and `review store state` appearing only for the directories that changed.
