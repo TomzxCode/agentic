@@ -11,11 +11,11 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: [
-        'icon.svg',
+        'favicon.svg',
         'apple-touch-icon.png',
         'maskable.svg',
-        'icon-192.png',
-        'icon-512.png',
+        'favicon-192.png',
+        'favicon-512.png',
         'maskable-192.png',
         'maskable-512.png'
       ],
@@ -30,11 +30,11 @@ export default defineConfig({
         start_url: '/',
         scope: '/',
         icons: [
-          { src: 'icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
-          { src: 'icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+          { src: 'favicon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+          { src: 'favicon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
           { src: 'maskable-192.png', sizes: '192x192', type: 'image/png', purpose: 'maskable' },
           { src: 'maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
-          { src: 'icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' }
+          { src: 'favicon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' }
         ]
       },
       workbox: {
