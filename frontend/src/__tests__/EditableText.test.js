@@ -89,6 +89,14 @@ describe('EditableText', () => {
     expect(wrapper.emitted('save')).toEqual([['*it*']])
   })
 
+  it('renders a single newline in the value as a line break', () => {
+    const wrapper = mount(EditableText, {
+      props: { value: 'a\nb\nc', markdown: true, as: 'div', multiline: true }
+    })
+    const paragraph = wrapper.get('.md p')
+    expect(paragraph.findAll('br')).toHaveLength(2)
+  })
+
   it('does not open the editor when a task-list checkbox is clicked', async () => {
     const wrapper = mount(EditableText, {
       props: { value: '- [ ] Do it', markdown: true, taskLists: true, as: 'div', multiline: true }

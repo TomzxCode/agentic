@@ -117,6 +117,15 @@ describe('renderMarkdown', () => {
     expect(html).not.toContain('disabled')
   })
 
+  it('keeps a single newline as a space unless breaks is asked for', () => {
+    expect(renderMarkdown('a\nb\nc')).toBe('<p>a\nb\nc</p>')
+    expect(renderMarkdown('a\nb\nc', { breaks: true })).toBe('<p>a<br>\nb<br>\nc</p>')
+  })
+
+  it('keeps a blank line as a paragraph break when breaks is on', () => {
+    expect(renderMarkdown('a\n\nb', { breaks: true })).toBe('<p>a</p>\n<p>b</p>')
+  })
+
   it('has no trailing whitespace, so the last block keeps no bottom margin', () => {
     expect(renderMarkdown('hello')).toBe('<p>hello</p>')
     expect(renderMarkdown('- one\n- two')).toBe('<ul>\n<li>one</li>\n<li>two</li>\n</ul>')

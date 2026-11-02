@@ -15,6 +15,8 @@ export default {
   },
   render() {
     const html = renderMarkdown(this.source, {
+      // A field keeps the lines it was typed with: a newline is a line break.
+      breaks: true,
       taskListInteractive: this.taskLists,
       // A plain @name in the text links to the person or item it names, and a
       // task link shows the task's current title.

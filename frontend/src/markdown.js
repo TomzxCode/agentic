@@ -29,6 +29,18 @@ md.core.ruler.after('block', 'task-lists', (state) => {
   }
 })
 
+// A newline inside a paragraph renders as a line break when the caller asks for
+// it with `env.breaks`. A text field the user typed keeps the line structure it
+// was written with, where a blank line is a new paragraph and a single newline
+// still starts a new line. Read-only Markdown (a PR body, a review report) keeps
+// the standard soft break, where a newline is only a space.
+const defaultSoftbreak =
+  md.renderer.rules.softbreak || ((tokens, idx, options, _env, self) => self.renderToken(tokens, idx, options))
+md.renderer.rules.softbreak = (tokens, idx, options, env, self) => {
+  if (!env?.breaks) return defaultSoftbreak(tokens, idx, options, env, self)
+  return options.xhtmlOut ? '<br />\n' : '<br>\n'
+}
+
 // An @ mention starts at the beginning of the text or after whitespace or
 // opening punctuation.
 const MENTION_BEFORE = /[\s([{"'“‘>]/
