@@ -36,7 +36,7 @@
 
 ## GitHub and ghx
 
-- Only the background ghx cache job (`ghx_cache.py`, every `ghx_cache_refresh_interval`, 15 minutes by default) runs `ghx cache`. No endpoint, page load, CLI command, or agent action refreshes a repository's cache on request: pages read ghx's cache and the job keeps it current, so a read never waits on a delta fetch (or starts a whole-history walk). A new feature that needs fresher GitHub data reads the cache, waits for the next pass, or (if it truly needs a refresh) belongs in that one job.
+- The ghx cache pass in `ghx_cache.py` (every `ghx_cache_refresh_interval`, 15 minutes by default) is what keeps every GitHub page current. No page load, CLI command, or agent action refreshes a repository's cache: pages read ghx's cache, so a read never waits on a delta fetch (or starts a whole-history walk). The one exception is the Settings page's `Force refresh` button (`POST /api/settings/ghx-cache/refresh`), which runs that same pass by hand and waits for it. A new feature that needs fresher GitHub data reads the cache, waits for the next pass, or belongs in that pass rather than adding a request path.
 
 ## Testing
 

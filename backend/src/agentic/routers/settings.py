@@ -7,10 +7,12 @@ from sqlmodel import Session
 
 from ..db import get_session
 from ..diagnostics import collect_diagnostics
+from ..ghx_cache import run_ghx_cache_refresh
 from ..refresh import POLICY_SETTING_KEYS, PolicyError, describe_policy, parse_policy
 from ..review_scan import scan_interval
 from ..schemas.settings import (
     DiagnosticsRead,
+    GhxCacheStatusRead,
     ManagedToolRead,
     RefreshPolicyPreview,
     RefreshPolicyPreviewRequest,
@@ -22,6 +24,7 @@ from ..schemas.settings import (
 from ..services.managed_tools import SERVE_PORTS, managed_tools
 from ..settings_store import (
     env_defaults,
+    get_ghx_cache_status,
     get_overrides,
     get_refresh_status,
     get_settings,
@@ -135,8 +138,23 @@ def preview_refresh_policy(payload: RefreshPolicyPreviewRequest) -> RefreshPolic
 
 @router.get("/refresh-status", response_model=RefreshStatusRead)
 def read_refresh_status(session: Session = Depends(get_session)) -> RefreshStatusRead:
-    """When the background refresh job last ran for each source."""
-    return RefreshStatusRead(sources=get_refresh_status(session))
+    """When the background refresh job last ran for each source, and the ghx cache job."""
+    return RefreshStatusRead(
+        sources=get_refresh_status(session),
+        ghx_cache=GhxCacheStatusRead.model_validate(get_ghx_cache_status(session)),
+    )
+
+
+@router.post("/ghx-cache/refresh", response_model=GhxCacheStatusRead)
+def refresh_ghx_cache(session: Session = Depends(get_session)) -> GhxCacheStatusRead:
+    """Refresh every registered repository's ghx cache now, ignoring the cadence.
+
+    The scheduled pass runs in the background; this is the Settings page's
+    button. It waits for the pass, so a repository ghx has never fully cached
+    can make the request slow (it walks that repository's whole history).
+    """
+    run_ghx_cache_refresh(session, origin="manual", force=True)
+    return GhxCacheStatusRead.model_validate(get_ghx_cache_status(session))
 
 
 @router.get("/diagnostics", response_model=DiagnosticsRead)

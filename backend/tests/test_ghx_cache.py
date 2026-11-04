@@ -1,3 +1,4 @@
+import time
 from datetime import timedelta
 
 from sqlmodel import Session
@@ -76,6 +77,49 @@ def test_refresh_repositories_backs_off_a_failed_repository(monkeypatch):
     assert report == {"refreshed": 0, "failed": 0, "skipped": 1, "error": None}
 
 
+def test_refresh_repositories_force_retries_a_backed_off_repository(monkeypatch):
+    calls: list[str] = []
+
+    def fake(owner, repo, timeout=300, types="both"):
+        calls.append(f"{owner}/{repo}")
+        return True
+
+    monkeypatch.setattr(ghx_cache, "list_cached_repositories", lambda: {"o/r"})
+    monkeypatch.setattr(ghx_cache, "refresh_github_cache", fake)
+    ghx_cache._retry_after.clear()
+    ghx_cache._retry_after["o/r"] = time.monotonic() + 3600
+
+    try:
+        # A scheduled pass leaves the repository alone, but the button retries it.
+        assert ghx_cache.refresh_repositories(["o/r"])["skipped"] == 1
+        report = ghx_cache.refresh_repositories(["o/r"], force=True)
+    finally:
+        ghx_cache._retry_after.clear()
+
+    assert report == {"refreshed": 1, "failed": 0, "skipped": 0, "error": None}
+    assert calls == ["o/r"]
+
+
+def test_run_ghx_cache_refresh_manual_runs_while_the_cadence_is_off(monkeypatch):
+    monkeypatch.setattr(ghx_cache, "known_github_repositories", lambda session: ["o/r"])
+    monkeypatch.setattr(ghx_cache, "list_cached_repositories", lambda: {"o/r"})
+    monkeypatch.setattr(ghx_cache, "refresh_github_cache", lambda *args, **kwargs: True)
+    ghx_cache._retry_after.clear()
+    _clear_settings()
+
+    try:
+        with Session(engine) as session:
+            update_settings(session, {"ghx_cache_refresh_interval": ""})
+            report = ghx_cache.run_ghx_cache_refresh(session, origin="manual", force=True)
+            status = get_ghx_cache_status(session)
+
+        assert report == {"refreshed": 1, "failed": 0, "skipped": 0, "error": None}
+        assert status["origin"] == "manual"
+        assert status["refreshed"] == 1
+    finally:
+        _clear_settings()
+
+
 def test_run_due_ghx_cache_refresh_records_a_pass_then_waits_for_the_cadence(monkeypatch):
     monkeypatch.setattr(ghx_cache, "known_github_repositories", lambda session: ["o/r"])
     monkeypatch.setattr(ghx_cache, "list_cached_repositories", lambda: {"o/r"})
@@ -106,5 +150,29 @@ def test_run_due_ghx_cache_refresh_is_off_when_the_cadence_is_blank(monkeypatch)
         with Session(engine) as session:
             update_settings(session, {"ghx_cache_refresh_interval": ""})
             assert ghx_cache.run_due_ghx_cache_refresh(session) == {"skipped": "disabled"}
+    finally:
+        _clear_settings()
+
+
+def test_manual_refresh_endpoint_runs_the_pass_and_reports_its_status(monkeypatch):
+    from fastapi.testclient import TestClient
+
+    from agentic.main import app
+
+    monkeypatch.setattr(ghx_cache, "known_github_repositories", lambda session: ["o/r"])
+    monkeypatch.setattr(ghx_cache, "list_cached_repositories", lambda: {"o/r"})
+    monkeypatch.setattr(ghx_cache, "refresh_github_cache", lambda *args, **kwargs: True)
+    ghx_cache._retry_after.clear()
+    _clear_settings()
+
+    try:
+        with TestClient(app) as client:
+            response = client.post("/api/settings/ghx-cache/refresh")
+            status = client.get("/api/settings/refresh-status")
+
+        assert response.status_code == 200
+        assert response.json()["refreshed"] == 1
+        assert response.json()["origin"] == "manual"
+        assert status.json()["ghx_cache"]["refreshed"] == 1
     finally:
         _clear_settings()

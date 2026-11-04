@@ -1,16 +1,17 @@
 """The one job that runs ``ghx cache``: a periodic refresh of the local cache.
 
-Every page reads ghx's cache, and no request path refreshes it: a delta fetch is
-a subprocess wait per repository, and a page load should never pay it (or, on a
-repository ghx has never fully cached, start a whole-history walk). This
-background pass is the only caller of ``ghx cache``. It keeps the registered
-repositories current so the pages that read them are as fresh as the last pass,
-and it warms a repository ghx has no completed cache for yet, which is the one
-thing a request path could never wait for.
+Every page reads ghx's cache, and no read path refreshes it: a delta fetch is a
+subprocess wait per repository, and a page load should never pay it (or, on a
+repository ghx has never fully cached, start a whole-history walk). The
+background pass keeps the registered repositories current so the pages that
+read them are as fresh as the last pass, and it warms a repository ghx has no
+completed cache for yet. The Settings page's force-refresh button calls the same
+pass by hand, ignoring both the cadence and a failed repository's backoff.
 
 The cadence is ``ghx_cache_refresh_interval`` (a duration such as ``15m``; empty
-disables it). A repository whose refresh failed is left alone for a while, so a
-cache that cannot be written does not restart a long walk on every tick.
+disables the scheduled pass). A repository whose refresh failed is left alone
+for a while, so a cache that cannot be written does not restart a long walk on
+every tick.
 """
 
 from __future__ import annotations
@@ -94,17 +95,18 @@ def _refresh_one(repository: str, *, warm: bool) -> bool:
     return refreshed
 
 
-def refresh_repositories(repositories: list[str]) -> CacheReport:
+def refresh_repositories(repositories: list[str], *, force: bool = False) -> CacheReport:
     """Refresh the caches of *repositories*, returning a count of what happened.
 
     A repository with a completed cache takes the delta fetch; any other one
     walks its whole history, since a background pass is the only place that can
-    wait for it. Repositories in their retry backoff are skipped. When ghx
-    cannot say which caches are warm, the pass is skipped rather than risking a
-    full walk on every repository.
+    wait for it. Repositories in their retry backoff are skipped, unless *force*
+    is set (the manual refresh, which should retry a failed repository now).
+    When ghx cannot say which caches are warm, the pass is skipped rather than
+    risking a full walk on every repository.
     """
     now = time.monotonic()
-    due = [repository for repository in repositories if _retry_after.get(repository.lower(), 0.0) <= now]
+    due = [repository for repository in repositories if force or _retry_after.get(repository.lower(), 0.0) <= now]
     skipped = len(repositories) - len(due)
     if not due:
         return {"refreshed": 0, "failed": 0, "skipped": skipped, "error": None}
@@ -126,10 +128,14 @@ def refresh_repositories(repositories: list[str]) -> CacheReport:
     }
 
 
-def run_ghx_cache_refresh(session: Session, origin: str = "background") -> CacheReport:
-    """Refresh every registered GitHub repository's cache and record the pass."""
+def run_ghx_cache_refresh(session: Session, origin: str = "background", *, force: bool = False) -> CacheReport:
+    """Refresh every registered GitHub repository's cache and record the pass.
+
+    *origin* is ``background`` for the scheduled pass and ``manual`` for the
+    Settings page's button, which also sets *force* to ignore the retry backoff.
+    """
     repositories = known_github_repositories(session)
-    report = refresh_repositories(repositories)
+    report = refresh_repositories(repositories, force=force)
     record_ghx_cache_run(
         session,
         last_run_at=utcnow(),

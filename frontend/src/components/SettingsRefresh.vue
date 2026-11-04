@@ -20,15 +20,16 @@ const REFRESH_FIELDS = [
 
 const form = reactive({ slack_refresh_policy: '', github_refresh_policy: '' })
 const previews = reactive({ slack_refresh_policy: null, github_refresh_policy: null })
-// The ghx cache job's cadence. It is the only caller of `ghx cache`, so this is
-// how fresh every page's GitHub reads are.
+// The ghx cache job's cadence. Every page reads that cache, so this is how
+// fresh its GitHub reads are; the button runs the same pass by hand.
 const CACHE_INTERVAL_KEY = 'ghx_cache_refresh_interval'
 const cache = reactive({ interval: '' })
 const status = ref({})
+const cacheStatus = ref({})
 const saving = ref('')
 const saved = ref('')
 // Per source, so refreshing one does not block the other.
-const forcing = reactive({ slack: false, github: false })
+const forcing = reactive({ slack: false, github: false, cache: false })
 let savedTimer
 const previewTimers = {}
 
@@ -67,7 +68,9 @@ function previewAll() {
 async function loadStatus() {
   if (typeof api.settings.refreshStatus !== 'function') return
   try {
-    status.value = (await api.settings.refreshStatus()).sources || {}
+    const payload = await api.settings.refreshStatus()
+    status.value = payload.sources || {}
+    cacheStatus.value = payload.ghx_cache || {}
   } catch {
     // Leave the last known status; a failed read should not block the settings.
   }
@@ -87,6 +90,25 @@ async function forceRefresh(source) {
     store.notify(e.message, true)
   } finally {
     forcing[source] = false
+  }
+}
+
+// Run the ghx cache pass now, ignoring its cadence and a failed repository's
+// backoff. The server waits for the pass, so a repository ghx has never fully
+// cached can make this take a while.
+async function forceRefreshCache() {
+  if (forcing.cache || typeof api.settings.refreshGhxCache !== 'function') return
+  forcing.cache = true
+  try {
+    cacheStatus.value = await api.settings.refreshGhxCache()
+    const summary = `${cacheStatus.value.refreshed} refreshed${
+      cacheStatus.value.failed ? `, ${cacheStatus.value.failed} failed` : ''
+    }`
+    store.notify(`GitHub cache: ${summary}`, cacheStatus.value.failed > 0 || Boolean(cacheStatus.value.error))
+  } catch (e) {
+    store.notify(e.message, true)
+  } finally {
+    forcing.cache = false
   }
 }
 
@@ -159,8 +181,8 @@ onMounted(loadStatus)
     <p class="faint" style="margin-top: 0">
       How often to re-fetch Slack threads (slackx) and GitHub issues/PRs (ghx). Age bands pair an upper age with a
       refresh interval. Each field saves when you leave it; leave one blank to stop refreshing that source. The ghx
-      cache every GitHub page reads is refreshed separately by one background job, which is the only caller of
-      <code>ghx cache</code>.
+      cache every GitHub page reads is refreshed separately by one background job, which also serves the
+      <code>Force refresh</code> button below.
     </p>
     <div v-for="field in REFRESH_FIELDS" :key="field.key" class="field">
       <label>
@@ -235,12 +257,28 @@ onMounted(loadStatus)
           :placeholder="defaults.ghx_cache_refresh_interval || '15m'"
           @blur="saveCacheInterval"
         />
+        <button class="btn sm" :disabled="forcing.cache" @click="forceRefreshCache">
+          <span v-if="forcing.cache" class="spinner" aria-hidden="true"></span>
+          Force refresh
+        </button>
       </div>
       <p class="faint" style="margin: 4px 0 0">
-        How often the background job runs <code>ghx cache</code> over the registered GitHub repositories. It is the only
-        caller: every page reads the cache, so this is how fresh the GitHub pages are. A duration such as
-        <code>15m</code>, <code>1h</code> or <code>1d</code>; leave it blank to stop refreshing the cache.
+        How often the background job runs <code>ghx cache</code> over the registered GitHub repositories. Every page
+        reads the cache, so this is how fresh the GitHub pages are. A duration such as <code>15m</code>,
+        <code>1h</code> or <code>1d</code>; leave it blank to stop the scheduled pass. The button runs one pass now,
+        including a repository whose last refresh failed.
       </p>
+      <p class="faint" style="margin: 4px 0 0">
+        Last cache refresh:
+        <template v-if="cacheStatus.last_run_at">
+          {{ timeAgo(cacheStatus.last_run_at) }} · {{ cacheStatus.refreshed }} refreshed
+          <span v-if="cacheStatus.failed" style="color: var(--danger)"> · {{ cacheStatus.failed }} failed </span>
+          <span v-if="cacheStatus.skipped"> · {{ cacheStatus.skipped }} skipped</span>
+          <span v-if="cacheStatus.origin === 'manual'"> · forced</span>
+        </template>
+        <template v-else>never</template>
+      </p>
+      <p v-if="cacheStatus.error" style="margin: 4px 0 0; color: var(--danger)">{{ cacheStatus.error }}</p>
     </div>
   </section>
 </template>

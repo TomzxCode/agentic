@@ -56,7 +56,8 @@ class SettingsUpdate(BaseModel):
     slack_notify_user_id: str | None = None
     github_refresh_policy: str | None = None
     # How often the background job runs `ghx cache` ("15m", "1h"; empty
-    # disables it). It is the only caller: pages read ghx's cache.
+    # disables the scheduled pass). Pages read ghx's cache; the Refresh section
+    # also has a button that runs one pass by hand.
     ghx_cache_refresh_interval: str | None = None
     # The review scan's cadence ("1h", "30m"; empty disables it) and what a
     # repository with no policy of its own does (include or exclude).
@@ -140,10 +141,24 @@ class RefreshSourceStatus(BaseModel):
     refreshed_24h: int = 0
 
 
+class GhxCacheStatusRead(BaseModel):
+    """The outcome of the ghx cache job's last pass."""
+
+    last_run_at: datetime | None = None
+    refreshed: int = 0
+    failed: int = 0
+    skipped: int = 0
+    error: str | None = None
+    # "background" for the scheduled pass, "manual" for the force-refresh button.
+    origin: str | None = None
+
+
 class RefreshStatusRead(BaseModel):
     """Per-source background refresh status, keyed by source."""
 
     sources: dict[str, RefreshSourceStatus] = {}
+    # The ghx cache job, which is not an item source but shares this section.
+    ghx_cache: GhxCacheStatusRead = GhxCacheStatusRead()
 
 
 class DependencyRead(BaseModel):

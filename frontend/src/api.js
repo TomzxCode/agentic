@@ -498,6 +498,10 @@ export const api = {
     update: (body) => request('/settings', { method: 'PATCH', body }),
     previewRefreshPolicy: (value) => request('/settings/refresh-policy/preview', { method: 'POST', body: { value } }),
     refreshStatus: () => request('/settings/refresh-status'),
+    // Run the background ghx cache job now, ignoring its cadence and any
+    // repository's retry backoff. It waits for the pass, so a cold repository
+    // can make this slow.
+    refreshGhxCache: () => request('/settings/ghx-cache/refresh', { method: 'POST' }),
     diagnostics: () => request('/settings/diagnostics'),
     restartTool: (tool) => request(`/settings/tools/${tool}/restart`, { method: 'POST' })
   },

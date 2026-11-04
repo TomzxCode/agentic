@@ -314,7 +314,9 @@ def test_refresh_status_reports_the_last_run():
     from agentic.settings_store import record_refresh_run
 
     with TestClient(app) as client:
-        assert client.get("/api/settings/refresh-status").json() == {"sources": {}}
+        body = client.get("/api/settings/refresh-status").json()
+        assert body["sources"] == {}
+        assert "ghx_cache" in body
 
         with Session(engine) as session:
             record_refresh_run(

@@ -226,7 +226,8 @@ Both inbound routes answer `202` with the stored event id, its type, and one del
 | `PATCH` / `DELETE` | `/api/harnesses/{id}` | Update or remove a harness. |
 | `GET` / `PATCH` | `/api/settings` | Effective settings and overrides. |
 | `POST` | `/api/settings/refresh-policy/preview` | Preview a refresh policy's schedule. |
-| `GET` | `/api/settings/refresh-status` | When the background refresh job last ran for each source. |
+| `GET` | `/api/settings/refresh-status` | When the background refresh job last ran for each source, and the ghx cache job. |
+| `POST` | `/api/settings/ghx-cache/refresh` | Run the ghx cache pass now, ignoring its cadence and any repository's retry backoff. Waits for the pass. |
 | `GET` | `/api/settings/diagnostics` | Presence and versions of the external commands and harnesses the app runs. |
 | `GET` | `/api/github/issues` | Issue picker for import. |
 | `POST` | `/api/github/issues` | Create an issue from a title and body. |

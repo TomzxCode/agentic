@@ -159,9 +159,9 @@ async def _review_scan_forever() -> None:
 def _ghx_cache_once() -> CacheReport | dict[str, object]:
     """Run the ghx cache refresh when its cadence says it is due (ghx blocks).
 
-    This is the only caller of ``ghx cache``: every page reads the cache this
-    pass keeps current. Opens its own session so the subprocess waits never
-    touch the event loop's connection.
+    Every page reads the cache this pass keeps current; the Settings button
+    runs the same pass by hand. Opens its own session so the subprocess waits
+    never touch the event loop's connection.
     """
     from .ghx_cache import run_due_ghx_cache_refresh
 
@@ -215,8 +215,8 @@ async def lifespan(app: FastAPI):
     refresh_task = asyncio.create_task(_refresh_due_forever())
     # Ask GitHub which pull requests await the user's review, on its own cadence.
     scan_task = asyncio.create_task(_review_scan_forever())
-    # Keep the ghx caches the pages read current. This is the only place that
-    # runs `ghx cache`.
+    # Keep the ghx caches the pages read current. The Settings button runs the
+    # same pass by hand.
     cache_task = asyncio.create_task(_ghx_cache_forever())
     # Fire the user-defined scheduled tasks whose time has come.
     schedule_task = asyncio.create_task(scheduler_loop())

@@ -1,11 +1,12 @@
 # Memory
 
-## 2026-11-02: only the ghx cache job runs `ghx cache`
+## 2026-11-04: the ghx cache pass runs on its cadence or on demand
 
-- `ghx_cache.py` is the single caller of `ghx cache`, driven by `_ghx_cache_forever` in `main.py` every `ghx_cache_tick` (60 s) when `ghx_cache_refresh_interval` (default 15m) has elapsed. No endpoint, page load, CLI command, or agent action refreshes a repository's cache on request; the My PRs read, the inbox nudge, and the repository listing only read what the job last wrote.
+- `ghx_cache.py` owns every write to ghx's cache. `_ghx_cache_forever` in `main.py` runs it every `ghx_cache_tick` (60 s) once `ghx_cache_refresh_interval` (default 15m) has elapsed, and `POST /api/settings/ghx-cache/refresh` runs the same pass by hand (`origin="manual"`, `force=True`, which bypasses a failed repository's retry backoff). No page load, CLI command, or agent action refreshes a repository's cache; the My PRs read, the inbox nudge, and the repository listing only read what the pass last wrote.
+- The Settings button is synchronous: the request waits for the whole pass, so a repository ghx has never fully cached can make it slow (one-hour full-history walk).
 - The job refreshes every registered GitHub repository: the delta timeout for one whose cache `ghx repo list` marks warm, a one-hour full-history walk for a cold one. A failed repository backs off for an hour (`RETRY_AFTER`), and an unreadable cache listing skips the pass instead of risking a walk on every repository.
 - This replaced the old behavior where `fetch_my_pulls` and `GET /api/github/repository?refresh=true` ran a delta. The repository view's "Refresh all" is now "Reload" and only re-reads the cache; the `refresh` query param is gone from that endpoint.
-- The rule is recorded in `.sdlc/context/conventions.md` ("GitHub and ghx"), docs/views/{my-pulls,repositories}.md, and docs/reference/configuration.md. A new feature that wants fresher GitHub data reads the cache, waits for the next pass, or joins that one job.
+- The rule is recorded in `.sdlc/context/conventions.md` ("GitHub and ghx"), docs/views/{my-pulls,repositories}.md, and docs/reference/configuration.md. A new feature that wants fresher GitHub data reads the cache, waits for the next pass, or joins that one pass rather than adding a request path.
 
 ## 2026-11-02: the tray follows a push stream, not a poll
 

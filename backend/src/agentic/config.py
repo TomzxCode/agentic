@@ -150,11 +150,12 @@ class Settings(BaseSettings):
     # How often (seconds) the API checks for due items. 0 disables the loop.
     item_refresh_tick: int = 300
 
-    # How often (a duration such as "15m"; empty disables it) the background job
-    # runs `ghx cache` over the registered GitHub repositories. That job is the
-    # only caller: pages read ghx's cache and never refresh it, so a read never
-    # waits on a delta fetch (or starts a whole-history walk). ``ghx_cache_tick``
-    # is how often (seconds) the API checks whether the job is due.
+    # How often (a duration such as "15m"; empty disables the scheduled pass) the
+    # background job runs `ghx cache` over the registered GitHub repositories.
+    # Pages read ghx's cache and never refresh it, so a read never waits on a
+    # delta fetch (or starts a whole-history walk); the Settings button is the
+    # one manual caller. ``ghx_cache_tick`` is how often (seconds) the API
+    # checks whether the job is due.
     ghx_cache_refresh_interval: str = "15m"
     ghx_cache_tick: int = 60
 

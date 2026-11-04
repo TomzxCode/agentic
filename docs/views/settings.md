@@ -101,9 +101,12 @@ The preview re-parses what you type after a 300 ms pause and shows the resulting
 The status line reads `Last run: <age> · N refreshed · M failed · forced · N refreshed in the last 24h`.
 An empty policy disables that source.
 
-`GitHub cache refresh` is the cadence of the one background job that runs `ghx cache` over the registered GitHub repositories, a duration such as `15m` or `1h`; blank stops it.
-It is the only place the cache is refreshed: every page reads it, so this cadence is how fresh the GitHub pages are.
+`GitHub cache refresh` is the cadence of the background job that runs `ghx cache` over the registered GitHub repositories, a duration such as `15m` or `1h`; blank stops the scheduled pass.
+Every page reads that cache, so this cadence is how fresh the GitHub pages are.
 A repository is refreshed with a delta when ghx already has a completed cache for it, and with a full history walk when it does not.
+`Force refresh` runs one pass now, even with the cadence blank and even for a repository whose last refresh failed.
+The request waits for the pass, so a repository ghx has never fully cached can make it slow.
+The status line reads `Last cache refresh: <age> · N refreshed · M failed · K skipped · forced`.
 
 ### Review requests
 
