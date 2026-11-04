@@ -39,7 +39,7 @@ It is also the page that drives the agent, so the prompt, the worktree, and the 
 | Panel | What it does |
 | --- | --- |
 | Description | Markdown body. `✎ Edit` opens the editor; links and `<details>` inside it stay clickable. |
-| Checklist | The items from the checklists that matched the task, plus your own. Tick one to complete it, click its text to rename it, and `✕` removes it. An item whose checklist no longer matches stays visible but disabled. |
+| Checklist | The items from the checklists that matched the task, plus your own. Tick one to complete it, drag the `⠿` handle to reorder them, click its text to rename it, and `✕` removes it. An item whose checklist no longer matches stays visible but disabled. |
 | Context | The agent-written `summary` and `next_steps`. `↻ Refresh with agent` starts a context run, and next steps render as a task list whose checkboxes you can tick. `↻ Name & summarize` appears when a Slack item is linked. |
 | Notes | Short notes, added with `Add note` or `Ctrl/Cmd+Enter`, edited in place, removed with `✕`. |
 | Items | Paste a Slack, GitHub, or Drive link (the source is inferred), add a title and a note, then `Associate`. Each row can be refreshed, expanded, unlinked, marked `Done` or `Reopen` (Slack), and opens in ghx or slackx when those URLs are configured. |
@@ -58,6 +58,7 @@ A rule can match a task's status, priority, waiting-on person, tags, people, req
 The first time a task matches, the template's items are copied onto it.
 Editing the task later never duplicates them.
 If a rule stops matching, the items stay, disabled, so the record of what was done is not lost.
+Drag an item's `⠿` handle to move it, or focus the handle and press `↑` / `↓`.
 `Add` at the bottom of the panel adds an item to this task only.
 `Apply now` in Settings adds any missing items from a template to the tasks it currently matches.
 

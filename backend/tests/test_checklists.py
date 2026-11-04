@@ -210,6 +210,36 @@ def test_manual_item_lifecycle():
         client.delete(f"/api/tasks/{other['id']}")
 
 
+def test_reordering_items_rewrites_positions_and_keeps_unknown_ids_out():
+    with TestClient(app) as client:
+        task = _task(client, "Reorder checklist")
+        ids = [
+            client.post(f"/api/tasks/{task['id']}/checklist", json={"text": text}).json()["id"]
+            for text in ("One", "Two", "Three")
+        ]
+
+        reordered = client.post(
+            f"/api/tasks/{task['id']}/checklist/reorder", json={"item_ids": [ids[2], ids[0], ids[1]]}
+        ).json()
+        assert [item["text"] for item in reordered] == ["Three", "One", "Two"]
+        assert [item["position"] for item in reordered] == [0, 1, 2]
+        assert [item["text"] for item in _checklist(client, task["id"])] == ["Three", "One", "Two"]
+
+        # A partial order moves the listed items to the front and leaves the
+        # rest in place; ids from another task are ignored.
+        other = _task(client, "Other")
+        stray = client.post(f"/api/tasks/{other['id']}/checklist", json={"text": "Elsewhere"}).json()["id"]
+        partial = client.post(f"/api/tasks/{task['id']}/checklist/reorder", json={"item_ids": [ids[1], stray]}).json()
+        assert [item["text"] for item in partial] == ["Two", "Three", "One"]
+
+        # A new item still lands at the end after a reorder.
+        added = client.post(f"/api/tasks/{task['id']}/checklist", json={"text": "Four"}).json()
+        assert added["position"] == 3
+
+        client.delete(f"/api/tasks/{task['id']}")
+        client.delete(f"/api/tasks/{other['id']}")
+
+
 def test_template_creation_and_apply_to_existing_tasks():
     with TestClient(app) as client:
         task = _task(client, "Existing feature", tags=["feature"])

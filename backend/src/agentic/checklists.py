@@ -132,6 +132,32 @@ def next_position(session: Session, task_id: str) -> int:
     return (max(positions) + 1) if positions else 0
 
 
+def reorder_items(session: Session, task: Task, item_ids: list[str]) -> list[ChecklistItemRead]:
+    """Give the listed items positions 0..n-1 in the given order.
+
+    Items the caller leaves out keep their relative order after the listed
+    ones, and ids that do not belong to the task are ignored. Positions are
+    rewritten as a tight sequence so later adds still land at the end.
+    """
+    rows = list(session.exec(select(ChecklistItem).where(ChecklistItem.task_id == task.id)).all())
+    by_id = {row.id: row for row in rows}
+    wanted: list[str] = []
+    seen: set[str] = set()
+    for item_id in item_ids:
+        if item_id in by_id and item_id not in seen:
+            seen.add(item_id)
+            wanted.append(item_id)
+    ordered = [by_id[item_id] for item_id in wanted]
+    ordered += [row for row in sorted(rows, key=lambda row: (row.position, row.created_at)) if row.id not in wanted]
+    for position, row in enumerate(ordered):
+        if row.position != position:
+            row.position = position
+            row.updated_at = utcnow()
+        session.add(row)
+    session.commit()
+    return checklist_items(session, task)
+
+
 def _add_missing_items(session: Session, task_id: str, template: ChecklistTemplate) -> int:
     """Copy the template's items the task does not already hold. Returns the count added."""
     existing = {
@@ -298,6 +324,7 @@ __all__ = [
     "delete_template_checklist",
     "item_done",
     "next_position",
+    "reorder_items",
     "rule_error",
     "task_context",
     "template_matches",

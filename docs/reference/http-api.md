@@ -40,6 +40,7 @@ The task detail (`GET /api/tasks/{id}`) also returns `checklist`, a list of the 
 | `POST` | `/api/checklist-templates/{id}/apply` | Add the template's missing items to every task that currently matches it. |
 | `POST` | `/api/tasks/{id}/checklist` | Add a manual item. |
 | `POST` | `/api/tasks/{id}/checklist/apply` | Add missing items from templates already applied to the task. |
+| `POST` | `/api/tasks/{id}/checklist/reorder` | Apply a new display order; the body is `{"item_ids": [...]}` in the wanted order. Listed items get positions `0..n-1`, unlisted ones keep their relative order after them, and ids from another task are ignored. |
 | `PATCH` / `DELETE` | `/api/tasks/{id}/checklist/{item_id}` | Check or uncheck, rename, or remove an item. |
 
 A template has a `name`, an optional `description`, a list of `rules`, and a list of `items`.

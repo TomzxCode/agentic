@@ -91,6 +91,8 @@ export const api = {
     addChecklistItem: (id, body) => request(`/tasks/${id}/checklist`, { method: 'POST', body }),
     updateChecklistItem: (id, itemId, body) => request(`/tasks/${id}/checklist/${itemId}`, { method: 'PATCH', body }),
     removeChecklistItem: (id, itemId) => request(`/tasks/${id}/checklist/${itemId}`, { method: 'DELETE' }),
+    reorderChecklistItems: (id, itemIds) =>
+      request(`/tasks/${id}/checklist/reorder`, { method: 'POST', body: { item_ids: itemIds } }),
     applyChecklists: (id) => request(`/tasks/${id}/checklist/apply`, { method: 'POST' })
   },
 

@@ -59,6 +59,16 @@ class ChecklistItemUpdate(BaseModel):
     done: bool | None = None
 
 
+class ChecklistReorder(BaseModel):
+    """A task's checklist item ids in their new display order.
+
+    Items the caller leaves out keep their relative order after the listed
+    ones, so a stale client never drops an item it did not know about.
+    """
+
+    item_ids: list[str] = []
+
+
 class ChecklistItemRead(ORMModel):
     id: str
     task_id: str

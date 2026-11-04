@@ -18,6 +18,7 @@ from ..checklists import (
     delete_template_checklist,
     item_done,
     next_position,
+    reorder_items,
     rule_error,
 )
 from ..crud import get_or_404, get_task_or_404
@@ -30,6 +31,7 @@ from ..schemas.checklists import (
     ChecklistItemCreate,
     ChecklistItemRead,
     ChecklistItemUpdate,
+    ChecklistReorder,
     ChecklistTemplateCreate,
     ChecklistTemplateRead,
     ChecklistTemplateUpdate,
@@ -166,6 +168,17 @@ async def apply_task_checklists(task_id: str, session: Session = Depends(get_ses
     applied = apply_task_templates(session, task, include_applied=True)
     await bus.publish(f"task:{task.id}", {"kind": "task", "action": "checklist_changed"})
     return ChecklistApplyResult(applied=applied)
+
+
+@router.post("/tasks/{task_id}/checklist/reorder", response_model=list[ChecklistItemRead])
+async def reorder_checklist_items(
+    task_id: str, payload: ChecklistReorder, session: Session = Depends(get_session)
+) -> list[ChecklistItemRead]:
+    """Apply a drag and drop order to the task's checklist and return the new list."""
+    task = get_task_or_404(session, task_id)
+    items = reorder_items(session, task, payload.item_ids)
+    await bus.publish(f"task:{task.id}", {"kind": "task", "action": "checklist_changed"})
+    return items
 
 
 @router.patch("/tasks/{task_id}/checklist/{item_id}", response_model=ChecklistItemRead)
