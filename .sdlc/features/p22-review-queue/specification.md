@@ -47,7 +47,8 @@ flowchart LR
 | id | string | PK | Row id |
 | repository | string | index, not null | "owner/name", in GitHub's own casing |
 | number | int | not null | Pull request number |
-| source | string | not null, default requested | requested (a review is asked of the user) or reviewed (an open one the user already reviewed) |
+| source | string | not null, default requested | requested (a review is asked of the user or a team they belong to) or reviewed (an open one the user already reviewed) |
+| review_scope | string | not null, default me | me, team, or both: which pending request the scan matched |
 | title | string | default "" | From the search |
 | url | string | default "" | From the search |
 | author | string | default "" | Search author login |
@@ -118,6 +119,7 @@ Scan semantics:
 - A run replaces the set: upserts keep `first_seen_at` and refresh `ready_for_review_at` from the requested search's timeline, rows the search no longer finds are deleted.
 - A run whose searches all fail records the error and changes nothing.
 - Repository policy comes from each `Repository.review_scan` column (default/include/exclude); with default, the app-wide `review_scan_default` decides.
+- The `@me` search covers the user and the teams they belong to. From each result's pending `reviewRequests`, a `Team` entry means team, a `User` entry matching the configured login means me, and both means both. A reviewed-by row, a request GitHub did not report, and a report-only row are me.
 
 ## API Contracts
 
@@ -142,7 +144,7 @@ Error codes:
 | 422 | A malformed review_scan_interval, review_scan_default, review_slo, or review_nudge_slo |
 
 `GET /api/reviews` returns `root` (the store path), `generated_at`, `counts` (total, ready, blocked), and `prs`.
-Each row carries the PR identity and live fields (repository, number, title, url, author, state, draft, created_at, labels, review_decision, head_branch, base_branch, last_comment_at, last_comment_by), the review state (head_commit, reviewed_at, steps, in_progress, stale_steps, reviewed_steps, readiness, status), the review SLO mark (slo_wait_seconds, slo_seconds), and the links (item_id, task_ids, request_source, store_dir).
+Each row carries the PR identity and live fields (repository, number, title, url, author, state, draft, created_at, labels, review_decision, head_branch, base_branch, last_comment_at, last_comment_by), the review state (head_commit, reviewed_at, steps, in_progress, stale_steps, reviewed_steps, readiness, status), the scan scope (request_source, review_scope), the review SLO mark (slo_wait_seconds, slo_seconds), and the links (item_id, task_ids, store_dir).
 Each step state carries step, commit, verdict, risk, confidence, report, modified_at, and stale.
 
 ## Sequences

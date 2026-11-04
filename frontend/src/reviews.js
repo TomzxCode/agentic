@@ -324,6 +324,45 @@ export function reviewedFilterCount(prs) {
   return (prs || []).filter((pr) => isReviewedByMe(pr)).length
 }
 
+// The review-request scope filter: the whole queue, only the requests a team
+// still owes, or only the ones the user owes personally. A row can be both (the
+// user and one of their teams are still requested), so "team" and "me" overlap.
+export const REVIEW_SCOPES = [
+  { value: 'all', label: 'Team + me' },
+  { value: 'team', label: 'Team' },
+  { value: 'me', label: 'Me' }
+]
+
+// A row's scope, normalized: an unknown or missing value is personal, because a
+// PR the scan did not find only exists in the queue through the user's own work.
+export function reviewScope(pr) {
+  const scope = pr?.review_scope
+  return scope === 'team' || scope === 'both' ? scope : 'me'
+}
+
+// Whether a row passes the scope filter. "all" keeps everything; "team" keeps
+// the rows a team is still requested on, "me" the ones the user owes or already
+// reviewed. A row both scopes cover shows under either.
+export function matchesReviewScopeFilter(pr, value) {
+  const scope = reviewScope(pr)
+  if (value === 'team') return scope === 'team' || scope === 'both'
+  if (value === 'me') return scope === 'me' || scope === 'both'
+  return true
+}
+
+// How many rows each scope filter would show, over the whole queue. "all" is
+// every row, while "team" and "me" overlap on a row both requests name.
+export function reviewScopeCounts(prs) {
+  const counts = { all: 0, team: 0, me: 0 }
+  for (const pr of prs || []) {
+    const scope = reviewScope(pr)
+    counts.all += 1
+    if (scope === 'team' || scope === 'both') counts.team += 1
+    if (scope === 'me' || scope === 'both') counts.me += 1
+  }
+  return counts
+}
+
 // Whether a row matches the search text: its repository, number, title, or
 // author. An empty query matches every row.
 export function matchesQueueSearch(pr, query) {

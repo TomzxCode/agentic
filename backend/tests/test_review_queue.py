@@ -392,6 +392,8 @@ def test_review_queue_endpoint(tmp_path, monkeypatch):
         assert queue["root"] == str(tmp_path)
         pr = queue["prs"][0]
         assert pr["repository"] == "TomzxCode/agentic" and pr["number"] == 42
+        # A report-only row belongs to the personal queue.
+        assert pr["review_scope"] == "me"
         assert pr["steps"]["review-pr"]["verdict"] == "pass"
         assert pr["in_progress"]["verify-pr"]["sha"] == "abc1234"
         assert pr["in_progress"]["verify-pr"]["started_at"] is not None

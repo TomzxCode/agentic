@@ -128,6 +128,7 @@ def _scan_row(recorded: ReviewRequest) -> dict:
         "readiness": "yellow",
         "status": "unreviewed",
         "request_source": recorded.source,
+        "review_scope": recorded.review_scope,
     }
 
 
@@ -175,6 +176,9 @@ def _collect_enriched_rows(
     if keys is not None:
         rows = [pr for pr in rows if _key(pr) in keys]
     for pr in rows:
+        # A row the scan did not find is part of the personal queue: the store
+        # only holds pull requests the user's own reviews wrote.
+        pr.setdefault("review_scope", "me")
         item = items.get(_key(pr))
         _merge_item(pr, item, task_ids.get(item.id, []) if item else [])
     with phase("github enrich"):
@@ -193,6 +197,7 @@ def _collect_enriched_rows(
             recorded = scanned.get(key)
             if recorded is not None:
                 pr["request_source"] = recorded.source
+                pr["review_scope"] = recorded.review_scope
                 _mark_review_slo(pr, recorded, slo, now)
         for key, recorded in scanned.items():
             if key in seen or (keys is not None and key not in keys):

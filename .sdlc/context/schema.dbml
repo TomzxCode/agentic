@@ -511,6 +511,7 @@ Table reviewrequest {
   repository varchar [not null] // "owner/name", in GitHub's own casing
   number integer [not null]
   source varchar [not null, default: 'requested'] // requested | reviewed
+  review_scope varchar [not null, default: 'me'] // me | team | both
   title varchar [not null, default: '']
   url varchar [not null, default: '']
   author varchar [not null, default: '']

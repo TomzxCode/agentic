@@ -416,6 +416,15 @@ def _ensure_columns() -> None:
         if "done_message_ts" not in item_columns:
             with engine.begin() as connection:
                 connection.execute(text("ALTER TABLE sourceitem ADD COLUMN done_message_ts VARCHAR"))
+    if "reviewrequest" in inspector.get_table_names():
+        request_columns = {column["name"] for column in inspector.get_columns("reviewrequest")}
+        if "review_scope" not in request_columns:
+            with engine.begin() as connection:
+                # Rows stored before the scope existed belong to the personal
+                # queue; the next scan writes the team flag it finds.
+                connection.execute(
+                    text("ALTER TABLE reviewrequest ADD COLUMN review_scope VARCHAR NOT NULL DEFAULT 'me'")
+                )
     if "repository" in inspector.get_table_names():
         repository_columns = {column["name"] for column in inspector.get_columns("repository")}
         if "review_scan" not in repository_columns:

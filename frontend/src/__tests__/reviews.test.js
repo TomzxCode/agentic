@@ -14,6 +14,7 @@ import {
   matchesDraftFilter,
   matchesQueueSearch,
   matchesRepositoryFilter,
+  matchesReviewScopeFilter,
   matchesReviewedFilter,
   matchesStateFilter,
   nextKindFilter,
@@ -23,7 +24,10 @@ import {
   queueAuthors,
   queueRowFor,
   reviewLabel,
+  REVIEW_SCOPES,
   reviewedFilterCount,
+  reviewScope,
+  reviewScopeCounts,
   repositoriesWithCounts,
   riskTone,
   shortCommit,
@@ -305,6 +309,48 @@ describe('reviewed filter', () => {
     const prs = [{ request_source: 'reviewed' }, { request_source: 'requested' }, {}]
     expect(reviewedFilterCount(prs)).toBe(1)
     expect(reviewedFilterCount(undefined)).toBe(0)
+  })
+})
+
+describe('review scope filter', () => {
+  it('treats a missing scope as personal', () => {
+    expect(reviewScope({})).toBe('me')
+    expect(reviewScope({ review_scope: 'bogus' })).toBe('me')
+    expect(reviewScope({ review_scope: 'me' })).toBe('me')
+    expect(reviewScope({ review_scope: 'team' })).toBe('team')
+    expect(reviewScope({ review_scope: 'both' })).toBe('both')
+  })
+
+  it('keeps the whole queue, the team requests, or the personal ones', () => {
+    const me = { review_scope: 'me' }
+    const team = { review_scope: 'team' }
+    const both = { review_scope: 'both' }
+    const unknown = {}
+
+    for (const pr of [me, team, both, unknown]) {
+      expect(matchesReviewScopeFilter(pr, 'all')).toBe(true)
+    }
+
+    expect(matchesReviewScopeFilter(me, 'team')).toBe(false)
+    expect(matchesReviewScopeFilter(team, 'team')).toBe(true)
+    expect(matchesReviewScopeFilter(both, 'team')).toBe(true)
+    expect(matchesReviewScopeFilter(unknown, 'team')).toBe(false)
+
+    expect(matchesReviewScopeFilter(me, 'me')).toBe(true)
+    expect(matchesReviewScopeFilter(team, 'me')).toBe(false)
+    expect(matchesReviewScopeFilter(both, 'me')).toBe(true)
+    expect(matchesReviewScopeFilter(unknown, 'me')).toBe(true)
+  })
+
+  it('counts the scopes over the whole queue, overlapping on both', () => {
+    const prs = [{ review_scope: 'me' }, { review_scope: 'team' }, { review_scope: 'both' }, {}]
+    expect(reviewScopeCounts(prs)).toEqual({ all: 4, team: 2, me: 3 })
+    expect(reviewScopeCounts(undefined)).toEqual({ all: 0, team: 0, me: 0 })
+  })
+
+  it('offers the three scope choices with the whole queue first', () => {
+    expect(REVIEW_SCOPES.map((scope) => scope.value)).toEqual(['all', 'team', 'me'])
+    expect(REVIEW_SCOPES.map((scope) => scope.label)).toEqual(['Team + me', 'Team', 'Me'])
   })
 })
 

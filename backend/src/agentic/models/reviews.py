@@ -39,6 +39,11 @@ class ReviewRequest(SQLModel, table=True):
     number: int
     # One of ReviewScanSource.
     source: str = ReviewScanSource.requested.value
+    # Who the review is still requested from: "me", "team", or "both". The
+    # search asks GitHub for ``@me``, which covers the user and the teams they
+    # belong to; the row's pending requests say which of the two matched. A row
+    # the scan did not find (a report-only row) is personal by default.
+    review_scope: str = "me"
     title: str = ""
     url: str = ""
     author: str = ""

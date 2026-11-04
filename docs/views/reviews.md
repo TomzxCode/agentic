@@ -17,7 +17,7 @@ It reads the reports your review skills wrote under `AGENTIC_SDLC_DIR`, plus the
 Two sources, merged into one list:
 
 - The review reports in the store, at `{owner}/{repository}/pull-requests/{number}/`.
-- The review scan, which asks ghx for the pull requests with a review requested from you (`review-requested:@me`, which includes your teams) and the open ones you already reviewed (`reviewed-by:@me`). A pull request it finds joins the queue before any report exists for it.
+- The review scan, which asks ghx for the pull requests with a review requested from you or one of your teams (`review-requested:@me`) and the open ones you already reviewed (`reviewed-by:@me`). A pull request it finds joins the queue before any report exists for it.
 
 The scan's cadence and its repository policy are configured in **Settings → Review requests**, not on this page.
 
@@ -26,6 +26,7 @@ The scan's cadence and its repository policy are configured in **Settings → Re
 | Filter | Behaviour |
 | --- | --- |
 | `Open`, `Merged`, `Closed`, `All` | Status chips. `Open` is the default, and a pull request whose state could not be read counts as open. Each chip counts the whole queue. |
+| `Team + me`, `Team`, `Me` | Who the pending review request is for. `Team + me` is the default and shows the whole queue, `Team` only the pull requests a team is still requested on, and `Me` only the personal ones (requested from you, or already reviewed by you). A pull request listed for both your team and you shows under `Team` and `Me`. |
 | `Drafts` | Three states on repeat clicks: `hidden` (default), `only`, `all`. |
 | `Approved` | Same three states, `hidden` by default: a pull request GitHub already approved needs no review from you. |
 | `Reviewed` | Same three states, `all` by default: one you reviewed may still need a follow-up. |
@@ -33,15 +34,15 @@ The scan's cadence and its repository policy are configured in **Settings → Re
 | `All authors` | The same multi-select over authors. |
 | Search | `Search repository, number, title, or author…`. |
 
-Status, drafts, repository, author, and search preferences are remembered on this device under `agentic.reviewQueueFilters`, so leaving and returning keeps them.
+Status, request-scope, drafts, repository, author, and search preferences are remembered on this device under `agentic.reviewQueueFilters`, so leaving and returning keeps them.
 A repository or author that disappears from the queue is dropped from the selection on the next load.
 
-When a filter hides the only matching rows, the empty state names the filter and offers to include it: `Include drafts`, `Include approved`, `Include reviewed`, plus `Clear search`, `Clear repositories`, `Clear author`, `Show all`, and `Show every pull request`.
+When a filter hides the only matching rows, the empty state names the filter and offers to include it: `Include drafts`, `Include approved`, `Include reviewed`, `Show team and mine`, plus `Clear search`, `Clear repositories`, `Clear author`, `Show all`, and `Show every pull request`.
 
 ### Reading a row
 
 - The number links to GitHub, shows the merge-readiness light beside it, and carries the pull request title plus the readiness text in its tooltip.
-- `✅` in the title means GitHub already approved the pull request, `draft` means it is a draft, `📨` means a review is requested from you, and `👀` means you reviewed it and it is still open.
+- `✅` in the title means GitHub already approved the pull request, `draft` means it is a draft, `📨` means a review is requested from you or one of your teams (its tooltip says which), and `👀` means you reviewed it and it is still open.
 - A tinted row with a colored edge on its first cell means the pull request has awaited your review for longer than the SLO set in **Settings → Review requests**, counted from when it was last marked ready for review (or from when the scan first saw it waiting, when its timeline has no ready event). Hovering the edge explains why it is colored and states how long the pull request has waited and the SLO. Only an open pull request that still awaits your review is highlighted: one you reviewed, a draft, or a closed or merged one is not. The header adds `N past SLO` while the filtered rows include any.
 - The author cell links to the person page, or to a greyed `person/new` link when no person carries that login.
 - Age, last comment, the commit last reviewed, and when the last review ran are beside the number.

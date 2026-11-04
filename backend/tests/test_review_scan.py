@@ -19,7 +19,7 @@ from agentic.services import shell
 
 def _entry(repository: str, number: int, author: str = "alice", **over) -> dict:
     """One ``ghx search prs --json`` result."""
-    return {
+    entry = {
         "number": number,
         "title": over.get("title", f"PR {number}"),
         "url": f"https://github.com/{repository}/pull/{number}",
@@ -30,6 +30,9 @@ def _entry(repository: str, number: int, author: str = "alice", **over) -> dict:
         "createdAt": over.get("createdAt", "2026-10-01T00:00:00Z"),
         "timeline": over.get("timeline", []),
     }
+    if "reviewRequests" in over:
+        entry["reviewRequests"] = over["reviewRequests"]
+    return entry
 
 
 def _fake_search(requested: list[dict], reviewed: list[dict]):
@@ -155,6 +158,67 @@ def test_the_scan_dates_the_latest_ready_for_review_event(monkeypatch):
     assert review_scan._latest_ready_event({"timeline": []}) is None
 
 
+def test_review_scope_reads_who_the_request_is_for():
+    requested = ReviewScanSource.requested
+    personal = {"reviewRequests": [{"type": "User", "login": "Tomzx"}]}
+    team = {"reviewRequests": [{"type": "Team", "name": "o/team"}]}
+    both = {
+        "reviewRequests": [
+            {"type": "User", "login": "tomzx"},
+            {"type": "Team", "name": "o/team"},
+        ]
+    }
+
+    assert review_scan.review_scope(personal, requested, "tomzx") == "me"
+    assert review_scan.review_scope(team, requested, "tomzx") == "team"
+    assert review_scan.review_scope(both, requested, "tomzx") == "both"
+
+    # Another reviewer and the user's team: the request that matched @me is the
+    # team's, not the other reviewer's.
+    other = {
+        "reviewRequests": [
+            {"type": "User", "login": "alice"},
+            {"type": "Team", "name": "o/team"},
+        ]
+    }
+    assert review_scan.review_scope(other, requested, "tomzx") == "team"
+
+    # A reviewed pull request is part of the personal queue even when GitHub has
+    # no request left for it.
+    assert review_scan.review_scope({"reviewRequests": []}, ReviewScanSource.reviewed, "tomzx") == "me"
+    assert review_scan.review_scope({}, ReviewScanSource.reviewed, "tomzx") == "me"
+
+    # Without a known login, any user request counts as the viewer's, and a row
+    # whose requests GitHub did not report stays personal.
+    assert review_scan.review_scope(personal, requested, "") == "me"
+    assert review_scan.review_scope({}, requested, "tomzx") == "me"
+    assert review_scan.review_scope({"number": 1}, requested, "tomzx") == "me"
+
+
+def test_search_awaiting_reviews_records_the_review_scope(monkeypatch):
+    requested = [
+        _entry("o/a", 1, reviewRequests=[{"type": "User", "login": "tomzx"}]),
+        _entry("o/b", 2, reviewRequests=[{"type": "Team", "name": "o/team"}]),
+        _entry(
+            "o/c",
+            3,
+            reviewRequests=[
+                {"type": "User", "login": "tomzx"},
+                {"type": "Team", "name": "o/team"},
+            ],
+        ),
+    ]
+    monkeypatch.setattr(shell, "_run_cli", _fake_search(requested, []))
+
+    rows = review_scan.search_awaiting_reviews(50, set(), "tomzx")
+    assert rows is not None
+    assert [(row["number"], row["review_scope"]) for row in rows] == [
+        (1, "me"),
+        (2, "team"),
+        (3, "both"),
+    ]
+
+
 def test_search_awaiting_reviews_tolerates_one_failing_search(monkeypatch):
     def fake(cmd: list[str], timeout: int = 60) -> str | None:
         return json.dumps([_entry("o/a", 1)]) if "--review-requested" in cmd else None
@@ -271,22 +335,34 @@ def test_run_review_scan_skips_when_the_cadence_is_off(session, monkeypatch):
 
 def test_scan_endpoints_and_queue_union(session, monkeypatch, tmp_path):
     monkeypatch.setattr(settings, "sdlc_dir", tmp_path)
-    monkeypatch.setattr(shell, "_run_cli", _fake_search([_entry("o/a", 1, title="Awaiting review")], []))
+    monkeypatch.setattr(
+        shell,
+        "_run_cli",
+        _fake_search(
+            [
+                _entry("o/a", 1, title="Awaiting review"),
+                _entry("o/b", 2, title="Team review", reviewRequests=[{"type": "Team", "name": "o/team"}]),
+            ],
+            [],
+        ),
+    )
     with TestClient(app) as client:
         state = client.get("/api/reviews/scan").json()
         assert state["enabled"] is True and state["stored"] == 0
 
         scanned = client.post("/api/reviews/scan").json()
-        assert scanned["stored"] == 1 and scanned["found"] == 1
+        assert scanned["stored"] == 2 and scanned["found"] == 2
 
         queue = client.get("/api/reviews").json()
-        assert queue["counts"]["total"] == 1
-        row = queue["prs"][0]
-        assert (row["repository"], row["number"]) == ("o/a", 1)
-        assert row["title"] == "Awaiting review"
-        assert row["request_source"] == "requested"
-        assert row["steps"] == {} and row["head_commit"] == ""
-        assert row["readiness"] == "yellow"
+        assert queue["counts"]["total"] == 2
+        rows = {row["number"]: row for row in queue["prs"]}
+        assert (rows[1]["repository"], rows[1]["title"]) == ("o/a", "Awaiting review")
+        assert rows[1]["request_source"] == "requested"
+        assert rows[1]["review_scope"] == "me"
+        assert rows[1]["steps"] == {} and rows[1]["head_commit"] == ""
+        assert rows[1]["readiness"] == "yellow"
+        # The @me search also finds team requests; the row keeps which one it is.
+        assert rows[2]["review_scope"] == "team"
 
 
 def test_repository_review_scan_policy_patch(session, monkeypatch, tmp_path):

@@ -16,6 +16,10 @@ cache that has never recorded them matches the user alone. The scan never
 refreshes that cache itself (a refresh per repository is slow), so a scheduled
 refresh keeps it current and a repository ghx has never cached is not searched.
 
+Each stored row carries a ``review_scope`` (``me``, ``team``, or ``both``) read
+from the pull request's pending review requests, so the queue can show team
+requests separately from the ones the user owes personally.
+
 The script's ``--notifications`` recovery of dropped team review requests is not
 ported: it needs the notifications API plus a batched GraphQL drop check, and the
 plain searches do not surface a request that a teammate's review already removed.
@@ -38,12 +42,14 @@ from .parallel import run_parallel
 from .refresh import parse_duration
 from .services import shell
 from .services.github import github_owner_repo
-from .settings_store import get_review_scan_status, get_settings, record_review_scan_run
+from .settings_store import get_review_scan_status, get_settings, record_review_scan_run, resolve_github_login
 
 log = structlog.get_logger(__name__)
 
-#: The fields every search returns for a row.
-SEARCH_FIELDS = "number,title,url,state,isDraft,repository,author,createdAt"
+#: The fields ``ghx search prs`` returns for a row. ``reviewRequests`` is what
+#: tells a team request from one the user owes personally: the ``@me`` search
+#: covers both, so the row's pending requests are the only way to tell.
+SEARCH_FIELDS = "number,title,url,state,isDraft,repository,author,createdAt,reviewRequests"
 SEARCH_TIMEOUT = 90
 
 #: The login both searches ask about. ghx resolves it from gh's local config,
@@ -168,7 +174,47 @@ def _ready_for_review_at(repository: str, number: int) -> datetime | None:
     return _latest_ready_event(payload) if isinstance(payload, dict) else None
 
 
-def _normalize(entry: dict[str, Any], source: ReviewScanSource) -> dict[str, Any] | None:
+def review_scope(entry: dict[str, Any], source: ReviewScanSource, viewer_login: str = "") -> str:
+    """Who a search result waits on: ``me``, ``team``, or ``both``.
+
+    The ``--review-requested @me`` search covers the user and the teams they
+    belong to, so a result's pending ``reviewRequests`` decide the scope: a
+    ``Team`` entry is a team request, and a ``User`` entry matching the viewer is
+    a personal one. A reviewed-by row and a result whose requests GitHub did not
+    report stay personal, so a row never disappears from the queue because its
+    scope could not be read. The viewer login is only known when ``gh`` or the
+    settings supply it; without it, any user request counts as the viewer's.
+    """
+    requests = entry.get("reviewRequests")
+    users: set[str] = set()
+    team = False
+    if isinstance(requests, list):
+        for request in requests:
+            if not isinstance(request, dict):
+                continue
+            if str(request.get("type") or "").strip().lower() == "team":
+                team = True
+                continue
+            login = str(request.get("login") or "").strip().lower()
+            if login:
+                users.add(login)
+    viewer = (viewer_login or "").strip().lower()
+    if source == ReviewScanSource.reviewed:
+        personal = True
+    elif viewer:
+        personal = viewer in users
+    else:
+        personal = bool(users)
+    # The search asked about @me specifically, so a result that names neither a
+    # team nor a matching user request is still part of the personal queue.
+    if not personal and not team:
+        personal = True
+    if personal and team:
+        return "both"
+    return "team" if team else "me"
+
+
+def _normalize(entry: dict[str, Any], source: ReviewScanSource, viewer_login: str = "") -> dict[str, Any] | None:
     """One search result as a stored row, or None when it names no pull request."""
     repository = str((entry.get("repository") or {}).get("nameWithOwner") or "").strip()
     number = entry.get("number")
@@ -178,6 +224,7 @@ def _normalize(entry: dict[str, Any], source: ReviewScanSource) -> dict[str, Any
         "repository": repository,
         "number": int(number),
         "source": source.value,
+        "review_scope": review_scope(entry, source, viewer_login),
         "title": str(entry.get("title") or ""),
         "url": str(entry.get("url") or ""),
         "author": str((entry.get("author") or {}).get("login") or ""),
@@ -187,13 +234,17 @@ def _normalize(entry: dict[str, Any], source: ReviewScanSource) -> dict[str, Any
     }
 
 
-def search_awaiting_reviews(limit: int, exclude_authors: set[str]) -> list[dict[str, Any]] | None:
+def search_awaiting_reviews(
+    limit: int, exclude_authors: set[str], viewer_login: str = ""
+) -> list[dict[str, Any]] | None:
     """The pull requests awaiting the user's review, requested ones first.
 
     None when neither search could run (``ghx`` missing, or its cache
     unreadable); one failing search is tolerated, since the other still yields
     its half. Each search carries its own *limit*, as the script's did. The two
-    searches are independent, so they run together.
+    searches are independent, so they run together. *viewer_login* only decides
+    whether a pending user request is the viewer's or someone else's, so it
+    refines each row's ``review_scope`` rather than what is searched.
     """
     found: dict[tuple[str, int], dict[str, Any]] = {}
     ran = False
@@ -204,7 +255,7 @@ def search_awaiting_reviews(limit: int, exclude_authors: set[str]) -> list[dict[
             continue
         ran = True
         for entry in search_results:
-            row = _normalize(entry, source)
+            row = _normalize(entry, source, viewer_login)
             if row is None or row["author"].lower() in exclude_authors:
                 continue
             found.setdefault((row["repository"].lower(), row["number"]), row)
@@ -334,7 +385,7 @@ def run_review_scan(session: Session, origin: str = "background", force: bool = 
     if interval is None and not force:
         return {"skipped": "off"}
     exclude = parse_exclude_authors(settings.review_scan_exclude_authors)
-    found = search_awaiting_reviews(settings.review_scan_limit, exclude)
+    found = search_awaiting_reviews(settings.review_scan_limit, exclude, resolve_github_login(session))
     if found is None:
         error = "ghx could not search the cached pull requests; install ghx and cache the repositories to scan"
         record_review_scan_run(session, last_run_at=utcnow(), found=0, stored=0, error=error, origin=origin)

@@ -24,7 +24,7 @@ The scan's `ready_for_review_at` (falling back to `first_seen_at`) also feeds th
 
 | ID | Priority | Requirement |
 |---|---|---|
-| FR-1 | Must | The system shall search GitHub for pull requests awaiting the user's review with `review-requested:@me` (which ghx expands to the user's teams, using the memberships its cache records) and `reviewed-by:@me`, and store the merged set keyed by repository and number, with the requested source winning on overlap. Both searches read ghx's cache. |
+| FR-1 | Must | The system shall search GitHub for pull requests awaiting the user's review with `review-requested:@me` (which ghx expands to the user's teams, using the memberships its cache records) and `reviewed-by:@me`, run through `ghx search prs`, and store the merged set keyed by repository and number, with the requested source winning on overlap. Both searches read ghx's cache. |
 | FR-2 | Must | The scan shall run on a cadence from the `review_scan_interval` setting, checked on a background tick; an empty or off value disables it, and a manual "Scan now" run ignores the cadence. |
 | FR-3 | Must | Each scan shall replace the stored set: found pull requests are upserted and the rest deleted, while `first_seen_at` is preserved for rows that survive and `ready_for_review_at` is refreshed from each requested row's timeline. |
 | FR-4 | Must | A scan whose searches could not run at all shall record the error, leave the stored set untouched, and be retried on the next cadence; one failing search is tolerated when the other ran. |
@@ -39,15 +39,16 @@ The scan's `ready_for_review_at` (falling back to `first_seen_at`) also feeds th
 | FR-13 | Must | Each row shall carry a merge-readiness signal (red, yellow, green) computed from the step verdicts, the staleness, the draft flag, and the assess route, plus a status of ready, needs-review, or unreviewed. |
 | FR-14 | Must | The queue shall overlay each row's GitHub fields (title, url, author, state, creation time, review decision, draft flag, head commit) from ghx, keeping the store's snapshot for any field ghx cannot answer. |
 | FR-15 | Must | A row whose pull request the app tracks as a GitHub item shall take the item's title, url, state, and draft flag, and carry the ids of the tasks the item is associated to. |
-| FR-16 | Must | Pull requests the scan found but that have no reports yet shall appear as rows with empty steps, a yellow readiness light, status unreviewed, and their request source; a store row the scan also found carries the source too. |
+| FR-16 | Must | Pull requests the scan found but that have no reports yet shall appear as rows with empty steps, a yellow readiness light, status unreviewed, and their request source and scope; a store row the scan also found carries both too. |
 | FR-17 | Must | The API shall serve the whole queue, a task-scoped queue built from the pull requests the task's items link to, and single reports by repository and relative path, with reports over 1 MB truncated and path escapes rejected. |
 | FR-18 | Should | ghx lookups for rows without cached metadata shall run concurrently, and results shall be reused briefly so a page reload does not shell out again; `refresh` bypasses the cache. |
 | FR-19 | Must | The system shall collect the must, should, and may findings from each skill's findings-state file (`review.yaml`, `validate.yaml`, `verify.yaml`) under the PR's review directory, in severity order, reading files that are not valid YAML tolerantly. |
 | FR-20 | Must | The reviewer's include or skip decision shall be written onto the finding's own entry (`decision`, `decided_at`) with a line-preserving edit; a batch applies all or nothing, an unknown finding answers 404 and writes nothing, and a decision outside include or skip answers 400. |
-| FR-21 | Should | The web app shall show the queue at `/reviews` as one row per pull request with a column per review step and the readiness light, filterable by status, drafts, approval, reviewed state, repository, author, and search, with those choices remembered on the device. |
+| FR-21 | Should | The web app shall show the queue at `/reviews` as one row per pull request with a column per review step and the readiness light, filterable by status, request scope (team and me, team, or me), drafts, approval, reviewed state, repository, author, and search, with those choices remembered on the device. |
 | FR-22 | Should | The Share action shall list the PR's findings grouped by severity, preselect the actionable must and should findings with an earlier recorded decision winning, preview the prompt, and start an agent run on a linked task, offering to import a task when none is linked. |
 | FR-23 | Should | The Settings review requests section shall edit the cadence, the app-wide default, the per-repository policies, and the review SLO durations, show the scan's last pass, and offer a Scan now button. |
 | FR-24 | Should | A row the review SLO considers overdue shall carry the wait and the SLO, and the SPA shall highlight that row with a tint and a colored edge whose tooltip names the wait and SLO, plus a count in the header. |
+| FR-25 | Must | Each stored scan row shall record whether the pending review request is the user's (`me`), one of their teams' (`team`), or both, read from the pull request's pending review requests; a request GitHub could not report, and a row the scan did not find, read as personal. |
 
 ## Non-Functional Requirements
 
@@ -304,6 +305,8 @@ The scan's `ready_for_review_at` (falling back to `first_seen_at`) also feeds th
       Then only drafts are listed and the choice survives leaving the page
       When the search box names one repository
       Then only that repository's rows are listed
+      When the scope chip is set to Team
+      Then only pull requests a team is still requested on are listed
     ```
 
 - [ ] **FR-22**
@@ -342,6 +345,20 @@ The scan's `ready_for_review_at` (falling back to `first_seen_at`) also feeds th
       And the header counts the highlighted rows
       When the pull request was already reviewed, is a draft, or is no longer open
       Then the row carries neither value and is not highlighted
+    ```
+
+- [ ] **FR-25**
+
+    ```gherkin
+    @FR-25
+    Scenario: A team request is told apart from a personal one
+      Given a @me search result requesting a team and no user
+      When the scan stores it
+      Then its scope is team
+      Given a result requesting the user and a team
+      Then its scope is both
+      Given a row the scan did not find
+      Then its scope is me
     ```
 
 - [ ] **NFR-1**

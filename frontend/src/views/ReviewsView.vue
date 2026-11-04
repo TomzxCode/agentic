@@ -17,6 +17,7 @@ import {
   matchesDraftFilter,
   matchesQueueSearch,
   matchesRepositoryFilter,
+  matchesReviewScopeFilter,
   matchesReviewedFilter,
   matchesStateFilter,
   nextKindFilter,
@@ -28,7 +29,9 @@ import {
   READINESS_TITLES,
   REQUEST_SOURCE_BADGES,
   reviewSloTitle,
+  REVIEW_SCOPES,
   reviewedFilterCount,
+  reviewScopeCounts,
   riskTone,
   runningStep,
   shortCommit,
@@ -56,12 +59,14 @@ const error = ref(false)
 const creatingKey = ref('')
 
 // The filters: a PR's status (open by default, so the queue shows the pull
-// requests still awaiting a review), one or more repositories, one or more
-// authors, the state of the draft filter ("hidden" by default, since a draft
-// is not ready for review), the same three states for approved pull requests
-// (also hidden by default, since they no longer await a review) and for ones
-// the user already reviewed (kept by default, since they may still need a
-// follow-up), and a text search over the row's fields.
+// requests still awaiting a review), whether the review is requested from the
+// user, a team, or both (the whole queue by default, since the scan's @me
+// search covers both), one or more repositories, one or more authors, the state
+// of the draft filter ("hidden" by default, since a draft is not ready for
+// review), the same three states for approved pull requests (also hidden by
+// default, since they no longer await a review) and for ones the user already
+// reviewed (kept by default, since they may still need a follow-up), and a
+// text search over the row's fields.
 //
 // They are per-device view preferences, remembered in localStorage like the
 // feedback page's grouping, so leaving the page and coming back keeps them.
@@ -80,6 +85,7 @@ function readKindFilter(stored, legacyInclude, fallback = 'hide') {
 function readStoredFilters() {
   const defaults = {
     state: 'open',
+    scope: 'all',
     repositories: [],
     authors: [],
     draftsFilter: 'hide',
@@ -92,6 +98,7 @@ function readStoredFilters() {
     if (!stored || typeof stored !== 'object') return defaults
     return {
       state: PR_STATE_FILTERS.some((option) => option.value === stored.state) ? stored.state : defaults.state,
+      scope: REVIEW_SCOPES.some((option) => option.value === stored.scope) ? stored.scope : defaults.scope,
       repositories: Array.isArray(stored.repositories) ? stored.repositories.map(String) : [],
       authors: Array.isArray(stored.authors) ? stored.authors.map(String) : [],
       draftsFilter: readKindFilter(stored.draftsFilter, stored.includeDrafts, defaults.draftsFilter),
@@ -109,6 +116,7 @@ function readStoredFilters() {
 const storedFilters = readStoredFilters()
 
 const stateFilter = ref(storedFilters.state)
+const scopeFilter = ref(storedFilters.scope)
 const repositoryFilter = ref(storedFilters.repositories)
 const authorFilter = ref(storedFilters.authors)
 const draftsFilter = ref(storedFilters.draftsFilter)
@@ -119,13 +127,14 @@ const search = ref(storedFilters.search)
 // Write the filters back as they change: a choice, a clear from the empty
 // state, or a value the refreshed queue dropped all land here.
 watch(
-  [stateFilter, repositoryFilter, authorFilter, draftsFilter, approvedFilter, reviewedFilter, search],
+  [stateFilter, scopeFilter, repositoryFilter, authorFilter, draftsFilter, approvedFilter, reviewedFilter, search],
   () => {
     try {
       localStorage.setItem(
         FILTERS_KEY,
         JSON.stringify({
           state: stateFilter.value,
+          scope: scopeFilter.value,
           repositories: repositoryFilter.value,
           authors: authorFilter.value,
           draftsFilter: draftsFilter.value,
@@ -170,6 +179,13 @@ function kindFilterTitle(label, state) {
   return `Everything is shown; click to hide ${label.toLowerCase()}`
 }
 
+// A scope chip's tooltip: who the shown review requests are for.
+function scopeFilterTitle(value) {
+  if (value === 'team') return 'Only reviews requested from your teams'
+  if (value === 'me') return 'Only reviews requested from you, or ones you already reviewed'
+  return 'Reviews requested from your teams and from you'
+}
+
 // The report open in the viewer: its PR, its relative store path, and content.
 const openPr = ref(null)
 const openName = ref('')
@@ -178,13 +194,14 @@ const reportLoading = ref(false)
 const reportTruncated = ref(false)
 
 const reportHtml = computed(() => renderMarkdown(stripReportMarker(reportContent.value)))
-// The rows the filters keep: status, then repository, then author, then drafts,
-// then approved pull requests, then the ones the user reviewed, then the search
-// text.
+// The rows the filters keep: status, then who the review request is for, then
+// repository, then author, then drafts, then approved pull requests, then the
+// ones the user reviewed, then the search text.
 const filteredPrs = computed(() =>
   queue.value.prs.filter(
     (pr) =>
       matchesStateFilter(pr, stateFilter.value) &&
+      matchesReviewScopeFilter(pr, scopeFilter.value) &&
       matchesRepositoryFilter(pr, repositoryFilter.value) &&
       matchesAuthorFilter(pr, authorFilter.value) &&
       matchesDraftFilter(pr, draftsFilter.value) &&
@@ -196,6 +213,8 @@ const filteredPrs = computed(() =>
 const groups = computed(() => groupQueueByRepository(filteredPrs.value))
 // Per-status counts for the filter chips, over the whole queue.
 const stateCounts = computed(() => stateFilterCounts(queue.value.prs))
+// Per-scope counts for the Team + me / Team / Me chips, over the whole queue.
+const scopeCounts = computed(() => reviewScopeCounts(queue.value.prs))
 // How many drafts the queue holds, for the drafts toggle.
 const draftCount = computed(() => draftFilterCount(queue.value.prs))
 // How many approved pull requests the queue holds, for the approved toggle.
@@ -213,6 +232,7 @@ const hiddenDrafts = computed(() =>
         (pr) =>
           pr.draft &&
           matchesStateFilter(pr, stateFilter.value) &&
+          matchesReviewScopeFilter(pr, scopeFilter.value) &&
           matchesRepositoryFilter(pr, repositoryFilter.value) &&
           matchesAuthorFilter(pr, authorFilter.value) &&
           matchesApprovedFilter(pr, approvedFilter.value) &&
@@ -230,6 +250,7 @@ const hiddenApproved = computed(() =>
         (pr) =>
           isApproved(pr) &&
           matchesStateFilter(pr, stateFilter.value) &&
+          matchesReviewScopeFilter(pr, scopeFilter.value) &&
           matchesRepositoryFilter(pr, repositoryFilter.value) &&
           matchesAuthorFilter(pr, authorFilter.value) &&
           matchesDraftFilter(pr, draftsFilter.value) &&
@@ -246,6 +267,7 @@ const hiddenReviewed = computed(() =>
         (pr) =>
           isReviewedByMe(pr) &&
           matchesStateFilter(pr, stateFilter.value) &&
+          matchesReviewScopeFilter(pr, scopeFilter.value) &&
           matchesRepositoryFilter(pr, repositoryFilter.value) &&
           matchesAuthorFilter(pr, authorFilter.value) &&
           matchesDraftFilter(pr, draftsFilter.value) &&
@@ -392,6 +414,10 @@ const SOURCE_TITLES = {
 }
 
 function sourceTitle(pr) {
+  if (pr.request_source === 'requested') {
+    if (pr.review_scope === 'team') return 'A review is requested from your team'
+    if (pr.review_scope === 'both') return 'A review is requested from you and your team'
+  }
   return SOURCE_TITLES[pr.request_source] || 'Awaiting your review'
 }
 
@@ -495,6 +521,19 @@ onMounted(load)
           {{ option.label }} <span class="count">{{ stateCounts[option.value] }}</span>
         </button>
       </div>
+      <div class="review-scope-filters" role="group" aria-label="Filter by who the review request is for">
+        <button
+          v-for="option in REVIEW_SCOPES"
+          :key="option.value"
+          class="review-scope-filter"
+          :class="{ active: scopeFilter === option.value }"
+          :aria-pressed="scopeFilter === option.value"
+          :title="scopeFilterTitle(option.value)"
+          @click="scopeFilter = option.value"
+        >
+          {{ option.label }} <span class="count">{{ scopeCounts[option.value] }}</span>
+        </button>
+      </div>
       <div class="review-toggle-filters" role="group" aria-label="Filter drafts, approved, and reviewed pull requests">
         <button
           class="review-toggle-filter review-draft-filter"
@@ -580,6 +619,8 @@ onMounted(load)
       <p v-else-if="draftsFilter === 'only'">No drafts match.</p>
       <p v-else-if="approvedFilter === 'only'">No approved pull requests match.</p>
       <p v-else-if="reviewedFilter === 'only'">No pull requests you reviewed match.</p>
+      <p v-else-if="scopeFilter === 'team'">No team review requests match.</p>
+      <p v-else-if="scopeFilter === 'me'">No review requests for you match.</p>
       <p v-else-if="search">No pull requests match “{{ search }}”.</p>
       <p v-else-if="repositoryFilter.length">No pull requests in {{ repositoryFilter.join(', ') }}.</p>
       <p v-else-if="authorFilter.length">No pull requests by {{ authorFilter.join(', ') }}.</p>
@@ -591,6 +632,7 @@ onMounted(load)
       <button v-if="hiddenReviewed.length" class="btn sm ghost" @click="reviewedFilter = 'all'">
         Include reviewed
       </button>
+      <button v-if="scopeFilter !== 'all'" class="btn sm ghost" @click="scopeFilter = 'all'">Show team and mine</button>
       <button
         v-if="draftsFilter === 'only' || approvedFilter === 'only' || reviewedFilter === 'only'"
         class="btn sm ghost"

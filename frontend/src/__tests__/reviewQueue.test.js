@@ -308,6 +308,22 @@ describe('ReviewsView', () => {
     expect(wrapper.findAll('.review-step').length).toBe(0)
   })
 
+  it('says when the review request is a team request', async () => {
+    mocks.queue.mockResolvedValue({
+      root: null,
+      counts: { total: 2 },
+      prs: [
+        pr({ number: 42, steps: {}, request_source: 'requested', review_scope: 'team' }),
+        pr({ number: 9, steps: {}, request_source: 'requested', review_scope: 'both' })
+      ]
+    })
+    const wrapper = mount(ReviewsView, stub)
+    await flushPromises()
+
+    const titles = wrapper.findAll('.review-source').map((mark) => mark.attributes('title'))
+    expect(titles).toEqual(['A review is requested from your team', 'A review is requested from you and your team'])
+  })
+
   it('marks an already-reviewed pull request with the review emoji', async () => {
     mocks.queue.mockResolvedValue({
       root: null,
@@ -544,6 +560,93 @@ describe('ReviewsView', () => {
     await flushPromises()
 
     expect(wrapper.find('a[href="https://github.com/TomzxCode/agentic/pull/42"]').exists()).toBe(true)
+  })
+
+  it('splits the queue by who the review request is for', async () => {
+    mocks.queue.mockResolvedValue({
+      root: null,
+      counts: { total: 3 },
+      prs: [
+        pr({ number: 42, review_scope: 'me' }),
+        pr({ number: 9, review_scope: 'team' }),
+        pr({ number: 7, review_scope: 'both' })
+      ]
+    })
+    const wrapper = mount(ReviewsView, stub)
+    await flushPromises()
+
+    const chips = wrapper.findAll('.review-scope-filter')
+    expect(chips.map((chip) => chip.text())).toEqual(['Team + me 3', 'Team 2', 'Me 2'])
+    expect(chips.map((chip) => chip.attributes('aria-pressed'))).toEqual(['true', 'false', 'false'])
+    expect(chips[0].attributes('title')).toBe('Reviews requested from your teams and from you')
+    expect(chips[1].attributes('title')).toBe('Only reviews requested from your teams')
+    expect(chips[2].attributes('title')).toBe('Only reviews requested from you, or ones you already reviewed')
+
+    // The whole queue is shown by default.
+    for (const number of [42, 9, 7]) {
+      expect(wrapper.find(`a[href="https://github.com/TomzxCode/agentic/pull/${number}"]`).exists()).toBe(true)
+    }
+
+    // Team keeps the team-only request and the one both a team and the user owe.
+    await wrapper.findAll('.review-scope-filter')[1].trigger('click')
+    await flushPromises()
+    expect(wrapper.find('a[href="https://github.com/TomzxCode/agentic/pull/42"]').exists()).toBe(false)
+    expect(wrapper.find('a[href="https://github.com/TomzxCode/agentic/pull/9"]').exists()).toBe(true)
+    expect(wrapper.find('a[href="https://github.com/TomzxCode/agentic/pull/7"]').exists()).toBe(true)
+
+    // Me keeps the personal request and the shared one.
+    await wrapper.findAll('.review-scope-filter')[2].trigger('click')
+    await flushPromises()
+    expect(wrapper.find('a[href="https://github.com/TomzxCode/agentic/pull/42"]').exists()).toBe(true)
+    expect(wrapper.find('a[href="https://github.com/TomzxCode/agentic/pull/9"]').exists()).toBe(false)
+    expect(wrapper.find('a[href="https://github.com/TomzxCode/agentic/pull/7"]').exists()).toBe(true)
+
+    // Team + me brings everything back.
+    await wrapper.findAll('.review-scope-filter')[0].trigger('click')
+    await flushPromises()
+    expect(wrapper.text()).toContain('3 PRs')
+  })
+
+  it('names a scope with no matching rows and offers to show everything', async () => {
+    mocks.queue.mockResolvedValue({
+      root: null,
+      counts: { total: 1 },
+      prs: [pr({ number: 42, review_scope: 'me' })]
+    })
+    const wrapper = mount(ReviewsView, stub)
+    await flushPromises()
+
+    await wrapper.findAll('.review-scope-filter')[1].trigger('click')
+    await flushPromises()
+    expect(wrapper.text()).toContain('No team review requests match.')
+
+    const showAll = wrapper.findAll('button').find((button) => button.text() === 'Show team and mine')
+    await showAll.trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('a[href="https://github.com/TomzxCode/agentic/pull/42"]').exists()).toBe(true)
+    expect(wrapper.findAll('.review-scope-filter')[0].attributes('aria-pressed')).toBe('true')
+  })
+
+  it('remembers the scope choice when the queue is reopened', async () => {
+    mocks.queue.mockResolvedValue({
+      root: null,
+      counts: { total: 2 },
+      prs: [pr({ number: 42, review_scope: 'me' }), pr({ number: 9, review_scope: 'team' })]
+    })
+    const wrapper = mount(ReviewsView, stub)
+    await flushPromises()
+
+    await wrapper.findAll('.review-scope-filter')[1].trigger('click')
+    await flushPromises()
+    wrapper.unmount()
+
+    const reopened = mount(ReviewsView, stub)
+    await flushPromises()
+
+    expect(reopened.findAll('.review-scope-filter')[1].attributes('aria-pressed')).toBe('true')
+    expect(reopened.find('a[href="https://github.com/TomzxCode/agentic/pull/9"]').exists()).toBe(true)
+    expect(reopened.find('a[href="https://github.com/TomzxCode/agentic/pull/42"]').exists()).toBe(false)
   })
 
   it('hides drafts by default, then shows only drafts, then everything', async () => {

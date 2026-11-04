@@ -318,19 +318,23 @@ A **📝** before each PR's readiness light links to the task its item is
 associated to, opening it in its **PR** view (`/task/{id}?view=pr`); when no
 task is linked, a **➕** imports the PR into a new task, the same way the
 repository view's "New task" does.
-The queue filters by pull request status, one or more repositories, one or more
-authors, and a text search over the row's fields. Draft pull requests are left
-out unless the **Drafts** chip is turned on.
+The queue filters by pull request status, who the review request is for (team
+and me, team, or me), one or more repositories, one or more authors, and a text
+search over the row's fields. Draft pull requests are left out unless the
+**Drafts** chip is turned on.
 **Refresh** re-reads the store and bypasses the short cache of those `ghx`
 lookups.
 
 The queue also shows what GitHub says is still waiting on you, which the report
 store alone cannot: a background scan searches for pull requests with a review
-requested from you (including your teams) and for open ones you have already
-reviewed, and lists them even before any review report exists. A
-**📨** or **👀** mark beside the number says
-which search found it (a review is requested from you, or you already reviewed it
-and it is still open). **Settings → Review requests** sets how
+The queue also shows what GitHub says is still waiting on you, which the report
+store alone cannot: a background scan searches for pull requests with a review
+requested from you or one of your teams and for open ones you have already
+reviewed, and lists them even before any review report exists. A **📨** or **👀**
+mark beside the number says which search found it (a review is requested from
+you or one of your teams, or you already reviewed it and it is still open). The
+**Team + me / Team / Me** chips split a team request from the personal ones.
+**Settings → Review requests** sets how
 often the scan runs (a duration such as `1h`; blank stops it), the **Review
 SLO** (a duration such as `1d`; blank turns it off, and a pull request past it
 is highlighted here with a tinted row and a colored edge, and is flagged in the inbox),

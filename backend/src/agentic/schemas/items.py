@@ -267,6 +267,9 @@ class ReviewPrRead(BaseModel):
     # or "reviewed" (you reviewed it and it is still open). Empty for a PR that
     # is only in the report store.
     request_source: str = ""
+    # Who the pending review request is for: "me", "team", or "both". A PR the
+    # scan did not find is part of the personal queue and reads "me".
+    review_scope: str = "me"
     # Set when the PR is past the review SLO: how long it has awaited your
     # review (measured from when the scan first saw it waiting), and the SLO it
     # passed. Both None when it is within the SLO, no longer awaits a review

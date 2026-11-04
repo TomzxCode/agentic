@@ -21,12 +21,14 @@
   margin-bottom: 12px;
 }
 .review-state-filters,
+.review-scope-filters,
 .review-toggle-filters {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
 }
 .review-state-filter,
+.review-scope-filter,
 .review-toggle-filter {
   flex: 0 0 auto;
   background: var(--bg-2);
@@ -39,16 +41,19 @@
   font-family: inherit;
 }
 .review-state-filter:hover,
+.review-scope-filter:hover,
 .review-toggle-filter:hover {
   border-color: var(--muted);
   color: var(--text);
 }
 .review-state-filter.active,
+.review-scope-filter.active,
 .review-toggle-filter.active {
   color: var(--accent);
   border-color: var(--accent);
 }
 .review-state-filter .count,
+.review-scope-filter .count,
 .review-toggle-filter .count {
   color: var(--faint);
   margin-left: 2px;
