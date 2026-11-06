@@ -310,11 +310,12 @@ def task_review_queue(
 def list_review_findings(number: int, repository: str) -> list[ReviewFindingRead]:
     """The must/should/may findings a PR's review skills recorded.
 
-    Findings are read from each skill's state file (``review.yaml``,
-    ``validate.yaml``, ``verify.yaml``) under the PR's review directory, so the
-    app can offer them for the reviewer to forward to the author. A PR with no
-    review directory returns an empty list rather than an error. ``repository``
-    is ``owner/name``, or the name alone for a store keyed without an owner.
+    Findings are read from each review step's state file (``review.yaml``,
+    ``validate.yaml``, ``verify.yaml``, and ``<skill>.yaml`` for the rest) under
+    the PR's review directory, so the app can offer them for the reviewer to
+    forward to the author. A PR with no review directory returns an empty list
+    rather than an error. ``repository`` is ``owner/name``, or the name alone for
+    a store keyed without an owner.
     """
     owner, _, repo = repository.partition("/")
     if not repo:

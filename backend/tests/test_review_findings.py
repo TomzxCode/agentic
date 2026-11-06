@@ -276,3 +276,33 @@ def test_findings_decision_endpoint(tmp_path):
             },
         )
         assert gone.status_code == 404
+
+
+def test_collect_findings_reads_a_state_file_named_after_its_skill(tmp_path):
+    # Every review step now writes its own state; a stem that is not one of the
+    # three legacy shorthands is the skill's full name.
+    _write_state(tmp_path, "analyze-test-coverage.yaml", [{"title": "Add a focus test", "severity": "should"}])
+    _write_state(tmp_path, "review-cli-changes.yaml", [{"title": "Keep the flag", "severity": "must"}])
+
+    findings = collect_findings("TomzxCode", "agentic", 42)
+    assert [(f["step"], f["title"]) for f in findings] == [
+        ("review-cli-changes", "Keep the flag"),
+        ("analyze-test-coverage", "Add a focus test"),
+    ]
+
+
+def test_record_decisions_writes_into_a_state_file_named_after_its_skill(tmp_path):
+    _write_state(tmp_path, "adversarial-pr-review.yaml", [{"title": "Stale read", "severity": "must"}])
+
+    missing = record_decisions(
+        "TomzxCode",
+        "agentic",
+        42,
+        [{"step": "adversarial-pr-review", "title": "Stale read", "decision": "include"}],
+        decided_at="2026-01-12T07:00:00Z",
+    )
+
+    assert missing == []
+    finding = collect_findings("TomzxCode", "agentic", 42)[0]
+    assert finding["step"] == "adversarial-pr-review"
+    assert finding["decision"] == "include"

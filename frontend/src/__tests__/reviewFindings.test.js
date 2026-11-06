@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest'
 
-import { buildFindingsPrompt, defaultSelectedFindings, findingKey, findingsBySeverity } from '../reviewFindings'
+import {
+  buildFindingsPrompt,
+  defaultSelectedFindings,
+  findingKey,
+  findingsBySeverity,
+  findingSourceLabel,
+  findingSources
+} from '../reviewFindings'
 
 const finding = (over = {}) => ({
   step: 'review-pr',
@@ -33,6 +40,35 @@ describe('findingsBySeverity', () => {
   it('returns nothing for no findings', () => {
     expect(findingsBySeverity([])).toEqual([])
     expect(findingsBySeverity(undefined)).toEqual([])
+  })
+})
+
+describe('findingSources', () => {
+  it('counts findings per step in queue order and appends unknown steps', () => {
+    const sources = findingSources([
+      finding({ step: 'review-pr' }),
+      finding({ step: 'analyze-test-coverage' }),
+      finding({ step: 'review-pr' }),
+      finding({ step: 'some-new-skill' })
+    ])
+    expect(sources).toEqual([
+      { value: 'analyze-test-coverage', label: 'Coverage', count: 1 },
+      { value: 'review-pr', label: 'Review', count: 2 },
+      { value: 'some-new-skill', label: 'some-new-skill', count: 1 }
+    ])
+  })
+
+  it('returns nothing without findings', () => {
+    expect(findingSources([])).toEqual([])
+    expect(findingSources(undefined)).toEqual([])
+  })
+})
+
+describe('findingSourceLabel', () => {
+  it('gives a step its short label, or its own name when unknown', () => {
+    expect(findingSourceLabel('analyze-test-coverage')).toBe('Coverage')
+    expect(findingSourceLabel('some-new-skill')).toBe('some-new-skill')
+    expect(findingSourceLabel(null)).toBe('')
   })
 })
 

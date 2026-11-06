@@ -27,6 +27,51 @@ export function findingsBySeverity(findings) {
   })
 }
 
+// The review steps that can record findings, in the order the queue shows them,
+// with the short label the source filter uses. A step a future skill adds and
+// this list does not name still appears, under its own name.
+export const FINDING_SOURCES = [
+  { value: 'summarize-behavior-changes', label: 'Behavior' },
+  { value: 'assess-pr-risk', label: 'Risk' },
+  { value: 'adversarial-pr-review', label: 'Adversarial' },
+  { value: 'analyze-test-coverage', label: 'Coverage' },
+  { value: 'validate-pr', label: 'Validate' },
+  { value: 'verify-pr', label: 'Verify' },
+  { value: 'review-pr', label: 'Review' },
+  { value: 'review-cli-changes', label: 'CLI' },
+  { value: 'review-sdk-changes', label: 'SDK' },
+  { value: 'review-api-changes', label: 'API' },
+  { value: 'review-db-changes', label: 'DB' }
+]
+
+// A step's short label for the source filter; its own name when the list does
+// not name it.
+export function findingSourceLabel(step) {
+  const source = FINDING_SOURCES.find((entry) => entry.value === step)
+  return source ? source.label : String(step || '')
+}
+
+// The sources that actually recorded a finding, with how many each recorded, in
+// the canonical step order. An unrecognized step follows in name order, so a
+// state file from a newer skill is still selectable.
+export function findingSources(findings) {
+  const counts = new Map()
+  for (const finding of findings || []) {
+    const step = finding?.step
+    if (!step) continue
+    counts.set(step, (counts.get(step) || 0) + 1)
+  }
+  const known = FINDING_SOURCES.filter((source) => counts.has(source.value)).map((source) => ({
+    ...source,
+    count: counts.get(source.value)
+  }))
+  const unknown = [...counts.keys()]
+    .filter((step) => !FINDING_SOURCES.some((source) => source.value === step))
+    .sort((a, b) => a.localeCompare(b))
+    .map((step) => ({ value: step, label: step, count: counts.get(step) }))
+  return [...known, ...unknown]
+}
+
 // The statuses that mean a finding still asks something of the author: open
 // (review-pr, validate-pr), or failing/unverified (verify-pr's criteria). An
 // addressed, stale, wontfix, or conforming entry is not something to forward.

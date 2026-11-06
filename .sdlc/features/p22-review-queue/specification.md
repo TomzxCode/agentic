@@ -72,7 +72,7 @@ The queue reads `{owner}/{repo}/pull-requests/{number}/` (a bare `{repo}/pull-re
 | `<step>.report.md` | review skills (symlink) | Skipped as a duplicate of its target; its step is still credited with the verdict when no committed report exists |
 | `<step>.<sha>.in-progress` | review skills | The step is evaluating that commit now; the mtime is the start time |
 | `gh-pr-view.md` | review skills | Fallback snapshot of the PR's title, state, author, branches, labels, creation time, review decision, and last comment |
-| `*.yaml` state files | review-pr, validate-pr, verify-pr | The must/should/may findings and the reviewer's decisions |
+| `*.yaml` state files | every review step (`review.yaml`, `validate.yaml`, `verify.yaml`, and `<skill>.yaml` for the rest) | The must/should/may findings and the reviewer's decisions |
 
 The six steps, in the order the queue weighs them: `assess-pr-risk`, `summarize-behavior-changes`, `analyze-test-coverage`, `validate-pr`, `verify-pr`, `review-pr`.
 

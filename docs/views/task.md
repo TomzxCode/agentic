@@ -81,6 +81,8 @@ A `Description` / `Review` / `Reports` / `Feedback` switch sits under the pull r
 Clicking a cell switches to the reports pane on that step's report.
 The standalone pull request page uses the same panel, so it has the same switch.
 `Share` picks the must, should, and may findings and hands the selection to an agent run, which posts the review comments.
+The findings are read from each review step's own state file under the pull request's directory (`review.yaml`, `validate.yaml`, `verify.yaml`, and `<skill>.yaml` for the rest), not from the Markdown reports.
+A `Sources` row above the list narrows what is shown (`All` shows every step, `None` hides them all); it writes no decision, and a finding hidden this way stays selected and is still shared.
 Each check writes `include` or `skip` onto that finding, and the app itself posts nothing to GitHub.
 
 ### Good to know

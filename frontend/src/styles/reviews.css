@@ -482,6 +482,16 @@
   gap: 8px;
   margin: 12px 0 4px;
 }
+/* The source filter narrows the list to the review steps the reviewer wants to
+   work through; every step is on until it is clicked off. */
+.share-sources {
+  gap: 6px;
+  margin: 0 0 4px;
+}
+.share-sources .btn {
+  padding: 2px 8px;
+  font-size: 12px;
+}
 .share-group h3 {
   margin: 12px 0 6px;
   font-size: 12px;

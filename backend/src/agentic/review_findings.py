@@ -1,10 +1,10 @@
 """Read and record the must/should/may findings a PR's review skills recorded.
 
-Each review skill that persists findings writes a ``<skill>.yaml`` state file
-(``review.yaml`` for ``review-pr``, ``validate.yaml`` for ``validate-pr``,
-``verify.yaml`` for ``verify-pr``) in the PR's review directory.  Every finding
-carries a ``severity`` of ``must``, ``should``, or ``may``, plus a ``title``, a
-``description``, a ``status``, and the ``first_seen_sha`` it was recorded at.
+Every review step writes a ``<skill>.yaml`` state file in the PR's review
+directory (``review.yaml`` for ``review-pr``, ``analyze-test-coverage.yaml`` for
+``analyze-test-coverage``, and so on).  Every finding carries a ``severity`` of
+``must``, ``should``, or ``may``, plus a ``title``, a ``description``, a
+``status``, and the ``first_seen_sha`` it was recorded at.
 
 This module reads those state files so the app can offer the findings for the
 reviewer to forward to the PR author, without this app posting anything itself.
@@ -36,8 +36,9 @@ SEVERITIES: tuple[str, ...] = ("must", "should", "may")
 #: entry, beside the ``status`` the skill maintains.
 DECISIONS: tuple[str, ...] = ("include", "skip")
 
-#: The findings-state file stem each skill writes: the state file drops the
-#: skill's ``-pr`` suffix, so ``review-pr`` writes ``review.yaml``.
+#: The findings-state file stem each skill writes. ``review-pr``, ``validate-pr``,
+#: and ``verify-pr`` drop the skill's ``-pr`` suffix; every other review step
+#: keeps its full name, so its stem already is the skill (see :func:`_state_step`).
 STATE_STEPS: dict[str, str] = {
     "review": "review-pr",
     "validate": "validate-pr",

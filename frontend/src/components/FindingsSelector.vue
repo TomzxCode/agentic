@@ -1,7 +1,13 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { api } from '../api'
-import { buildFindingsPrompt, defaultSelectedFindings, findingKey, findingsBySeverity } from '../reviewFindings'
+import {
+  buildFindingsPrompt,
+  defaultSelectedFindings,
+  findingKey,
+  findingsBySeverity,
+  findingSources
+} from '../reviewFindings'
 import { store } from '../store'
 
 // The must/should/may findings recorded for one pull request, with a checkbox
@@ -26,18 +32,44 @@ const findings = ref([])
 const loading = ref(true)
 const error = ref(false)
 const selected = ref([])
+// The steps whose findings are shown. The filter is a view only: it never
+// writes a decision, and a finding it hides stays selected and is still shared.
+const activeSources = ref([])
 const taskId = ref(props.taskId || '')
 const importing = ref(false)
 const sending = ref(false)
 
-const groups = computed(() => findingsBySeverity(findings.value))
-// The findings chosen for sharing, in the order they are listed.
+const sources = computed(() => findingSources(findings.value))
+const allSources = computed(
+  () => sources.value.length > 0 && sources.value.every((source) => activeSources.value.includes(source.value))
+)
+const noSources = computed(() => sources.value.length > 0 && activeSources.value.length === 0)
+const visibleFindings = computed(() => findings.value.filter((finding) => activeSources.value.includes(finding.step)))
+const groups = computed(() => findingsBySeverity(visibleFindings.value))
+// The findings chosen for sharing, in the order they are listed. The source
+// filter does not narrow this: a selected finding stays selected while hidden.
 const chosen = computed(() => findings.value.filter((finding) => selected.value.includes(findingKey(finding))))
 const canSend = computed(() => Boolean(taskId.value) && chosen.value.length > 0 && !sending.value)
 const prompt = computed(() => buildFindingsPrompt({ repository: props.repository, number: props.number }, chosen.value))
 
 function isSelected(finding) {
   return selected.value.includes(findingKey(finding))
+}
+
+// Show or hide one step's findings. The change is view-only; it writes no
+// decision and leaves the selection of the hidden findings alone.
+function toggleSource(step) {
+  activeSources.value = activeSources.value.includes(step)
+    ? activeSources.value.filter((value) => value !== step)
+    : [...activeSources.value, step]
+}
+
+function showAllSources() {
+  activeSources.value = sources.value.map((source) => source.value)
+}
+
+function hideAllSources() {
+  activeSources.value = []
 }
 
 // Record the reviewer's choice on the finding's own state file, so it survives a
@@ -85,6 +117,7 @@ async function load() {
   try {
     findings.value = await api.reviews.findings(props.repository, props.number)
     selected.value = defaultSelectedFindings(findings.value)
+    activeSources.value = findingSources(findings.value).map((source) => source.value)
   } catch (e) {
     error.value = true
     store.notify(e.message, true)
@@ -143,9 +176,47 @@ onMounted(load)
     <template v-else>
       <div class="row share-tools">
         <span class="faint">{{ chosen.length }} of {{ findings.length }} selected</span>
-        <button class="btn sm ghost" @click="selectAll">Select all</button>
-        <button class="btn sm ghost" @click="clearSelection">Clear</button>
+        <button class="btn sm ghost" title="Select every finding" @click="selectAll">Select all</button>
+        <button class="btn sm ghost" title="Clear every finding" @click="clearSelection">Clear</button>
       </div>
+
+      <div v-if="sources.length > 1" class="row share-sources">
+        <span class="faint">Sources</span>
+        <button
+          class="btn sm"
+          :class="{ ghost: !allSources }"
+          :aria-pressed="allSources"
+          title="Show findings from every review step"
+          @click="showAllSources"
+        >
+          All
+        </button>
+        <button
+          class="btn sm"
+          :class="{ ghost: !noSources }"
+          :aria-pressed="noSources"
+          title="Hide every review step"
+          @click="hideAllSources"
+        >
+          None
+        </button>
+        <button
+          v-for="source in sources"
+          :key="source.value"
+          class="btn sm"
+          :class="{ ghost: !activeSources.includes(source.value) }"
+          :aria-pressed="activeSources.includes(source.value)"
+          :title="`${source.label} (${source.value})`"
+          @click="toggleSource(source.value)"
+        >
+          {{ source.label }} <span class="faint">{{ source.count }}</span>
+        </button>
+      </div>
+
+      <p v-if="!visibleFindings.length" class="faint" style="margin: 8px 0">
+        No findings from the selected sources.
+        <template v-if="chosen.length">The {{ chosen.length }} selected from hidden sources stay selected.</template>
+      </p>
 
       <div v-for="group in groups" :key="group.value" class="share-group">
         <h3 :class="`tone-${group.tone}`">

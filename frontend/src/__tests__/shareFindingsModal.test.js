@@ -138,4 +138,55 @@ describe('ShareFindingsModal', () => {
       { step: 'review-pr', title: 'Tidy the helper', decision: 'include' }
     ])
   })
+
+  it('filters the list without changing the selection or what is sent', async () => {
+    mocks.findings.mockResolvedValue([
+      finding({ title: 'Fix the thing', step: 'review-pr' }),
+      finding({ title: 'Cover the branch', step: 'analyze-test-coverage', severity: 'should' })
+    ])
+    const wrapper = mountModal({ taskId: 't1' })
+    await flushPromises()
+    expect(wrapper.text()).toContain('2 of 2 selected')
+
+    const sourceButton = (label) =>
+      wrapper.findAll('.share-sources button').find((button) => button.text().includes(label))
+
+    const listedTitles = () => wrapper.findAll('.share-finding-title').map((node) => node.text())
+
+    await sourceButton('Coverage').trigger('click')
+    await flushPromises()
+
+    // Hiding a source changes the view only: no decision is written and the
+    // hidden finding stays selected.
+    expect(mocks.decide).not.toHaveBeenCalled()
+    expect(listedTitles()).toEqual(['Fix the thing'])
+    expect(wrapper.text()).toContain('2 of 2 selected')
+
+    // The hidden finding is still sent.
+    await wrapper.get('.btn.primary').trigger('click')
+    await flushPromises()
+    const prompt = mocks.createRun.mock.calls[0][1].prompt
+    expect(prompt).toContain('Fix the thing')
+    expect(prompt).toContain('Cover the branch')
+
+    // Re-enabling the source restores its finding and its selection.
+    await sourceButton('All').trigger('click')
+    await flushPromises()
+    expect(listedTitles()).toEqual(['Fix the thing', 'Cover the branch'])
+    expect(wrapper.text()).toContain('2 of 2 selected')
+
+    // None hides every source; the selection and the send action stay intact.
+    await sourceButton('None').trigger('click')
+    await flushPromises()
+    expect(listedTitles()).toEqual([])
+    expect(wrapper.text()).toContain('No findings from the selected sources.')
+    expect(wrapper.text()).toContain('The 2 selected from hidden sources stay selected.')
+    expect(wrapper.text()).toContain('2 of 2 selected')
+    expect(wrapper.get('.btn.primary').attributes('disabled')).toBeUndefined()
+
+    await sourceButton('All').trigger('click')
+    await flushPromises()
+    expect(listedTitles()).toEqual(['Fix the thing', 'Cover the branch'])
+    expect(wrapper.text()).toContain('2 of 2 selected')
+  })
 })

@@ -84,6 +84,8 @@ A pull request that touches no surface shows a dash, and a surface with no repor
 | `Refresh` | Re-reads the store and re-asks GitHub, bypassing the ghx metadata cache. |
 
 Every check or uncheck in `Share` writes `include` or `skip` onto that finding in its state file, so the selection survives a reload.
+The findings come from each review step's own state file under the pull request's directory (`review.yaml`, `validate.yaml`, `verify.yaml`, and `<skill>.yaml` for the rest), not from the Markdown reports.
+A `Sources` row narrows what is shown (`All` shows every step, `None` hides them all), without recording a decision; a finding hidden this way stays selected and is still sent.
 `Prompt preview` shows what the agent will receive.
 When no task is linked, the modal offers `Import into a task` instead of `Send to agent`.
 
