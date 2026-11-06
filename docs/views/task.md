@@ -42,7 +42,7 @@ It is also the page that drives the agent, so the prompt, the worktree, and the 
 | Checklist | The items from the checklists that matched the task, plus your own. Tick one to complete it, drag the `⠿` handle to reorder them, click its text to rename it, and `✕` removes it. An item whose checklist no longer matches stays visible but disabled. |
 | Context | The agent-written `summary` and `next_steps`. `↻ Refresh with agent` starts a context run, and next steps render as a task list whose checkboxes you can tick. `↻ Name & summarize` appears when a Slack item is linked. |
 | Notes | Short notes, added with `Add note` or `Ctrl/Cmd+Enter`, edited in place, removed with `✕`. |
-| Items | Paste a Slack, GitHub, or Drive link (the source is inferred), add a title and a note, then `Associate`. Each row can be refreshed, expanded, unlinked, marked `Done` or `Reopen` (Slack), and opens in ghx or slackx when those URLs are configured. |
+| Items | Paste a Slack, GitHub, or Drive link (the source is inferred), add a title and a note, then `Associate` or press `Enter` in any field (`Ctrl/Cmd+Enter` in the pasted-content box). Each row can be refreshed, expanded, unlinked, marked `Done` or `Reopen` (Slack), and opens in ghx or slackx when those URLs are configured. |
 | Changes | Record what changed and its class, then move it through `Verify`, `Accept`, `Reject`, `Revert`, or record an `Intervene` with a kind. |
 | Worktrees | Create a worktree from one of the task's repositories, with an optional branch and base. `✎` opens it in your editor, `⧉` copies its path, `Remove` deletes it from disk after a confirmation. |
 | People | The linked people and requesters, with a link to each person page. |

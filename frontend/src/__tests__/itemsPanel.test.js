@@ -86,6 +86,39 @@ describe('ItemsPanel', () => {
     expect(wrapper.findAll('input')[0].element.value).toBe('')
   })
 
+  it('associates with Enter from the link, title, and note fields', async () => {
+    mocks.associate.mockResolvedValue({})
+    const wrapper = mount(ItemsPanel, { props: { task: task() } })
+
+    await wrapper.findAll('input')[0].setValue('https://github.com/o/r/issues/2')
+    await wrapper.findAll('input')[0].trigger('keydown', { key: 'Enter' })
+    await flushPromises()
+    expect(mocks.associate).toHaveBeenCalledTimes(1)
+
+    await wrapper.findAll('input')[1].setValue('A title')
+    await wrapper.findAll('input')[1].trigger('keydown', { key: 'Enter' })
+    await flushPromises()
+    expect(mocks.associate).toHaveBeenCalledTimes(2)
+  })
+
+  it('associates pasted content with Ctrl/Cmd+Enter', async () => {
+    mocks.associate.mockResolvedValue({})
+    const wrapper = mount(ItemsPanel, { props: { task: task() } })
+
+    await wrapper
+      .findAll('button')
+      .find((button) => button.text() === '+ text')
+      .trigger('click')
+    await wrapper.get('textarea').setValue('Pasted content')
+    await wrapper.get('textarea').trigger('keydown', { key: 'Enter', ctrlKey: true })
+    await flushPromises()
+
+    expect(mocks.associate).toHaveBeenCalledWith(
+      't1',
+      expect.objectContaining({ item: expect.objectContaining({ content: 'Pasted content' }) })
+    )
+  })
+
   it('notifies when associating fails', async () => {
     mocks.associate.mockRejectedValueOnce(new Error('bad'))
     const wrapper = mount(ItemsPanel, { props: { task: task() } })

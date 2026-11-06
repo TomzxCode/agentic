@@ -57,6 +57,7 @@ function toggle(id) {
 }
 
 async function addItem() {
+  if (busy.value) return
   if (!draft.url.trim() && !draft.content.trim() && !draft.title.trim()) return
   busy.value = true
   try {
@@ -76,6 +77,15 @@ async function addItem() {
     store.notify(e.message, true)
   } finally {
     busy.value = false
+  }
+}
+
+// The content field keeps Enter as a newline, so it submits with the same
+// Ctrl/Cmd+Enter the app's other multiline add form uses.
+function onContentKeydown(event) {
+  if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
+    event.preventDefault()
+    addItem()
   }
 }
 
@@ -122,11 +132,17 @@ async function toggleDone(item) {
           v-model="draft.url"
           class="input grow"
           placeholder="Paste a Slack/GitHub/Drive link, a file/folder path, any URL, or just text (type is inferred)"
+          @keydown.enter.prevent="addItem"
         />
       </div>
       <div class="row" style="margin-top: 8px">
-        <input v-model="draft.title" class="input grow" placeholder="Title (optional)" />
-        <input v-model="draft.note" class="input grow" placeholder="Note (optional)" />
+        <input
+          v-model="draft.title"
+          class="input grow"
+          placeholder="Title (optional)"
+          @keydown.enter.prevent="addItem"
+        />
+        <input v-model="draft.note" class="input grow" placeholder="Note (optional)" @keydown.enter.prevent="addItem" />
         <button class="btn" @click="draft.showContent = !draft.showContent">+ text</button>
         <button class="btn primary" :disabled="busy" @click="addItem">
           <span v-if="busy" class="spinner"></span> Associate
@@ -137,7 +153,8 @@ async function toggleDone(item) {
         v-model="draft.content"
         class="textarea"
         style="margin-top: 8px"
-        placeholder="Paste content to keep with this item (skips fetching)."
+        placeholder="Paste content to keep with this item (skips fetching). Ctrl/Cmd+Enter associates."
+        @keydown="onContentKeydown"
       ></textarea>
     </div>
 
