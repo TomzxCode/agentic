@@ -76,11 +76,11 @@ describe('DependenciesSelect', () => {
   const mountPanel = () =>
     mount(DependenciesSelect, { props: { task }, global: { stubs: { RouterLink: RouterLinkStub } } })
 
-  it('lists the before and after links', async () => {
+  it('lists the before and after links with their current status', async () => {
     mocks.depsGet.mockResolvedValue({
       task_id: 't1',
-      before: [{ id: 'a', title: 'Prerequisite' }],
-      after: [{ id: 'b', title: 'Follow-up' }]
+      before: [{ id: 'a', title: 'Prerequisite', status: 'blocked' }],
+      after: [{ id: 'b', title: 'Follow-up', status: 'done' }]
     })
     mocks.tasksList.mockResolvedValue([task])
 
@@ -89,20 +89,24 @@ describe('DependenciesSelect', () => {
     expect(wrapper.text()).toContain('Prerequisite')
     expect(wrapper.text()).toContain('Follow-up')
     expect(wrapper.findAll('.dep-label').map((label) => label.text())).toEqual(['before', 'after', 'related'])
+    expect(wrapper.get('.chip .task-status').classes()).toContain('st-blocked')
+    expect(wrapper.get('.chip .task-status').attributes('aria-label')).toBe('Blocked')
+    expect(wrapper.findAll('.chip .task-status')[1].classes()).toContain('st-done')
   })
 
-  it('lists a related link on both sides', async () => {
+  it('lists a related link on both sides with its current status', async () => {
     mocks.depsGet.mockResolvedValue({
       task_id: 't1',
       before: [],
       after: [],
-      related: [{ id: 'b', title: 'Sibling' }]
+      related: [{ id: 'b', title: 'Sibling', status: 'in_progress' }]
     })
     mocks.tasksList.mockResolvedValue([task])
 
     const wrapper = mountPanel()
     await flushPromises()
     expect(wrapper.text()).toContain('Sibling')
+    expect(wrapper.get('.chip .task-status').classes()).toContain('st-in_progress')
   })
 
   it('removes a link and reloads', async () => {

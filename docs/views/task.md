@@ -32,7 +32,7 @@ It is also the page that drives the agent, so the prompt, the worktree, and the 
 | People | Link the people involved, including suggested people taken from the linked items' authors and commenters. |
 | Requested by | Link whoever asked for the task. |
 | Repositories | Link the checkouts the work touches. |
-| Links | Link a task `before` or `after` this one, or as `related`, and unlink with `×`. A `related` link is symmetric and has no ordering, so it reads the same from both tasks. The API refuses a before/after link that would close a cycle. |
+| Links | Link a task `before` or `after` this one, or as `related`, and unlink with `×`. Each link shows the linked task's current status icon next to its title. A `related` link is symmetric and has no ordering, so it reads the same from both tasks. The API refuses a before/after link that would close a cycle. |
 
 ### The panels
 

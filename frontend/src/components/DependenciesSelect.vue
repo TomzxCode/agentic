@@ -2,14 +2,17 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { RouterLink } from 'vue-router'
 import { api } from '../api'
-import { store } from '../store'
+import { statusLabel, store } from '../store'
 import SearchSelect from './SearchSelect.vue'
+import StatusIcon from './StatusIcon.vue'
 
 // The links around a task, shown inline in the task header next to the
 // repository and people selectors: the tasks that must come first, the tasks
 // that follow, and the tasks merely related to it. Each can be linked and
 // unlinked from here; the before/after pairs form the graph the Graph page
-// draws, while a related pair reads the same from both tasks.
+// draws, while a related pair reads the same from both tasks. Every chip shows
+// the linked task's current status, so a prerequisite still open is visible
+// without opening it.
 const props = defineProps({
   task: { type: Object, required: true },
   // When true, each linked task's title links to its detail page.
@@ -88,6 +91,7 @@ defineExpose({ activate: () => beforeSelect.value?.activate?.() })
       <span class="dep-label">before</span>
       <div class="dep-chips">
         <span v-for="linked in deps.before" :key="`b-${linked.id}`" class="chip">
+          <StatusIcon :status="linked.status" :label="statusLabel(linked.status)" />
           <RouterLink v-if="linkToDetail" :to="`/task/${linked.id}`">{{ linked.title }}</RouterLink>
           <template v-else>{{ linked.title }}</template>
           <button type="button" class="chip-x" title="Unlink" :disabled="busy" @click="unlink(linked.id)">×</button>
@@ -109,6 +113,7 @@ defineExpose({ activate: () => beforeSelect.value?.activate?.() })
       <span class="dep-label">after</span>
       <div class="dep-chips">
         <span v-for="linked in deps.after" :key="`a-${linked.id}`" class="chip">
+          <StatusIcon :status="linked.status" :label="statusLabel(linked.status)" />
           <RouterLink v-if="linkToDetail" :to="`/task/${linked.id}`">{{ linked.title }}</RouterLink>
           <template v-else>{{ linked.title }}</template>
           <button type="button" class="chip-x" title="Unlink" :disabled="busy" @click="unlink(linked.id)">×</button>
@@ -129,6 +134,7 @@ defineExpose({ activate: () => beforeSelect.value?.activate?.() })
       <span class="dep-label">related</span>
       <div class="dep-chips">
         <span v-for="linked in deps.related" :key="`r-${linked.id}`" class="chip">
+          <StatusIcon :status="linked.status" :label="statusLabel(linked.status)" />
           <RouterLink v-if="linkToDetail" :to="`/task/${linked.id}`">{{ linked.title }}</RouterLink>
           <template v-else>{{ linked.title }}</template>
           <button type="button" class="chip-x" title="Unlink" :disabled="busy" @click="unlink(linked.id)">×</button>
