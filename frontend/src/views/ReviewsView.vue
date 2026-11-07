@@ -509,7 +509,7 @@ onMounted(load)
     <p v-if="queue.root" class="faint review-root">Reports read from {{ queue.root }}</p>
 
     <div v-if="!loading && !error && queue.prs.length" class="review-filters">
-      <div class="review-state-filters" role="group" aria-label="Filter by pull request status">
+      <div class="pill-group" role="group" aria-label="Filter by pull request status">
         <button
           v-for="option in PR_STATE_FILTERS"
           :key="option.value"
@@ -521,7 +521,7 @@ onMounted(load)
           {{ option.label }} <span class="count">{{ stateCounts[option.value] }}</span>
         </button>
       </div>
-      <div class="review-scope-filters" role="group" aria-label="Filter by who the review request is for">
+      <div class="pill-group" role="group" aria-label="Filter by who the review request is for">
         <button
           v-for="option in REVIEW_SCOPES"
           :key="option.value"
@@ -534,7 +534,7 @@ onMounted(load)
           {{ option.label }} <span class="count">{{ scopeCounts[option.value] }}</span>
         </button>
       </div>
-      <div class="review-toggle-filters" role="group" aria-label="Filter drafts, approved, and reviewed pull requests">
+      <div class="pill-group" role="group" aria-label="Filter drafts, approved, and reviewed pull requests">
         <button
           class="review-toggle-filter review-draft-filter"
           :class="{ active: draftsFilter !== 'hide' }"

@@ -60,30 +60,6 @@
 .decisions-controls .input.date {
   flex: 0 1 150px;
 }
-.decisions-presets {
-  display: flex;
-  gap: 2px;
-  background: var(--bg-1);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 2px;
-}
-.decisions-presets .preset {
-  background: transparent;
-  border: 0;
-  color: var(--muted);
-  padding: 4px 9px;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 12px;
-}
-.decisions-presets .preset:hover {
-  color: var(--text);
-}
-.decisions-presets .preset.active {
-  background: var(--bg-3);
-  color: var(--text);
-}
 
 /* The status chips count what the date and search filters leave. */
 .decisions-status {

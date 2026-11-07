@@ -256,7 +256,7 @@ onMounted(load)
         <input v-model="from" class="input date" type="date" :min="rangeStart" :max="rangeEnd" aria-label="From date" />
         <input v-model="to" class="input date" type="date" :min="rangeStart" :max="rangeEnd" aria-label="To date" />
         <button type="button" class="btn sm ghost" :disabled="!from && !to" @click="clearDates">All dates</button>
-        <div class="decisions-presets">
+        <div class="pill-group">
           <button
             v-for="days in [7, 30, 90]"
             :key="days"

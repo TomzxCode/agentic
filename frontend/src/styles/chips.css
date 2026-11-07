@@ -215,37 +215,6 @@ button.tag-chip.active {
   border-color: var(--accent);
   color: var(--accent);
 }
-/* A row of clickable tag filters on the tasks dashboard. */
-.tag-filters {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-bottom: 12px;
-}
-.tag-filter {
-  flex: 0 0 auto;
-  background: var(--bg-2);
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  padding: 2px 9px;
-  font-size: 11px;
-  color: var(--muted);
-  cursor: pointer;
-  font-family: inherit;
-}
-.tag-filter:hover {
-  border-color: var(--muted);
-  color: var(--text);
-}
-.tag-filter.active {
-  color: var(--accent);
-  border-color: var(--accent);
-}
-.tag-filter .count {
-  color: var(--faint);
-  margin-left: 2px;
-}
-
 /* Repository and people selectors: selected chips plus an inline "add" search
    select. */
 .repo-select,

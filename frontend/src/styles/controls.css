@@ -124,6 +124,57 @@
   align-items: center;
   flex-wrap: wrap;
 }
+/* A pill group: related options in one control, each segment switching its own
+   state. The group owns the frame; the buttons carry only their label. */
+.pill-group {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  max-width: 100%;
+  background: var(--bg-1);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+/* A group that owns its own line, for stacked filter rows. */
+.pill-group.block {
+  display: flex;
+  width: fit-content;
+}
+.pill-group > button {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.5;
+  padding: 3px 10px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.pill-group > button:hover:not(:disabled):not(.active) {
+  background: var(--bg-2);
+  color: var(--text);
+}
+.pill-group > button.active {
+  background: var(--bg-3);
+  color: var(--text);
+  font-weight: 600;
+}
+.pill-group > button:disabled {
+  color: var(--faint);
+  cursor: not-allowed;
+}
+.pill-group .count,
+.pill-group .faint {
+  color: var(--faint);
+}
 .grow {
   flex: 1;
   min-width: 0;

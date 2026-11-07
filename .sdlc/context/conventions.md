@@ -60,6 +60,7 @@
 - AG Grid registration is shared: `components/gridSetup.js` registers the row-model, filter, and column-API modules once and exports the `gridTheme` mapped to the app's design tokens.
 - Per-device UI preferences (sidebar state, grid column choices, status bar) persist in `localStorage`, not in user settings.
 - List views needing a multi-select filter use the shared `ValuesFilter.vue` custom filter (`valuesFilter: ValuesFilter` in the grid's component definitions), because AG Grid's Set filter is Enterprise-only.
+- Related option sets (status filters, queue scopes, PR facets, page tabs, range presets) share one `.pill-group` frame (`frontend/src/styles/controls.css`), whose segments wrap on narrow screens; the inbox tab strip is the one nowrap, horizontally scrolling group.
 - Grid cell renderers resolve link components at setup time with `resolveComponent('RouterLink')` (see `RepositoriesView.vue`, `PeopleView.vue`).
 
 ## Commit Messages

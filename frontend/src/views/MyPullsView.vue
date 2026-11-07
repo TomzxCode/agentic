@@ -291,24 +291,20 @@ onMounted(load)
       </div>
 
       <div class="my-pulls-filter-groups">
-        <div
-          v-for="facet in filterRows"
-          :key="facet.key"
-          class="my-pulls-filter-row"
-          role="group"
-          :aria-label="`Filter by ${facet.label.toLowerCase()}`"
-        >
+        <div v-for="facet in filterRows" :key="facet.key" class="my-pulls-filter-row">
           <span class="faint my-pulls-filter-label">{{ facet.label }}</span>
-          <button
-            v-for="option in facet.options"
-            :key="option.value"
-            class="my-pulls-chip"
-            :class="{ active: facet.active === option.value }"
-            :aria-pressed="facet.active === option.value"
-            @click="facet.pick(option.value)"
-          >
-            {{ option.label }} <span class="count">{{ filterCount(facet.key, option.value) }}</span>
-          </button>
+          <div class="pill-group" role="group" :aria-label="`Filter by ${facet.label.toLowerCase()}`">
+            <button
+              v-for="option in facet.options"
+              :key="option.value"
+              class="my-pulls-chip"
+              :class="{ active: facet.active === option.value }"
+              :aria-pressed="facet.active === option.value"
+              @click="facet.pick(option.value)"
+            >
+              {{ option.label }} <span class="count">{{ filterCount(facet.key, option.value) }}</span>
+            </button>
+          </div>
         </div>
       </div>
 

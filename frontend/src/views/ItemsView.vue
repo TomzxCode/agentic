@@ -182,15 +182,15 @@ onMounted(async () => {
       <input v-model="search" class="input grow" placeholder="Search title, link, path, or content…" />
     </div>
 
-    <div class="row" style="margin-bottom: 16px">
-      <button class="btn sm" :class="{ primary: !sourceFilter }" @click="sourceFilter = ''">
+    <div class="pill-group" style="margin-bottom: 16px" role="group" aria-label="Filter by source">
+      <button :class="{ active: !sourceFilter }" :aria-pressed="!sourceFilter" @click="sourceFilter = ''">
         All {{ items.length }}
       </button>
       <button
         v-for="source in sources"
         :key="source"
-        class="btn sm"
-        :class="{ primary: sourceFilter === source }"
+        :class="{ active: sourceFilter === source }"
+        :aria-pressed="sourceFilter === source"
         @click="sourceFilter = source"
       >
         {{ sourceLabel(source) }} {{ counts[source] }}

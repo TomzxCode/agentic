@@ -223,10 +223,9 @@ onMounted(load)
       </span>
     </div>
 
-    <div v-if="suggestions.length" class="row inbox-tabs" role="tablist" aria-label="Inbox suggestion kinds">
+    <div v-if="suggestions.length" class="inbox-tabs pill-group" role="tablist" aria-label="Inbox suggestion kinds">
       <button
-        class="btn sm"
-        :class="{ ghost: activeTab !== ALL }"
+        :class="{ active: activeTab === ALL }"
         role="tab"
         :aria-selected="activeTab === ALL"
         @click="selectTab(ALL)"
@@ -236,8 +235,7 @@ onMounted(load)
       <button
         v-for="tab in tabs"
         :key="tab.kind"
-        class="btn sm"
-        :class="{ ghost: activeTab !== tab.kind }"
+        :class="{ active: activeTab === tab.kind }"
         role="tab"
         :aria-selected="activeTab === tab.kind"
         @click="selectTab(tab.kind)"
@@ -317,18 +315,16 @@ onMounted(load)
 </template>
 
 <style scoped>
-.row.inbox-tabs {
-  flex-wrap: nowrap;
-  gap: 6px;
+.inbox-tabs {
   margin-bottom: 12px;
+  flex-wrap: nowrap;
   overflow-x: auto;
   scrollbar-width: none;
-  -webkit-overflow-scrolling: touch;
 }
-.row.inbox-tabs::-webkit-scrollbar {
+.inbox-tabs::-webkit-scrollbar {
   display: none;
 }
-.row.inbox-tabs .btn {
+.inbox-tabs button {
   flex: 0 0 auto;
 }
 </style>

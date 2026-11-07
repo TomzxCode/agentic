@@ -193,7 +193,13 @@ onMounted(() => {
   <div class="tasks-page" :class="{ 'has-bulk-bar': selected.length }">
     <h1 style="margin-bottom: 16px">Tasks in flight</h1>
 
-    <div v-if="store.tags.length" class="tag-filters" aria-label="Filter by tag">
+    <div
+      v-if="store.tags.length"
+      class="pill-group block"
+      style="margin-bottom: 12px"
+      role="group"
+      aria-label="Filter by tag"
+    >
       <button
         class="tag-filter"
         :class="{ active: !store.tagFilter }"
@@ -216,7 +222,13 @@ onMounted(() => {
       </button>
     </div>
 
-    <div v-if="peopleFilters.length" class="tag-filters" aria-label="Filter by person">
+    <div
+      v-if="peopleFilters.length"
+      class="pill-group block"
+      style="margin-bottom: 12px"
+      role="group"
+      aria-label="Filter by person"
+    >
       <button
         class="tag-filter"
         :class="{ active: !store.personFilter }"
@@ -239,7 +251,7 @@ onMounted(() => {
       </button>
     </div>
 
-    <div class="row" style="gap: 10px; margin-bottom: 20px" role="group" aria-label="Filter by status">
+    <div class="pill-group" style="margin-bottom: 20px" role="group" aria-label="Filter by status">
       <button
         v-for="badge in STATUS_BADGES"
         :key="badge.value"

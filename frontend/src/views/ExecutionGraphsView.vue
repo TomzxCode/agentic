@@ -46,10 +46,9 @@ function onRunStarted() {
       </span>
     </div>
 
-    <div class="row graphs-tabs" role="tablist" aria-label="Execution graphs views">
+    <div class="graphs-tabs pill-group" role="tablist" aria-label="Execution graphs views">
       <button
-        class="btn sm"
-        :class="{ ghost: tab !== 'graphs' }"
+        :class="{ active: tab === 'graphs' }"
         role="tab"
         :aria-selected="tab === 'graphs'"
         @click="tab = 'graphs'"
@@ -57,8 +56,7 @@ function onRunStarted() {
         Graphs
       </button>
       <button
-        class="btn sm"
-        :class="{ ghost: tab !== 'executions' }"
+        :class="{ active: tab === 'executions' }"
         role="tab"
         :aria-selected="tab === 'executions'"
         @click="tab = 'executions'"
@@ -88,7 +86,6 @@ function onRunStarted() {
 
 <style scoped>
 .graphs-tabs {
-  gap: 6px;
   margin-bottom: 12px;
 }
 </style>
