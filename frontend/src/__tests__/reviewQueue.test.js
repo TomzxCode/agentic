@@ -270,7 +270,7 @@ describe('ReviewsView', () => {
     const wrapper = mount(ReviewsView, stub)
     await flushPromises()
 
-    expect(wrapper.get('.group-head a').attributes('href')).toBe('/repositories/r1')
+    expect(wrapper.get('.group-head a').attributes('href')).toBe('/repositories/tomzxcode/agentic')
   })
 
   it('leaves a repository heading as plain text when the app does not track it', async () => {

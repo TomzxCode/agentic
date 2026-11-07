@@ -162,7 +162,7 @@ const repositoryIds = computed(() => {
   const map = new Map()
   for (const repository of store.repositories) {
     const remote = parseRemote(repository.remote_url)
-    if (remote) map.set(`${remote.owner}/${remote.repo}`.toLowerCase(), repository.id)
+    if (remote) map.set(`${remote.owner}/${remote.repo}`.toLowerCase(), `${remote.owner}/${remote.repo}`)
   }
   return map
 })

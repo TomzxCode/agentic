@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import SearchSelect from './SearchSelect.vue'
+import { repositoryPath } from '../repositories/parse'
 
 const props = defineProps({
   modelValue: { type: Array, default: () => [] },
@@ -48,7 +49,7 @@ defineExpose({ activate: () => select.value?.activate?.() })
 <template>
   <div class="repo-select">
     <span v-for="repo in selected" :key="repo.id" class="chip">
-      <RouterLink v-if="linkToDetail" :to="`/repositories/${repo.id}`">{{ repo.name }}</RouterLink>
+      <RouterLink v-if="linkToDetail" :to="repositoryPath(repo)">{{ repo.name }}</RouterLink>
       <template v-else>{{ repo.name }}</template>
       <button type="button" class="chip-x" title="Remove" @click="remove(repo.id)">×</button>
     </span>

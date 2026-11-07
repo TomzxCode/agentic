@@ -91,8 +91,14 @@ const router = createRouter({
     { path: '/person/:id', name: 'person', component: PersonView, props: true, meta: { title: 'Person' } },
     { path: '/repositories', name: 'repositories', component: RepositoriesView, meta: { title: 'Repositories' } },
     {
-      path: '/repositories/:id',
+      path: '/repositories/:owner/:repo',
       name: 'repository',
+      component: RepositoryDetailView,
+      props: (route) => ({ owner: route.params.owner, repo: route.params.repo }),
+      meta: { title: 'Repository' }
+    },
+    {
+      path: '/repositories/:id',
       component: RepositoryDetailView,
       props: true,
       meta: { title: 'Repository' }

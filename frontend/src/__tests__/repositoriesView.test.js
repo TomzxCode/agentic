@@ -191,7 +191,7 @@ describe('RepositoriesView', () => {
 
     expect(wrapper.text()).toContain('/src/api')
     expect(wrapper.text()).toContain('/src/tools')
-    expect(wrapper.get('a[href="/repositories/r1"]').text()).toBe('api')
+    expect(wrapper.get('a[href="/repositories/acme/api"]').text()).toBe('api')
   })
 
   it('links a repository into the local ghx web UI and on GitHub, in their own column', async () => {
@@ -203,7 +203,7 @@ describe('RepositoriesView', () => {
     const wrapper = await mountView()
 
     // The name cell links the app's page and nothing else.
-    expect(wrapper.get('a[href="/repositories/r1"]').text()).toBe('api')
+    expect(wrapper.get('a[href="/repositories/acme/api"]').text()).toBe('api')
 
     // Both external links sit in the Links column, right after the name; the
     // non-GitHub row has none.

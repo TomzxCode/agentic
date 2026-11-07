@@ -1,5 +1,6 @@
 /* eslint-disable vue/one-component-per-file -- AG Grid resolves its cell renderers by name from one module. */
 import { defineComponent, h } from 'vue'
+import { repositoryPath } from '../repositories/parse'
 
 // The cell renderers for the repositories list grid. AG Grid renders each cell
 // with one of these and passes its `params` prop; the grid hands the shared
@@ -15,7 +16,7 @@ export const NameCell = defineComponent({
     const row = props.params.data
     return h(
       props.params.context.RouterLink,
-      { to: `/repositories/${row.id}`, class: 'title' },
+      { to: repositoryPath(row), class: 'title' },
       () => row.name || row.path
     )
   }

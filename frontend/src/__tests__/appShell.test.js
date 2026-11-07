@@ -482,7 +482,7 @@ describe('App', () => {
     expect(repository.text()).toContain('/home/tomzx/src/agents')
     await repository.trigger('click')
     await flushPromises()
-    expect(mocks.push).toHaveBeenCalledWith('/repositories/r1')
+    expect(mocks.push).toHaveBeenCalledWith('/repositories/tomzx/agents')
   })
 
   it('offers every settings section in the command palette and opens the picked one', async () => {

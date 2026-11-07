@@ -124,6 +124,14 @@ export function personForHandle(people, handle) {
   )
 }
 
+// The app path for a repository's detail view: a friendly owner/repo URL for a
+// GitHub repository, and the repository's id otherwise.
+export function repositoryPath(repository) {
+  const remote = parseRemote(repository?.remote_url)
+  if (remote) return `/repositories/${remote.owner}/${remote.repo}`
+  return repository?.id ? `/repositories/${repository.id}` : '/repositories'
+}
+
 // Where a handle's person lives: the person who carries it, or the page that
 // creates that person when nobody does yet, prefilled with the handle as the
 // name and alias. Returns { path, missing }, or null for an empty handle, so a

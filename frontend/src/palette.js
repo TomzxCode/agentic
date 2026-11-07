@@ -5,6 +5,7 @@ import { computed } from 'vue'
 
 import { SETTINGS_SECTIONS } from './settings'
 import { aliasLabel, sourceLabel, store } from './store'
+import { repositoryPath } from './repositories/parse'
 
 export function buildPaletteItems({
   route,
@@ -148,7 +149,7 @@ export function buildPaletteItems({
       icon: 'repositories',
       hint: repository.path,
       keywords: [repository.path, repository.remote_url].filter(Boolean).join(' '),
-      run: () => router.push(`/repositories/${repository.id}`)
+      run: () => router.push(repositoryPath(repository))
     }))
   )
 

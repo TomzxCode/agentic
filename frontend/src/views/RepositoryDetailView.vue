@@ -17,7 +17,11 @@ import { ghxItemUrl, ghxRepoUrl } from '../toolLinks'
 import GridColumnChooser from '../components/GridColumnChooser.vue'
 import RepositoryItemsGrid from '../components/RepositoryItemsGrid.vue'
 
-const props = defineProps({ id: { type: String, required: true } })
+const props = defineProps({
+  id: { type: String, default: null },
+  owner: { type: String, default: null },
+  repo: { type: String, default: null }
+})
 
 // The globally registered router-link, handed to the grid so its cells keep
 // internal navigation inside the SPA (and so tests can stub it by name).
@@ -43,7 +47,18 @@ const creatingId = ref('')
 // columns and show or hide them.
 const gridApi = shallowRef(null)
 
-const repository = computed(() => store.repositories.find((r) => r.id === props.id) || null)
+const repository = computed(() => {
+  if (props.owner && props.repo) {
+    const wanted = `${props.owner}/${props.repo}`.toLowerCase()
+    return (
+      store.repositories.find((entry) => {
+        const remote = parseRemote(entry.remote_url)
+        return !!remote && `${remote.owner}/${remote.repo}`.toLowerCase() === wanted
+      }) || null
+    )
+  }
+  return store.repositories.find((r) => r.id === props.id) || null
+})
 const tasksById = computed(() => Object.fromEntries(store.tasks.map((task) => [task.id, task])))
 
 // The items already associated to a task, which the second refresh button

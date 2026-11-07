@@ -1,7 +1,7 @@
 <script setup>
 import { computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
-import { parseRemote } from '../repositories/parse'
+import { parseRemote, repositoryPath } from '../repositories/parse'
 import { store } from '../store'
 import TaskIssuePanel from '../components/TaskIssuePanel.vue'
 
@@ -22,7 +22,7 @@ const repository = computed(() => {
     }) || null
   )
 })
-const backLink = computed(() => (repository.value ? `/repositories/${repository.value.id}` : '/repositories'))
+const backLink = computed(() => (repository.value ? repositoryPath(repository.value) : '/repositories'))
 
 onMounted(async () => {
   await store.loadHarnesses().catch(() => {})
