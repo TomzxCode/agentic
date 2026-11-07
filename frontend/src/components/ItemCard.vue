@@ -1,6 +1,7 @@
 <script setup>
 import { computed } from 'vue'
-import { prStatus, sourceLabel, timeAgo } from '../store'
+import { itemStatus } from '../repositories/parse'
+import { sourceLabel, timeAgo } from '../store'
 import EntityCard from './EntityCard.vue'
 
 // A single SourceItem (a Slack thread, GitHub issue/PR, Drive doc, URL, or
@@ -27,6 +28,11 @@ const props = defineProps({
 })
 
 const kind = computed(() => String(props.item.kind || '').replace('_', ' '))
+
+// A GitHub item's stored state (open/closed for an issue, plus merged/draft
+// for a pull request), or null when the item was never fetched. Slack and
+// other sources have no GitHub state.
+const githubStatus = computed(() => (props.item.source === 'github' ? itemStatus(props.item) : null))
 
 // A Slack thread marked done keeps its done state when a reply arrives; the
 // badge says there is something new to read without reopening it.
@@ -55,9 +61,9 @@ const newSinceDone = computed(() => {
 
     <template #actions><slot name="actions" /></template>
 
-    <div v-if="showStatus && (item.kind || prStatus(item) || item.done)" class="row" style="gap: 6px; margin-top: 2px">
+    <div v-if="showStatus && (item.kind || githubStatus || item.done)" class="row" style="gap: 6px; margin-top: 2px">
       <span v-if="item.kind" class="faint">{{ kind }}</span>
-      <span v-if="prStatus(item)" class="badge" :class="prStatus(item).className">{{ prStatus(item).label }}</span>
+      <span v-if="githubStatus" class="badge" :class="githubStatus.className">{{ githubStatus.label }}</span>
       <span v-if="item.done" class="badge ok">done</span>
       <span v-if="newSinceDone" class="badge warn" :title="newSinceDone">new messages</span>
     </div>

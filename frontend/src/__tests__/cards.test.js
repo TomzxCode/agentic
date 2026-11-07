@@ -106,6 +106,13 @@ describe('ItemCard', () => {
     expect(wrapper.get('.badge.st-merged').text()).toBe('Merged')
   })
 
+  it('shows the GitHub state badge of an issue', () => {
+    const open = mount(ItemCard, { props: { item: item({ metadata_json: { state: 'OPEN' } }) } })
+    expect(open.get('.badge.st-open').text()).toBe('Open')
+    const closed = mount(ItemCard, { props: { item: item({ metadata_json: { state: 'CLOSED' } }) } })
+    expect(closed.get('.badge.st-closed').text()).toBe('Closed')
+  })
+
   it('hides the source badge and clamps the content when asked', () => {
     const wrapper = mount(ItemCard, {
       props: { item: item(), showSource: false, expanded: false }
