@@ -21,7 +21,7 @@ A pull request in a repository neither the app nor `ghx` knows is not listed, so
 ### The page
 
 The header reads `My PRs` with a summary of open pull requests, how many need attention, how many are approved, and how many threads are open.
-The root line names the login the list was read for, taken from **Settings → Identity** or the authenticated `gh` account.
+The root line names the login the list was read for, taken from **Settings → GitHub** or the authenticated `gh` account.
 
 The table has one row per pull request:
 
@@ -95,7 +95,7 @@ The checks popover caches each pull request's checks for 30 seconds.
 
 Three failures have their own messages:
 
-- `No GitHub login is configured; set it in Settings > Identity to list your pull requests.`
+- `No GitHub login is configured; set it in Settings > GitHub to list your pull requests.`
 - `No GitHub repositories are registered; add one in Repositories to list your pull requests.`
 - `Could not read your pull requests from GitHub; check that \`ghx\` is installed and authenticated.`
 
@@ -131,5 +131,5 @@ The [Inbox](inbox.md)'s review nudge is built from the same read: a pull request
 - [Review queue](reviews.md) for the pull requests waiting on your review.
 - [PR feedback](feedback.md) for the reviewer comments on these pull requests.
 - [Inbox](inbox.md) for the nudge this read feeds.
-- [Settings](settings.md) for the GitHub login under Identity.
+- [Settings](settings.md) for the GitHub login under GitHub.
 - [Configuration](../reference/configuration.md) for `AGENTIC_REVIEW_SCAN_*` and `AGENTIC_GITHUB_LOGIN`.

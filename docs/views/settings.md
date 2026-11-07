@@ -20,9 +20,8 @@ All sections stay mounted, so switching back and forth does not lose what you ty
 | --- | --- |
 | `Session links` | The OpenChamber base URL, the OpenChamber session path, the terminal URL template, and the editor URL template. |
 | `Local tools` | The ghx and slackx web UI base URLs. |
-| `Identity` | The GitHub login that counts as you. |
 | `Slack` | The Slack recipient ids, the bot token, `Send test notification`, and the Slack thread refresh policy. |
-| `GitHub` | The GitHub issue/PR refresh policy and the ghx cache refresh cadence. |
+| `GitHub` | The GitHub login that counts as you, the GitHub issue/PR refresh policy, and the ghx cache refresh cadence. |
 | `Agent harnesses` | Per harness: its resume command, its model, and which harness is the default. Also adds a harness. |
 | `Agent prompts` | The prompt buttons the agent panel shows, their item kind, their label, and their template. |
 | `Checklists` | Reusable task checklists and the rules that decide which tasks they apply to. |
@@ -49,11 +48,6 @@ Leaving a field blank hides that link.
 A tool on the `managed` transport has no URL field: the server starts that tool's serve process itself, so the page shows a link to its web UI with the port the process actually bound (a configured URL keeps its host, since that is how you reach this machine), and whether the process is running.
 The process listens on all interfaces, so the same port works from another machine.
 
-### Identity
-
-`Your GitHub login` is who counts as you: a merged pull request this login authored and a task links becomes a change, and the inbox and repository views only offer to record changes for its pull requests.
-Blank falls back to the authenticated `gh` account, which the placeholder shows when it can be detected.
-
 ### Slack
 
 `Slack user id` is the default recipient; `Slack events user id` and `Slack events channel` override it per use.
@@ -68,7 +62,10 @@ The status line reads `Last run: <age> · N refreshed · M failed · forced · N
 
 ### GitHub
 
-`GitHub issues/PRs` is the same kind of refresh policy, with its own preview, status line, and `Force refresh` button.
+`Your GitHub login` is who counts as you: a merged pull request this login authored and a task links becomes a change, and the inbox and repository views only offer to record changes for its pull requests.
+Blank falls back to the authenticated `gh` account, which the placeholder shows when it can be detected.
+
+`GitHub issues/PRs` is the same kind of refresh policy as the Slack one, with its own preview, status line, and `Force refresh` button.
 
 `GitHub cache refresh` is the cadence of the one background job that runs `ghx cache` over the registered GitHub repositories, a duration such as `15m` or `1h`; blank stops it.
 It is the only place the cache is refreshed: every page reads it, so this cadence is how fresh the GitHub pages are.

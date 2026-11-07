@@ -6,7 +6,6 @@
 export const SETTINGS_SECTIONS = [
   { id: 'sessions', label: 'Session links', icon: 'link' },
   { id: 'tools', label: 'Local tools', icon: 'server' },
-  { id: 'identity', label: 'Identity', icon: 'identity' },
   { id: 'slack', label: 'Slack', icon: 'slack' },
   { id: 'github', label: 'GitHub', icon: 'github' },
   { id: 'harnesses', label: 'Agent harnesses', icon: 'harness' },

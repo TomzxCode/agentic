@@ -8,7 +8,6 @@ import Icon from '../components/Icon.vue'
 import RepositoryGroupsPanel from '../components/RepositoryGroupsPanel.vue'
 import SettingsSessionLinks from '../components/SettingsSessionLinks.vue'
 import SettingsToolServers from '../components/SettingsToolServers.vue'
-import SettingsIdentity from '../components/SettingsIdentity.vue'
 import SettingsSlack from '../components/SettingsSlack.vue'
 import SettingsGithub from '../components/SettingsGithub.vue'
 import SettingsHarnesses from '../components/SettingsHarnesses.vue'
@@ -90,11 +89,6 @@ onMounted(load)
           :managed="settings.managed_tools || []"
           @changed="loadSettings"
         />
-        <SettingsIdentity
-          v-show="active === 'identity'"
-          :overrides="settings.overrides"
-          :effective="settings.effective"
-        />
         <SettingsSlack
           v-show="active === 'slack'"
           :overrides="settings.overrides"
@@ -105,6 +99,7 @@ onMounted(load)
           v-show="active === 'github'"
           :overrides="settings.overrides"
           :defaults="settings.defaults"
+          :effective="settings.effective"
           :active="active === 'github'"
         />
         <SettingsHarnesses v-show="active === 'harnesses'" />

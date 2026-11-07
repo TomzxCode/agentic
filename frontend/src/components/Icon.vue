@@ -138,10 +138,6 @@ const ICONS = {
   ],
 
   // Settings sections: one glyph per section, shown in the Settings nav.
-  identity: [
-    ['circle', { cx: 12, cy: 8, r: 3.4 }],
-    ['path', { d: 'M5.5 20c0-3.4 2.9-5.6 6.5-5.6s6.5 2.2 6.5 5.6' }]
-  ],
   github: [
     [
       'path',

@@ -496,7 +496,6 @@ describe('App', () => {
     const labels = wrapper.findAll('.palette-item').map((item) => item.text())
     for (const section of [
       'Session links',
-      'Identity',
       'Slack',
       'GitHub',
       'Agent harnesses',

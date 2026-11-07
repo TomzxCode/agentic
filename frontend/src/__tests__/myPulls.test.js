@@ -428,7 +428,7 @@ describe('MyPullsView', () => {
 
   it('says what to fix when no login is configured', async () => {
     mocks.list.mockResolvedValue(
-      report([], { login: '', error: 'No GitHub login is configured; set it in Settings > Identity.' })
+      report([], { login: '', error: 'No GitHub login is configured; set it in Settings > GitHub.' })
     )
     const wrapper = mount(MyPullsView, { global: { stubs: { RouterLink: RouterLinkStub } } })
     await flushPromises()

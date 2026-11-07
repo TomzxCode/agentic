@@ -37,7 +37,7 @@ MY_PULLS_FAILED_TTL = 30
 PULL_CHECKS_TTL = 30
 
 #: A message for when no GitHub login is configured at all.
-NO_LOGIN_ERROR = "No GitHub login is configured; set it in Settings > Identity to list your pull requests."
+NO_LOGIN_ERROR = "No GitHub login is configured; set it in Settings > GitHub to list your pull requests."
 #: A message for when no repository carries a GitHub remote to read.
 NO_REPOSITORIES_ERROR = "No GitHub repositories are registered; add one in Repositories to list your pull requests."
 #: A message for when the login is known but GitHub could not be read.

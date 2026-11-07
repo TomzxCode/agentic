@@ -86,7 +86,7 @@ The transport is read per call, so a change there applies without a restart, als
 A stored override wins over the matching environment variable.
 On the managed transport, the effective web UI URL keeps the configured host but takes the port the serve process bound, so item links follow a free port instead of a stale configured one.
 
-The GitHub login is editable under **Settings → Identity**; leave it blank to fall back to the authenticated `gh` account.
+The GitHub login is editable under **Settings → GitHub**; leave it blank to fall back to the authenticated `gh` account.
 
 The refresh policies are editable under **Settings → Slack** (the Slack threads policy) and **Settings → GitHub** (the GitHub issues/PRs policy).
 

@@ -95,5 +95,5 @@ A merge the app observes on its own is recorded without this button, so this lis
 
 - [How to track changes and read the metrics](../how-to/track-changes-and-metrics.md).
 - [Inbox](inbox.md) for the same merge bookkeeping as a decision.
-- [Settings](settings.md) for the GitHub login under Identity.
+- [Settings](settings.md) for the GitHub login under GitHub.
 - [Concepts](../explanation/concepts.md) for what a change record holds.

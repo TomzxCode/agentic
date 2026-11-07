@@ -291,7 +291,7 @@ closed, every pull request closed or merged), record a change for a merged PR
 that has none, and remove a worktree left behind by a closed task. A task with no
 linked issue or PR is left alone.
 A merged PR is only offered a change record when you authored it (the login in
-Settings → Identity, else the authenticated `gh` account); a PR someone else
+Settings → GitHub, else the authenticated `gh` account); a PR someone else
 wrote is not your change to record. A merged PR you authored and a task links is
 recorded automatically, so the suggestion only remains for a PR the app could not
 record on its own (no known login, or no stored author). Each suggestion
@@ -343,7 +343,7 @@ included or excluded, and each registered repository's own Include / Exclude /
 Default choice; **Scan now** runs it immediately.
 
 The **My PRs** page (`/my-pulls`, the pull-request icon) lists the open pull
-requests the GitHub login in Settings → Identity authored, one row per PR, and
+requests the GitHub login in Settings → GitHub authored, one row per PR, and
 the four things that decide whether it is moving: its head commit's check
 rollup (passing, running, failing, or no checks), its review decision (approved,
 changes requested, review required, or no review), who approved it, and how many

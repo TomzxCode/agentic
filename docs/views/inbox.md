@@ -43,7 +43,7 @@ The CLI's `agentic change create` is the one path that starts at `proposed`.
   The wait runs from when GitHub says the pull request was opened, and the row lists the reviewers GitHub still lists as requested, each with its own poke; a reviewer missing from the People directory (or without a Slack id) is reported in a toast when you poke them.
 - `Find a reviewer` covers the same unreviewed pull requests whose review request names nobody, so there is no one to poke; `Open PR` takes you to the app's PR page to ask someone.
 - `Close finished tasks` needs at least one linked GitHub item, all of them closed or merged, and a task that is not already done or archived. A pull request closed without merging counts.
-- `Record changes` skips archived tasks and pull requests not authored by the GitHub login in **Settings → Identity**.
+- `Record changes` skips archived tasks and pull requests not authored by the GitHub login in **Settings → GitHub**.
 - `Clean up worktrees` covers done and archived tasks.
 - Within a section, the newest task comes first.
 

@@ -135,7 +135,7 @@ describe('SettingsView', () => {
     await flushPromises()
 
     const items = wrapper.findAll('.settings-nav-item')
-    expect(items.length).toBe(13)
+    expect(items.length).toBe(12)
     for (const item of items) {
       expect(item.find('svg').exists()).toBe(true)
     }
@@ -370,6 +370,24 @@ describe('SettingsView', () => {
     await inputs[0].trigger('blur')
     await flushPromises()
     expect(mocks.settingsUpdate).toHaveBeenCalledWith({ slack_refresh_policy: '1d=3h' })
+  })
+
+  it('saves the GitHub login from the GitHub section', async () => {
+    mocks.settingsGet.mockResolvedValue({ defaults: {}, overrides: { github_login: 'old-login' } })
+    mocks.settingsUpdate.mockResolvedValue({})
+    const wrapper = mountView()
+    await flushPromises()
+
+    const githubNav = wrapper.findAll('.settings-nav-item').find((b) => b.text() === 'GitHub')
+    await githubNav.trigger('click')
+    await flushPromises()
+
+    const input = wrapper.get('input[placeholder="detected from gh when blank"]')
+    expect(input.element.value).toBe('old-login')
+    await input.setValue('tomzx')
+    await input.trigger('blur')
+    await flushPromises()
+    expect(mocks.settingsUpdate).toHaveBeenCalledWith({ github_login: 'tomzx' })
   })
 
   it('edits user-defined agent prompts and saves them as JSON', async () => {

@@ -49,7 +49,7 @@ A change still inside its observation window is pending and is excluded from yie
 A change is recorded automatically when the app observes one of your linked pull requests merge: it opens accepted and dated to the merge.
 The app learns about a merge from an item refresh, a repository view visit, a link you add after the merge, or at startup.
 A run or a git commit still creates no change.
-Set the GitHub login under **Settings → Identity** (it falls back to the authenticated `gh` account) so the app knows which pull requests are yours.
+Set the GitHub login under **Settings → GitHub** (it falls back to the authenticated `gh` account) so the app knows which pull requests are yours.
 
 ## Verification
 
