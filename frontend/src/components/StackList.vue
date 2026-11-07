@@ -4,6 +4,7 @@ import { api } from '../api'
 import { formatTimestamp, moveItem, targetIndexAt } from '../stack'
 import { deadlineInfo, formatDeadline, store } from '../store'
 import EditableText from './EditableText.vue'
+import Icon from './Icon.vue'
 import MentionTextarea from './MentionTextarea.vue'
 import PrioritySelect from './PrioritySelect.vue'
 import StatusSelect from './StatusSelect.vue'
@@ -250,8 +251,14 @@ onUnmounted(() => {
             />
           </td>
           <td class="stack-open-cell">
-            <router-link class="btn sm ghost" :to="`/task/${entry.task_id}`" title="Open the task" @click.stop>
-              ↗
+            <router-link
+              class="btn sm ghost"
+              :to="`/task/${entry.task_id}`"
+              title="Open the task"
+              aria-label="Open the task"
+              @click.stop
+            >
+              <Icon name="link" :size="14" />
             </router-link>
           </td>
           <td class="stack-title-cell" :title="entry.task?.title">
