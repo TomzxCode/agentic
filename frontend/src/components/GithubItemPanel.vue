@@ -125,10 +125,10 @@ watch(() => props.url, load)
            the end of the row instead of spreading across it. -->
       <div class="task-item-actions">
         <slot name="head" />
-        <a class="btn sm ghost" :href="entry.url" target="_blank" rel="noopener">Open on GitHub</a>
         <a v-if="ghxLink" class="btn sm ghost" :href="ghxLink" target="_blank" rel="noopener" title="Open in ghx">
-          Open in ghx
+          ghx
         </a>
+        <a class="btn sm ghost" :href="entry.url" target="_blank" rel="noopener" title="Open on GitHub">gh</a>
       </div>
     </div>
 

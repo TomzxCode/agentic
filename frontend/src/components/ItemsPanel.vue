@@ -3,6 +3,7 @@ import { computed, reactive, ref } from 'vue'
 import { api } from '../api'
 import { changeCreateBody, changeReferencesItem, isPullRequestItem } from '../changes'
 import { sourceLabel, store, timeAgo } from '../store'
+import { parseGithubUrl, parseRemote } from '../repositories/parse'
 import ItemCard from './ItemCard.vue'
 import ItemToolLinks from './ItemToolLinks.vue'
 
@@ -35,6 +36,32 @@ const itemCount = computed(() => (props.task.associations || []).filter((a) => a
 // Notes have none, and an item that was never given a link has none either.
 function itemUrl(item) {
   return item?.url || null
+}
+
+// The repository registered for a GitHub issue or pull request, when the app
+// tracks the repository its URL names. Non-GitHub items and untracked
+// repositories resolve to null, so no link is offered for them.
+function repositoryFor(item) {
+  const parsed = parseGithubUrl(item?.url)
+  if (!parsed) return null
+  const key = `${parsed.owner}/${parsed.repo}`
+  return (store.repositories || []).find((repository) => {
+    const remote = parseRemote(repository?.remote_url)
+    return !!remote && `${remote.owner}/${remote.repo}` === key
+  }) || null
+}
+
+// The app route for the issue or pull request itself, when the repository that
+// owns it is tracked by the app. Returns null otherwise, so untracked items
+// offer no in-app view.
+function itemAppUrl(item) {
+  const repository = repositoryFor(item)
+  if (!repository) return null
+  const parsed = parseGithubUrl(item?.url)
+  if (!parsed) return null
+  return parsed.kind === 'pr'
+    ? `/pr/${parsed.owner}/${parsed.repo}/${parsed.number}`
+    : `/issue/${parsed.owner}/${parsed.repo}/${parsed.number}`
 }
 
 // Offer to record a change for a linked PR that no change references yet.
@@ -193,6 +220,14 @@ async function toggleDone(item) {
           >
             Record change
           </button>
+          <a
+            v-if="itemAppUrl(assoc.item)"
+            class="btn sm ghost"
+            :href="itemAppUrl(assoc.item)"
+            title="View"
+            aria-label="View"
+            >View</a
+          >
           <ItemToolLinks :item="assoc.item" compact />
           <a
             v-if="itemUrl(assoc.item)"
@@ -202,7 +237,7 @@ async function toggleDone(item) {
             rel="noopener"
             title="Open link"
             aria-label="Open link"
-            >↗</a
+            >gh</a
           >
           <button class="btn sm ghost" title="Refresh" @click="refreshItem(assoc.item.id)">↻</button>
           <button class="btn sm ghost" title="Expand" @click="toggle(assoc.item.id)">
