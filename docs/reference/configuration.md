@@ -55,8 +55,6 @@ The Slack credentials keep the names `slackx` uses (`SLACK_TOKEN`, `SLACK_COOKIE
 | `AGENTIC_SLACK_REFRESH_POLICY` | (empty) | When to re-fetch Slack threads, for example `1d=1h,7d=6h,30d=1d,*=7d`. Empty disables it. |
 | `AGENTIC_GITHUB_REFRESH_POLICY` | (empty) | When to re-fetch GitHub issues and pull requests, in the same format. Empty disables it. |
 | `AGENTIC_ITEM_REFRESH_TICK` | `300` | Seconds between checks for items that are due. `0` disables the loop. |
-| `AGENTIC_REVIEW_SCAN_INTERVAL` | `1h` | How often the review scan asks GitHub which pull requests await your review. A duration such as `30m`, `1h` or `1d`; empty disables the scan. |
-| `AGENTIC_REVIEW_SCAN_TICK` | `300` | Seconds between checks for whether the review scan is due. `0` disables the loop. |
 | `AGENTIC_REVIEW_SCAN_DEFAULT` | `include` | What a repository with no review-scan policy of its own does: `include` (scan every repository except the excluded ones) or `exclude` (scan only the repositories marked include). |
 | `AGENTIC_REVIEW_SCAN_LIMIT` | `100` | How many results each of the review scan's two searches returns. |
 | `AGENTIC_REVIEW_SCAN_EXCLUDE_AUTHORS` | `dependabot[bot]` | Comma-separated logins the review scan leaves out of its results. |
@@ -93,8 +91,9 @@ The refresh policies are editable under **Settings → Slack** (the Slack thread
 The GitHub cache refresh is the one background job that runs `ghx cache`, editable under **Settings → GitHub** as `ghx_cache_refresh_interval` (a duration such as `15m`; blank disables it).
 No page, endpoint, or CLI command refreshes a repository's cache: the pages read what that job last wrote.
 The job uses a delta fetch for a repository whose cache is warm and a full history walk for one ghx has never completed, which is why it runs off the request path.
+After a pass that refreshed a repository, the job runs the review scan, so the review queue's stored set follows the same cadence.
 
-The review scan is editable under **Settings → Review requests**: how often it runs (`review_scan_interval`), the review SLO (`review_slo`), and the review nudge SLO (`review_nudge_slo`).
+The review scan's SLOs are editable under **Settings → Review requests**: the review SLO (`review_slo`) and the review nudge SLO (`review_nudge_slo`).
 Which repositories it considers is set under **Settings → GitHub**: `review_scan_default`, and a per-repository `review_scan` choice.
 The scan covers reviews requested from a team you belong to through ghx's `@me` expansion, which reads the team memberships `ghx cache` records.
 Each registered repository can also be set to include or exclude on its own.

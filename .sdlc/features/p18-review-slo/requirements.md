@@ -38,7 +38,7 @@ This feature adds a **review SLO**: a duration the user sets, after which a pull
 |---|---|---|---|
 | NFR-1 | Must | Data integrity | The feature shall add no table: it reads the review scan row's `ready_for_review_at` (falling back to `first_seen_at`) and the existing settings store. |
 | NFR-2 | Should | Usability | The review suggestion and the SLO field shall stay legible and usable at phone widths. |
-| NFR-3 | Should | Consistency | The SLO shall use the same duration grammar as the refresh policies and the review-scan cadence. |
+| NFR-3 | Should | Consistency | The SLO shall use the same duration grammar as the refresh policies and the ghx cache cadence. |
 
 ## Constraints
 

@@ -628,11 +628,9 @@ describe('SettingsView', () => {
     expect(mocks.settingsDiagnostics).toHaveBeenCalledTimes(2)
   })
 
-  it('configures the review scan cadence and shows the last pass', async () => {
-    mocks.settingsGet.mockResolvedValue({ defaults: { review_scan_interval: '1h' }, overrides: {} })
+  it('shows the review scan last pass and runs it now', async () => {
+    mocks.settingsGet.mockResolvedValue({ defaults: {}, overrides: {} })
     mocks.reviewsScan.mockResolvedValue({
-      interval: '1h',
-      enabled: true,
       default: 'include',
       stored: 4,
       found: 9,
@@ -640,7 +638,6 @@ describe('SettingsView', () => {
       last_run_at: new Date().toISOString(),
       origin: 'background'
     })
-    mocks.settingsUpdate.mockResolvedValue({})
 
     const wrapper = mountView()
     await flushPromises()
@@ -650,15 +647,11 @@ describe('SettingsView', () => {
 
     expect(mocks.reviewsScan).toHaveBeenCalled()
     expect(wrapper.text()).toContain('9 found, 4 kept')
-
-    // The cadence saves on blur.
-    await wrapper.get('input[placeholder="1h"]').setValue('30m')
-    await wrapper.get('input[placeholder="1h"]').trigger('blur')
-    await flushPromises()
-    expect(mocks.settingsUpdate).toHaveBeenCalledWith({ review_scan_interval: '30m' })
+    expect(wrapper.text()).toContain('runs after')
+    expect(wrapper.text()).toContain('each GitHub cache refresh')
 
     // Scan now runs it immediately and reports the outcome.
-    mocks.reviewsRunScan.mockResolvedValue({ enabled: true, stored: 5, found: 12, kept: 5 })
+    mocks.reviewsRunScan.mockResolvedValue({ stored: 5, found: 12, kept: 5 })
     await wrapper
       .findAll('button')
       .find((b) => b.text() === 'Scan now')

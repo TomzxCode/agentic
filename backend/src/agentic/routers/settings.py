@@ -7,9 +7,9 @@ from sqlmodel import Session
 
 from ..db import get_session
 from ..diagnostics import collect_diagnostics
-from ..ghx_cache import run_ghx_cache_refresh
+from ..ghx_cache import cache_interval, run_ghx_cache_refresh
 from ..refresh import POLICY_SETTING_KEYS, PolicyError, describe_policy, parse_policy
-from ..review_scan import scan_interval
+from ..review_scan import slo_interval
 from ..schemas.settings import (
     DiagnosticsRead,
     GhxCacheStatusRead,
@@ -60,14 +60,8 @@ def patch_settings(payload: SettingsUpdate, session: Session = Depends(get_sessi
             parse_policy(policy_text)
         except PolicyError as exc:
             raise HTTPException(status_code=422, detail=f"{key}: {exc}") from exc
-    interval = values.get("review_scan_interval")
-    if interval is not None and interval.strip() and scan_interval(interval) is None:
-        raise HTTPException(
-            status_code=422,
-            detail="review_scan_interval: use a duration such as 30m, 1h or 1d, or leave it blank to stop scanning",
-        )
     cache_interval_text = values.get("ghx_cache_refresh_interval")
-    if cache_interval_text is not None and cache_interval_text.strip() and scan_interval(cache_interval_text) is None:
+    if cache_interval_text is not None and cache_interval_text.strip() and cache_interval(cache_interval_text) is None:
         raise HTTPException(
             status_code=422,
             detail=(
@@ -86,13 +80,13 @@ def patch_settings(payload: SettingsUpdate, session: Session = Depends(get_sessi
         if url and not url.startswith(("http://", "https://")):
             raise HTTPException(status_code=422, detail=f"{key}: must be an http(s) URL")
     slo = values.get("review_slo")
-    if slo is not None and slo.strip() and scan_interval(slo) is None:
+    if slo is not None and slo.strip() and slo_interval(slo) is None:
         raise HTTPException(
             status_code=422,
             detail="review_slo: use a duration such as 8h or 1d, or leave it blank to turn it off",
         )
     nudge = values.get("review_nudge_slo")
-    if nudge is not None and nudge.strip() and scan_interval(nudge) is None:
+    if nudge is not None and nudge.strip() and slo_interval(nudge) is None:
         raise HTTPException(
             status_code=422,
             detail="review_nudge_slo: use a duration such as 1h30m or 1d, or leave it blank to turn it off",
@@ -151,7 +145,8 @@ def refresh_ghx_cache(session: Session = Depends(get_session)) -> GhxCacheStatus
 
     The scheduled pass runs in the background; this is the Settings page's
     button. It waits for the pass, so a repository ghx has never fully cached
-    can make the request slow (it walks that repository's whole history).
+    can make the request slow (it walks that repository's whole history), and a
+    pass that refreshed anything also runs the review scan.
     """
     run_ghx_cache_refresh(session, origin="manual", force=True)
     return GhxCacheStatusRead.model_validate(get_ghx_cache_status(session))

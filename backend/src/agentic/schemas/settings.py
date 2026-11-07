@@ -59,9 +59,8 @@ class SettingsUpdate(BaseModel):
     # disables the scheduled pass). Pages read ghx's cache; the Refresh section
     # also has a button that runs one pass by hand.
     ghx_cache_refresh_interval: str | None = None
-    # The review scan's cadence ("1h", "30m"; empty disables it) and what a
-    # repository with no policy of its own does (include or exclude).
-    review_scan_interval: str | None = None
+    # The review scan's default for a repository with no policy of its own
+    # (include or exclude). The scan runs after each ghx cache refresh.
     review_scan_default: str | None = None
     # How long a pull request may await a review before the inbox flags it
     # ("1d", "8h"; empty disables it).

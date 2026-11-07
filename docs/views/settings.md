@@ -25,7 +25,7 @@ All sections stay mounted, so switching back and forth does not lose what you ty
 | `Agent harnesses` | Per harness: its resume command, its model, and which harness is the default. Also adds a harness. |
 | `Agent prompts` | The prompt buttons the agent panel shows, their item kind, their label, and their template. |
 | `Checklists` | Reusable task checklists and the rules that decide which tasks they apply to. |
-| `Review requests` | The review-scan cadence, `Scan now`, the SLOs, and the last scan's result. |
+| `Review requests` | `Scan now`, the SLOs, and the last scan's result. |
 | `Repository groups` | Named sets of repositories, with a description. |
 | `Sidebar` | The sidebar's layout (full or icon rail), and which pages it shows and in what order. |
 | `Debug bar` | Whether the bar pinned to the bottom of every page is shown. |
@@ -107,14 +107,14 @@ Removing a template also removes the items it put on tasks; the task page keeps 
 
 ### Review requests
 
-`How often to scan` is a duration such as `30m`, `1h`, or `1d`; blank stops the scan.
-`Scan now` runs one pass, and the section shows when the scan last ran, how many it found and kept, and any error.
+The scan runs after each successful GitHub cache refresh, so its cadence is the `GitHub cache refresh` one under **GitHub**.
+`Scan now` runs one pass immediately, and the section shows when the scan last ran, how many it found and kept, and any error.
 The scan reads `ghx`'s cache, so a repository `ghx` has never cached is not scanned.
 Which repositories it considers is set under **GitHub**.
 
 `Review SLO` is how long a pull request may await your review before the inbox flags it, such as `8h` or `1d`; blank turns it off.
 `Review nudge SLO` is how long a pull request of yours may wait without any review from anyone before the inbox offers to poke its reviewers, such as `1h30m` or `1d`; blank turns it off.
-Both accept a combination of units (`1h30m`), and the durations a field takes are the same shapes the scan cadence does.
+Both accept a combination of units (`1h30m`).
 
 The queue the scan feeds is the [Review queue](reviews.md).
 

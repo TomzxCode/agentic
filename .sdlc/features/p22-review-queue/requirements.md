@@ -25,13 +25,13 @@ The scan's `ready_for_review_at` (falling back to `first_seen_at`) also feeds th
 | ID | Priority | Requirement |
 |---|---|---|
 | FR-1 | Must | The system shall search GitHub for pull requests awaiting the user's review with `review-requested:@me` (which ghx expands to the user's teams, using the memberships its cache records) and `reviewed-by:@me`, run through `ghx search prs`, and store the merged set keyed by repository and number, with the requested source winning on overlap. Both searches read ghx's cache. |
-| FR-2 | Must | The scan shall run on a cadence from the `review_scan_interval` setting, checked on a background tick; an empty or off value disables it, and a manual "Scan now" run ignores the cadence. |
+| FR-2 | Must | The scan shall run after each successful ghx cache refresh (a pass that refreshed at least one repository), so the cache refresh's cadence is also the scan's; a manual "Scan now" runs it immediately. |
 | FR-3 | Must | Each scan shall replace the stored set: found pull requests are upserted and the rest deleted, while `first_seen_at` is preserved for rows that survive and `ready_for_review_at` is refreshed from each requested row's timeline. |
-| FR-4 | Must | A scan whose searches could not run at all shall record the error, leave the stored set untouched, and be retried on the next cadence; one failing search is tolerated when the other ran. |
+| FR-4 | Must | A scan whose searches could not run at all shall record the error, leave the stored set untouched, and be retried after the next cache refresh; one failing search is tolerated when the other ran. |
 | FR-5 | Must | The scan shall filter by repository policy: a repository's own `review_scan` policy (default, include, exclude) wins, the app-wide `review_scan_default` decides for the rest, and authors on the exclude list (default `dependabot[bot]`) are dropped. |
 | FR-6 | Must | The stored set shall stop feeding the queue as soon as its repository's policy excludes it, before the next scan runs. |
-| FR-7 | Must | The API shall report the scan state (interval, enabled, default, stored count, last run, next run, found, kept, error, origin) and offer a forced manual run. |
-| FR-8 | Must | The settings API shall reject a malformed `review_scan_interval` and a `review_scan_default` that is not include or exclude, and the repository API shall accept a per-repository `review_scan` policy. |
+| FR-7 | Must | The API shall report the scan state (default, stored count, last run, found, kept, error, origin) and offer a manual run. |
+| FR-8 | Must | The settings API shall reject a `review_scan_default` that is not include or exclude, and the repository API shall accept a per-repository `review_scan` policy. |
 | FR-9 | Must | The system shall read every pull-request review directory under the user-global store (both the `{owner}/{repo}/pull-requests/{n}` and the bare `{repo}/pull-requests/{n}` layout) as one queue row per pull request, tolerant of owner and repository casing. |
 | FR-10 | Must | Each row shall carry, per review step (assess-pr-risk, summarize-behavior-changes, analyze-test-coverage, validate-pr, verify-pr, review-pr), the newest report's verdict, report path, modified time, and reviewed commit, with risk and confidence for assess-pr-risk taken from the marker or the report body. |
 | FR-11 | Must | A step with an in-progress marker (`<step>.<sha>.in-progress`) matching the head commit shall be shown as running with its start time; a marker for an older commit is ignored, and with no known head any marker counts. |
@@ -46,7 +46,7 @@ The scan's `ready_for_review_at` (falling back to `first_seen_at`) also feeds th
 | FR-20 | Must | The reviewer's include or skip decision shall be written onto the finding's own entry (`decision`, `decided_at`) with a line-preserving edit; a batch applies all or nothing, an unknown finding answers 404 and writes nothing, and a decision outside include or skip answers 400. |
 | FR-21 | Should | The web app shall show the queue at `/reviews` as one row per pull request with a column per review step and the readiness light, filterable by status, request scope (team and me, team, or me), drafts, approval, reviewed state, repository, author, and search, with those choices remembered on the device. |
 | FR-22 | Should | The Share action shall list the PR's findings grouped by severity, filterable by the review step that recorded them, preselect the actionable must and should findings with an earlier recorded decision winning, preview the prompt, and start an agent run on a linked task, offering to import a task when none is linked. |
-| FR-23 | Should | The Settings review requests section shall edit the cadence, the app-wide default, the per-repository policies, and the review SLO durations, show the scan's last pass, and offer a Scan now button. |
+| FR-23 | Should | The Review requests section shall edit the review SLO durations, show the scan's last pass, and offer a Scan now button; the GitHub section shall edit the app-wide default and the per-repository policies. |
 | FR-24 | Should | A row the review SLO considers overdue shall carry the wait and the SLO, and the SPA shall highlight that row with a tint and a colored edge whose tooltip names the wait and SLO, plus a count in the header. |
 | FR-25 | Must | Each stored scan row shall record whether the pending review request is the user's (`me`), one of their teams' (`team`), or both, read from the pull request's pending review requests; a request GitHub could not report, and a row the scan did not find, read as personal. |
 
@@ -143,7 +143,7 @@ The scan's `ready_for_review_at` (falling back to `first_seen_at`) also feeds th
     Scenario: The scan state is readable
       Given a scan that last ran with an error
       When the scan state is read
-      Then it carries the interval, the last and next run, the found and kept counts, and the error
+      Then it carries the default, the last run, the found and kept counts, and the error
     ```
 
 - [ ] **FR-8**
@@ -152,8 +152,6 @@ The scan's `ready_for_review_at` (falling back to `first_seen_at`) also feeds th
     @FR-8
     Scenario: Malformed scan settings are rejected
       Given the settings API
-      When review_scan_interval is saved as "soon"
-      Then the API answers 422 naming review_scan_interval
       When review_scan_default is saved as "maybe"
       Then the API answers 422 naming review_scan_default
     ```
@@ -328,10 +326,10 @@ The scan's `ready_for_review_at` (falling back to `first_seen_at`) also feeds th
     @FR-23
     Scenario: The scan is configured from Settings
       Given the Review requests and GitHub settings sections
-      When the cadence is saved as 30m and a repository's scan policy is set to exclude in GitHub
+      When a repository's scan policy is set to exclude in GitHub and the review SLO is saved in Review requests
       Then the values persist and the scan status shows the last pass
       When Scan now is pressed
-      Then a forced scan runs and its result is shown
+      Then a scan runs immediately and its result is shown
     ```
 
 - [ ] **FR-24**

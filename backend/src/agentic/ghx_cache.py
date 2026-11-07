@@ -9,7 +9,9 @@ completed cache for yet. The Settings page's force-refresh button calls the same
 pass by hand, ignoring both the cadence and a failed repository's backoff.
 
 The cadence is ``ghx_cache_refresh_interval`` (a duration such as ``15m``; empty
-disables the scheduled pass). A repository whose refresh failed is left alone
+disables the scheduled pass). After a pass that refreshed a repository, the
+review scan runs against the cache just written, so the review queue's stored
+set follows the same cadence. A repository whose refresh failed is left alone
 for a while, so a cache that cannot be written does not restart a long walk on
 every tick.
 """
@@ -128,11 +130,28 @@ def refresh_repositories(repositories: list[str], *, force: bool = False) -> Cac
     }
 
 
+def _rescan_review_requests(session: Session, origin: str) -> None:
+    """Re-run the review scan after the cache changed, so the stored set matches it.
+
+    The scan reads ghx's cache, so it is run here rather than on a cadence of its
+    own. A scan failure must not fail the cache pass: the scan records its own
+    error and the stored set is left alone.
+    """
+    from .review_scan import run_review_scan
+
+    try:
+        run_review_scan(session, origin=origin)
+    except Exception as exc:  # noqa: BLE001
+        log.warning("review scan after cache refresh failed", error=str(exc))
+
+
 def run_ghx_cache_refresh(session: Session, origin: str = "background", *, force: bool = False) -> CacheReport:
     """Refresh every registered GitHub repository's cache and record the pass.
 
     *origin* is ``background`` for the scheduled pass and ``manual`` for the
     Settings page's button, which also sets *force* to ignore the retry backoff.
+    After a pass that refreshed at least one repository, the review scan runs so
+    the stored set matches the cache just written.
     """
     repositories = known_github_repositories(session)
     report = refresh_repositories(repositories, force=force)
@@ -145,6 +164,8 @@ def run_ghx_cache_refresh(session: Session, origin: str = "background", *, force
         error=report["error"],
         origin=origin,
     )
+    if report["refreshed"]:
+        _rescan_review_requests(session, origin)
     return report
 
 

@@ -208,18 +208,12 @@ def test_refresh_policy_setting_validates_and_previews():
 
 def test_review_scan_setting_validates():
     with TestClient(app) as client:
-        assert {"review_scan_interval", "review_scan_default", "review_slo"} <= set(
-            client.get("/api/settings").json()["effective"]
-        )
+        assert {"review_scan_default", "review_slo"} <= set(client.get("/api/settings").json()["effective"])
 
-        # A cadence is a duration; a blank one switches the scan off.
-        assert client.patch("/api/settings", json={"review_scan_interval": "nonsense"}).status_code == 422
-        saved = client.patch("/api/settings", json={"review_scan_interval": "30m"}).json()
-        assert saved["effective"]["review_scan_interval"] == "30m"
-        blank = client.patch("/api/settings", json={"review_scan_interval": ""}).json()
-        assert blank["effective"]["review_scan_interval"] == ""
+        # The scan has no cadence of its own; it follows the cache refresh.
+        assert "review_scan_interval" not in client.get("/api/settings").json()["effective"]
 
-        # The review SLO is a duration too, and a blank one turns it off.
+        # The review SLO is a duration, and a blank one turns it off.
         assert client.patch("/api/settings", json={"review_slo": "soon"}).status_code == 422
         slo = client.patch("/api/settings", json={"review_slo": "8h"}).json()
         assert slo["effective"]["review_slo"] == "8h"
@@ -238,7 +232,7 @@ def test_review_scan_setting_validates():
         excluded = client.patch("/api/settings", json={"review_scan_default": "exclude"}).json()
         assert excluded["effective"]["review_scan_default"] == "exclude"
 
-        client.patch("/api/settings", json={"review_scan_interval": "1h", "review_scan_default": "include"})
+        client.patch("/api/settings", json={"review_scan_default": "include"})
 
 
 def test_agent_prompts_default_and_validation():

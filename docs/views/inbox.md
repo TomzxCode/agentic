@@ -38,7 +38,7 @@ The CLI's `agentic change create` is the one path that starts at `proposed`.
 
 ### Which suggestions you get
 
-- `Reviews past SLO` needs the review scan on and a review SLO set (see **Settings → Review requests**).
+- `Reviews past SLO` needs a review SLO set (see **Settings → Review requests**).
 - `Poke reviewers` needs a review nudge SLO set, and counts a pull request only while nobody but its author has submitted a review (a comment review counts) and it is not a draft.
   The wait runs from when GitHub says the pull request was opened, and the row lists the reviewers GitHub still lists as requested, each with its own poke; a reviewer missing from the People directory (or without a Slack id) is reported in a toast when you poke them.
 - `Find a reviewer` covers the same unreviewed pull requests whose review request names nobody, so there is no one to poke; `Open PR` takes you to the app's PR page to ask someone.

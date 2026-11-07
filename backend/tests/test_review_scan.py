@@ -76,22 +76,13 @@ def _repository(session: Session, owner_repo: str, policy: str) -> Repository:
     return repository
 
 
-def test_scan_interval_parsing():
-    assert review_scan.scan_interval("1h") == timedelta(hours=1)
-    assert review_scan.scan_interval("30m") == timedelta(minutes=30)
-    assert review_scan.scan_interval("") is None
-    assert review_scan.scan_interval("   ") is None
-    assert review_scan.scan_interval("off") is None
-    assert review_scan.scan_interval("nonsense") is None
-
-
-def test_scan_due():
-    now = datetime(2026, 10, 19, 12, 0, tzinfo=UTC)
-    assert review_scan.scan_due(None, timedelta(hours=1), now) is True
-    assert review_scan.scan_due(now - timedelta(minutes=30), timedelta(hours=1), now) is False
-    assert review_scan.scan_due(now - timedelta(hours=2), timedelta(hours=1), now) is True
-    # No cadence means the scan never becomes due.
-    assert review_scan.scan_due(None, None, now) is False
+def test_slo_interval_parsing():
+    assert review_scan.slo_interval("1h") == timedelta(hours=1)
+    assert review_scan.slo_interval("30m") == timedelta(minutes=30)
+    assert review_scan.slo_interval("") is None
+    assert review_scan.slo_interval("   ") is None
+    assert review_scan.slo_interval("off") is None
+    assert review_scan.slo_interval("nonsense") is None
 
 
 def test_include_repository():
@@ -153,7 +144,9 @@ def test_the_scan_dates_the_latest_ready_for_review_event(monkeypatch):
     assert rows is not None
     assert rows[0]["ready_for_review_at"] == datetime(2026, 10, 22, 10, 0, tzinfo=UTC)
     # The search row carries no timeline; the time is read per requested row.
-    assert "ready_for_review_at" not in review_scan._normalize(_entry("o/a", 2), ReviewScanSource.requested)
+    search_row = review_scan._normalize(_entry("o/a", 2), ReviewScanSource.requested)
+    assert search_row is not None
+    assert "ready_for_review_at" not in search_row
     # A timeline with no ready event dates nothing.
     assert review_scan._latest_ready_event({"timeline": []}) is None
 
@@ -243,7 +236,7 @@ def test_run_review_scan_stores_the_filtered_set_and_removes_the_rest(session, m
         _fake_search([_entry("o/a", 1), _entry("o/b", 2), _entry("o/c", 3)], []),
     )
 
-    report = review_scan.run_review_scan(session, origin="manual", force=True)
+    report = review_scan.run_review_scan(session, origin="manual")
     assert report == {"found": 3, "stored": 2, "removed": 0}
     stored = {(row.repository, row.number, row.source) for row in session.exec(select(ReviewRequest)).all()}
     assert stored == {("o/a", 1, "requested"), ("o/c", 3, "requested")}
@@ -257,7 +250,7 @@ def test_run_review_scan_stores_the_filtered_set_and_removes_the_rest(session, m
     # that stays keeps the time it was first seen.
     first_seen = {row.repository: row.first_seen_at for row in session.exec(select(ReviewRequest)).all()}
     monkeypatch.setattr(shell, "_run_cli", _fake_search([_entry("o/a", 1)], []))
-    assert review_scan.run_review_scan(session, force=True) == {"found": 1, "stored": 1, "removed": 1}
+    assert review_scan.run_review_scan(session) == {"found": 1, "stored": 1, "removed": 1}
     rows = session.exec(select(ReviewRequest)).all()
     assert [(row.repository, row.number) for row in rows] == [("o/a", 1)]
     assert rows[0].first_seen_at == first_seen["o/a"]
@@ -273,7 +266,7 @@ def test_store_scan_results_leaves_unchanged_rows_alone(session, monkeypatch):
         return base(cmd, timeout=timeout)
 
     monkeypatch.setattr(shell, "_run_cli", fake)
-    review_scan.run_review_scan(session, force=True)
+    review_scan.run_review_scan(session)
     before = {row.number: row.updated_at for row in session.exec(select(ReviewRequest)).all()}
 
     statements: list[str] = []
@@ -283,7 +276,7 @@ def test_store_scan_results_leaves_unchanged_rows_alone(session, monkeypatch):
 
     event.listen(engine, "before_cursor_execute", capture)
     try:
-        report = review_scan.run_review_scan(session, force=True)
+        report = review_scan.run_review_scan(session)
     finally:
         event.remove(engine, "before_cursor_execute", capture)
 
@@ -297,7 +290,7 @@ def test_store_scan_results_leaves_unchanged_rows_alone(session, monkeypatch):
 
     # A changed field is still written, and bumps updated_at.
     monkeypatch.setattr(shell, "_run_cli", _fake_search([_entry("o/a", 1, title="Renamed"), _entry("o/a", 2)], []))
-    review_scan.run_review_scan(session, force=True)
+    review_scan.run_review_scan(session)
     changed = {row.number: row for row in session.exec(select(ReviewRequest)).all()}
     assert changed[1].title == "Renamed"
     assert changed[1].updated_at > before[1]
@@ -305,32 +298,14 @@ def test_store_scan_results_leaves_unchanged_rows_alone(session, monkeypatch):
 
 def test_run_review_scan_keeps_the_set_when_ghx_fails(session, monkeypatch):
     monkeypatch.setattr(shell, "_run_cli", _fake_search([_entry("o/a", 1)], []))
-    review_scan.run_review_scan(session, force=True)
+    review_scan.run_review_scan(session)
 
     monkeypatch.setattr(shell, "_run_cli", lambda cmd, timeout=60: None)
-    report = review_scan.run_review_scan(session, force=True)
+    report = review_scan.run_review_scan(session)
     assert "error" in report
     # The stored set survives, so a broken ghx never empties the queue.
     assert [row.number for row in session.exec(select(ReviewRequest)).all()] == [1]
     assert review_scan.review_scan_state(session)["error"]
-
-
-def test_run_review_scan_skips_when_the_cadence_is_off(session, monkeypatch):
-    monkeypatch.setattr(shell, "_run_cli", _fake_search([_entry("o/a", 1)], []))
-    from agentic.models.system import Setting
-    from agentic.settings_store import update_settings
-
-    update_settings(session, {"review_scan_interval": ""})
-    try:
-        assert review_scan.run_review_scan(session) == {"skipped": "off"}
-        assert review_scan.run_due_review_scan(session) == {"skipped": "not-due"}
-        # force bypasses the cadence, which is what "Scan now" does.
-        assert review_scan.run_review_scan(session, force=True)["stored"] == 1
-    finally:
-        row = session.get(Setting, "review_scan_interval")
-        if row is not None:
-            session.delete(row)
-            session.commit()
 
 
 def test_scan_endpoints_and_queue_union(session, monkeypatch, tmp_path):
@@ -348,7 +323,7 @@ def test_scan_endpoints_and_queue_union(session, monkeypatch, tmp_path):
     )
     with TestClient(app) as client:
         state = client.get("/api/reviews/scan").json()
-        assert state["enabled"] is True and state["stored"] == 0
+        assert state["stored"] == 0
 
         scanned = client.post("/api/reviews/scan").json()
         assert scanned["stored"] == 2 and scanned["found"] == 2

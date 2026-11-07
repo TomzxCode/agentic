@@ -220,8 +220,9 @@ async function saveDefault() {
       </div>
       <p class="faint" style="margin: 4px 0 0">
         How often the background job runs <code>ghx cache</code> over the registered GitHub repositories. It is the only
-        caller: every page reads the cache, so this is how fresh the GitHub pages are. A duration such as
-        <code>15m</code>, <code>1h</code> or <code>1d</code>; leave it blank to stop refreshing the cache.
+        caller: every page reads the cache, so this is how fresh the GitHub pages are. The review scan runs after each
+        pass that refreshed a repository. A duration such as <code>15m</code>, <code>1h</code> or <code>1d</code>; leave
+        it blank to stop refreshing the cache.
       </p>
     </div>
 

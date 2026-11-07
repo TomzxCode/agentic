@@ -272,19 +272,19 @@ def list_review_queue(
 
 @router.get("/scan", response_model=ReviewScanRead)
 def read_review_scan(session: Session = Depends(get_session)) -> ReviewScanRead:
-    """The review scan's cadence, its last pass, and how many PRs it holds."""
+    """The last review scan and how many PRs it holds."""
     return ReviewScanRead.model_validate(review_scan_state(session))
 
 
 @router.post("/scan", response_model=ReviewScanRead)
 def scan_review_requests(session: Session = Depends(get_session)) -> ReviewScanRead:
-    """Run the review scan now, ignoring its cadence.
+    """Run the review scan now, without waiting for the next cache refresh.
 
-    A scan that cannot run (``gh`` missing or unauthenticated) records the error
-    and leaves the stored set as it was, so the queue is never emptied by a
-    failure; the response carries that error.
+    A scan that cannot run (``ghx`` missing or its cache unreadable) records the
+    error and leaves the stored set as it was, so the queue is never emptied by
+    a failure; the response carries that error.
     """
-    run_review_scan(session, origin="manual", force=True)
+    run_review_scan(session, origin="manual")
     return ReviewScanRead.model_validate(review_scan_state(session))
 
 

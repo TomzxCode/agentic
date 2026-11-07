@@ -10,7 +10,7 @@ revision: 1
 
 `review_store.py` reads the report store into one row per pull request, `review_scan.py` asks GitHub on a cadence and keeps the found set in the `reviewrequest` table, `review_queue.py` overlays ghx metadata behind a short cache, and `review_findings.py` reads and updates the skills' findings-state files.
 `reviews.py` resolves report directories and serves report content, `routers/reviews.py` exposes the queue, scan, findings, and report endpoints, and `routers/settings.py` and the repository router validate the scan settings.
-`main.py` runs the scan in a background thread on a `review_scan_tick` timer.
+`main.py` keeps the ghx caches current, and `ghx_cache.py` runs the scan after each successful cache refresh; the settings router also offers a manual run.
 The SPA serves the queue at `/reviews` (`ReviewsView.vue`), the same panels inside a task (`TaskReviewPanel.vue`), the findings selector and share modal (`FindingsSelector.vue`, `ShareFindingsModal.vue`), and the settings sections (`SettingsReviewScan.vue` for the cadence and SLOs, `SettingsGithub.vue` for the repository policies).
 
 ## Architecture
@@ -114,8 +114,7 @@ Row union:
 
 Scan semantics:
 
-- `review_scan_interval` holds a duration (`30m`, `1h`); empty or one of off/never/none/`-` disables the scan.
-- The background tick (default 300 s) calls `run_due_review_scan`, which runs when the cadence has elapsed.
+- The scan runs after each ghx cache refresh that refreshed at least one repository, so `ghx_cache_refresh_interval` is its cadence; "Scan now" runs one pass immediately.
 - A run replaces the set: upserts keep `first_seen_at` and refresh `ready_for_review_at` from the requested search's timeline, rows the search no longer finds are deleted.
 - A run whose searches all fail records the error and changes nothing.
 - Repository policy comes from each `Repository.review_scan` column (default/include/exclude); with default, the app-wide `review_scan_default` decides.
@@ -127,12 +126,12 @@ Scan semantics:
 |---|---|---|
 | GET | /api/reviews | The whole queue, live from ghx unless cached (`?refresh=true` bypasses), with the review SLO mark on overdue rows |
 | GET | /api/reviews/task/{task_id} | The queue scoped to the pull requests the task's items link to |
-| GET | /api/reviews/scan | The scan's cadence, policy, stored count, and last pass |
-| POST | /api/reviews/scan | Run the scan now, ignoring the cadence |
+| GET | /api/reviews/scan | The scan's default, stored count, and last pass |
+| POST | /api/reviews/scan | Run the scan now, without waiting for the next cache refresh |
 | GET | /api/reviews/findings/{number} | One PR's must/should/may findings (`?repository=owner/name`) |
 | POST | /api/reviews/findings/{number}/decisions | Record include/skip decisions in one all-or-nothing write |
 | GET | /api/reviews/report/{number}/{name} | One report's Markdown by relative path (`?repository=owner/name`) |
-| PATCH | /api/settings | Validates and stores review_scan_interval, review_scan_default, review_slo, review_nudge_slo |
+| PATCH | /api/settings | Validates and stores review_scan_default, review_slo, review_nudge_slo |
 | PATCH | /api/repositories/{id} | Accepts a per-repository review_scan policy |
 
 Error codes:
@@ -141,7 +140,7 @@ Error codes:
 |---|---|
 | 400 | A finding decision outside include or skip |
 | 404 | Unknown task, finding, or report |
-| 422 | A malformed review_scan_interval, review_scan_default, review_slo, or review_nudge_slo |
+| 422 | A malformed review_scan_default, review_slo, or review_nudge_slo |
 
 `GET /api/reviews` returns `root` (the store path), `generated_at`, `counts` (total, ready, blocked), and `prs`.
 Each row carries the PR identity and live fields (repository, number, title, url, author, state, draft, created_at, labels, review_decision, head_branch, base_branch, last_comment_at, last_comment_by), the review state (head_commit, reviewed_at, steps, in_progress, stale_steps, reviewed_steps, readiness, status), the scan scope (request_source, review_scope), the review SLO mark (slo_wait_seconds, slo_seconds), and the links (item_id, task_ids, store_dir).
@@ -154,12 +153,11 @@ Each step state carries step, commit, verdict, risk, confidence, report, modifie
 ```mermaid
 sequenceDiagram
     autonumber
-    participant T as main.py tick
+    participant C as ghx_cache.py pass
     participant S as review_scan.py
-    participant GH as gh search prs
+    participant GH as ghx search prs
     participant DB as SQLite
-    T->>S: run_due_review_scan
-    S->>S: scan_due(last_run_at, interval)
+    C->>S: run_review_scan after a refreshed repository
     S->>GH: review-requested:@me (expanded to the user's teams) and reviewed-by:@me, in parallel
     GH-->>S: results, or None when a search could not run
     S->>DB: upsert kept rows keeping first_seen_at, refresh ready_for_review_at, delete the rest
@@ -214,7 +212,7 @@ sequenceDiagram
 | Findings decisions | Written back into the skill's state file, line-preserving | One source of truth both sides read; real files are not always valid YAML, so they are edited per line rather than re-serialized |
 | Decision batch | All or nothing with one shared timestamp | A select-all cannot half-land or stamp twice |
 | Notifications recovery | Not ported | Needs the notifications API plus a batched GraphQL drop check, and the plain searches never surface those pull requests |
-| Settings section | One section owns the scan cadence, policy, and SLO durations | The scan, its policies, and the SLO are one concern in the UI |
+| Settings section | Review requests owns the SLO durations and the manual scan; GitHub owns the repository policies | Each section holds the settings for its own subject |
 
 ## Risks and Unknowns
 

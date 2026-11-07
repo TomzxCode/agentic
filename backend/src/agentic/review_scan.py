@@ -13,8 +13,9 @@ Both searches go through ``ghx search prs``, which answers only from the local
 cache, across every repository it has cached. ``@me`` covers the user's teams
 because ``ghx cache`` records the team memberships alongside the repositories; a
 cache that has never recorded them matches the user alone. The scan never
-refreshes that cache itself (a refresh per repository is slow), so a scheduled
-refresh keeps it current and a repository ghx has never cached is not searched.
+refreshes that cache itself (a refresh per repository is slow); ``ghx_cache``
+runs it after each successful cache refresh instead, and a repository ghx has
+never cached is not searched.
 
 Each stored row carries a ``review_scope`` (``me``, ``team``, or ``both``) read
 from the pull request's pending review requests, so the queue can show team
@@ -63,7 +64,7 @@ SEARCHES: tuple[tuple[str, ReviewScanSource], ...] = (
     ("--reviewed-by", ReviewScanSource.reviewed),
 )
 
-#: Cadence spellings that mean the scan is off.
+#: Spellings of a duration that mean the setting is off.
 _OFF_VALUES = frozenset({"off", "never", "none", "-"})
 
 
@@ -72,8 +73,8 @@ def parse_exclude_authors(value: str | None) -> set[str]:
     return {part.strip().lower() for part in (value or "").split(",") if part.strip()}
 
 
-def scan_interval(value: str | None) -> timedelta | None:
-    """The configured cadence, or None when the scan is off or malformed."""
+def slo_interval(value: str | None) -> timedelta | None:
+    """A duration setting (the SLOs), or None when it is off or malformed."""
     text = (value or "").strip().lower()
     if not text or text in _OFF_VALUES:
         return None
@@ -82,21 +83,12 @@ def scan_interval(value: str | None) -> timedelta | None:
 
 def configured_review_slo(session: Session) -> timedelta | None:
     """The review SLO: how long a review may wait, or None when it is off."""
-    return scan_interval(get_settings(session).get("review_slo", ""))
+    return slo_interval(get_settings(session).get("review_slo", ""))
 
 
 def configured_review_nudge_slo(session: Session) -> timedelta | None:
     """The review nudge SLO: how long the user's pull request may wait for anyone's review."""
-    return scan_interval(get_settings(session).get("review_nudge_slo", ""))
-
-
-def scan_due(last_run_at: datetime | None, interval: timedelta | None, now: datetime) -> bool:
-    """Whether a scan is due: never run yet, or the cadence has elapsed."""
-    if interval is None:
-        return False
-    if last_run_at is None:
-        return True
-    return now - last_run_at >= interval
+    return slo_interval(get_settings(session).get("review_nudge_slo", ""))
 
 
 def _parse_timestamp(value: str | None) -> datetime | None:
@@ -368,22 +360,19 @@ def store_scan_results(session: Session, rows: list[dict[str, Any]]) -> tuple[in
     return len(rows), len(existing)
 
 
-def run_review_scan(session: Session, origin: str = "background", force: bool = False) -> dict[str, Any]:
+def run_review_scan(session: Session, origin: str = "background") -> dict[str, Any]:
     """Run one scan: ask ghx, filter, and replace the stored set.
 
     The scan searches the cache ghx has already written and never refreshes it:
     a cache refresh walks or re-reads every repository, and a scan that waited
-    on several of them would stall whatever asked for it. Keeping the cache
-    current is the scheduled refresh's job.
+    on several of them would stall whatever asked for it. ``ghx_cache`` calls
+    this after each successful cache refresh, and the "Scan now" button runs it
+    on demand.
 
     A scan that could not run leaves the stored set untouched, so a broken
-    ``ghx`` never empties the queue; the failure is recorded and retried on the
-    next cadence. *force* runs even when the scan is switched off, which is what
-    the "Scan now" button does.
+    ``ghx`` never empties the queue; the failure is recorded and retried after
+    the next cache refresh.
     """
-    interval = scan_interval(get_settings(session).get("review_scan_interval", ""))
-    if interval is None and not force:
-        return {"skipped": "off"}
     exclude = parse_exclude_authors(settings.review_scan_exclude_authors)
     found = search_awaiting_reviews(settings.review_scan_limit, exclude, resolve_github_login(session))
     if found is None:
@@ -400,30 +389,14 @@ def run_review_scan(session: Session, origin: str = "background", force: bool = 
     return {"found": len(found), "stored": stored, "removed": removed}
 
 
-def run_due_review_scan(session: Session) -> dict[str, Any]:
-    """Run the scan when the configured cadence says it is due."""
-    interval = scan_interval(get_settings(session).get("review_scan_interval", ""))
-    last = _parse_timestamp(get_review_scan_status(session).get("last_run_at"))
-    if not scan_due(last, interval, utcnow()):
-        return {"skipped": "not-due"}
-    return run_review_scan(session)
-
-
 def review_scan_state(session: Session) -> dict[str, Any]:
-    """The scan's configuration and its last pass, for the API and the UI."""
-    values = get_settings(session)
-    interval = scan_interval(values.get("review_scan_interval", ""))
+    """The scan's last pass and the default that filters it, for the API and the UI."""
     status = get_review_scan_status(session)
     last = _parse_timestamp(status.get("last_run_at"))
-    next_run = last + interval if last and interval else (utcnow() if interval else None)
     return {
-        "interval": values.get("review_scan_interval", ""),
-        "enabled": interval is not None,
-        "interval_seconds": interval.total_seconds() if interval else None,
         "default": scan_default(session),
         "stored": len(session.exec(select(ReviewRequest)).all()),
         "last_run_at": last,
-        "next_run_at": next_run,
         "found": status.get("found", 0),
         "kept": status.get("stored", 0),
         "error": status.get("error"),

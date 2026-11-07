@@ -100,7 +100,7 @@ Shared error codes:
 
 | Component | Change | Requirements |
 |---|---|---|
-| `SettingsReviewScan.vue` | A **Review SLO** field, saved on blur like the scan cadence, with the same duration grammar and a blank to disable it | FR-1, FR-7 |
+| `SettingsReviewScan.vue` | A **Review SLO** field, saved on blur, with the same duration grammar and a blank to disable it | FR-1, FR-7 |
 | `InboxView.vue` | A **Reviews past SLO** section listed first; a non-task row links its title and its **Review PR** action to the pull request | FR-5, FR-8 |
 | `InboxSuggestion` schema | `task_id`, `task_title`, and `task_status` become optional; `repository`, `number`, `title`, and `url` are added | FR-5 |
 | `InboxAction` schema | `task_id` becomes optional and `url` is added, carrying the `open_url` target | FR-5 |
@@ -146,7 +146,7 @@ sequenceDiagram
 
 ## Rules
 
-- `review_slo` uses the same duration parser as the scan cadence, so `30m`, `1h`, `1d`, `2w`, `off`, and blank all behave as they do elsewhere.
+- `review_slo` uses the same duration grammar as the other duration settings, so `30m`, `1h`, `1d`, `2w`, `off`, and blank all behave as they do elsewhere.
 - A suggestion is offered only when the wait is greater than the SLO; exactly at the SLO does not count.
 - The wait starts at the latest `ready_for_review` event, which is when the current review round began; a re-request after a draft does not reset it, but converting the pull request back to ready does.
 - `first_seen_at` is not reset by a scan, but it is the fallback, not the SLO's primary clock: a pull request with a ready event keeps its true wait even if the row is dropped and re-added.

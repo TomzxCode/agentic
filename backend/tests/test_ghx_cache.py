@@ -1,12 +1,22 @@
 import time
 from datetime import timedelta
 
+import pytest
 from sqlmodel import Session
 
-from agentic import ghx_cache
+from agentic import ghx_cache, review_scan
 from agentic.db import create_db_and_tables, engine
 from agentic.models.system import Setting
 from agentic.settings_store import GHX_CACHE_STATUS_KEY, get_ghx_cache_status, update_settings
+
+
+@pytest.fixture(autouse=True)
+def _quiet_review_scan(monkeypatch):
+    """Keep the scan the cache pass triggers from shelling out to ghx.
+
+    A test that asserts the scan ran patches ``run_review_scan`` itself.
+    """
+    monkeypatch.setattr(review_scan, "run_review_scan", lambda session, origin="background": {})
 
 
 def _clear_settings() -> None:
@@ -150,6 +160,41 @@ def test_run_due_ghx_cache_refresh_is_off_when_the_cadence_is_blank(monkeypatch)
         with Session(engine) as session:
             update_settings(session, {"ghx_cache_refresh_interval": ""})
             assert ghx_cache.run_due_ghx_cache_refresh(session) == {"skipped": "disabled"}
+    finally:
+        _clear_settings()
+
+
+def test_a_successful_pass_rescans_the_review_requests(monkeypatch):
+    calls = []
+    monkeypatch.setattr(review_scan, "run_review_scan", lambda session, origin="background": calls.append(origin) or {})
+    monkeypatch.setattr(ghx_cache, "known_github_repositories", lambda session: ["o/r"])
+    monkeypatch.setattr(ghx_cache, "list_cached_repositories", lambda: {"o/r"})
+    monkeypatch.setattr(ghx_cache, "refresh_github_cache", lambda *args, **kwargs: True)
+    ghx_cache._retry_after.clear()
+    _clear_settings()
+
+    try:
+        with Session(engine) as session:
+            ghx_cache.run_ghx_cache_refresh(session, origin="manual", force=True)
+        assert calls == ["manual"]
+    finally:
+        _clear_settings()
+
+
+def test_a_pass_that_refreshed_nothing_does_not_rescan(monkeypatch):
+    calls = []
+    monkeypatch.setattr(review_scan, "run_review_scan", lambda session, origin="background": calls.append(origin) or {})
+    monkeypatch.setattr(ghx_cache, "known_github_repositories", lambda session: ["o/r"])
+    monkeypatch.setattr(ghx_cache, "list_cached_repositories", lambda: {"o/r"})
+    monkeypatch.setattr(ghx_cache, "refresh_github_cache", lambda *args, **kwargs: False)
+    ghx_cache._retry_after.clear()
+    _clear_settings()
+
+    try:
+        with Session(engine) as session:
+            report = ghx_cache.run_ghx_cache_refresh(session)
+        assert report["refreshed"] == 0
+        assert calls == []
     finally:
         _clear_settings()
 

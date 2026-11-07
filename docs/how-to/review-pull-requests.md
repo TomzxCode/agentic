@@ -66,7 +66,7 @@ A pull request the scan finds joins the queue even before any review report exis
 
 Configure the scan under **Settings → Review requests**, and the repositories it covers under **Settings → GitHub**:
 
-- **How often to scan** is a duration such as `30m`, `1h`, or `1d`; leave it blank to stop scanning.
+- The scan runs after each successful GitHub cache refresh, so the `GitHub cache refresh` cadence under **Settings → GitHub** is also the scan's.
 - **Review SLO** is a duration such as `8h` or `1d`: a pull request awaiting your review longer than that is highlighted in the review queue and appears in the inbox. The wait starts when the pull request was last marked ready for review; a pull request with no such event falls back to when the scan first saw it waiting. Leaving the field blank turns the SLO off.
 - **Review nudge SLO** is a duration such as `1h30m` or `1d` for your own pull requests: one that has waited that long since it was opened without any review from anyone (a comment review counts, the author's own does not) appears in the inbox with a `Poke reviewers` button that DMs each requested reviewer on Slack. Leaving the field blank turns the nudge off. This read does not go through the scan: it uses the same read as the [My PRs](../views/my-pulls.md) page, over the registered GitHub repositories.
 - **Repositories with no policy of their own** is what a repository that has no policy of its own does: **Include** (scan every repository except the excluded ones) or **Exclude** (scan only the repositories marked include). This choice and each repository's own policy are under **Settings → GitHub**, together with the rest of the repository settings.

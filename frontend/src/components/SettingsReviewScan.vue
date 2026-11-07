@@ -15,7 +15,6 @@ const props = defineProps({
 })
 
 const form = reactive({
-  review_scan_interval: '',
   review_slo: '',
   review_nudge_slo: ''
 })
@@ -68,7 +67,6 @@ async function scanNow() {
 watch(
   () => props.overrides,
   (overrides) => {
-    form.review_scan_interval = overrides.review_scan_interval ?? ''
     form.review_slo = overrides.review_slo ?? ''
     form.review_nudge_slo = overrides.review_nudge_slo ?? ''
   },
@@ -97,39 +95,22 @@ onMounted(load)
     <p class="faint" style="margin-top: 0">
       A background scan asks GitHub which pull requests await your review: those with a review requested from you, and
       the open ones you have already reviewed. They join the
-      <router-link to="/reviews">review queue</router-link> even before a review report exists for them. Discovery runs
-      through <code>ghx</code>'s cache, so repositories it has never cached are not scanned. Which repositories the scan
-      considers is set in the <strong>GitHub</strong> section. The nudge SLO below instead reads your own open pull
-      requests, the way the <router-link to="/my-pulls">My PRs</router-link> page does.
+      <router-link to="/reviews">review queue</router-link> even before a review report exists for them. It runs after
+      each GitHub cache refresh, through <code>ghx</code>'s cache, so repositories it has never cached are not scanned.
+      Which repositories the scan considers is set in the <strong>GitHub</strong> section. The nudge SLO below instead
+      reads your own open pull requests, the way the <router-link to="/my-pulls">My PRs</router-link> page does.
     </p>
 
-    <div class="field">
-      <label>
-        How often to scan
-        <span v-if="saving === 'review_scan_interval'" class="faint">saving…</span>
-        <span v-else-if="saved === 'review_scan_interval'" class="faint">saved</span>
-      </label>
-      <input
-        v-model="form.review_scan_interval"
-        class="input mono"
-        :placeholder="defaults.review_scan_interval || '1h'"
-        @blur="save('review_scan_interval')"
-      />
-      <p class="faint" style="margin: 4px 0 0">
-        A duration such as <code>30m</code>, <code>1h</code> or <code>1d</code>. Leave it blank to stop scanning.
-      </p>
-      <p class="faint" style="margin: 4px 0 0">
-        Last scan:
-        <template v-if="status?.last_run_at">
-          {{ timeAgo(status.last_run_at) }} · {{ status.found }} found, {{ status.kept }} kept
-          <span v-if="status.origin === 'manual'"> · run by hand</span>
-        </template>
-        <template v-else>never</template>
-        <span v-if="status && !status.enabled"> · scanning is off</span>
+    <p class="faint">
+      Last scan:
+      <template v-if="status?.last_run_at">
+        {{ timeAgo(status.last_run_at) }} · {{ status.found }} found, {{ status.kept }} kept
+        <span v-if="status.origin === 'manual'"> · run by hand</span>
         <span v-else-if="status?.stored"> · {{ status.stored }} in the queue</span>
-      </p>
-      <p v-if="status?.error" style="margin: 4px 0 0; color: var(--danger)">{{ status.error }}</p>
-    </div>
+      </template>
+      <template v-else>never</template>
+    </p>
+    <p v-if="status?.error" style="margin: 4px 0 0; color: var(--danger)">{{ status.error }}</p>
 
     <div class="field">
       <label>

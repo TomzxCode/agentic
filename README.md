@@ -334,13 +334,14 @@ reviewed, and lists them even before any review report exists. A **📨** or **�
 mark beside the number says which search found it (a review is requested from
 you or one of your teams, or you already reviewed it and it is still open). The
 **Team + me / Team / Me** chips split a team request from the personal ones.
-**Settings → Review requests** sets how
-often the scan runs (a duration such as `1h`; blank stops it) and the **Review
+**Settings → Review requests** sets the **Review
 SLO** (a duration such as `1d`; blank turns it off, and a pull request past it
 is highlighted here with a tinted row and a colored edge, and is flagged in the
-inbox); **Scan now** runs it immediately. Whether a repository with no policy of
-its own is included or excluded, and each registered repository's own Include /
-Exclude / Default choice, are under **Settings → GitHub**.
+inbox); **Scan now** runs the scan immediately. The scan otherwise runs after
+each ghx cache refresh, so `ghx_cache_refresh_interval` is its cadence. Whether
+a repository with no policy of its own is included or excluded, and each
+registered repository's own Include / Exclude / Default choice, are under
+**Settings → GitHub**.
 
 The **My PRs** page (`/my-pulls`, the pull-request icon) lists the open pull
 requests the GitHub login in Settings → GitHub authored, one row per PR, and
@@ -543,8 +544,6 @@ Environment variables (prefix `AGENTIC_`; the Slack credentials keep slackx's na
 | `AGENTIC_SLACK_REFRESH_POLICY` | (empty) | When to re-fetch Slack threads, e.g. `1d=1h,7d=6h,30d=1d,*=7d`. Empty disables it. |
 | `AGENTIC_GITHUB_REFRESH_POLICY` | (empty) | When to re-fetch GitHub issues/PRs, same format. Empty disables it. |
 | `AGENTIC_ITEM_REFRESH_TICK` | `300` | Seconds between checks for due items (0 disables the loop). |
-| `AGENTIC_REVIEW_SCAN_INTERVAL` | `1h` | How often the review scan asks GitHub which pull requests await you (a duration such as `1h`; empty disables it). |
-| `AGENTIC_REVIEW_SCAN_TICK` | `300` | Seconds between checks for whether the review scan is due (0 disables the loop). |
 | `AGENTIC_REVIEW_SCAN_DEFAULT` | `include` | What a repository with no review-scan policy of its own does: `include` or `exclude`. |
 | `AGENTIC_REVIEW_SCAN_LIMIT` | `100` | Results each review-scan search returns. |
 | `AGENTIC_REVIEW_SCAN_EXCLUDE_AUTHORS` | `dependabot[bot]` | Comma-separated logins the review scan leaves out. |

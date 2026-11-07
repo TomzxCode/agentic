@@ -130,38 +130,13 @@ def _auto_record_changes_once() -> int:
         return len(record_merged_pr_changes(session))
 
 
-def _review_scan_once() -> dict:
-    """Run the review scan when its cadence says it is due (gh blocks).
-
-    Opens its own session so the ``gh`` calls never touch the event loop's
-    connection. The scan records its own last pass, which is what the Settings
-    page shows.
-    """
-    from .review_scan import run_due_review_scan
-
-    with Session(engine) as session:
-        return run_due_review_scan(session)
-
-
-async def _review_scan_forever() -> None:
-    """Tick on a timer and ask GitHub which pull requests await a review."""
-    tick = settings.review_scan_tick
-    if tick <= 0:
-        return
-    while True:
-        await asyncio.sleep(tick)
-        try:
-            await asyncio.to_thread(_review_scan_once)
-        except Exception as exc:  # noqa: BLE001
-            log.warning("review scan tick failed", error=str(exc))
-
-
 def _ghx_cache_once() -> CacheReport | dict[str, object]:
     """Run the ghx cache refresh when its cadence says it is due (ghx blocks).
 
     Every page reads the cache this pass keeps current; the Settings button
-    runs the same pass by hand. Opens its own session so the subprocess waits
-    never touch the event loop's connection.
+    runs the same pass by hand. The pass also rescans the review requests, so
+    the stored set matches the cache it just wrote. Opens its own session so
+    the subprocess waits never touch the event loop's connection.
     """
     from .ghx_cache import run_due_ghx_cache_refresh
 
@@ -213,10 +188,8 @@ async def lifespan(app: FastAPI):
         log.info("recorded changes for merged pull requests at startup", count=recorded)
     # Re-fetch Slack/GitHub items on the configured schedule.
     refresh_task = asyncio.create_task(_refresh_due_forever())
-    # Ask GitHub which pull requests await the user's review, on its own cadence.
-    scan_task = asyncio.create_task(_review_scan_forever())
-    # Keep the ghx caches the pages read current. The Settings button runs the
-    # same pass by hand.
+    # Keep the ghx caches the pages read current, and rescan the review requests
+    # after each pass. The Settings button runs the same pass by hand.
     cache_task = asyncio.create_task(_ghx_cache_forever())
     # Fire the user-defined scheduled tasks whose time has come.
     schedule_task = asyncio.create_task(scheduler_loop())
@@ -236,14 +209,11 @@ async def lifespan(app: FastAPI):
     managed_tools.stop()
     graphs_shutdown()
     refresh_task.cancel()
-    scan_task.cancel()
     cache_task.cancel()
     schedule_task.cancel()
     graph_schedule_task.cancel()
     with suppress(asyncio.CancelledError):
         await refresh_task
-    with suppress(asyncio.CancelledError):
-        await scan_task
     with suppress(asyncio.CancelledError):
         await cache_task
     with suppress(asyncio.CancelledError):
