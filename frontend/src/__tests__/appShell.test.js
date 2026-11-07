@@ -497,9 +497,10 @@ describe('App', () => {
     for (const section of [
       'Session links',
       'Identity',
+      'Slack',
+      'GitHub',
       'Agent harnesses',
       'Agent prompts',
-      'Refresh',
       'Repository groups',
       'Sidebar'
     ]) {

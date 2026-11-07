@@ -12,7 +12,7 @@ session_link: "http://localhost:10000/?session=ses_ed778bb8affeJQ6f9Tkxe4MjUl"
 The feature keeps source items current at a rate that matches how fast each item actually changes.
 `refresh.py` is the pure policy language: `parse_duration` reads `30m`/`1h`/`1d`/`2w` and combinations like `1h30m`, `parse_policy` turns `1d=1h,7d=6h,30d=1d,*=7d` into ordered `RefreshTier` bands plus an optional fallback, `interval_for_age` picks the band, `is_due` compares the interval with the item's last fetch, and `item_start`/`item_age` derive the item's true age from its upstream creation rather than its import date.
 `routers/items_refresh.py` is the database-side runner: it selects the due items, fetches them together on a pool thread, applies each result through the shared `_apply_fetch`, records per-item outcomes and per-source runs, and also merges repository listing state onto stored items.
-`main.py` ticks the pass on a timer in a worker thread, `routers/items.py` exposes the manual endpoints, `routers/settings.py` validates and previews policies, and the Settings page's Refresh section edits everything.
+`main.py` ticks the pass on a timer in a worker thread, `routers/items.py` exposes the manual endpoints, `routers/settings.py` validates and previews policies, and the Slack and GitHub settings sections edit everything.
 The boundary with p2-source-items holds: the single on-demand `POST /api/items/{id}/refresh` and the item model belong to p2; this feature covers the tiered pass, the policy settings, and the status surfaces.
 
 ## Architecture
@@ -31,7 +31,7 @@ flowchart LR
     RUN --> ST[record_refresh_run status]
     ST --> RSS[GET /api/settings/refresh-status]
     PREV[POST /api/settings/refresh-policy/preview] --> RP
-    RSS --> SR[SettingsRefresh.vue]
+    RSS --> SR[RefreshPolicyField.vue]
     PREV --> SR
     LS[sync_github_listing] --> SI
 ```

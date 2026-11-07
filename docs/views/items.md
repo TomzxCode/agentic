@@ -36,7 +36,7 @@ Per card:
 Notes get no refresh and no person linker, because there is nothing upstream to fetch.
 
 The page loads every item and filters in the browser, so it is not the place to browse thousands of resources.
-There is no page-level refresh and no per-source refresh button; **Settings → Refresh** has the per-source force refresh.
+There is no page-level refresh and no per-source refresh button; the **Slack** and **GitHub** settings sections each have a force refresh.
 
 ### One item (`/items/:id`)
 

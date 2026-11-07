@@ -8,7 +8,7 @@ You want one place that shows which pull requests still need your review and wha
 
 - A running API and the web app open (see the [tutorial](../tutorials/getting-started.md)).
 - `ghx` on your `PATH`: the queue reads each pull request's own fields (title, state, author, age) from it, the review scan searches its cache (including the team memberships `ghx cache` records), and a pull request item's reviewer list comes from it too.
-- The repositories you want scanned cached by `ghx`: the scan reads that cache, not GitHub directly. The app's background cache job warms the registered repositories on its cadence (Settings → Refresh); a manual `ghx cache --repo owner/name` also works.
+- The repositories you want scanned cached by `ghx`: the scan reads that cache, not GitHub directly. The app's background cache job warms the registered repositories on its cadence (Settings → GitHub); a manual `ghx cache --repo owner/name` also works.
 - Review reports in the store for the pull requests you have already reviewed.
   Run `/review-pr-full` (or the individual review skills) on a PR to write them.
 

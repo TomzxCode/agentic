@@ -10,7 +10,7 @@ session_link: "http://localhost:10000/?session=ses_ed778bb8affeJQ6f9Tkxe4MjUl"
 
 Slack threads and GitHub issues and pull requests change at different rates over their lives: a just-opened one may see activity within the hour, while one from last month is effectively settled.
 A refresh policy is a list of age bands, each pairing an upper age with a refresh interval, plus an optional fallback (`1d=1h,7d=6h,30d=1d,*=7d`), so fresh items refresh sooner and settled items rarely or never.
-`refresh.py` holds the pure policy language (parsing, band selection, the due calculation, and the item's true age from its upstream start), `routers/items_refresh.py` runs the policy-driven fetch pass and the per-source force refresh (sharing `_apply_fetch` with the single-item refresh), a background loop in `main.py` ticks the pass, and the Settings page's Refresh section edits the policies with a live preview and a per-source force button.
+`refresh.py` holds the pure policy language (parsing, band selection, the due calculation, and the item's true age from its upstream start), `routers/items_refresh.py` runs the policy-driven fetch pass and the per-source force refresh (sharing `_apply_fetch` with the single-item refresh), a background loop in `main.py` ticks the pass, and the Slack and GitHub settings sections edit the policies with a live preview and a per-source force button.
 The boundary with p2-source-items holds: p2 covers the items and associations themselves and the on-demand single-item fetch; p34 covers the background tiered refresh policy pass, its per-source policies, and the settings and status surfaces around it.
 
 ## Stakeholders
@@ -34,7 +34,7 @@ The boundary with p2-source-items holds: p2 covers the items and associations th
 | FR-8 | Must | The CLI shall expose `agentic item refresh-due` and `agentic item refresh-source <source>` for the same passes |
 | FR-9 | Must | Applying a fetch shall merge the fetched title (unless a person set a custom one), content, and metadata, keep file items as references without stored content, baseline a Slack thread marked done before its first fetch, leave `fetched_at` alone on a failed fetch so the policy retries, and link the fetched people |
 | FR-10 | Must | Each pass shall record one outcome per source (last run time, refreshed and failed counts, the last error, the origin, and the 24-hour refreshed sum) readable at `GET /api/settings/refresh-status` |
-| FR-11 | Must | The Settings page's Refresh section shall edit both policies with a debounced live preview from the server's parser, save on blur (422 on a malformed policy from the settings PATCH), and offer a per-source force refresh with a last-run status line |
+| FR-11 | Must | The Slack and GitHub settings sections shall edit their policies with a debounced live preview from the server's parser, save on blur (422 on a malformed policy from the settings PATCH), and offer a per-source force refresh with a last-run status line |
 | FR-12 | Should | A repository listing sync shall merge the listing's state fields onto the stored items it names, so an item is never staler than the repository view that shows it, without touching item bodies or people |
 
 ## Non-Functional Requirements
@@ -177,8 +177,8 @@ The boundary with p2-source-items holds: p2 covers the items and associations th
 
     ```gherkin
     @FR-11
-    Scenario: The settings section previews and saves
-      Given the Refresh section open
+    Scenario: The settings sections preview and save
+      Given the Slack or GitHub section open
       When a policy is typed
       Then a debounced preview shows the parsed bands from the server's parser, or the error for a malformed one
       And leaving the field saves it, and a malformed policy saved through PATCH /api/settings is rejected with 422

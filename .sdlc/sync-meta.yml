@@ -289,6 +289,8 @@ code_index:
   p34-item-refresh:
     - backend/src/agentic/refresh.py
     - backend/src/agentic/routers/items_refresh.py
-    - frontend/src/components/SettingsRefresh.vue
+    - frontend/src/components/SettingsSlack.vue
+    - frontend/src/components/SettingsGithub.vue
+    - frontend/src/components/RefreshPolicyField.vue
     - backend/tests/test_refresh.py
     - docs/how-to/refresh-items.md

@@ -11,8 +11,8 @@ Slack threads and GitHub issues go stale at different rates, and you do not want
 
 ## Steps
 
-1. Open **Settings → Refresh**.
-   Each source has a live preview of its policy as you type.
+1. Open **Settings → Slack** for the Slack policy, or **Settings → GitHub** for the GitHub policy.
+   Each source shows a live preview of its policy as you type.
 2. Set a policy for Slack and a policy for GitHub.
    A policy is a comma-separated list of `age=interval` bands, with an optional `*` fallback:
 

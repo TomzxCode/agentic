@@ -8,7 +8,7 @@ session_link: "http://localhost:10000/?session=ses_ed778bb8affeJQ6f9Tkxe4MjUl"
 
 ## Scope
 
-Covers the pure policy module, the due pass and force refresh endpoints, the fetch application rules shared with the single-item refresh, the settings validation, preview, and status endpoints, the background tick, and the Settings Refresh section.
+Covers the pure policy module, the due pass and force refresh endpoints, the fetch application rules shared with the single-item refresh, the settings validation, preview, and status endpoints, the background tick, and the Slack and GitHub settings sections.
 Out of scope: the item model, task associations, and the single-item endpoint's contract details (p2-source-items), and real slackx/ghx subprocesses (fetches are monkeypatched).
 
 ## Unit Tests
@@ -39,7 +39,7 @@ Out of scope: the item model, task associations, and the single-item endpoint's 
 | TC-17 | The policy preview endpoint parses and rejects | app TestClient | a valid policy returns its tiers and fallback; an out-of-order one returns `valid: false` with the error |
 | TC-18 | The refresh status endpoint reports runs and the 24h sum, including a legacy last-run row | runs recorded directly in settings | per-source counts, origins, and the summed 24h refreshed value |
 | TC-19 | The background tick runs the pass and records the outcome | policies set, `main._refresh_due_once` invoked | the status shows a background-origin run; no policy text short-circuits to no work |
-| TC-20 | The Settings Refresh section previews, saves, and force refreshes | jsdom mount with mocked API | debounced preview calls, save on blur, force-refresh button per source, and the status line render |
+| TC-20 | The Slack and GitHub settings sections preview, save, and force refresh | jsdom mount with mocked API | debounced preview calls, save on blur, force-refresh button per source, and the status line render |
 
 ## Edge Cases and Failure Scenarios
 
@@ -56,7 +56,7 @@ Out of scope: the item model, task associations, and the single-item endpoint's 
 - `backend/tests/test_refresh.py` exercises the pure module with a fixed `NOW` and `SimpleNamespace` stand-ins for items, no database.
 - `backend/tests/test_items_api.py` monkeypatches `fetch_source` (router and `items_refresh._safe_fetch` paths) and inspects `Setting` rows for the recorded statuses.
 - `backend/tests/test_settings_api.py` covers the preview, status, and background-tick behaviors, including the legacy status migration.
-- `frontend/src/__tests__/settingsView.test.js` mounts the Settings page including the Refresh section with a mocked `api`.
+- `frontend/src/__tests__/settingsView.test.js` mounts the Settings page including the Slack and GitHub sections with a mocked `api`.
 
 ## Coverage Matrix
 

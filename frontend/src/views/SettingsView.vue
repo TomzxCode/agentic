@@ -10,10 +10,10 @@ import SettingsSessionLinks from '../components/SettingsSessionLinks.vue'
 import SettingsToolServers from '../components/SettingsToolServers.vue'
 import SettingsIdentity from '../components/SettingsIdentity.vue'
 import SettingsSlack from '../components/SettingsSlack.vue'
+import SettingsGithub from '../components/SettingsGithub.vue'
 import SettingsHarnesses from '../components/SettingsHarnesses.vue'
 import SettingsPrompts from '../components/SettingsPrompts.vue'
 import SettingsChecklists from '../components/SettingsChecklists.vue'
-import SettingsRefresh from '../components/SettingsRefresh.vue'
 import SettingsReviewScan from '../components/SettingsReviewScan.vue'
 import SettingsSidebar from '../components/SettingsSidebar.vue'
 import SettingsDebugBar from '../components/SettingsDebugBar.vue'
@@ -95,16 +95,21 @@ onMounted(load)
           :overrides="settings.overrides"
           :effective="settings.effective"
         />
-        <SettingsSlack v-show="active === 'slack'" :overrides="settings.overrides" :defaults="settings.defaults" />
+        <SettingsSlack
+          v-show="active === 'slack'"
+          :overrides="settings.overrides"
+          :defaults="settings.defaults"
+          :active="active === 'slack'"
+        />
+        <SettingsGithub
+          v-show="active === 'github'"
+          :overrides="settings.overrides"
+          :defaults="settings.defaults"
+          :active="active === 'github'"
+        />
         <SettingsHarnesses v-show="active === 'harnesses'" />
         <SettingsPrompts v-show="active === 'prompts'" :overrides="settings.overrides" :defaults="settings.defaults" />
         <SettingsChecklists v-show="active === 'checklists'" />
-        <SettingsRefresh
-          v-show="active === 'refresh'"
-          :overrides="settings.overrides"
-          :defaults="settings.defaults"
-          :active="active === 'refresh'"
-        />
         <SettingsReviewScan
           v-show="active === 'review-scan'"
           :overrides="settings.overrides"

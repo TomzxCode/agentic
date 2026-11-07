@@ -578,10 +578,10 @@ daily under 30 days, and weekly after that. Omit the `*` band (or write
 is its upstream creation time when known (GitHub `createdAt`, a Slack thread
 timestamp), otherwise when it was recorded. An empty policy disables that source.
 
-Both policies are editable on **Settings → Refresh** (each with a live preview),
+Both policies are editable on **Settings → Slack** and **Settings → GitHub** (each with a live preview),
 or with `agentic settings set --slack-refresh-policy "1d=1h,*=7d"
 --github-refresh-policy "1d=1h,30d=1d"`, and `agentic item refresh-due` runs a
-pass immediately. The same page shows when each source last ran (background job
+pass immediately. Each section shows when its source last ran (background job
 or forced), how many items it refreshed, and the last error when a run failed
 (also `agentic settings refresh-status`). A **Force refresh** button pulls one
 source on demand, ignoring its policy (`agentic item refresh-source slack`).

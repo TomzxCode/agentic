@@ -88,7 +88,7 @@ There is no sort control.
 ### Caching and failures
 
 Each read lists the login's open pull requests from each registered repository's `ghx` cache.
-The cache itself is never refreshed by a page load: one background job runs `ghx cache` over the registered repositories on its own cadence (Settings → Refresh, `ghx_cache_refresh_interval`, 15 minutes by default), and the same section's `Force refresh` runs one pass by hand.
+The cache itself is never refreshed by a page load: one background job runs `ghx cache` over the registered repositories on its own cadence (Settings → GitHub, `ghx_cache_refresh_interval`, 15 minutes by default), and it is the only caller.
 The repositories are read together, and the assembled answer is cached per login and repository set for 60 seconds; a failed read is retried after 30 seconds.
 `Refresh` bypasses that 60-second answer cache and reads `ghx`'s cache again; it never refreshes the cache and never forces a full re-fetch of the repository.
 The checks popover caches each pull request's checks for 30 seconds.

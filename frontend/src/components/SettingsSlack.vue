@@ -2,10 +2,15 @@
 import { reactive, ref, watch } from 'vue'
 import { api } from '../api'
 import { store } from '../store'
+import RefreshPolicyField from './RefreshPolicyField.vue'
 
+// The "Slack" settings section: where events are delivered, and how often Slack
+// threads re-fetch. The page shell supplies the raw overrides/defaults and
+// whether this section is showing.
 const props = defineProps({
   overrides: { type: Object, default: () => ({}) },
-  defaults: { type: Object, default: () => ({}) }
+  defaults: { type: Object, default: () => ({}) },
+  active: { type: Boolean, default: false }
 })
 
 const form = reactive({
@@ -72,7 +77,7 @@ async function sendTest() {
 <template>
   <section class="panel">
     <div class="panel-head">
-      <h2>Slack events</h2>
+      <h2>Slack</h2>
       <span v-if="saving" class="faint">saving…</span>
       <span v-else-if="saved" class="faint">saved</span>
     </div>
@@ -133,5 +138,14 @@ async function sendTest() {
       </button>
       <span v-if="testResult" class="faint">{{ testResult }}</span>
     </div>
+
+    <RefreshPolicyField
+      policy-key="slack_refresh_policy"
+      label="Slack threads"
+      source="slack"
+      :overrides="overrides"
+      :defaults="defaults"
+      :active="active"
+    />
   </section>
 </template>

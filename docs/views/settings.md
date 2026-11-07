@@ -21,11 +21,11 @@ All sections stay mounted, so switching back and forth does not lose what you ty
 | `Session links` | The OpenChamber base URL, the OpenChamber session path, the terminal URL template, and the editor URL template. |
 | `Local tools` | The ghx and slackx web UI base URLs. |
 | `Identity` | The GitHub login that counts as you. |
-| `Slack` | The Slack recipient ids, the bot token, and `Send test notification`. |
+| `Slack` | The Slack recipient ids, the bot token, `Send test notification`, and the Slack thread refresh policy. |
+| `GitHub` | The GitHub issue/PR refresh policy and the ghx cache refresh cadence. |
 | `Agent harnesses` | Per harness: its resume command, its model, and which harness is the default. Also adds a harness. |
 | `Agent prompts` | The prompt buttons the agent panel shows, their item kind, their label, and their template. |
 | `Checklists` | Reusable task checklists and the rules that decide which tasks they apply to. |
-| `Refresh` | The Slack and GitHub refresh policies, their live preview, and a per-source force refresh. |
 | `Review requests` | The review-scan cadence, the default repository policy, each repository's own policy, `Scan now`, and the last scan's result. |
 | `Repository groups` | Named sets of repositories, with a description. |
 | `Sidebar` | The sidebar's layout (full or icon rail), and which pages it shows and in what order. |
@@ -56,11 +56,23 @@ Blank falls back to the authenticated `gh` account, which the placeholder shows 
 
 ### Slack
 
-The section is titled `Slack events`.
 `Slack user id` is the default recipient; `Slack events user id` and `Slack events channel` override it per use.
 `Slack bot token` posts as a bot instead of as you, and `Send test notification` posts one message and reports the result or Slack's error.
 
 The item poke action still uses `SLACK_TOKEN`, not the bot token set here.
+
+`Slack threads` is a refresh policy: a comma-separated list of `age=interval` bands with an optional `*` fallback.
+The preview re-parses what you type after a 300 ms pause and shows the resulting schedule.
+`Force refresh` re-fetches every Slack item immediately.
+The status line reads `Last run: <age> · N refreshed · M failed · forced · N refreshed in the last 24h`, and an empty policy disables the source.
+
+### GitHub
+
+`GitHub issues/PRs` is the same kind of refresh policy, with its own preview, status line, and `Force refresh` button.
+
+`GitHub cache refresh` is the cadence of the one background job that runs `ghx cache` over the registered GitHub repositories, a duration such as `15m` or `1h`; blank stops it.
+It is the only place the cache is refreshed: every page reads it, so this cadence is how fresh the GitHub pages are.
+A repository is refreshed with a delta when ghx already has a completed cache for it, and with a full history walk when it does not.
 
 ### Agent harnesses
 
@@ -91,22 +103,6 @@ Every rule has to match.
 When a task matches, its items are copied onto the task once.
 `Apply now` adds any missing items to the tasks that currently match, which is how a newly added item reaches tasks that already had the checklist.
 Removing a template also removes the items it put on tasks; the task page keeps the items when a rule stops matching, shown disabled.
-
-### Refresh
-
-Two policy fields, `Slack threads` and `GitHub issues/PRs`, each a comma-separated list of `age=interval` bands with an optional `*` fallback.
-The preview re-parses what you type after a 300 ms pause and shows the resulting schedule.
-`Force refresh` re-fetches every item of that source immediately.
-
-The status line reads `Last run: <age> · N refreshed · M failed · forced · N refreshed in the last 24h`.
-An empty policy disables that source.
-
-`GitHub cache refresh` is the cadence of the background job that runs `ghx cache` over the registered GitHub repositories, a duration such as `15m` or `1h`; blank stops the scheduled pass.
-Every page reads that cache, so this cadence is how fresh the GitHub pages are.
-A repository is refreshed with a delta when ghx already has a completed cache for it, and with a full history walk when it does not.
-`Force refresh` runs one pass now, even with the cadence blank and even for a repository whose last refresh failed.
-The request waits for the pass, so a repository ghx has never fully cached can make it slow.
-The status line reads `Last cache refresh: <age> · N refreshed · M failed · K skipped · forced`.
 
 ### Review requests
 

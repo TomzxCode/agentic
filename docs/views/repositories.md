@@ -67,7 +67,7 @@ Row actions:
 - `Record change` appears only when the row is merged, exactly one task links it, no change references it yet, and you authored it. It creates the change already accepted and dated to the merge.
 
 `Reload` re-reads the repository's issue and pull request listing from ghx's cache and writes the listing state back onto the items linked to tasks.
-The cache is refreshed by one background job (Settings → Refresh, `ghx_cache_refresh_interval`), never by this page, so `Reload` never waits on a GitHub fetch.
+The cache is refreshed by one background job (Settings → GitHub, `ghx_cache_refresh_interval`), never by this page, so `Reload` never waits on a GitHub fetch.
 `Refresh linked` re-fetches only the items tasks already use, four at a time, and reports how many succeeded and failed.
 
 ### Good to know

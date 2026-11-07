@@ -16,7 +16,6 @@ const mocks = vi.hoisted(() => ({
   settingsRestartTool: vi.fn(),
   settingsPreviewPolicy: vi.fn(),
   settingsRefreshStatus: vi.fn(),
-  settingsRefreshGhxCache: vi.fn(),
   settingsDiagnostics: vi.fn(),
   reviewsScan: vi.fn(),
   reviewsRunScan: vi.fn(),
@@ -57,7 +56,6 @@ vi.mock('../api', () => ({
       restartTool: mocks.settingsRestartTool,
       previewRefreshPolicy: mocks.settingsPreviewPolicy,
       refreshStatus: mocks.settingsRefreshStatus,
-      refreshGhxCache: mocks.settingsRefreshGhxCache,
       diagnostics: mocks.settingsDiagnostics
     },
     repositories: {
@@ -123,8 +121,7 @@ describe('SettingsView', () => {
       tiers: [{ max_age_seconds: 86400, interval_seconds: 3600 }],
       fallback_seconds: 604800
     })
-    mocks.settingsRefreshStatus.mockResolvedValue({ sources: {}, ghx_cache: {} })
-    mocks.settingsRefreshGhxCache.mockResolvedValue({ refreshed: 2, failed: 0, skipped: 1, origin: 'manual' })
+    mocks.settingsRefreshStatus.mockResolvedValue({ sources: {} })
     mocks.settingsDiagnostics.mockResolvedValue({ checked_at: new Date().toISOString(), dependencies: [] })
   })
 
@@ -345,7 +342,7 @@ describe('SettingsView', () => {
     expect(notify).toHaveBeenCalledWith('ghx did not start: check that its binary is installed', true)
   })
 
-  it('previews and saves each source refresh policy', async () => {
+  it('previews and saves each source refresh policy in its own section', async () => {
     mocks.settingsGet.mockResolvedValue({
       defaults: { slack_refresh_policy: '', github_refresh_policy: '' },
       overrides: { slack_refresh_policy: '1d=1h', github_refresh_policy: '1d=2h' }
@@ -354,10 +351,15 @@ describe('SettingsView', () => {
     const wrapper = mountView()
     await flushPromises()
 
-    const refreshNav = wrapper.findAll('.settings-nav-item').find((b) => b.text() === 'Refresh')
-    await refreshNav.trigger('click')
+    const slackNav = wrapper.findAll('.settings-nav-item').find((b) => b.text() === 'Slack')
+    await slackNav.trigger('click')
     await flushPromises()
     expect(mocks.settingsPreviewPolicy).toHaveBeenCalledWith('1d=1h')
+    expect(mocks.settingsPreviewPolicy).not.toHaveBeenCalledWith('1d=2h')
+
+    const githubNav = wrapper.findAll('.settings-nav-item').find((b) => b.text() === 'GitHub')
+    await githubNav.trigger('click')
+    await flushPromises()
     expect(mocks.settingsPreviewPolicy).toHaveBeenCalledWith('1d=2h')
     expect(wrapper.text()).toContain('Slack threads')
     expect(wrapper.text()).toContain('GitHub issues/PRs')
@@ -415,8 +417,8 @@ describe('SettingsView', () => {
     const wrapper = mountView()
     await flushPromises()
 
-    const refreshNav = wrapper.findAll('.settings-nav-item').find((b) => b.text() === 'Refresh')
-    await refreshNav.trigger('click')
+    const slackNav = wrapper.findAll('.settings-nav-item').find((b) => b.text() === 'Slack')
+    await slackNav.trigger('click')
     await flushPromises()
     expect(wrapper.text()).toContain('Last run:')
     expect(wrapper.text()).toContain('2 refreshed')
@@ -433,43 +435,15 @@ describe('SettingsView', () => {
     const wrapper = mountView()
     await flushPromises()
 
-    const refreshNav = wrapper.findAll('.settings-nav-item').find((b) => b.text() === 'Refresh')
-    await refreshNav.trigger('click')
+    const slackNav = wrapper.findAll('.settings-nav-item').find((b) => b.text() === 'Slack')
+    await slackNav.trigger('click')
     await flushPromises()
 
     const buttons = wrapper.findAll('button').filter((b) => b.text() === 'Force refresh')
-    expect(buttons.length).toBe(3)
+    expect(buttons.length).toBe(2)
     await buttons[0].trigger('click')
     await flushPromises()
     expect(mocks.itemsRefreshSource).toHaveBeenCalledWith('slack')
-  })
-
-  it('force refreshes the GitHub cache and shows when it last ran', async () => {
-    mocks.settingsRefreshStatus.mockResolvedValue({
-      sources: {},
-      ghx_cache: {
-        last_run_at: new Date().toISOString(),
-        refreshed: 3,
-        failed: 0,
-        skipped: 1,
-        origin: 'manual'
-      }
-    })
-    const wrapper = mountView()
-    await flushPromises()
-
-    const refreshNav = wrapper.findAll('.settings-nav-item').find((b) => b.text() === 'Refresh')
-    await refreshNav.trigger('click')
-    await flushPromises()
-    expect(wrapper.text()).toContain('Last cache refresh:')
-    expect(wrapper.text()).toContain('3 refreshed')
-    expect(wrapper.text()).toContain('1 skipped')
-    expect(wrapper.text()).toContain('forced')
-
-    const buttons = wrapper.findAll('button').filter((b) => b.text() === 'Force refresh')
-    await buttons[2].trigger('click')
-    await flushPromises()
-    expect(mocks.settingsRefreshGhxCache).toHaveBeenCalled()
   })
 
   it('lets one source force refresh while the other is still refreshing', async () => {
@@ -483,8 +457,8 @@ describe('SettingsView', () => {
     const wrapper = mountView()
     await flushPromises()
 
-    const refreshNav = wrapper.findAll('.settings-nav-item').find((b) => b.text() === 'Refresh')
-    await refreshNav.trigger('click')
+    const slackNav = wrapper.findAll('.settings-nav-item').find((b) => b.text() === 'Slack')
+    await slackNav.trigger('click')
     await flushPromises()
 
     const buttons = wrapper.findAll('button').filter((b) => b.text() === 'Force refresh')
