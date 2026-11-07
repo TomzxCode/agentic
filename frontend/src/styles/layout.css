@@ -120,6 +120,9 @@
 .main > .menu-btn {
   display: none;
 }
+.main > .page-icon {
+  display: none;
+}
 
 /* Sidebar list */
 .task-card {

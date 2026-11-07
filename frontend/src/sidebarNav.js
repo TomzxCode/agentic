@@ -10,7 +10,7 @@ import { computed, reactive } from 'vue'
 // icon lit (a person page lights People, a repository page lights Repositories).
 export const SIDEBAR_NAV_ITEMS = [
   { id: 'stack', label: 'Stack', to: '/stack', icon: 'stack', routeNames: ['stack'] },
-  { id: 'tasks', label: 'Tasks', to: '/', icon: 'tasks', routeNames: ['tasks'] },
+  { id: 'tasks', label: 'Tasks', to: '/', icon: 'tasks', routeNames: ['tasks', 'task'] },
   { id: 'inbox', label: 'Inbox', to: '/inbox', icon: 'inbox', routeNames: ['inbox'], badge: 'inbox' },
   { id: 'reviews', label: 'Review queue', to: '/reviews', icon: 'reviews', routeNames: ['reviews'] },
   { id: 'my-pulls', label: 'My PRs', to: '/my-pulls', icon: 'pulls', routeNames: ['my-pulls'] },
@@ -21,7 +21,7 @@ export const SIDEBAR_NAV_ITEMS = [
   { id: 'events', label: 'Events', to: '/events', icon: 'events', routeNames: ['events'] },
   { id: 'metrics', label: 'Metrics', to: '/metrics', icon: 'metrics', routeNames: ['metrics'] },
   { id: 'process', label: 'Process', to: '/process', icon: 'process', routeNames: ['process'] },
-  { id: 'items', label: 'Items', to: '/items', icon: 'items', routeNames: ['items'] },
+  { id: 'items', label: 'Items', to: '/items', icon: 'items', routeNames: ['items', 'item'] },
   { id: 'people', label: 'People', to: '/people', icon: 'people', routeNames: ['people', 'person', 'person-new'] },
   {
     id: 'repositories',

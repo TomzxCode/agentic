@@ -17,13 +17,16 @@ import StatusBar from './components/StatusBar.vue'
 import { useFocusHints } from './composables/useFocusHints'
 import { useSidebar } from './composables/useSidebar'
 import { buildPaletteItems } from './palette'
-import { loadSidebarNav, sidebarNavColumns, visibleSidebarNav } from './sidebarNav'
+import { loadSidebarNav, SIDEBAR_NAV_ITEMS, sidebarNavColumns, visibleSidebarNav } from './sidebarNav'
 import { loadSidebarLayout, SIDEBAR_RAIL_PX, sidebarIsRail, toggleSidebarLayout } from './sidebarLayout'
 import { debugBarVisible } from './debugBar'
 
 const { hintBadges, handleHintKey, hasHintTargets, stopHints } = useFocusHints()
 
 const route = useRoute()
+// The page's own nav icon, shown before the title. A detail route keeps the
+// icon of the list it belongs to (a task page shows the Tasks icon).
+const pageIcon = computed(() => SIDEBAR_NAV_ITEMS.find((item) => item.routeNames.includes(route.name))?.icon ?? '')
 const paletteItems = computed(() =>
   buildPaletteItems({
     route,
@@ -514,6 +517,9 @@ onUnmounted(() => {
           <path d="M9.1 5.4v13.2" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" fill="none" />
         </svg>
       </button>
+      <span v-if="pageIcon" class="page-icon" aria-hidden="true">
+        <Icon :name="pageIcon" :size="20" />
+      </span>
       <router-view :key="route.fullPath" @changed="refresh" />
     </main>
 
