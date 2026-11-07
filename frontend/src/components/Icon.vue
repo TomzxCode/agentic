@@ -100,6 +100,11 @@ const ICONS = {
     ['path', { d: 'M15.2 12.5l2.4 2.6 2.4-2.6' }]
   ],
   // Process: three stations in a line with an arrow flowing through them.
+  // On call: a bell, the alert that reaches the person on rotation.
+  oncall: [
+    ['path', { d: 'M18 8.5a6 6 0 0 0-12 0c0 6.5-2.5 6.5-2.5 8.5h17c0-2-2.5-2-2.5-8.5' }],
+    ['path', { d: 'M10 20a2.3 2.3 0 0 0 4 0' }]
+  ],
   process: [
     ['rect', { x: 2.5, y: 8.75, width: 5.2, height: 6.5, rx: 1.2 }],
     ['rect', { x: 9.4, y: 8.75, width: 5.2, height: 6.5, rx: 1.2 }],

@@ -33,7 +33,7 @@ export const SIDEBAR_NAV_ITEMS = [
   { id: 'schedules', label: 'Scheduled tasks', to: '/schedules', icon: 'schedule', routeNames: ['schedules'] },
   { id: 'time', label: 'Time', to: '/time', icon: 'time', routeNames: ['time'] },
   { id: 'graphs', label: 'Execution graphs', to: '/graphs', icon: 'graphs', routeNames: ['graphs'] },
-  { id: 'on-call', label: 'On call', to: '/on-call', icon: 'slack', routeNames: ['on-call', 'oncall'] },
+  { id: 'on-call', label: 'On call', to: '/on-call', icon: 'oncall', routeNames: ['on-call', 'oncall'] },
   { id: 'webhooks', label: 'Webhooks', to: '/webhooks', icon: 'events', routeNames: ['webhooks'] },
   { id: 'settings', label: 'Settings', to: '/settings', icon: 'settings', routeNames: ['settings'] }
 ]
