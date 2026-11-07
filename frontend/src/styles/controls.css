@@ -4,7 +4,9 @@
 .btn {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
+  height: 39px;
   padding: 7px 12px;
   border-radius: 8px;
   border: 1px solid var(--border);
@@ -40,6 +42,7 @@
   cursor: not-allowed;
 }
 .btn.sm {
+  height: 28px;
   padding: 4px 8px;
   font-size: 12px;
 }
@@ -57,6 +60,12 @@
 .select:focus,
 .textarea:focus {
   border-color: var(--accent-2);
+}
+/* Text fields share one height, so a mono field, a date field, and a native
+   select line up when they sit in one row. Textareas keep their rows. */
+.input,
+.select {
+  height: 39px;
 }
 
 /* An @ mention field: the picker floats under the field it belongs to. */

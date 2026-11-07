@@ -61,6 +61,7 @@
 - Per-device UI preferences (sidebar state, grid column choices, status bar) persist in `localStorage`, not in user settings.
 - List views needing a multi-select filter use the shared `ValuesFilter.vue` custom filter (`valuesFilter: ValuesFilter` in the grid's component definitions), because AG Grid's Set filter is Enterprise-only.
 - Related option sets (status filters, queue scopes, PR facets, page tabs, range presets) share one `.pill-group` frame (`frontend/src/styles/controls.css`), whose segments wrap on narrow screens; the inbox tab strip is the one nowrap, horizontally scrolling group.
+- Text fields, selects, and default buttons share one height (39px, 46px on phones), so a row that mixes them lines up; `.btn.sm` stays compact for secondary actions, and textareas size to their rows.
 - Grid cell renderers resolve link components at setup time with `resolveComponent('RouterLink')` (see `RepositoriesView.vue`, `PeopleView.vue`).
 
 ## Commit Messages

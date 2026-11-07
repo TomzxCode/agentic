@@ -194,10 +194,12 @@
 
   /* Touch targets and iOS-friendly form sizing (avoids zoom-on-focus). */
   .btn {
-    min-height: 40px;
+    height: 46px;
+    min-height: 46px;
     padding: 9px 14px;
   }
   .btn.sm {
+    height: 36px;
     min-height: 36px;
     padding: 7px 11px;
     font-size: 13px;
@@ -210,6 +212,10 @@
   .textarea {
     font-size: 16px;
     padding: 10px 12px;
+  }
+  .input,
+  .select {
+    height: 46px;
   }
   /* The searchable selects beside the review queue's and My PRs' search boxes
      match the other form controls on a phone, instead of sitting shorter than
