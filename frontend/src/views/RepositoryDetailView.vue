@@ -243,7 +243,7 @@ async function loadGithub() {
     return
   }
   try {
-    const listing = await api.github.repository({ repository_id: props.id, state: 'all', limit: 1000 })
+    const listing = await api.github.repository({ repository_id: repository.value?.id, state: 'all', limit: 1000 })
     // Swap only once the response arrives, so a slow ghx call does not blank
     // the rows that are already on screen.
     ghxItems.value = listing?.items || []
