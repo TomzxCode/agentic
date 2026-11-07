@@ -473,16 +473,17 @@ describe('App', () => {
       expect(localStorage.getItem('agentic.sidebarLayout')).toBe('rail')
     })
 
-    it('keeps the full sidebar in the mobile drawer', async () => {
+    it('opens the mobile drawer with the rail layout', async () => {
       window.innerWidth = 375
       localStorage.setItem('agentic.sidebarLayout', 'rail')
       const wrapper = mountApp()
       await flushPromises()
-      // The rail class is still there, but only the desktop stylesheet reads it;
-      // the drawer keeps the task list and the labels.
+
+      await wrapper.get('.menu-btn').trigger('click')
+      expect(wrapper.get('.app').classes()).toContain('sidebar-open')
+      // The rail rules apply at every width; below 760px they narrow the drawer
+      // to the icon strip (jsdom does not evaluate the media query).
       expect(wrapper.get('.app').classes()).toContain('sidebar-rail')
-      expect(wrapper.find('.side-scroll').exists()).toBe(true)
-      expect(wrapper.find('.new-task-label').exists()).toBe(true)
       window.innerWidth = 1024
     })
   })

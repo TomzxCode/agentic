@@ -23,7 +23,11 @@ import { setSidebarLayout, sidebarLayout } from '../sidebarLayout'
 
 const LAYOUTS = [
   { id: 'full', label: 'Full', hint: 'The task list above the page icons.' },
-  { id: 'rail', label: 'Icon rail', hint: 'A thin column with only the page icons, over the full height.' }
+  {
+    id: 'rail',
+    label: 'Icon rail',
+    hint: 'A thin column of page icons over the full height (a narrow drawer on a phone).'
+  }
 ]
 
 const layoutHint = computed(() => LAYOUTS.find((option) => option.id === sidebarLayout.value).hint)

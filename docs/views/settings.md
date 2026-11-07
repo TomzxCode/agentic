@@ -131,7 +131,7 @@ Picking one on a task tells the agent which checkouts may hold information about
 ### Sidebar
 
 `Layout` switches between `Full` (the task list above the page icons) and `Icon rail` (a thin column holding only the page icons, spread over the sidebar's full height).
-The rail is a desktop layout: below 760px the drawer still opens with the full sidebar.
+On a phone below 760px the rail becomes the drawer: opening the sidebar shows a narrow 56px strip of icons instead of the full-width task list.
 It is per device, under `agentic.sidebarLayout`.
 
 Each page has a checkbox, and each row has a drag grip and `ArrowUp`/`ArrowDown` to move it.
