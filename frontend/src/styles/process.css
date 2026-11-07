@@ -8,8 +8,10 @@
 .process-svg {
   display: block;
   width: 100%;
+  max-width: 760px;
   min-width: 680px;
   height: auto;
+  margin: 0 auto;
 }
 .process-svg .station-rect {
   fill: var(--bg-2);
