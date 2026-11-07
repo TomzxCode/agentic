@@ -75,7 +75,9 @@ def test_an_aggregate_phase_still_lets_a_failure_through():
         debug.start_request("GET", "/api/reviews")
         with pytest.raises(ValueError, match="boom"), debug.phase("review store reports", aggregate=True):
             raise ValueError("boom")
-        phases = debug._debug_state.get()["phases"]
+        state = debug._debug_state.get()
+        assert state is not None
+        phases = state["phases"]
         assert len(phases) == 1
         assert phases[0]["name"] == "review store reports"
         assert phases[0]["calls"] == 1
