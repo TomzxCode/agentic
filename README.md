@@ -335,12 +335,12 @@ mark beside the number says which search found it (a review is requested from
 you or one of your teams, or you already reviewed it and it is still open). The
 **Team + me / Team / Me** chips split a team request from the personal ones.
 **Settings → Review requests** sets how
-often the scan runs (a duration such as `1h`; blank stops it), the **Review
+often the scan runs (a duration such as `1h`; blank stops it) and the **Review
 SLO** (a duration such as `1d`; blank turns it off, and a pull request past it
-is highlighted here with a tinted row and a colored edge, and is flagged in the inbox),
-whether a repository with no policy of its own is
-included or excluded, and each registered repository's own Include / Exclude /
-Default choice; **Scan now** runs it immediately.
+is highlighted here with a tinted row and a colored edge, and is flagged in the
+inbox); **Scan now** runs it immediately. Whether a repository with no policy of
+its own is included or excluded, and each registered repository's own Include /
+Exclude / Default choice, are under **Settings → GitHub**.
 
 The **My PRs** page (`/my-pulls`, the pull-request icon) lists the open pull
 requests the GitHub login in Settings → GitHub authored, one row per PR, and

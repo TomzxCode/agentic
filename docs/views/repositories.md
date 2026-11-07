@@ -76,7 +76,7 @@ The cache is refreshed by one background job (Settings → GitHub, `ghx_cache_re
 - Loading the list (or pressing `Refresh`) re-reads each checkout's `origin` and takes a changed URL, so a checkout that gained or retargeted its remote reads correctly without being removed and re-added. A name that came from the old remote, or a folder name left on a checkout whose GitHub remote is known, is repaired to `owner/repo`; a name set by hand stays. A checkout that was deleted, or whose `origin` is gone, keeps the values already stored.
 - ghx's own cache serves every visit; the background job keeps it current, so a changed issue or pull request shows after the next pass.
 - A GitHub read failure keeps the items already linked to tasks and shows a banner saying so.
-- The review-scan policy per repository is not edited here; it is a select in **Settings → Review requests**.
+- The review-scan policy per repository is not edited here; it is a select in **Settings → GitHub**.
 - Bulk add is API-only; the picker is the only UI for it.
 
 ## CLI and agent interface

@@ -11,7 +11,7 @@ revision: 1
 `review_store.py` reads the report store into one row per pull request, `review_scan.py` asks GitHub on a cadence and keeps the found set in the `reviewrequest` table, `review_queue.py` overlays ghx metadata behind a short cache, and `review_findings.py` reads and updates the skills' findings-state files.
 `reviews.py` resolves report directories and serves report content, `routers/reviews.py` exposes the queue, scan, findings, and report endpoints, and `routers/settings.py` and the repository router validate the scan settings.
 `main.py` runs the scan in a background thread on a `review_scan_tick` timer.
-The SPA serves the queue at `/reviews` (`ReviewsView.vue`), the same panels inside a task (`TaskReviewPanel.vue`), the findings selector and share modal (`FindingsSelector.vue`, `ShareFindingsModal.vue`), and the settings section (`SettingsReviewScan.vue`).
+The SPA serves the queue at `/reviews` (`ReviewsView.vue`), the same panels inside a task (`TaskReviewPanel.vue`), the findings selector and share modal (`FindingsSelector.vue`, `ShareFindingsModal.vue`), and the settings sections (`SettingsReviewScan.vue` for the cadence and SLOs, `SettingsGithub.vue` for the repository policies).
 
 ## Architecture
 

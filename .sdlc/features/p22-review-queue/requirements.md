@@ -327,8 +327,8 @@ The scan's `ready_for_review_at` (falling back to `first_seen_at`) also feeds th
     ```gherkin
     @FR-23
     Scenario: The scan is configured from Settings
-      Given the Review requests settings section
-      When the cadence is saved as 30m and a repository is set to exclude
+      Given the Review requests and GitHub settings sections
+      When the cadence is saved as 30m and a repository's scan policy is set to exclude in GitHub
       Then the values persist and the scan status shows the last pass
       When Scan now is pressed
       Then a forced scan runs and its result is shown

@@ -19,7 +19,7 @@ Two sources, merged into one list:
 - The review reports in the store, at `{owner}/{repository}/pull-requests/{number}/`.
 - The review scan, which asks ghx for the pull requests with a review requested from you or one of your teams (`review-requested:@me`) and the open ones you already reviewed (`reviewed-by:@me`). A pull request it finds joins the queue before any report exists for it.
 
-The scan's cadence and its repository policy are configured in **Settings → Review requests**, not on this page.
+The scan's cadence and the SLOs are configured in **Settings → Review requests**, and its repository policy in **Settings → GitHub**, not on this page.
 
 ### The filters
 

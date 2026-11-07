@@ -21,11 +21,11 @@ All sections stay mounted, so switching back and forth does not lose what you ty
 | `Session links` | The OpenChamber base URL, the OpenChamber session path, the terminal URL template, and the editor URL template. |
 | `Local tools` | The ghx and slackx web UI base URLs. |
 | `Slack` | The Slack recipient ids, the bot token, `Send test notification`, and the Slack thread refresh policy. |
-| `GitHub` | The GitHub login that counts as you, the GitHub issue/PR refresh policy, and the ghx cache refresh cadence. |
+| `GitHub` | The GitHub login that counts as you, the GitHub issue/PR refresh policy, the ghx cache refresh cadence, and which repositories the review scan considers. |
 | `Agent harnesses` | Per harness: its resume command, its model, and which harness is the default. Also adds a harness. |
 | `Agent prompts` | The prompt buttons the agent panel shows, their item kind, their label, and their template. |
 | `Checklists` | Reusable task checklists and the rules that decide which tasks they apply to. |
-| `Review requests` | The review-scan cadence, the default repository policy, each repository's own policy, `Scan now`, and the last scan's result. |
+| `Review requests` | The review-scan cadence, `Scan now`, the SLOs, and the last scan's result. |
 | `Repository groups` | Named sets of repositories, with a description. |
 | `Sidebar` | The sidebar's layout (full or icon rail), and which pages it shows and in what order. |
 | `Debug bar` | Whether the bar pinned to the bottom of every page is shown. |
@@ -71,6 +71,10 @@ Blank falls back to the authenticated `gh` account, which the placeholder shows 
 It is the only place the cache is refreshed: every page reads it, so this cadence is how fresh the GitHub pages are.
 A repository is refreshed with a delta when ghx already has a completed cache for it, and with a full history walk when it does not.
 
+`Repositories with no policy of their own` chooses whether the review scan includes a repository that has no policy of its own: `Include` (scan every repository except the excluded ones) or `Exclude` (scan only the repositories marked include).
+Each repository then has its own `Default`, `Include`, or `Exclude`.
+The per-repository choice saves when it changes, as a `PATCH` on that repository, and the review scan under **Review requests** follows it.
+
 ### Agent harnesses
 
 Each harness card shows whether it is the default, whether its command is on `PATH`, and its status.
@@ -104,10 +108,9 @@ Removing a template also removes the items it put on tasks; the task page keeps 
 ### Review requests
 
 `How often to scan` is a duration such as `30m`, `1h`, or `1d`; blank stops the scan.
-`Repositories with no policy of their own` chooses whether a repository with no policy is scanned (`Include`) or skipped (`Exclude`).
-Each repository then has its own `Default`, `Include`, or `Exclude`.
 `Scan now` runs one pass, and the section shows when the scan last ran, how many it found and kept, and any error.
 The scan reads `ghx`'s cache, so a repository `ghx` has never cached is not scanned.
+Which repositories it considers is set under **GitHub**.
 
 `Review SLO` is how long a pull request may await your review before the inbox flags it, such as `8h` or `1d`; blank turns it off.
 `Review nudge SLO` is how long a pull request of yours may wait without any review from anyone before the inbox offers to poke its reviewers, such as `1h30m` or `1d`; blank turns it off.
@@ -149,7 +152,7 @@ Version probes time out after 5 seconds and cache listings after 30.
 ### Good to know
 
 - A stored override wins over the matching environment variable; clearing the field falls back to the default.
-- The section that writes through another endpoint is `Review requests`: a per-repository policy is a `PATCH` on that repository.
+- The section that writes through another endpoint is `GitHub`: a per-repository review-scan policy is a `PATCH` on that repository.
 - The buttons that act rather than save a value are `Send test notification`, `Force refresh`, `Scan now`, `Set default`, `Add harness`, and `Recheck`.
 - The page loads settings and repositories once; each section seeds its own editable copy from the overrides.
 
