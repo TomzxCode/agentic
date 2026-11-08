@@ -391,6 +391,14 @@ def _ensure_columns() -> None:
         if "snoozed_until" not in task_columns:
             with engine.begin() as connection:
                 connection.execute(text("ALTER TABLE task ADD COLUMN snoozed_until DATETIME"))
+    if "checklistitem" in inspector.get_table_names():
+        item_columns = {column["name"] for column in inspector.get_columns("checklistitem")}
+        if "converted_task_id" not in item_columns:
+            with engine.begin() as connection:
+                connection.execute(text("ALTER TABLE checklistitem ADD COLUMN converted_task_id VARCHAR"))
+                connection.execute(
+                    text("CREATE INDEX ix_checklistitem_converted_task_id ON checklistitem (converted_task_id)")
+                )
     if "stackentry" in inspector.get_table_names():
         entry_columns = {column["name"] for column in inspector.get_columns("stackentry")}
         if "deleted_reason" not in entry_columns:

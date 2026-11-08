@@ -62,8 +62,11 @@ agentic task deadlines --within-days 30
 agentic task link <task> <other> --relation before   # other must be done first
 agentic task link <task> <other>                     # other follows (after)
 agentic task link <task> <other> --relation related  # related either way (not in the graph)
-agentic task deps <task>             # tasks linked before, after, and related
-agentic task unlink <task> <other>
+agentic task link <task> <other> --relation parent   # other is a parent of this task
+agentic task link <task> <other> --relation child    # other is a child of this task
+agentic task deps <task>             # tasks linked before, after, related, parents, children
+agentic task unlink <task> <other>   # remove the link, or pass --relation to pick one kind
+agentic task convert <task> <item>   # turn a checklist item into a child task
 agentic graph                        # the whole before/after DAG (nodes and edges)
 agentic tag list                     # tags in use, with task counts
 ```

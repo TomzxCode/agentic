@@ -59,6 +59,8 @@ def _task_text(task: dict) -> str:
         for item in checklist:
             mark = "x" if item.get("done") else " "
             suffix = "" if item.get("applicable", True) else " (no longer applies)"
+            if item.get("converted_task_id"):
+                suffix += f" -> task {item['converted_task_id']}"
             lines.append(f"    [{mark}] {item['text']}{suffix}")
     return "\n".join(lines)
 
@@ -106,7 +108,7 @@ def _session_text(session: dict) -> str:
 
 def _deps_text(deps: dict) -> str:
     lines = []
-    for label in ("before", "after", "related"):
+    for label in ("before", "after", "related", "parents", "children"):
         tasks = deps.get(label) or []
         lines.append(f"{label}:")
         if tasks:

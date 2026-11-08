@@ -18,7 +18,7 @@ from typing import Any
 from sqlalchemy import delete as sa_delete
 from sqlmodel import Session, col, select
 
-from .dependencies import dependencies, related_ids
+from .dependencies import children, dependencies, parents, related_ids
 from .models.base import utcnow
 from .models.checklists import (
     ChecklistItem,
@@ -32,7 +32,17 @@ from .schemas.checklists import ChecklistItemRead
 
 # The rule vocabulary. An unknown field or operator fails to match rather than
 # raising, so a rule written by a newer version stays readable here.
-LIST_FIELDS = ("tags", "people", "requested_by", "repositories", "before", "after", "related")
+LIST_FIELDS = (
+    "tags",
+    "people",
+    "requested_by",
+    "repositories",
+    "before",
+    "after",
+    "related",
+    "parents",
+    "children",
+)
 FIELD_OPERATORS: dict[str, tuple[str, ...]] = {
     "status": ("is_any", "is_not_any"),
     "priority": ("is_any", "is_not_any"),
@@ -80,6 +90,8 @@ def task_context(session: Session, task: Task) -> dict[str, Any]:
         "before": set(before_ids),
         "after": set(after_ids),
         "related": set(related_ids(session, task.id)),
+        "parents": set(parents(session, task.id)),
+        "children": set(children(session, task.id)),
     }
 
 
@@ -249,6 +261,12 @@ def checklist_items(session: Session, task: Task) -> list[ChecklistItemRead]:
     }
     context = task_context(session, task) if template_ids else {}
     applicability = {template_id: template_matches(context, template) for template_id, template in templates.items()}
+    converted_ids = {row.converted_task_id for row in rows if row.converted_task_id}
+    converted = {
+        converted_task.id: converted_task
+        for converted_task in (session.get(Task, task_id) for task_id in converted_ids)
+        if converted_task is not None
+    }
     return [
         ChecklistItemRead(
             id=row.id,
@@ -259,6 +277,10 @@ def checklist_items(session: Session, task: Task) -> list[ChecklistItemRead]:
             position=row.position,
             done=row.done,
             done_at=row.done_at,
+            converted_task_id=row.converted_task_id,
+            converted_task_title=(
+                converted[row.converted_task_id].title if row.converted_task_id in converted else None
+            ),
             # A derived item follows its template; a manual item always applies.
             applicable=applicability.get(row.template_id, True) if row.template_id else True,
             created_at=row.created_at,
@@ -277,6 +299,7 @@ def checklist_item_read(session: Session, task: Task, item: ChecklistItem) -> Ch
     # without the template lookup.
     template = session.get(ChecklistTemplate, item.template_id) if item.template_id else None
     context = task_context(session, task)
+    converted = session.get(Task, item.converted_task_id) if item.converted_task_id else None
     return ChecklistItemRead(
         id=item.id,
         task_id=item.task_id,
@@ -286,6 +309,8 @@ def checklist_item_read(session: Session, task: Task, item: ChecklistItem) -> Ch
         position=item.position,
         done=item.done,
         done_at=item.done_at,
+        converted_task_id=item.converted_task_id,
+        converted_task_title=converted.title if converted is not None else None,
         applicable=template_matches(context, template) if template is not None else True,
         created_at=item.created_at,
         updated_at=item.updated_at,

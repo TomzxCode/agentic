@@ -29,7 +29,9 @@ export const CHECKLIST_FIELDS = [
   { value: 'repositories', label: 'Repositories', kind: 'repositories' },
   { value: 'before', label: 'Before task', kind: 'tasks' },
   { value: 'after', label: 'After task', kind: 'tasks' },
-  { value: 'related', label: 'Related task', kind: 'tasks' }
+  { value: 'related', label: 'Related task', kind: 'tasks' },
+  { value: 'parents', label: 'Parent task', kind: 'tasks' },
+  { value: 'children', label: 'Child task', kind: 'tasks' }
 ]
 
 const LIST_OPERATORS = [

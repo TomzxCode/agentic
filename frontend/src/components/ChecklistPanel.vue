@@ -8,6 +8,8 @@ const props = defineProps({ task: { type: Object, required: true } })
 const emit = defineEmits(['changed'])
 const draft = ref('')
 const busy = ref(false)
+// The id of the item being converted, so only its button shows a spinner.
+const converting = ref(null)
 
 const items = computed(() => props.task.checklist || [])
 // The items that count: a manual item, or one whose template still matches.
@@ -161,6 +163,22 @@ async function saveText(item, value) {
   }
 }
 
+// Turn the item into a child task. The item stays in the checklist, done and
+// linked to the new task, so the step is not lost.
+async function convert(item) {
+  if (converting.value || item.converted_task_id) return
+  converting.value = item.id
+  try {
+    const created = await api.tasks.convertChecklistItem(props.task.id, item.id)
+    store.notify(`Created task: ${created.title}`)
+    emit('changed')
+  } catch (e) {
+    store.notify(e.message, true)
+  } finally {
+    converting.value = null
+  }
+}
+
 async function remove(item) {
   try {
     await api.tasks.removeChecklistItem(props.task.id, item.id)
@@ -241,6 +259,25 @@ function onAddKeydown(event) {
             {{ item.template_name }}<span v-if="!item.applicable"> · no longer applies</span>
           </div>
         </div>
+        <RouterLink
+          v-if="item.converted_task_id"
+          class="btn sm ghost checklist-task-link"
+          :to="`/task/${item.converted_task_id}`"
+          :title="`Open the task: ${item.converted_task_title || item.text}`"
+        >
+          → {{ item.converted_task_title || 'task' }}
+        </RouterLink>
+        <button
+          v-else
+          class="btn sm ghost"
+          :disabled="converting === item.id"
+          title="Convert this item into a task"
+          :aria-label="`Convert ${item.text} into a task`"
+          @click="convert(item)"
+        >
+          <span v-if="converting === item.id" class="spinner"></span>
+          <span v-else>↗</span>
+        </button>
         <button class="btn sm danger" title="Remove this item" @click="remove(item)">✕</button>
       </div>
     </div>
@@ -317,5 +354,11 @@ function onAddKeydown(event) {
 .checklist-source {
   font-size: 11px;
   margin-top: 1px;
+}
+.checklist-task-link {
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 </style>

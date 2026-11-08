@@ -12,6 +12,7 @@ from typing import Any
 import anyio
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import delete as sa_delete
+from sqlalchemy import update as sa_update
 from sqlmodel import Session, col, select
 
 from ..auto_changes import record_merged_pr_changes
@@ -22,10 +23,19 @@ from ..events import bus
 from ..models.agents import AgentEvent, AgentRun, AgentSession, Harness
 from ..models.base import TaskStatus, utcnow
 from ..models.changes import Change, ChangeIntervention
+from ..models.checklists import ChecklistItem
 from ..models.graphs import GraphExecution
 from ..models.items import Association, Person, SourceItem, TaskPerson, TaskRequester
 from ..models.repositories import Repository, RepositoryGroup, TaskRepository, Worktree
-from ..models.tasks import StackEntry, Task, TaskDependency, TaskRelation, TaskSession, TimelineEvent
+from ..models.tasks import (
+    StackEntry,
+    Task,
+    TaskDependency,
+    TaskParent,
+    TaskRelation,
+    TaskSession,
+    TimelineEvent,
+)
 from ..schemas.items import ItemCreate
 from ..schemas.tasks import (
     TaskBulkDelete,
@@ -354,8 +364,13 @@ async def _delete_task(session: Session, task: Task) -> None:
     session.exec(sa_delete(TaskRequester).where(col(TaskRequester.task_id) == task.id))
     # Checklist items and the record of applied templates belong to the task.
     delete_task_checklist(session, task.id)
-    # Before/after and related links point at the task from either side; drop
-    # them first.
+    # A checklist item on another task may point at this one as the task it was
+    # converted into; keep the item, drop the now dangling reference.
+    session.exec(
+        sa_update(ChecklistItem).where(col(ChecklistItem.converted_task_id) == task.id).values(converted_task_id=None)
+    )
+    # Before/after, related, and parent/child links point at the task from
+    # either side; drop them first.
     session.exec(
         sa_delete(TaskDependency).where(
             (col(TaskDependency.before_id) == task.id) | (col(TaskDependency.after_id) == task.id)
@@ -365,6 +380,9 @@ async def _delete_task(session: Session, task: Task) -> None:
         sa_delete(TaskRelation).where(
             (col(TaskRelation.task_id) == task.id) | (col(TaskRelation.related_id) == task.id)
         )
+    )
+    session.exec(
+        sa_delete(TaskParent).where((col(TaskParent.parent_id) == task.id) | (col(TaskParent.child_id) == task.id))
     )
     # Stack entries (and their sessions) reference the task and must go first.
     entry_ids = [entry.id for entry in session.exec(select(StackEntry).where(StackEntry.task_id == task.id)).all()]

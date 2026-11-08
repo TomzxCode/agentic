@@ -161,12 +161,15 @@ class TaskDependencies(BaseModel):
 
     ``before``/``after`` are the ordered sides of the dependency graph;
     ``related`` is the symmetric pair list, which reads the same from both tasks.
+    ``parents``/``children`` are the two sides of the task hierarchy.
     """
 
     task_id: str
     before: list[TaskRead] = []
     after: list[TaskRead] = []
     related: list[TaskRead] = []
+    parents: list[TaskRead] = []
+    children: list[TaskRead] = []
 
 
 class GraphNode(BaseModel):

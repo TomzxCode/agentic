@@ -58,8 +58,11 @@ class TasksFake:
             "after": [{"id": related_id, "status": "open", "priority": 1, "title": "Next"}],
         }
 
-    def remove_dependency(self, task_id, related_id):
+    def remove_dependency(self, task_id, related_id, relation=None):
         return None
+
+    def convert_checklist_item(self, task_id, item_id):
+        return {"id": "t3", "title": "From a checklist"}
 
     def get_graph(self, include_done=False):
         return {"nodes": [{"id": "t1"}, {"id": "t2"}], "edges": [{"before_id": "t1", "after_id": "t2"}]}
