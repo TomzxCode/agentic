@@ -45,10 +45,12 @@ function repositoryFor(item) {
   const parsed = parseGithubUrl(item?.url)
   if (!parsed) return null
   const key = `${parsed.owner}/${parsed.repo}`
-  return (store.repositories || []).find((repository) => {
-    const remote = parseRemote(repository?.remote_url)
-    return !!remote && `${remote.owner}/${remote.repo}` === key
-  }) || null
+  return (
+    (store.repositories || []).find((repository) => {
+      const remote = parseRemote(repository?.remote_url)
+      return !!remote && `${remote.owner}/${remote.repo}` === key
+    }) || null
+  )
 }
 
 // The app route for the issue or pull request itself, when the repository that

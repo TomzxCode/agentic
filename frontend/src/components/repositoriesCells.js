@@ -14,11 +14,7 @@ export const NameCell = defineComponent({
   props: { params },
   setup: (props) => () => {
     const row = props.params.data
-    return h(
-      props.params.context.RouterLink,
-      { to: repositoryPath(row), class: 'title' },
-      () => row.name || row.path
-    )
+    return h(props.params.context.RouterLink, { to: repositoryPath(row), class: 'title' }, () => row.name || row.path)
   }
 })
 

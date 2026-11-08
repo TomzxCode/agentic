@@ -241,9 +241,7 @@ def test_review_scan_setting_validates():
 
         # The auto-poke message accepts the documented variables and rejects
         # anything else; a blank restores the default.
-        assert client.patch(
-            "/api/settings", json={"review_auto_poke_message": "SLO {slo}: {wat}"}
-        ).status_code == 422
+        assert client.patch("/api/settings", json={"review_auto_poke_message": "SLO {slo}: {wat}"}).status_code == 422
         message = client.patch(
             "/api/settings",
             json={"review_auto_poke_message": "Waiting {elapsed} (SLO {slo}): {link}"},
@@ -251,9 +249,7 @@ def test_review_scan_setting_validates():
         assert message["effective"]["review_auto_poke_message"] == "Waiting {elapsed} (SLO {slo}): {link}"
         cleared_message = client.patch("/api/settings", json={"review_auto_poke_message": ""}).json()
         assert cleared_message["effective"]["review_auto_poke_message"] == ""
-        assert client.patch(
-            "/api/settings", json={"review_poke_message": "SLO {slo}: {wat}"}
-        ).status_code == 422
+        assert client.patch("/api/settings", json={"review_poke_message": "SLO {slo}: {wat}"}).status_code == 422
         manual_message = client.patch(
             "/api/settings",
             json={"review_poke_message": "Age {elapsed} (SLO {slo}): {link}"},

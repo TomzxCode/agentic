@@ -195,8 +195,8 @@ onMounted(load)
       <p class="faint" style="margin: 4px 0 0">
         The DM the auto-poke sends. Variables: <code>{link}</code> (the pull request as a Slack link),
         <code>{url}</code>, <code>{title}</code>, <code>{slo}</code> (the age that triggered the poke, such as
-        <code>1d</code>), and <code>{elapsed}</code> (the pull request's age since it was opened or last marked
-        ready for review, such as <code>1d 6h</code>). Leave it blank for the default message.
+        <code>1d</code>), and <code>{elapsed}</code> (the pull request's age since it was opened or last marked ready
+        for review, such as <code>1d 6h</code>). Leave it blank for the default message.
       </p>
     </div>
 

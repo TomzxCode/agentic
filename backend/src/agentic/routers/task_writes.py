@@ -367,9 +367,7 @@ async def _delete_task(session: Session, task: Task) -> None:
     # A checklist item on another task may point at this one as the task it was
     # converted into; keep the item, drop the now dangling reference.
     session.exec(
-        sa_update(ChecklistItem)
-        .where(col(ChecklistItem.converted_task_id) == task.id)
-        .values(converted_task_id=None)
+        sa_update(ChecklistItem).where(col(ChecklistItem.converted_task_id) == task.id).values(converted_task_id=None)
     )
     # Before/after, related, and parent/child links point at the task from
     # either side; drop them first.
