@@ -1,6 +1,6 @@
 <script setup>
 import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
-import { api } from '../api'
+import { api, openStackStream } from '../api'
 import { store } from '../store'
 import StackHeader from '../components/StackHeader.vue'
 import StackList from '../components/StackList.vue'
@@ -14,7 +14,6 @@ const emit = defineEmits(['changed'])
 const entries = ref([])
 const history = ref([])
 const showHistory = ref(false)
-const loading = ref(false)
 const error = ref('')
 
 // The current task's duration grows in real time. The server returns a
@@ -24,6 +23,7 @@ const error = ref('')
 const now = ref(Date.now())
 const loadedAt = ref(Date.now())
 let tickId = null
+let closeStream = null
 
 function setEntries(list) {
   entries.value = list
@@ -34,6 +34,14 @@ function setEntries(list) {
 // The field at the top adds a task (Enter) and filters the list as you type.
 const draft = ref('')
 const filter = ref('')
+
+// The field's hint names Shift+Enter, which a phone has no keyboard for and the
+// narrow input has no room for, so the hint shortens to the action there.
+const narrow = ref(typeof window !== 'undefined' && window.innerWidth <= 760)
+const addPlaceholder = computed(() => (narrow.value ? 'Add a task' : 'Add a task (Enter: top · Shift+Enter: next)'))
+function updateNarrow() {
+  narrow.value = window.innerWidth <= 760
+}
 
 const selectedId = ref(null)
 const descriptionDraft = ref('')
@@ -62,7 +70,6 @@ const visible = computed(() => {
 const selected = computed(() => entries.value.find((entry) => entry.id === selectedId.value) || null)
 
 async function refresh() {
-  loading.value = true
   error.value = ''
   try {
     setEntries(await api.stack.list())
@@ -73,9 +80,21 @@ async function refresh() {
   } catch (e) {
     error.value = e.message
     store.notify(e.message, true)
-  } finally {
-    loading.value = false
   }
+}
+
+// The stack stream: the server pushes the whole stack whenever it changes, so a
+// push from the tray, another tab, or an agent run shows up here without a
+// reload. A list is skipped while a title is being edited, so an incoming
+// snapshot cannot replace the row under the cursor.
+function onStackEvent(list) {
+  if (!Array.isArray(list)) return
+  if ([...editors.values()].some((editor) => editor?.isEditing?.())) return
+  setEntries(list)
+  if (selectedId.value && !entries.value.some((entry) => entry.id === selectedId.value)) {
+    selectedId.value = null
+  }
+  if (showHistory.value) loadHistory()
 }
 
 async function loadHistory() {
@@ -244,31 +263,30 @@ function onKeydown(event) {
 onMounted(() => {
   refresh()
   focusPage()
+  updateNarrow()
+  window.addEventListener('resize', updateNarrow)
+  closeStream = openStackStream(onStackEvent)
   // Tick so the current task's duration counts up every second.
   tickId = setInterval(() => (now.value = Date.now()), 1000)
 })
 
 onUnmounted(() => {
+  window.removeEventListener('resize', updateNarrow)
+  if (closeStream) closeStream()
   if (tickId !== null) clearInterval(tickId)
 })
 </script>
 
 <template>
   <div ref="pageEl" class="stack-page" tabindex="-1" @keydown="onKeydown">
-    <StackHeader
-      :show-history="showHistory"
-      :loading="loading"
-      @toggle-history="toggleHistory"
-      @toggle-help="showHelp = !showHelp"
-      @refresh="refresh"
-    />
+    <StackHeader :show-history="showHistory" @toggle-history="toggleHistory" @toggle-help="showHelp = !showHelp" />
 
     <section class="panel stack-panel">
       <div class="stack-add row">
         <input
           v-model="draft"
           class="input grow"
-          placeholder="Add a task (Enter: top · Shift+Enter: next)"
+          :placeholder="addPlaceholder"
           aria-label="Add or filter tasks"
           @keydown="onTitleKeydown"
           @input="onTitleInput"

@@ -30,6 +30,8 @@ Each row carries its position, its status, its priority, the title, a deadline b
 Dragging reorders live and saves on release.
 Dragging is disabled while a filter is set, because the positions on screen are not the positions in the queue.
 
+On a phone the numeric columns (`×3`, started, last current, duration) are hidden, and each row reads as two lines: the title, then its controls.
+
 ### Adding and filtering
 
 The input at the top does both jobs.
@@ -67,12 +69,13 @@ Modifier combinations are ignored, so `Cmd/Ctrl` shortcuts still reach the brows
 
 `History` lists removed and completed entries with their duration and when they left.
 `?` shows the shortcut list.
-The history reloads every time you open it, and again after a removal, but `Refresh` only reloads the queue itself.
+History reloads every time you open it, and again after a removal.
+The queue itself needs no refresh: the page subscribes to `/api/stack/stream`, which pushes the whole stack when it changes.
 
 ### The tray companion
 
 `agentic-stack` puts the current task in a tray icon, with the stack depth as a badge.
-Its menu opens the stack page and has a `Mark Done (pop)` action, and it re-reads the stack every 30 seconds.
+Its menu opens the stack page and has a `Mark Done (pop)` action, and it follows the same `/api/stack/stream` the page does.
 The global hotkey defaults to `Ctrl+Shift+T`.
 It talks to the API over HTTP, so it needs a running server.
 

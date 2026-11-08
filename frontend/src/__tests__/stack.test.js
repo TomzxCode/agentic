@@ -16,7 +16,10 @@ const mocks = vi.hoisted(() => ({
   updateTask: vi.fn()
 }))
 
-vi.mock('../api', () => ({
+// The real stream helper stays in place, so the page's subscription is the one
+// under test (with `EventSource` faked below); only the HTTP reads are mocked.
+vi.mock('../api', async (importOriginal) => ({
+  ...(await importOriginal()),
   api: {
     stack: {
       list: mocks.list,
@@ -66,8 +69,30 @@ function entry(overrides = {}) {
   }
 }
 
+// The page subscribes to /api/stack/stream on mount; jsdom has no EventSource,
+// so the tests hold the fake source and feed it snapshots.
+class FakeStackStream {
+  static last = null
+
+  constructor(url) {
+    this.url = url
+    this.closed = false
+    FakeStackStream.last = this
+  }
+
+  close() {
+    this.closed = true
+  }
+
+  push(entries) {
+    this.onmessage({ data: JSON.stringify(entries) })
+  }
+}
+
 beforeEach(() => {
   vi.clearAllMocks()
+  FakeStackStream.last = null
+  vi.stubGlobal('EventSource', FakeStackStream)
   store.toast = null
   mocks.list.mockResolvedValue([
     entry(),
@@ -106,6 +131,25 @@ describe('StackView', () => {
     expect(wrapper.text()).toContain('1m 30s')
     // Each row reuses the icon status picker (editable in place).
     expect(wrapper.findAll('.task-status-select').length).toBe(2)
+  })
+
+  it('shortens the add-field hint on a phone', async () => {
+    const original = window.innerWidth
+    try {
+      window.innerWidth = 375
+      const wrapper = mount(StackView, stub)
+      await flushPromises()
+      const field = () => wrapper.get('input[aria-label="Add or filter tasks"]').attributes('placeholder')
+      expect(field()).toBe('Add a task')
+
+      // Turning the device back to a desktop width restores the shortcut hint.
+      window.innerWidth = 1024
+      window.dispatchEvent(new Event('resize'))
+      await flushPromises()
+      expect(field()).toBe('Add a task (Enter: top · Shift+Enter: next)')
+    } finally {
+      window.innerWidth = original
+    }
   })
 
   it('shows the priority of each task', async () => {
@@ -278,6 +322,59 @@ describe('StackView', () => {
     await flushPromises()
 
     expect(mocks.update).toHaveBeenCalledWith('s1', { title: 'Renamed task' })
+  })
+
+  it('follows the stack stream instead of offering a refresh control', async () => {
+    const wrapper = mount(StackView, stub)
+    await flushPromises()
+
+    expect(FakeStackStream.last.url).toBe('/api/stack/stream')
+    expect(wrapper.text()).not.toContain('Refresh')
+
+    FakeStackStream.last.push([
+      entry({
+        id: 's3',
+        task_id: 't3',
+        task: { title: 'Pushed from the tray', description: '', status: 'open', priority: 2 },
+        position: 0
+      })
+    ])
+    await flushPromises()
+
+    expect(wrapper.findAll('.stack-row').length).toBe(1)
+    expect(wrapper.text()).toContain('Pushed from the tray')
+  })
+
+  it('closes the stack stream when the page goes away', async () => {
+    const wrapper = mount(StackView, stub)
+    await flushPromises()
+    const source = FakeStackStream.last
+
+    wrapper.unmount()
+
+    expect(source.closed).toBe(true)
+  })
+
+  it('keeps the row being edited when a snapshot arrives', async () => {
+    const wrapper = mount(StackView, { ...stub, attachTo: document.body })
+    await flushPromises()
+
+    await wrapper.findAll('.stack-title')[0].trigger('click')
+    await flushPromises()
+
+    FakeStackStream.last.push([
+      entry({
+        id: 's3',
+        task_id: 't3',
+        task: { title: 'Pushed from the tray', description: '', status: 'open', priority: 2 },
+        position: 0
+      })
+    ])
+    await flushPromises()
+
+    // The editor stays open on the row that was being renamed.
+    expect(wrapper.find('.inline-input').exists()).toBe(true)
+    expect(wrapper.text()).not.toContain('Pushed from the tray')
   })
 
   it('reorders the clicked row with the arrow keys', async () => {

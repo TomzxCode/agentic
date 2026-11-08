@@ -463,9 +463,132 @@ body.row-dragging .stack-handle {
   margin: 0;
 }
 
-@media (max-width: 760px) {
-  /* The stat columns are noise on a phone; keep the index, status, title, and actions. */
+/* The stack's numeric columns (times current, started, last current, time as
+   current) cost about 280px. Below this width they squeeze the title out of the
+   table entirely, and they are the least useful part of a row. */
+@media (max-width: 1100px) {
   .stack-col {
     display: none;
+  }
+}
+
+/* The cells beside the title (handle, status, priority, open link, deadline,
+   actions) still cost about 440px, so below this width the title has almost no
+   room left. Each row becomes two lines instead: the title across the first,
+   its controls on the second. */
+@media (max-width: 1000px) {
+  .stack-table,
+  .stack-table tbody {
+    display: block;
+  }
+  .stack-table tbody {
+    display: flex;
+    flex-direction: column;
+  }
+  .stack-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 2px 8px;
+    padding: 8px 0;
+    border-top: 1px solid var(--border);
+  }
+  .stack-row:first-child {
+    border-top: 0;
+  }
+  /* The highlight moves to the row, since the cells are no longer its columns. */
+  .stack-row td {
+    display: flex;
+    align-items: center;
+    padding: 0;
+    border: 0;
+    background: none;
+  }
+  /* Re-assert the stat-column rule above, which the cell rule here would
+     otherwise undo. */
+  .stack-row td.stack-col {
+    display: none;
+  }
+  .stack-row:hover {
+    background: var(--bg-2);
+  }
+  .stack-row.selected {
+    background: var(--bg-3);
+  }
+  .stack-row.current {
+    background: color-mix(in srgb, var(--accent) 12%, transparent);
+  }
+  .stack-title-cell,
+  .stack-handle-cell,
+  .stack-indicator,
+  .stack-status-cell,
+  .stack-priority-cell,
+  .stack-deadline-cell,
+  .stack-open-cell,
+  .stack-actions-cell {
+    width: auto;
+    max-width: none;
+  }
+  /* The title (and a deadline badge) take the first line; a generated
+     full-width, zero-height item forces the controls onto the next one. */
+  .stack-row::before {
+    content: '';
+    flex: 0 0 100%;
+    height: 0;
+    order: -1;
+  }
+  .stack-title-cell {
+    order: -2;
+    /* A title keeps its natural width and wraps the badge beside it to the
+       next line rather than truncating itself. */
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+  }
+  /* A history row is only a check mark and a title, so a long title shrinks
+     (and ellipsizes) instead of pushing the check mark to its own line. */
+  .history-table .stack-title-cell {
+    flex: 1 1 0;
+  }
+  .stack-deadline-cell {
+    order: -2;
+    flex: none;
+  }
+  /* A history row has no controls, so its check mark stays beside the title
+     instead of taking a line of its own. */
+  .history-table .stack-indicator {
+    order: -2;
+  }
+  .stack-actions-cell {
+    margin-left: auto;
+  }
+  /* The description belongs to the row above it, so it sits under it rather
+     than in a box of its own. */
+  .stack-desc-row td {
+    display: block;
+    padding: 0 0 10px;
+  }
+}
+
+@media (max-width: 760px) {
+  /* The actions stay at the page's right edge under the title, as on a
+     desktop, instead of collecting at its left. */
+  .page-head .stack-head-actions {
+    justify-content: flex-end;
+  }
+  /* The index only serves the number-key shortcuts, and a phone has no keyboard
+     for them. */
+  .stack-row td.stack-index {
+    display: none;
+  }
+  /* Touch-sized buttons made the row twice as tall as the text it holds. */
+  .stack-actions .btn,
+  .stack-open-cell .btn {
+    height: 32px;
+    min-height: 32px;
+    padding: 2px 8px;
+  }
+  .stack-actions {
+    gap: 6px;
   }
 }

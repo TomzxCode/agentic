@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { api, openRunStream, openTaskStream } from '../api'
+import { api, openRunStream, openStackStream, openTaskStream } from '../api'
 
 function mockFetch({ status = 200, body = '' } = {}) {
   const res = {
@@ -178,6 +178,27 @@ describe('openTaskStream', () => {
     expect(source.url).toBe('/api/tasks/t1/stream')
     source.onmessage({ data: JSON.stringify({ action: 'updated' }) })
     expect(events).toEqual([{ action: 'updated' }])
+
+    source.onmessage({ data: 'bad' })
+    expect(warn).toHaveBeenCalled()
+
+    close()
+    expect(source.closed).toBe(true)
+  })
+})
+
+describe('openStackStream', () => {
+  it('forwards each pushed stack and closes on demand', () => {
+    FakeEventSource.instances = []
+    vi.stubGlobal('EventSource', FakeEventSource)
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const stacks = []
+    const close = openStackStream((entries) => stacks.push(entries))
+
+    const source = lastEventSource()
+    expect(source.url).toBe('/api/stack/stream')
+    source.onmessage({ data: JSON.stringify([{ id: 's1', position: 0 }]) })
+    expect(stacks).toEqual([[{ id: 's1', position: 0 }]])
 
     source.onmessage({ data: 'bad' })
     expect(warn).toHaveBeenCalled()
