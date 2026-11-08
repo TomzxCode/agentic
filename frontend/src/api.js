@@ -252,6 +252,8 @@ export const api = {
     queue: ({ refresh = false } = {}) => request(`/reviews${refresh ? '?refresh=true' : ''}`),
     // The same rows, scoped to the pull requests a task is linked to.
     task: (taskId, { refresh = false } = {}) => request(`/reviews/task/${taskId}${refresh ? '?refresh=true' : ''}`),
+    // Every scored review run in the store, for the review-scores view.
+    scores: () => request('/reviews/scores'),
     // The must/should/may findings the review skills recorded for one PR.
     findings: (repository, number) =>
       request(`/reviews/findings/${number}?${new URLSearchParams({ repository }).toString()}`),

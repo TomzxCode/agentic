@@ -33,6 +33,7 @@ The web app is organized into these pages:
 | [Task](views/task.md) (`/task/:id`) | One task: context, items, people, task links, worktrees, runs, and changes. |
 | [Inbox](views/inbox.md) (`/inbox`) | Suggested next actions, recomputed on every read. |
 | [Review queue](views/reviews.md) (`/reviews`) | Pull requests awaiting your review and those with review reports, one row per PR with a column per review step and a merge-readiness light. |
+| [Review scores](views/review-scores.md) (`/review-scores`) | The 0-1 score each review step recorded, one line chart per rubric, filterable by repository and author. |
 | [My PRs](views/my-pulls.md) (`/my-pulls`) | The open pull requests you authored, with their check rollup (click a badge for the individual checks), review decision, approvers, and open review threads. |
 | [PR feedback](views/feedback.md) (`/feedback`) | Reviewer comments awaiting a decision, one card per comment, with Implement / Decline / Defer. |
 | [Decisions](views/decisions.md) (`/decisions`) | What your colleagues decided, from the extract-colleague-decisions reports: by author, supporter, opponent, or a support/opposition matrix. |

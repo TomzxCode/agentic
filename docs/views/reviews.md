@@ -111,6 +111,7 @@ The report format is the skill's, so the queue needs no command of its own.
 ## Related
 
 - [How to read the review queue](../how-to/review-pull-requests.md) for the walkthrough and the scan settings.
+- [Review scores](review-scores.md) for the 0-1 score each review step recorded over time.
 - [Task](task.md) for the same PR panels on a task, with the agent panel that acts on them.
 - [Items](items.md) for one pull request's reviewers and reports.
 - [My PRs](my-pulls.md) for the pull requests you authored.

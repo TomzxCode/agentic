@@ -174,6 +174,42 @@ class ReviewStepRead(BaseModel):
     modified_at: datetime | None = None
 
 
+class ReviewScoreRun(BaseModel):
+    """One scored run of a review step.
+
+    ``score`` is the value the step wrote into its report marker (or a value
+    derived from its findings and verdict for a report written before scores
+    existed), from ``0`` (the concern is not addressed) to ``1`` (fully
+    addressed). ``reviewed_at`` is when the step finished, so runs can be
+    ordered and grouped into days across pull requests.
+    """
+
+    repository: str
+    owner: str = ""
+    name: str
+    number: int
+    author: str = ""
+    step: str
+    sha: str = ""
+    verdict: str = ""
+    score: float
+    #: "marker" when the report carries the score, "derived" when it was
+    #: computed from the report's findings and verdict.
+    source: str = "marker"
+    reviewed_at: datetime
+
+
+class ReviewScoresRead(BaseModel):
+    """Every scored review run in the store, with the rubrics it covers."""
+
+    root: str | None = None
+    generated_at: datetime
+    #: The review steps, in dispatch order, so the view can keep a stable
+    #: rubric order even when a step has no scored run yet.
+    rubrics: list[str] = []
+    runs: list[ReviewScoreRun] = []
+
+
 class ReviewFindingRead(BaseModel):
     """One must/should/may finding a review skill recorded for a pull request.
 

@@ -32,6 +32,13 @@ const ICONS = {
     ['path', { d: 'M13.5 3v4a1.5 1.5 0 0 0 1.5 1.5h4' }],
     ['path', { d: 'M9.5 14.6l1.9 1.9 3.6-3.8' }]
   ],
+  // Review scores: a gauge with a needle, the 0-1 reading the charts track.
+  scores: [
+    ['path', { d: 'M4 17a8 8 0 0 1 16 0' }],
+    ['path', { d: 'M12 17 16.6 11.4' }],
+    ['circle', { cx: 12, cy: 17, r: 1.4 }],
+    ['path', { d: 'M4.6 13.5v1.2M8 10.2v1.2M12 9v1.2M16 10.2v1.2M19.4 13.5v1.2' }]
+  ],
   pulls: [
     ['circle', { cx: 6, cy: 6, r: 2.5 }],
     ['circle', { cx: 6, cy: 18, r: 2.5 }],

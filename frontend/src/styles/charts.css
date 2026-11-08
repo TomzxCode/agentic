@@ -583,3 +583,88 @@ button.gantt-marker::after {
   justify-content: center;
   margin-top: 2px;
 }
+
+/* Review scores: one line chart per rubric, averaged per day. */
+.review-scores-intro {
+  margin: 0 0 12px;
+  max-width: 78ch;
+}
+.score-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
+}
+.score-card {
+  min-width: 0;
+  margin-bottom: 0;
+  padding: 12px 14px;
+}
+.score-card-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.score-card-head h3 {
+  margin: 0;
+  font-size: 14px;
+}
+.score-card-description {
+  margin: 2px 0 4px;
+  font-size: 11.5px;
+  line-height: 1.35;
+}
+.score-card-foot {
+  margin: 2px 0 0;
+  font-size: 11.5px;
+}
+.score-chart {
+  margin: 2px 0;
+}
+.score-chart-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.score-grid line {
+  stroke: var(--border);
+  stroke-width: 1;
+  opacity: 0.5;
+}
+.score-grid text,
+.score-date {
+  fill: var(--faint);
+  font-size: 8px;
+}
+.score-grid .score-grid-mid {
+  stroke-dasharray: 3 3;
+}
+.score-line {
+  fill: none;
+  stroke: var(--accent-2);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.score-area {
+  fill: var(--accent-2);
+  opacity: 0.08;
+}
+.score-point {
+  fill: var(--accent-2);
+  stroke: var(--bg-1);
+  stroke-width: 1.5;
+}
+.score-point.tone-ok {
+  fill: var(--ok);
+}
+.score-point.tone-warn {
+  fill: var(--warn);
+}
+.score-point.tone-danger {
+  fill: var(--danger);
+}
+.score-empty {
+  margin: 8px 0;
+  font-size: 12px;
+}

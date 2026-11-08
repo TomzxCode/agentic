@@ -33,6 +33,7 @@ nav = [
     { "Task" = "views/task.md" },
     { "Inbox" = "views/inbox.md" },
     { "Review queue" = "views/reviews.md" },
+    { "Review scores" = "views/review-scores.md" },
     { "My PRs" = "views/my-pulls.md" },
     { "PR feedback" = "views/feedback.md" },
     { "Decisions" = "views/decisions.md" },

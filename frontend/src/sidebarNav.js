@@ -13,6 +13,13 @@ export const SIDEBAR_NAV_ITEMS = [
   { id: 'tasks', label: 'Tasks', to: '/', icon: 'tasks', routeNames: ['tasks', 'task'] },
   { id: 'inbox', label: 'Inbox', to: '/inbox', icon: 'inbox', routeNames: ['inbox'], badge: 'inbox' },
   { id: 'reviews', label: 'Review queue', to: '/reviews', icon: 'reviews', routeNames: ['reviews'] },
+  {
+    id: 'review-scores',
+    label: 'Review scores',
+    to: '/review-scores',
+    icon: 'scores',
+    routeNames: ['review-scores']
+  },
   { id: 'my-pulls', label: 'My PRs', to: '/my-pulls', icon: 'pulls', routeNames: ['my-pulls'] },
   { id: 'feedback', label: 'PR feedback', to: '/feedback', icon: 'feedback', routeNames: ['feedback'] },
   { id: 'decisions', label: 'Decisions', to: '/decisions', icon: 'decisions', routeNames: ['decisions'] },

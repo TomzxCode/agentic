@@ -229,6 +229,13 @@ export function buildPaletteItems({
       run: () => router.push('/reviews')
     },
     {
+      id: 'go-review-scores',
+      label: 'Go to review scores',
+      group: 'Navigation',
+      icon: 'scores',
+      run: () => router.push('/review-scores')
+    },
+    {
       id: 'go-my-pulls',
       label: 'Go to My PRs',
       group: 'Navigation',

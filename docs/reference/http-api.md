@@ -132,6 +132,7 @@ A manual item has no template and always applies.
 | `GET` | `/api/reviews/findings/{number}` | The must/should/may findings the review skills recorded, by `repository` (`owner/name`). |
 | `POST` | `/api/reviews/findings/{number}/decisions` | Record the reviewer's `include`/`skip` decision on each named finding in its skill's state file; returns the updated findings. |
 | `GET` | `/api/reviews/report/{number}/{name}` | Read one review report, by `repository` (`owner/name`) and its path. |
+| `GET` | `/api/reviews/scores` | Every scored review run in the store, with the 0-1 score, its rubric (step), repository, author, and review time. |
 | `GET` | `/api/reviews/scan` | The review scan's last pass and how many pull requests it holds. |
 | `POST` | `/api/reviews/scan` | Run the review scan now, without waiting for the next cache refresh. |
 

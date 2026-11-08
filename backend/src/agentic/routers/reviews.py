@@ -23,6 +23,8 @@ from ..review_scan import (
     run_review_scan,
     stored_review_requests,
 )
+from ..review_scores import collect_review_scores, store_root
+from ..review_store import STEPS
 from ..reviews import read_report
 from ..schemas.items import (
     ItemReviewContent,
@@ -31,6 +33,8 @@ from ..schemas.items import (
     ReviewPrRead,
     ReviewQueueRead,
     ReviewScanRead,
+    ReviewScoreRun,
+    ReviewScoresRead,
     ReviewStepRead,
 )
 from ..services.parsing import parse_github
@@ -286,6 +290,24 @@ def scan_review_requests(session: Session = Depends(get_session)) -> ReviewScanR
     """
     run_review_scan(session, origin="manual")
     return ReviewScanRead.model_validate(review_scan_state(session))
+
+
+@router.get("/scores", response_model=ReviewScoresRead)
+def get_review_scores() -> ReviewScoresRead:
+    """Every scored review run in the store, for the review-scores view.
+
+    The view aggregates the runs into one series per rubric; the endpoint
+    returns the raw runs so filtering by repository or author stays an
+    in-memory operation on a store that is already read whole.
+    """
+    with phase("review scores"):
+        runs = collect_review_scores()
+    return ReviewScoresRead(
+        root=store_root(),
+        generated_at=utcnow(),
+        rubrics=list(STEPS),
+        runs=[ReviewScoreRun(**run) for run in runs],
+    )
 
 
 @router.get("/task/{task_id}", response_model=ReviewQueueRead)

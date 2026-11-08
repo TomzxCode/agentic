@@ -19,6 +19,7 @@ import MetricsView from './views/MetricsView.vue'
 import ProcessView from './views/ProcessView.vue'
 import InboxView from './views/InboxView.vue'
 import ReviewsView from './views/ReviewsView.vue'
+import ReviewScoresView from './views/ReviewScoresView.vue'
 import FeedbackView from './views/FeedbackView.vue'
 import MyPullsView from './views/MyPullsView.vue'
 import DecisionsView from './views/DecisionsView.vue'
@@ -55,6 +56,12 @@ const router = createRouter({
     { path: '/', name: 'tasks', component: TasksView, meta: { title: 'Tasks' } },
     { path: '/inbox', name: 'inbox', component: InboxView, meta: { title: 'Inbox' } },
     { path: '/reviews', name: 'reviews', component: ReviewsView, meta: { title: 'Review queue' } },
+    {
+      path: '/review-scores',
+      name: 'review-scores',
+      component: ReviewScoresView,
+      meta: { title: 'Review scores' }
+    },
     { path: '/my-pulls', name: 'my-pulls', component: MyPullsView, meta: { title: 'My PRs' } },
     { path: '/feedback', name: 'feedback', component: FeedbackView, meta: { title: 'PR feedback' } },
     { path: '/decisions', name: 'decisions', component: DecisionsView, meta: { title: 'Decisions' } },

@@ -343,6 +343,16 @@ a repository with no policy of its own is included or excluded, and each
 registered repository's own Include / Exclude / Default choice, are under
 **Settings → GitHub**.
 
+The **Review scores** page (`/review-scores`, the gauge icon) charts the 0-1
+score each review step records in its report marker, one line chart per rubric
+(Behavior, Risk, Adversarial, CLI, SDK, API, DB, Coverage, Validate, Verify, and
+Review), averaged per day over time. The repository and author multi-selects
+narrow every chart, and both choices are remembered on the device. A day with
+no review is a gap, not a zero, and a rubric with no scored review is left out.
+The scores come from the same `~/.sdlc` store the review queue reads; a report
+written before the marker carried a score is scored from its findings and
+verdict.
+
 The **My PRs** page (`/my-pulls`, the pull-request icon) lists the open pull
 requests the GitHub login in Settings → GitHub authored, one row per PR, and
 the four things that decide whether it is moving: its head commit's check
@@ -736,6 +746,7 @@ GET                 /api/reviews/task/{task_id}          (the queue scoped to a 
 GET                 /api/reviews/findings/{number}       (a PR's must/should/may findings)
 POST                /api/reviews/findings/{number}/decisions  (record include/skip on findings)
 GET                 /api/reviews/report/{number}/{name}  (one review report)
+GET                 /api/reviews/scores                  (scored review runs per rubric)
 GET/POST            /api/reviews/scan                   (the review scan: state, or run it now)
 GET                 /api/feedback                        (reviewer comments awaiting a decision)
 POST                /api/feedback/{feedback_id}/decision (record implement/decline/defer)
