@@ -23,8 +23,8 @@ There is no authentication, so expose it only on a trusted network.
 | `POST` | `/api/tasks/{id}/items` | Associate an item, by `item_id` or URL. |
 | `DELETE` | `/api/tasks/{id}/items/{item_id}` | Remove an association. |
 | `GET` | `/api/tasks/{id}/timeline` | The task's timeline events. |
-| `GET` / `POST` | `/api/tasks/{id}/dependencies` | List and add task links. `POST` takes `related_id` and a `relation` of `before`, `after`, or `related`; a `related` link is symmetric and unconstrained by the dependency cycle check. |
-| `DELETE` | `/api/tasks/{id}/dependencies/{related_id}` | Remove a link of either kind. |
+| `GET` / `POST` | `/api/tasks/{id}/dependencies` | List and add task links. `POST` takes `related_id` and a `relation` of `before`, `after`, `related`, `parent`, or `child`; a `related` link is symmetric and unconstrained by the dependency cycle check, and `parent`/`child` links form a separate acyclic hierarchy. The read returns `before`, `after`, `related`, `parents`, and `children`. |
+| `DELETE` | `/api/tasks/{id}/dependencies/{related_id}` | Remove a link. Pass `?relation=before\|after\|related\|parent\|child` to remove one kind when the pair carries several; without it the first link found is removed. |
 
 `POST` and `PATCH` accept `waiting_on_person_id`, `follow_up_at`, and `snoozed_until`; a waiting task is marked blocked, and a task with an active snooze or wait is parked off the stack until the date passes.
 The task representation returns those fields plus `waiting_on_name`.
@@ -42,12 +42,13 @@ The task detail (`GET /api/tasks/{id}`) also returns `checklist`, a list of the 
 | `POST` | `/api/tasks/{id}/checklist/apply` | Add missing items from templates already applied to the task. |
 | `POST` | `/api/tasks/{id}/checklist/reorder` | Apply a new display order; the body is `{"item_ids": [...]}` in the wanted order. Listed items get positions `0..n-1`, unlisted ones keep their relative order after them, and ids from another task are ignored. |
 | `PATCH` / `DELETE` | `/api/tasks/{id}/checklist/{item_id}` | Check or uncheck, rename, or remove an item. |
+| `POST` | `/api/tasks/{id}/checklist/{item_id}/convert` | Turn an item into a child task. The item stays, done, and carries `converted_task_id` and `converted_task_title`; the new task inherits the parent's group, harness, and repositories. |
 
 A template has a `name`, an optional `description`, a list of `rules`, and a list of `items`.
 Every rule must match for the template to apply.
 A rule is `{"field": ..., "op": ..., "values": [...]}`.
 
-- Fields: `status`, `priority`, `waiting_on`, `tags`, `people`, `requested_by`, `repositories`, `before`, `after`, `related`.
+- Fields: `status`, `priority`, `waiting_on`, `tags`, `people`, `requested_by`, `repositories`, `before`, `after`, `related`, `parents`, `children`.
 - Operators: `is_any` / `is_not_any` for `status` and `priority`; `has_any` / `has_all` / `has_none` for the list fields; `is_set` / `is_not_set` for `waiting_on`.
 - `before` means the task has a prerequisite task in `values`; `after` means it has a following task in `values`; `related` means a related task in `values`.
 

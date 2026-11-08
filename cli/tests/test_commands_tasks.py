@@ -119,5 +119,6 @@ def test_dependency_and_graph_commands(text_format, fake_client):
     assert "related:" in deps and "Sibling" in deps
     assert "Next" in tasks.task_link("t1", "t2")
     assert "unlinked t2 from t1" in tasks.task_unlink("t1", "t2")
+    assert "created t3" in tasks.task_convert("t1", "i1")
     graph = tasks.graph()
     assert "nodes: 2  edges: 1" in graph and "t1 -> t2" in graph

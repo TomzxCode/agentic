@@ -8,10 +8,11 @@ import StatusIcon from './StatusIcon.vue'
 
 // The links around a task, shown inline in the task header next to the
 // repository and people selectors: the tasks that must come first, the tasks
-// that follow, and the tasks merely related to it. Each can be linked and
-// unlinked from here; the before/after pairs form the graph the Graph page
-// draws, while a related pair reads the same from both tasks. Every chip shows
-// the linked task's current status, so a prerequisite still open is visible
+// that follow, the tasks merely related to it, and its parents and children.
+// Each can be linked and unlinked from here; the before/after pairs form the
+// graph the Graph page draws, a related pair reads the same from both tasks,
+// and the parent/child links form a separate hierarchy. Every chip shows the
+// linked task's current status, so a prerequisite still open is visible
 // without opening it.
 const props = defineProps({
   task: { type: Object, required: true },
@@ -20,23 +21,32 @@ const props = defineProps({
 })
 const emit = defineEmits(['changed'])
 
-const deps = ref({ before: [], after: [], related: [] })
+const deps = ref({ before: [], after: [], related: [], parents: [], children: [] })
 
-// Every response carries all three sides; fill in any the caller omitted so the
-// lists render regardless of API shape.
+// Every response carries all sides; fill in any the caller omitted so the lists
+// render regardless of API shape.
 function normalize(payload) {
-  return { before: [], after: [], related: [], ...payload }
+  return { before: [], after: [], related: [], parents: [], children: [], ...payload }
 }
 const allTasks = ref([])
 const busy = ref(false)
 const beforeSelect = ref(null)
 
 const linkedIds = computed(
-  () => new Set([...deps.value.before, ...deps.value.after, ...deps.value.related].map((task) => task.id))
+  () =>
+    new Set(
+      [
+        ...deps.value.before,
+        ...deps.value.after,
+        ...deps.value.related,
+        ...deps.value.parents,
+        ...deps.value.children
+      ].map((task) => task.id)
+    )
 )
 
-// Tasks that can still be linked: not this one, and not already linked as
-// before, after, or related.
+// Tasks that can still be linked: not this one, and not already linked in any
+// group.
 const candidates = computed(() =>
   allTasks.value
     .filter((task) => task.id !== props.task.id && !linkedIds.value.has(task.id))
@@ -68,10 +78,10 @@ async function link(relatedId, relation) {
   }
 }
 
-async function unlink(relatedId) {
+async function unlink(relatedId, relation) {
   busy.value = true
   try {
-    await api.tasks.removeDependency(props.task.id, relatedId)
+    await api.tasks.removeDependency(props.task.id, relatedId, relation)
     await load()
     emit('changed')
   } catch (e) {
@@ -94,7 +104,9 @@ defineExpose({ activate: () => beforeSelect.value?.activate?.() })
           <StatusIcon :status="linked.status" :label="statusLabel(linked.status)" />
           <RouterLink v-if="linkToDetail" :to="`/task/${linked.id}`">{{ linked.title }}</RouterLink>
           <template v-else>{{ linked.title }}</template>
-          <button type="button" class="chip-x" title="Unlink" :disabled="busy" @click="unlink(linked.id)">×</button>
+          <button type="button" class="chip-x" title="Unlink" :disabled="busy" @click="unlink(linked.id, 'before')">
+            ×
+          </button>
         </span>
         <SearchSelect
           ref="beforeSelect"
@@ -116,7 +128,9 @@ defineExpose({ activate: () => beforeSelect.value?.activate?.() })
           <StatusIcon :status="linked.status" :label="statusLabel(linked.status)" />
           <RouterLink v-if="linkToDetail" :to="`/task/${linked.id}`">{{ linked.title }}</RouterLink>
           <template v-else>{{ linked.title }}</template>
-          <button type="button" class="chip-x" title="Unlink" :disabled="busy" @click="unlink(linked.id)">×</button>
+          <button type="button" class="chip-x" title="Unlink" :disabled="busy" @click="unlink(linked.id, 'after')">
+            ×
+          </button>
         </span>
         <SearchSelect
           variant="inline"
@@ -137,7 +151,9 @@ defineExpose({ activate: () => beforeSelect.value?.activate?.() })
           <StatusIcon :status="linked.status" :label="statusLabel(linked.status)" />
           <RouterLink v-if="linkToDetail" :to="`/task/${linked.id}`">{{ linked.title }}</RouterLink>
           <template v-else>{{ linked.title }}</template>
-          <button type="button" class="chip-x" title="Unlink" :disabled="busy" @click="unlink(linked.id)">×</button>
+          <button type="button" class="chip-x" title="Unlink" :disabled="busy" @click="unlink(linked.id, 'related')">
+            ×
+          </button>
         </span>
         <SearchSelect
           variant="inline"
@@ -147,6 +163,52 @@ defineExpose({ activate: () => beforeSelect.value?.activate?.() })
           placeholder="+ Link task"
           title="Link a task related to this one, in either direction"
           @update:model-value="(id) => link(id, 'related')"
+        />
+      </div>
+    </div>
+
+    <div class="dep-group">
+      <span class="dep-label">parents</span>
+      <div class="dep-chips">
+        <span v-for="linked in deps.parents" :key="`p-${linked.id}`" class="chip">
+          <StatusIcon :status="linked.status" :label="statusLabel(linked.status)" />
+          <RouterLink v-if="linkToDetail" :to="`/task/${linked.id}`">{{ linked.title }}</RouterLink>
+          <template v-else>{{ linked.title }}</template>
+          <button type="button" class="chip-x" title="Unlink" :disabled="busy" @click="unlink(linked.id, 'parent')">
+            ×
+          </button>
+        </span>
+        <SearchSelect
+          variant="inline"
+          keep-open
+          :model-value="''"
+          :options="candidates"
+          placeholder="+ Link task"
+          title="Link a task this one is a child of"
+          @update:model-value="(id) => link(id, 'parent')"
+        />
+      </div>
+    </div>
+
+    <div class="dep-group">
+      <span class="dep-label">children</span>
+      <div class="dep-chips">
+        <span v-for="linked in deps.children" :key="`c-${linked.id}`" class="chip">
+          <StatusIcon :status="linked.status" :label="statusLabel(linked.status)" />
+          <RouterLink v-if="linkToDetail" :to="`/task/${linked.id}`">{{ linked.title }}</RouterLink>
+          <template v-else>{{ linked.title }}</template>
+          <button type="button" class="chip-x" title="Unlink" :disabled="busy" @click="unlink(linked.id, 'child')">
+            ×
+          </button>
+        </span>
+        <SearchSelect
+          variant="inline"
+          keep-open
+          :model-value="''"
+          :options="candidates"
+          placeholder="+ Link task"
+          title="Link a task that is a child of this one"
+          @update:model-value="(id) => link(id, 'child')"
         />
       </div>
     </div>

@@ -224,7 +224,7 @@ button.tag-chip.active {
   align-items: center;
   gap: 6px;
 }
-/* Task links: labelled chip groups (before, after, related) inline in the strip. */
+/* Task links: labelled chip groups (before, after, related, parents, children) inline in the strip. */
 .dep-select {
   display: flex;
   flex-wrap: wrap;

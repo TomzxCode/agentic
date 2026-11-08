@@ -87,12 +87,16 @@ export const api = {
     unassociate: (id, itemId) => request(`/tasks/${id}/items/${itemId}`, { method: 'DELETE' }),
     dependencies: (id) => request(`/tasks/${id}/dependencies`),
     addDependency: (id, body) => request(`/tasks/${id}/dependencies`, { method: 'POST', body }),
-    removeDependency: (id, relatedId) => request(`/tasks/${id}/dependencies/${relatedId}`, { method: 'DELETE' }),
+    removeDependency: (id, relatedId, relation) => {
+      const qs = relation ? `?relation=${encodeURIComponent(relation)}` : ''
+      return request(`/tasks/${id}/dependencies/${relatedId}${qs}`, { method: 'DELETE' })
+    },
     addChecklistItem: (id, body) => request(`/tasks/${id}/checklist`, { method: 'POST', body }),
     updateChecklistItem: (id, itemId, body) => request(`/tasks/${id}/checklist/${itemId}`, { method: 'PATCH', body }),
     removeChecklistItem: (id, itemId) => request(`/tasks/${id}/checklist/${itemId}`, { method: 'DELETE' }),
     reorderChecklistItems: (id, itemIds) =>
       request(`/tasks/${id}/checklist/reorder`, { method: 'POST', body: { item_ids: itemIds } }),
+    convertChecklistItem: (id, itemId) => request(`/tasks/${id}/checklist/${itemId}/convert`, { method: 'POST' }),
     applyChecklists: (id) => request(`/tasks/${id}/checklist/apply`, { method: 'POST' })
   },
 

@@ -7,7 +7,8 @@ const mocks = vi.hoisted(() => ({
   addItem: vi.fn(),
   updateItem: vi.fn(),
   removeItem: vi.fn(),
-  reorderItems: vi.fn()
+  reorderItems: vi.fn(),
+  convertItem: vi.fn()
 }))
 
 vi.mock('../api', () => ({
@@ -16,7 +17,8 @@ vi.mock('../api', () => ({
       addChecklistItem: mocks.addItem,
       updateChecklistItem: mocks.updateItem,
       removeChecklistItem: mocks.removeItem,
-      reorderChecklistItems: mocks.reorderItems
+      reorderChecklistItems: mocks.reorderItems,
+      convertChecklistItem: mocks.convertItem
     }
   }
 }))
@@ -82,6 +84,40 @@ describe('ChecklistPanel', () => {
     await wrapper.get('button.btn.danger').trigger('click')
     await flushPromises()
     expect(mocks.removeItem).toHaveBeenCalledWith('t1', 'i1')
+  })
+
+  it('converts an item into a task', async () => {
+    mocks.convertItem.mockResolvedValue({ id: 'new-task', title: 'Announce the feature' })
+    const wrapper = mount(ChecklistPanel, {
+      props: { task: task([{ id: 'i1', text: 'Announce the feature', done: false, applicable: true }]) }
+    })
+
+    await wrapper.get('button[aria-label="Convert Announce the feature into a task"]').trigger('click')
+    await flushPromises()
+
+    expect(mocks.convertItem).toHaveBeenCalledWith('t1', 'i1')
+    expect(wrapper.emitted('changed')).toHaveLength(1)
+  })
+
+  it('links a converted item to its task instead of offering another conversion', () => {
+    const wrapper = mount(ChecklistPanel, {
+      props: {
+        task: task([
+          {
+            id: 'i1',
+            text: 'Announce the feature',
+            done: true,
+            applicable: true,
+            converted_task_id: 'new-task',
+            converted_task_title: 'Announce the feature'
+          }
+        ])
+      },
+      global: { stubs: { RouterLink: { props: ['to'], template: '<a :href="to"><slot /></a>' } } }
+    })
+
+    expect(wrapper.find('button[aria-label="Convert Announce the feature into a task"]').exists()).toBe(false)
+    expect(wrapper.get('a[href="/task/new-task"]').text()).toContain('Announce the feature')
   })
 
   it('reorders with the pointer and saves the new order once', async () => {

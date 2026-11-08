@@ -60,5 +60,9 @@ class ChecklistItem(SQLModel, table=True):
     position: int = 0
     done: bool = False
     done_at: datetime | None = None
+    # The task this item was converted into, if any. The item stays in the
+    # checklist (done) so its history is not lost and a template cannot add it
+    # back as a fresh step.
+    converted_task_id: str | None = Field(default=None, foreign_key="task.id", index=True)
     created_at: datetime = Field(default_factory=utcnow)
     updated_at: datetime = Field(default_factory=utcnow)

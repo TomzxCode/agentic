@@ -32,14 +32,14 @@ It is also the page that drives the agent, so the prompt, the worktree, and the 
 | People | Link the people involved, including suggested people taken from the linked items' authors and commenters. |
 | Requested by | Link whoever asked for the task. |
 | Repositories | Link the checkouts the work touches. |
-| Links | Link a task `before` or `after` this one, or as `related`, and unlink with `×`. Each link shows the linked task's current status icon next to its title. A `related` link is symmetric and has no ordering, so it reads the same from both tasks. The API refuses a before/after link that would close a cycle. |
+| Links | Link a task `before` or `after` this one, as `related`, or as a `parent` or `child`, and unlink with `×`. Each link shows the linked task's current status icon next to its title. A `related` link is symmetric and has no ordering, so it reads the same from both tasks. Parent/child links form a separate hierarchy, and a task can have several of each. The API refuses a before/after or parent/child link that would close a cycle. |
 
 ### The panels
 
 | Panel | What it does |
 | --- | --- |
 | Description | Markdown body. `✎ Edit` opens the editor; links and `<details>` inside it stay clickable. |
-| Checklist | The items from the checklists that matched the task, plus your own. Tick one to complete it, drag the `⠿` handle to reorder them, click its text to rename it, and `✕` removes it. An item whose checklist no longer matches stays visible but disabled. |
+| Checklist | The items from the checklists that matched the task, plus your own. Tick one to complete it, drag the `⠿` handle to reorder them, click its text to rename it, `↗` turns it into a child task, and `✕` removes it. A converted item stays, done, and links to its task. An item whose checklist no longer matches stays visible but disabled. |
 | Context | The agent-written `summary` and `next_steps`. `↻ Refresh with agent` starts a context run, and next steps render as a task list whose checkboxes you can tick. `↻ Name & summarize` appears when a Slack item is linked. |
 | Notes | Short notes, added with `Add note` or `Ctrl/Cmd+Enter`, edited in place, removed with `✕`. |
 | Items | Paste a Slack, GitHub, or Drive link (the source is inferred), add a title and a note, then `Associate` or press `Enter` in any field (`Ctrl/Cmd+Enter` in the pasted-content box). Each row can be refreshed, expanded, unlinked, marked `Done` or `Reopen` (Slack), and opens in ghx or slackx when those URLs are configured. |
@@ -61,6 +61,8 @@ If a rule stops matching, the items stay, disabled, so the record of what was do
 Drag an item's `⠿` handle to move it, or focus the handle and press `↑` / `↓`.
 `Add` at the bottom of the panel adds an item to this task only.
 `Apply now` in Settings adds any missing items from a template to the tasks it currently matches.
+`↗` converts an item into a full task: the item is marked done, links to the new task, and the new task appears under this task's `children` links.
+The new task inherits the parent's group, harness, and repositories, and picks up any checklist templates it matches.
 
 ### The agent panel
 
@@ -101,6 +103,7 @@ Each check writes `include` or `skip` onto that finding, and the app itself post
 | Link an item or a URL | `agentic link add <task> --url … --item-id …` | `POST /api/tasks/{id}/items` |
 | Refresh, finish, or reopen an item | `agentic item refresh/done/reopen <item>` | `POST /api/items/{id}/refresh`, `PATCH /api/items/{id}` |
 | Links | `agentic task link/deps/unlink` | `GET`/`POST`/`DELETE /api/tasks/{id}/dependencies` |
+| Convert a checklist item | `agentic task convert <task> <item>` | `POST /api/tasks/{id}/checklist/{item_id}/convert` |
 | People and requesters | `agentic person link <person> --task … --requested-by …` | `POST /api/tasks/{id}/people`, `/requesters` |
 | Changes | `agentic change create/verify/accept/reject/revert/intervene` | `POST /api/changes`, `POST /api/changes/{id}/status`, `/interventions` |
 | Worktrees | `agentic worktree create/list/remove` | `GET`/`POST /api/tasks/{id}/worktrees` |

@@ -358,3 +358,83 @@ def test_deleting_a_task_removes_its_checklist():
         assert client.get(f"/api/tasks/{task['id']}").status_code == 404
         assert client.get("/api/checklist-templates").json()[0]["applied_count"] == 0
         client.delete(f"/api/checklist-templates/{template['id']}")
+
+
+def test_convert_checklist_item_into_a_child_task(tmp_path):
+    with TestClient(app) as client:
+        repo_dir = tmp_path / "repo"
+        (repo_dir / ".git").mkdir(parents=True)
+        repo = client.post("/api/repositories", json={"path": str(repo_dir)}).json()
+        task = _task(client, "Ship the feature", repository_ids=[repo["id"]])
+        item = client.post(f"/api/tasks/{task['id']}/checklist", json={"text": "Write the release note"}).json()
+
+        created = client.post(f"/api/tasks/{task['id']}/checklist/{item['id']}/convert").json()
+        assert created["title"] == "Write the release note"
+        assert created["repository_ids"] == [repo["id"]]
+
+        # The item stays, done, and points at the new task.
+        items = _checklist(client, task["id"])
+        assert len(items) == 1
+        assert items[0]["done"] is True
+        assert items[0]["converted_task_id"] == created["id"]
+        assert items[0]["converted_task_title"] == created["title"]
+
+        # The new task is a child of the one it came from.
+        assert [t["id"] for t in client.get(f"/api/tasks/{task['id']}/dependencies").json()["children"]] == [
+            created["id"]
+        ]
+        assert [t["id"] for t in client.get(f"/api/tasks/{created['id']}/dependencies").json()["parents"]] == [
+            task["id"]
+        ]
+
+        # A second conversion is refused while the task exists.
+        assert client.post(f"/api/tasks/{task['id']}/checklist/{item['id']}/convert").status_code == 400
+
+        # Deleting the created task keeps the item but clears its link.
+        client.delete(f"/api/tasks/{created['id']}")
+        item_after = _checklist(client, task["id"])[0]
+        assert item_after["converted_task_id"] is None
+
+        client.delete(f"/api/tasks/{task['id']}")
+        client.delete(f"/api/repositories/{repo['id']}")
+
+
+def test_convert_an_item_from_another_task_is_not_found():
+    with TestClient(app) as client:
+        first = _task(client, "First")
+        second = _task(client, "Second")
+        item = client.post(f"/api/tasks/{first['id']}/checklist", json={"text": "A step"}).json()
+
+        res = client.post(f"/api/tasks/{second['id']}/checklist/{item['id']}/convert")
+        assert res.status_code == 404
+
+        client.delete(f"/api/tasks/{first['id']}")
+        client.delete(f"/api/tasks/{second['id']}")
+
+
+def test_parent_and_child_rules_match_the_hierarchy():
+    with TestClient(app) as client:
+        parent = _task(client, "Parent")
+        child = _task(client, "Child")
+        client.post(f"/api/tasks/{parent['id']}/dependencies", json={"related_id": child["id"], "relation": "child"})
+
+        by_parent = _template(
+            client,
+            name="Child work",
+            items=["Break it down"],
+            rules=[{"field": "parents", "op": "has_any", "values": [parent["id"]]}],
+        )
+        by_child = _template(
+            client,
+            name="Parent follow-up",
+            items=["Check the child"],
+            rules=[{"field": "children", "op": "has_any", "values": [child["id"]]}],
+        )
+
+        assert [item["text"] for item in _checklist(client, child["id"])] == ["Break it down"]
+        assert [item["text"] for item in _checklist(client, parent["id"])] == ["Check the child"]
+
+        for task_id in (parent["id"], child["id"]):
+            client.delete(f"/api/tasks/{task_id}")
+        for template_id in (by_parent["id"], by_child["id"]):
+            client.delete(f"/api/checklist-templates/{template_id}")

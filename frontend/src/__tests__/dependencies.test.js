@@ -88,7 +88,13 @@ describe('DependenciesSelect', () => {
     await flushPromises()
     expect(wrapper.text()).toContain('Prerequisite')
     expect(wrapper.text()).toContain('Follow-up')
-    expect(wrapper.findAll('.dep-label').map((label) => label.text())).toEqual(['before', 'after', 'related'])
+    expect(wrapper.findAll('.dep-label').map((label) => label.text())).toEqual([
+      'before',
+      'after',
+      'related',
+      'parents',
+      'children'
+    ])
     expect(wrapper.get('.chip .task-status').classes()).toContain('st-blocked')
     expect(wrapper.get('.chip .task-status').attributes('aria-label')).toBe('Blocked')
     expect(wrapper.findAll('.chip .task-status')[1].classes()).toContain('st-done')
@@ -119,7 +125,7 @@ describe('DependenciesSelect', () => {
     await wrapper.get('.chip-x').trigger('click')
     await flushPromises()
 
-    expect(mocks.depsRemove).toHaveBeenCalledWith('t1', 'a')
+    expect(mocks.depsRemove).toHaveBeenCalledWith('t1', 'a', 'before')
     expect(wrapper.emitted('changed')).toBeTruthy()
   })
 
@@ -154,5 +160,44 @@ describe('DependenciesSelect', () => {
 
     expect(mocks.depsAdd).toHaveBeenCalledWith('t1', { related_id: 'c', relation: 'related' })
     expect(wrapper.emitted('changed')).toBeTruthy()
+  })
+
+  it('links and unlinks parents and children', async () => {
+    mocks.depsGet.mockResolvedValue({
+      task_id: 't1',
+      before: [],
+      after: [],
+      related: [],
+      parents: [{ id: 'p', title: 'Parent', status: 'open' }],
+      children: [{ id: 'c', title: 'Child', status: 'done' }]
+    })
+    mocks.tasksList.mockResolvedValue([task, { id: 'other', title: 'Other' }])
+    mocks.depsAdd.mockResolvedValue({
+      task_id: 't1',
+      parents: [{ id: 'p', title: 'Parent' }],
+      children: [{ id: 'c', title: 'Child' }]
+    })
+    mocks.depsRemove.mockResolvedValue(null)
+
+    const wrapper = mountPanel()
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Parent')
+    expect(wrapper.text()).toContain('Child')
+
+    // The parent group is the fourth picker, the child group the fifth.
+    await wrapper.findAllComponents(SearchSelect)[3].vm.$emit('update:modelValue', 'other')
+    await flushPromises()
+    expect(mocks.depsAdd).toHaveBeenCalledWith('t1', { related_id: 'other', relation: 'parent' })
+
+    await wrapper.findAllComponents(SearchSelect)[4].vm.$emit('update:modelValue', 'other')
+    await flushPromises()
+    expect(mocks.depsAdd).toHaveBeenCalledWith('t1', { related_id: 'other', relation: 'child' })
+
+    // A child's unlink removes only the parent/child link.
+    const childChip = wrapper.findAll('.chip').find((chip) => chip.text().includes('Child'))
+    await childChip.get('.chip-x').trigger('click')
+    await flushPromises()
+    expect(mocks.depsRemove).toHaveBeenCalledWith('t1', 'c', 'child')
   })
 })

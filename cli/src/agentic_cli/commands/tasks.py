@@ -174,12 +174,15 @@ def task_timeline(task_id: str) -> str:
 
 @task_app.command(name="link")
 @safe
-def task_link(task_id: str, related_id: str, relation: Literal["before", "after", "related"] = "after") -> str:
-    """Link a related task before or after this one, or as a related task.
+def task_link(
+    task_id: str, related_id: str, relation: Literal["before", "after", "related", "parent", "child"] = "after"
+) -> str:
+    """Link a related task before or after this one, as related, or as family.
 
     `--relation before` means the related task must be done first; `after` means
     it follows this one; both are refused when they would close a cycle.
-    `related` links the two tasks symmetrically, with no ordering.
+    `related` links the two tasks symmetrically, with no ordering. `parent`
+    makes the related task a parent of this one, and `child` makes it a child.
     """
     with runtime._client() as client:
         deps = client.add_dependency(task_id, related_id, relation)
@@ -188,20 +191,34 @@ def task_link(task_id: str, related_id: str, relation: Literal["before", "after"
 
 @task_app.command(name="unlink")
 @safe
-def task_unlink(task_id: str, related_id: str) -> str:
-    """Remove the link between two tasks, of either kind."""
+def task_unlink(
+    task_id: str, related_id: str, relation: Literal["before", "after", "related", "parent", "child"] | None = None
+) -> str:
+    """Remove the link between two tasks, of any kind.
+
+    Pass --relation to remove one kind when the pair carries more than one.
+    """
     with runtime._client() as client:
-        client.remove_dependency(task_id, related_id)
+        client.remove_dependency(task_id, related_id, relation)
     return emit({"unlinked": related_id}, f"unlinked {related_id} from {task_id}")
 
 
 @task_app.command(name="deps")
 @safe
 def task_deps(task_id: str) -> str:
-    """Show the tasks linked before, after, and related to this one."""
+    """Show the tasks linked before, after, related, and as parent or child."""
     with runtime._client() as client:
         deps = client.task_dependencies(task_id)
     return emit(deps, _deps_text(deps))
+
+
+@task_app.command(name="convert")
+@safe
+def task_convert(task_id: str, item_id: str) -> str:
+    """Turn one of a task's checklist items into a child task."""
+    with runtime._client() as client:
+        task = client.convert_checklist_item(task_id, item_id)
+    return emit(task, f"created {task['id']}  {task['title']}")
 
 
 @safe

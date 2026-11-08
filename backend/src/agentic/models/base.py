@@ -27,12 +27,16 @@ class DependencyRelation(StrEnum):
     """How a related task is linked to this one.
 
     ``before`` and ``after`` place it on a side of the ordering graph;
-    ``related`` is a symmetric link, with no direction.
+    ``related`` is a symmetric link, with no direction. ``parent`` and
+    ``child`` place it in the hierarchy, where the related task is this one's
+    parent or child.
     """
 
     before = "before"
     after = "after"
     related = "related"
+    parent = "parent"
+    child = "child"
 
 
 class RunStatus(StrEnum):

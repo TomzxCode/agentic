@@ -251,3 +251,95 @@ def test_graph_hides_done_and_their_edges():
 
         client.delete(f"/api/tasks/{a}")
         client.delete(f"/api/tasks/{b}")
+
+
+def test_parent_and_child_links_are_two_sided():
+    with TestClient(app) as client:
+        parent = _task(client, "Parent")
+        child = _task(client, "Child")
+
+        deps = client.post(f"/api/tasks/{parent}/dependencies", json={"related_id": child, "relation": "child"}).json()
+        assert [t["id"] for t in deps["children"]] == [child]
+        assert deps["parents"] == []
+
+        other = client.get(f"/api/tasks/{child}/dependencies").json()
+        assert [t["id"] for t in other["parents"]] == [parent]
+        assert other["children"] == []
+
+        # Linking from the child's side stores the same edge.
+        client.post(f"/api/tasks/{child}/dependencies", json={"related_id": parent, "relation": "parent"})
+        assert len(client.get(f"/api/tasks/{child}/dependencies").json()["parents"]) == 1
+
+        client.delete(f"/api/tasks/{parent}")
+        client.delete(f"/api/tasks/{child}")
+
+
+def test_parent_cycle_is_rejected():
+    with TestClient(app) as client:
+        a = _task(client, "A")
+        b = _task(client, "B")
+        c = _task(client, "C")
+
+        client.post(f"/api/tasks/{a}/dependencies", json={"related_id": b, "relation": "child"})
+        client.post(f"/api/tasks/{b}/dependencies", json={"related_id": c, "relation": "child"})
+
+        # C becomes A's parent: A -> B -> C -> A would be a cycle.
+        res = client.post(f"/api/tasks/{a}/dependencies", json={"related_id": c, "relation": "parent"})
+        assert res.status_code == 400
+        assert "cycle" in res.json()["detail"]
+        assert client.get(f"/api/tasks/{a}/dependencies").json()["parents"] == []
+
+        for task in (a, b, c):
+            client.delete(f"/api/tasks/{task}")
+
+
+def test_remove_parent_link_from_either_side_and_by_kind():
+    with TestClient(app) as client:
+        a = _task(client, "A")
+        b = _task(client, "B")
+
+        client.post(f"/api/tasks/{a}/dependencies", json={"related_id": b, "relation": "child"})
+        # The same pair also carries a related link.
+        client.post(f"/api/tasks/{a}/dependencies", json={"related_id": b, "relation": "related"})
+
+        # Removing only the related link leaves the parent/child link.
+        assert client.delete(f"/api/tasks/{b}/dependencies/{a}?relation=related").status_code == 204
+        deps = client.get(f"/api/tasks/{a}/dependencies").json()
+        assert deps["related"] == []
+        assert [t["id"] for t in deps["children"]] == [b]
+
+        # Removing from the child's side drops the same parent edge.
+        assert client.delete(f"/api/tasks/{b}/dependencies/{a}?relation=parent").status_code == 204
+        assert client.get(f"/api/tasks/{a}/dependencies").json()["children"] == []
+        assert client.delete(f"/api/tasks/{b}/dependencies/{a}?relation=parent").status_code == 404
+
+        client.delete(f"/api/tasks/{a}")
+        client.delete(f"/api/tasks/{b}")
+
+
+def test_parent_link_records_timeline_on_both_tasks():
+    with TestClient(app) as client:
+        a = _task(client, "A")
+        b = _task(client, "B")
+        client.post(f"/api/tasks/{a}/dependencies", json={"related_id": b, "relation": "child"})
+
+        assert any(e["type"] == "parent_added" for e in client.get(f"/api/tasks/{a}/timeline").json())
+        assert any(e["type"] == "parent_added" for e in client.get(f"/api/tasks/{b}/timeline").json())
+
+        client.delete(f"/api/tasks/{a}/dependencies/{b}")
+        assert any(e["type"] == "parent_removed" for e in client.get(f"/api/tasks/{a}/timeline").json())
+
+        client.delete(f"/api/tasks/{a}")
+        client.delete(f"/api/tasks/{b}")
+
+
+def test_deleting_a_task_drops_parent_links():
+    with TestClient(app) as client:
+        a = _task(client, "A")
+        b = _task(client, "B")
+        client.post(f"/api/tasks/{a}/dependencies", json={"related_id": b, "relation": "child"})
+
+        client.delete(f"/api/tasks/{a}")
+        assert client.get(f"/api/tasks/{b}/dependencies").json()["parents"] == []
+
+        client.delete(f"/api/tasks/{b}")

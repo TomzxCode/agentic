@@ -62,6 +62,23 @@ class TaskDependency(SQLModel, table=True):
     created_at: datetime = Field(default_factory=utcnow)
 
 
+class TaskParent(SQLModel, table=True):
+    """A parent/child link between two tasks.
+
+    The edge points from ``parent_id`` to ``child_id``. Unlike a before/after
+    edge it says nothing about order: a child belongs to its parent. A task can
+    have several parents, and the links are kept acyclic, so a task can never be
+    its own ancestor.
+    """
+
+    __table_args__ = (UniqueConstraint("parent_id", "child_id", name="uq_parent_edge"),)
+
+    id: str = Field(default_factory=new_id, primary_key=True)
+    parent_id: str = Field(foreign_key="task.id", index=True)
+    child_id: str = Field(foreign_key="task.id", index=True)
+    created_at: datetime = Field(default_factory=utcnow)
+
+
 class TaskRelation(SQLModel, table=True):
     """A symmetric "related" link between two tasks.
 
