@@ -11,6 +11,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, col, select
 
 from ..agents.harnesses import get_harness
+from ..checklists import checklist_items
 from ..config import settings
 from ..crud import add_timeline, get_or_404, get_task_or_404
 from ..db import get_session
@@ -175,6 +176,7 @@ async def refresh_context(task_id: str, session: Session = Depends(get_session))
         "repositories": repositories,
         "group": group,
         "worktrees": worktrees,
+        "checklist": [item.model_dump() for item in checklist_items(session, task)],
     }
     prompt = build_context_prompt(task_ctx, items)
     cwd = _resolve_cwd(session, task, RunCreate(prompt="context"))
@@ -266,7 +268,7 @@ def context_preview(task_id: str, session: Session = Depends(get_session)) -> Co
     return ContextPreview(
         task_id=task.id,
         summary=task.summary,
-        next_steps=task.next_steps or [],
+        checklist=checklist_items(session, task),
         context_updated_at=task.context_updated_at,
     )
 

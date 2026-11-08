@@ -126,9 +126,8 @@
   cursor: pointer;
 }
 
-/* Next steps are edited as one multiline text field (EditableText), so the list
-   markup and the empty-state callout are gone; the header badge still flags a
-   task with no next steps. */
+/* The agent-written summary is plain text; the task's actions live in the
+   checklist panel. */
 .summary {
   white-space: pre-wrap;
   color: var(--text);

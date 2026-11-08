@@ -24,7 +24,7 @@ You want a coding agent to work on a task, and you want to see and keep what it 
 4. Watch the transcript stream into the panel.
    You can cancel a run that is going the wrong way.
 5. When you want a fresh summary and next-steps list, click **Refresh with agent** in the **Context** panel.
-   This is a special run that reads the task and its items and writes the summary and next steps.
+   This is a special run that reads the task and its items, writes the summary, and proposes checklist items.
 
 ## Reopen a session later
 

@@ -15,7 +15,7 @@ Out of scope: spawning a real harness process (integration with opencode/pi), wh
 
 | ID | Description | Input | Expected Output |
 |---|---|---|---|
-| TC-1 | Extract clean JSON | a bare JSON object | parsed summary and next steps |
+| TC-1 | Extract clean JSON | a bare JSON object | parsed summary and actions |
 | TC-2 | Extract JSON from prose | text around the object | parsed object |
 | TC-3 | Extract JSON from a code fence | fenced json | parsed object |
 | TC-4 | Repair truncated JSON | a cut-off payload | parsed object |

@@ -315,7 +315,7 @@ onMounted(() => {
         :show-people="false"
         :show-deadline-time="true"
         :show-age="false"
-        :show-next-step="false"
+        :show-next-item="false"
         :show-tags="false"
       />
     </section>
@@ -416,7 +416,7 @@ onMounted(() => {
           <li>Create a task (the <strong>+</strong> in the sidebar).</li>
           <li>Associate the relevant Slack thread, GitHub issue/PR, or Drive doc.</li>
           <li>Add a repository in <router-link to="/settings">Settings</router-link>, then spin up a worktree.</li>
-          <li>Hit <strong>Refresh with agent</strong> to get a current summary and next steps.</li>
+          <li>Hit <strong>Refresh with agent</strong> to get a current summary and proposed checklist items.</li>
           <li>Run an agent to make progress; the transcript streams live.</li>
         </ol>
       </template>

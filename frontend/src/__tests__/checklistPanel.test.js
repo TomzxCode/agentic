@@ -6,6 +6,7 @@ enableAutoUnmount(afterEach)
 const mocks = vi.hoisted(() => ({
   addItem: vi.fn(),
   updateItem: vi.fn(),
+  updateTask: vi.fn(),
   removeItem: vi.fn(),
   reorderItems: vi.fn(),
   convertItem: vi.fn()
@@ -16,6 +17,7 @@ vi.mock('../api', () => ({
     tasks: {
       addChecklistItem: mocks.addItem,
       updateChecklistItem: mocks.updateItem,
+      update: mocks.updateTask,
       removeChecklistItem: mocks.removeItem,
       reorderChecklistItems: mocks.reorderItems,
       convertChecklistItem: mocks.convertItem
@@ -117,7 +119,44 @@ describe('ChecklistPanel', () => {
     })
 
     expect(wrapper.find('button[aria-label="Convert Announce the feature into a task"]').exists()).toBe(false)
-    expect(wrapper.get('a[href="/task/new-task"]').text()).toContain('Announce the feature')
+    const link = wrapper.get('a[href="/task/new-task"]')
+    expect(link.find('svg').exists()).toBe(true)
+    expect(link.attributes('aria-label')).toBe('Open the task: Announce the feature')
+  })
+
+  it('edits the linked task title from a converted item', async () => {
+    mocks.updateTask.mockResolvedValue({})
+    const wrapper = mount(ChecklistPanel, {
+      props: {
+        task: task([
+          {
+            id: 'i1',
+            text: 'Old step text',
+            done: true,
+            applicable: true,
+            converted_task_id: 'new-task',
+            converted_task_title: 'Announce the feature'
+          }
+        ])
+      },
+      global: { stubs: { RouterLink: { props: ['to'], template: '<a :href="to"><slot /></a>' } } }
+    })
+
+    // The field shows the live task title, and the checked row keeps its done
+    // state, which draws the strikethrough.
+    expect(wrapper.get('.checklist-item').classes()).toContain('done')
+    expect(wrapper.get('.checklist-text').text()).toBe('Announce the feature')
+
+    await wrapper.get('.checklist-text').trigger('click')
+    const field = wrapper.get('input.inline-input')
+    expect(field.element.value).toBe('Announce the feature')
+    await field.setValue('Ship the feature')
+    await field.trigger('blur')
+    await flushPromises()
+
+    expect(mocks.updateTask).toHaveBeenCalledWith('new-task', { title: 'Ship the feature' })
+    expect(mocks.updateItem).not.toHaveBeenCalled()
+    expect(wrapper.emitted('changed')).toHaveLength(1)
   })
 
   it('reorders with the pointer and saves the new order once', async () => {

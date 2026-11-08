@@ -13,10 +13,11 @@
 | Autonomy rate | The share of accepted changes that reached production with no human intervention. One of the two primary factory metrics. |
 | Change | A unit of factory output, recorded against a task with a lifecycle, a start and end time, and a human-intervened flag; the input the metrics are computed from. |
 | Change class | The kind of a change: feature, bugfix, refactor, chore, docs, test, or trivial. |
-| Checklist item | One item on a task's checklist, either copied from a matching template or added by hand; a derived item stays but is disabled once its template no longer matches. |
+| Checklist item | One item on a task's checklist, either copied from a matching template, proposed by a context refresh, or added by hand; a derived item stays but is disabled once its template no longer matches. |
+| Checklist dismissal | The normalized text of a checklist item the user removed, remembered so a later context refresh does not propose it again. |
 | Checklist template | A reusable list of checklist items plus the rules over task properties that decide which tasks receive them. |
 | Colleague decision report | A daily Markdown report the extract-colleague-decisions skill writes under the notes tree, naming each colleague's decisions (Decided, Deferred, Open, or Committed), who supported or opposed them, and a Slack permalink. |
-| Context refresh | A special agent run that reads a task and its items and rewrites the task's summary and next steps. |
+| Context refresh | A special agent run that reads a task and its items, rewrites the task's summary, and merges proposed actions into its checklist. |
 | Cumulative flow diagram | A diagram plotted as stacked areas from daily snapshots of every station's inventory plus cumulative completions, showing work entering and leaving each station over time. |
 | Current task | The task at the top of the stack (position 0); the one being worked on now. |
 | Cycle time | How long work takes, derived from GitHub issue and pull request events: issue close (opening to closing), review wait (first review request to first review), and review to merge. |
@@ -38,7 +39,6 @@
 | Merge | Folding one person into another: the source's aliases and its task and item links move to the target, then the source is deleted. |
 | Metric baseline | The stored value a metric's direction (improving, worsening, flat, or no-baseline) is measured against. |
 | My pulls | The viewer's own open pull requests, with derived header counts, cached so a reload does not re-query GitHub; nothing is stored, so a merged pull request leaves the list on the next refresh. |
-| Next steps | The agent-maintained list of concrete actions for a task, each with a `done` flag. |
 | On-call scan | A scan of a Slack channel that collects what needs answering and prepares draft replies for the on-call view. |
 | Operation | One audit-log row per mutating `/api` request, stamped with the client and actor behind it; it covers work that has no task to hang a timeline event off. |
 | Parked | A task off the focus stack because it waits on a person or is snoozed. It is still in flight, and it returns when the deferral ends or the task is pushed. |

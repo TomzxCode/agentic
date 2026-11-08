@@ -15,7 +15,7 @@ Unlike hosted project trackers and agent dashboards, it runs on your machine aga
 
 ## What Winning Looks Like (12 months)
 
-Resuming any in-flight task takes under a minute because its summary and next steps are current.
+Resuming any in-flight task takes under a minute because its summary and checklist are current.
 The majority of accepted changes are touchless, and yield is measured and improving month over month instead of guessed.
 The whole loop (triage, queue, review, park, resume) works from a phone.
 Agents create and maintain most of the tracker's content through the CLI and scheduled runs.

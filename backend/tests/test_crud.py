@@ -14,7 +14,6 @@ def test_jsonable_and_field_label():
     assert jsonable(7) == 7
     assert field_label("group_id") == "group"
     assert field_label("harness_id") == "harness"
-    assert field_label("next_steps") == "next steps"
 
 
 def test_get_task_or_404_raises_for_a_missing_task():

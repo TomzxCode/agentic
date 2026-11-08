@@ -111,7 +111,6 @@ erDiagram
         datetime follow_up_at
         datetime snoozed_until
         string summary
-        json next_steps
         datetime context_updated_at
     }
     SOURCEITEM {
@@ -453,7 +452,7 @@ The full schema with types, constraints, and indexes lives in [`schema.dbml`](sc
 2. The router reads or writes rows through SQLModel and writes a `TimelineEvent` for meaningful task changes.
 3. Task changes are published on the in-process bus and streamed to any subscribed SPA as SSE (`/api/tasks/{id}/stream`).
 4. An agent run is stored as a queued `AgentRun` and enqueued as a SAQ job keyed by the run id; a worker process (`agentic-server worker`) picks the job up, spawns the harness as a child process, drives it over ACP JSON-RPC on stdio, normalizes each update into an `AgentEvent` (persisted and streamed on `/api/runs/{id}/stream`), then terminates the process.
-5. A context refresh runs the same path, then parses a JSON `{summary, next_steps}` out of the assistant text and writes it back onto the task.
+5. A context refresh runs the same path, then parses a JSON `{summary, actions}` out of the assistant text, writes the summary onto the task, and merges the proposed actions into its checklist.
 6. At startup the API fails runs and graph executions left mid-flight by a previous process, unless their queue job is still live, so nothing looks running forever.
 7. Background loops in the API process refresh due items on their tiered policies, run the review scan on its cadence, fire scheduled shell tasks and due execution-graph schedule triggers, and hold the warm ACP session for the default harness.
 8. An inbound webhook is stored as a `WebhookEvent`, then matched against the endpoint's enabled subscriptions; each match starts an execution graph with the payload on its trigger node and records an `EventDelivery`.

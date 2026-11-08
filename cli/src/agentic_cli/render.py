@@ -51,8 +51,6 @@ def _task_text(task: dict) -> str:
         lines.append(f"  session: {session['session_id']} ({session['id']})")
     if task.get("summary"):
         lines.append(f"  summary: {task['summary']}")
-    for step in task.get("next_steps") or []:
-        lines.append(f"  [{'x' if step.get('done') else ' '}] {step.get('text')}")
     checklist = task.get("checklist") or []
     if checklist:
         lines.append("  checklist:")

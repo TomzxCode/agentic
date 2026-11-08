@@ -507,7 +507,7 @@ watch(
          two things to read first when opening a task. -->
       <div class="grid-even">
         <!-- The description is Markdown (a task imported from a GitHub issue keeps
-           its body), rendered with the shared renderer like notes and next steps.
+           its body), rendered with the shared renderer like notes and checklist items.
            `as="div"`: the renderer emits block elements, which a <p> cannot hold.
            `edit-trigger="external"`: the body may carry its own controls (a
            collapsible <details> section), which a click on the field would

@@ -5,11 +5,11 @@ The full domain and technical glossary lives in [`.sdlc/context/vocabulary.md`](
 
 | Term | Definition | Notes |
 |---|---|---|
-| Task | The unit of work everything hangs off: sources, worktrees, runs, summary, next steps. | Central entity; SDLC features hang off it too. |
+| Task | The unit of work everything hangs off: sources, worktrees, runs, summary, checklist. | Central entity; SDLC features hang off it too. |
 | Item | Something external associated to tasks: Slack thread, GitHub issue or PR, Drive doc, URL, note, commit, or local path. | Also called a source item. |
 | Focus stack | The ordered queue of in-flight tasks; the top one is current. | Parked tasks are off it and return automatically. |
 | Parked | A task off the stack because it waits on a person or is snoozed. | Returns when the deferral ends. |
-| Context refresh | An agent run that rewrites a task's summary and next steps. | The mechanism behind the resume-in-a-minute promise. |
+| Context refresh | An agent run that rewrites a task's summary and proposes checklist items. | The mechanism behind the resume-in-a-minute promise. |
 | Agent run | One prompt to a harness in a working directory, with a live persisted transcript. | Runs over ACP; queued and executed by a worker. |
 | Harness | A coding-agent command reachable over ACP, stored as a row. | OpenCode and pi are preconfigured. |
 | Change | A recorded unit of factory output with a lifecycle and a human-intervened flag. | The input all factory metrics are computed from. |

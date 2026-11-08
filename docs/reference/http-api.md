@@ -73,7 +73,7 @@ A manual item has no template and always applies.
 | `GET` / `PATCH` / `DELETE` | `/api/tasks/{id}/sessions/{session_id}` | Read, update, and remove one recorded session. |
 | `GET` / `POST` | `/api/tasks/{id}/runs` | List runs and enqueue a run (a `model` in the body overrides the harness's model for that run). |
 | `POST` | `/api/tasks/{id}/context/refresh` | Enqueue a context-refresh run. |
-| `GET` | `/api/tasks/{id}/context` | Preview the context a refresh would read. |
+| `GET` | `/api/tasks/{id}/context` | Read the task's summary and checklist. |
 | `POST` | `/api/tasks/{id}/summary/refresh` | Enqueue a summary-refresh run. |
 | `GET` | `/api/runs/{id}` | One run. |
 | `GET` | `/api/runs/{id}/events` | The run's recorded events. |

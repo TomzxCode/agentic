@@ -7,7 +7,7 @@ This page explains the parts and how they relate.
 
 | Concept | What it is |
 | --- | --- |
-| **Task** | The unit of work. Everything hangs off it. Carries an agent-maintained `summary` and `next_steps`. |
+| **Task** | The unit of work. Everything hangs off it. Carries an agent-maintained `summary` and a checklist of actions. |
 | **Item** | Something external: a Slack thread, GitHub issue or pull request, Drive doc, URL, note, commit, or a local file or directory path. Items are deduplicated by URL or external id. |
 | **Association** | A link between an item and a task (many-to-many), with a note. |
 | **Person** | An individual a task or an item involves: a name plus optional email, handle, and notes. Linked to tasks and items many-to-many. |
@@ -15,7 +15,7 @@ This page explains the parts and how they relate.
 | **Repository group** | A named set of repositories. Picking one on a task tells the agent those checkouts may hold information relevant to it. |
 | **Agent run** | One prompt sent to a harness in a working directory, delivered to the worker through the run queue. Events stream live to the UI. |
 | **Agent session** | An agent session recorded against a task: its session id, harness, working directory, and a label. A run records the session it produced; this records one you attach by hand, for example one you opened in OpenChamber. Both build the links that reopen it. |
-| **Context refresh** | A special agent run that reads the task and its items and writes the `summary` and `next_steps`. |
+| **Context refresh** | A special agent run that reads the task and its items, writes the `summary`, and proposes checklist items. |
 | **Scheduled task** | A user-defined shell script the API runs on a cron schedule, with a recorded history of runs. |
 | **Change** | A unit of factory output recorded against a task: a class, a lifecycle, a start and end time, and a human-intervened flag. Autonomy rate and yield are computed from changes. |
 | **Stack entry** | A task's place on the focus stack: its position (0 is current), whether it is current, and a soft-delete timestamp. |

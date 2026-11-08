@@ -185,19 +185,19 @@ def session_remove(task_id: str, session_id: str) -> str:
 @context_app.command(name="get")
 @safe
 def context_get(task_id: str) -> str:
-    """Show a task's current summary and next steps."""
+    """Show a task's current summary and checklist."""
     with runtime._client() as client:
         context = client.get_context(task_id)
     text = context.get("summary", "")
-    for step in context.get("next_steps") or []:
-        text += f"\n- [{'x' if step.get('done') else ' '}] {step.get('text')}"
+    for item in context.get("checklist") or []:
+        text += f"\n- [{'x' if item.get('done') else ' '}] {item.get('text')}"
     return emit(context, text or "(no context yet)")
 
 
 @context_app.command(name="refresh")
 @safe
 def context_refresh(task_id: str) -> str:
-    """Ask an agent to rewrite the summary and next steps."""
+    """Ask an agent to rewrite the summary and propose checklist items."""
     with runtime._client() as client:
         run = client.refresh_context(task_id)
     return emit(run, f"context refresh started: run {run['id']}")

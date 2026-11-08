@@ -37,7 +37,8 @@ def test_repair_truncated_json_closes_open_structures():
     assert prompts._repair_truncated_json('{"a": 1}') is None
 
 
-def test_extract_context_json_coerces_string_steps():
-    data = prompts.extract_context_json('{"summary": "s", "next_steps": ["do a", {"text": "do b", "done": true}]}')
+def test_extract_context_json_coerces_string_actions():
+    data = prompts.extract_context_json('{"summary": "s", "actions": ["do a", {"text": "do b", "done": true}]}')
     assert data is not None
-    assert data["next_steps"] == [{"text": "do a", "done": False}, {"text": "do b", "done": True}]
+    assert data["actions"] == ["do a", "do b"]
+    assert "next_steps" not in data

@@ -3,6 +3,7 @@ import { computed, ref, watch } from 'vue'
 import { api } from '../api'
 import { store } from '../store'
 import EditableText from './EditableText.vue'
+import Icon from './Icon.vue'
 
 const props = defineProps({ task: { type: Object, required: true } })
 const emit = defineEmits(['changed'])
@@ -147,6 +148,12 @@ async function toggle(item) {
   }
 }
 
+// A converted item points at its task, so its field shows and edits the live
+// task title. A normal item keeps editing its own text.
+function itemText(item) {
+  return item.converted_task_id ? item.converted_task_title || item.text : item.text
+}
+
 async function saveText(item, value) {
   const text = String(value || '').trim()
   // An empty edit is not a renaming; reload so the field shows the old text.
@@ -155,7 +162,11 @@ async function saveText(item, value) {
     return
   }
   try {
-    await api.tasks.updateChecklistItem(props.task.id, item.id, { text })
+    if (item.converted_task_id) {
+      await api.tasks.update(item.converted_task_id, { title: text })
+    } else {
+      await api.tasks.updateChecklistItem(props.task.id, item.id, { text })
+    }
     emit('changed')
   } catch (e) {
     store.notify(e.message, true)
@@ -232,7 +243,7 @@ function onAddKeydown(event) {
         <button
           class="checklist-grip"
           type="button"
-          :aria-label="`Reorder ${item.text}`"
+          :aria-label="`Reorder ${itemText(item)}`"
           :aria-pressed="item.id === dragId ? 'true' : undefined"
           title="Drag to reorder, or press ↑ / ↓"
           @pointerdown="startDrag(item, $event)"
@@ -251,7 +262,7 @@ function onAddKeydown(event) {
         <div class="grow">
           <EditableText
             class="checklist-text"
-            :value="item.text"
+            :value="itemText(item)"
             placeholder="Checklist item"
             @save="(v) => saveText(item, v)"
           />
@@ -261,24 +272,25 @@ function onAddKeydown(event) {
         </div>
         <RouterLink
           v-if="item.converted_task_id"
-          class="btn sm ghost checklist-task-link"
+          class="btn sm ghost checklist-action"
           :to="`/task/${item.converted_task_id}`"
           :title="`Open the task: ${item.converted_task_title || item.text}`"
+          :aria-label="`Open the task: ${item.converted_task_title || item.text}`"
         >
-          → {{ item.converted_task_title || 'task' }}
+          <Icon name="tasks" :size="14" />
         </RouterLink>
         <button
           v-else
-          class="btn sm ghost"
+          class="btn sm ghost checklist-action"
           :disabled="converting === item.id"
           title="Convert this item into a task"
           :aria-label="`Convert ${item.text} into a task`"
           @click="convert(item)"
         >
           <span v-if="converting === item.id" class="spinner"></span>
-          <span v-else>↗</span>
+          <span v-else>+</span>
         </button>
-        <button class="btn sm danger" title="Remove this item" @click="remove(item)">✕</button>
+        <button class="btn sm danger checklist-action" title="Remove this item" @click="remove(item)">✕</button>
       </div>
     </div>
 
@@ -348,17 +360,24 @@ function onAddKeydown(event) {
   text-decoration: line-through;
   color: var(--muted-foreground);
 }
+/* Every row action is the same square, whatever glyph it carries. */
+.checklist-item .checklist-action {
+  width: 28px;
+  min-width: 28px;
+  padding-left: 0;
+  padding-right: 0;
+}
+@media (max-width: 760px) {
+  .checklist-item .checklist-action {
+    width: 36px;
+    min-width: 36px;
+  }
+}
 .checklist-item.stale {
   opacity: 0.5;
 }
 .checklist-source {
   font-size: 11px;
   margin-top: 1px;
-}
-.checklist-task-link {
-  max-width: 180px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 </style>

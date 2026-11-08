@@ -51,7 +51,7 @@ It solves the problem of scattered context: the threads, issues, and checkouts r
 - A decisions page: colleague-decision reports read from the notes tree, read-only.
 - An on-call view: a Slack channel scan that prepares replies to a channel's threads.
 - ACP agent runs with a live, persisted transcript and cancellation.
-- Agent-maintained context refresh (summary plus next steps).
+- Agent-maintained context refresh (summary plus proposed checklist items).
 - Harness management in Settings: ACP harness configs with a marked default and an optional per-harness model, plus a warm ACP session held by the API that feeds the run panel's model picker.
 - Agent sessions recorded against a task, with reopen links (OpenChamber, terminal, resume command); sessions started elsewhere can be attached by hand.
 - Managed local tools: `ghx serve` and `slackx serve` processes started with the server, so GitHub and Slack items link into those tools' UIs.

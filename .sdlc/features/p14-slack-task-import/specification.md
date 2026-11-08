@@ -170,7 +170,7 @@ sequenceDiagram
 
 ## Out of Scope
 
-- Inferring a description or next steps during the import.
+- Inferring a description or checklist items during the import.
 - Refreshing an existing task when the same Slack URL is re-imported (the item is de-duplicated, the task is not).
 - Watching a Slack thread for new messages after the import.
 - Summarizing a team's messages or a whole channel rather than one thread.

@@ -14,14 +14,16 @@ object (no prose, no code fences) of this exact form:
 
 {
   "summary": "2-5 sentence current state of the task: what it is, what has happened, what matters now",
-  "next_steps": [
-    {"text": "a concrete, actionable next step", "done": false}
+  "actions": [
+    "a concrete, actionable next step"
   ]
 }
 
 Rules:
 - summary: at most 3 sentences (roughly 60 words). Prioritize what matters now.
-- next_steps: 2-5 concrete actions, most important first. Drop completed ones.
+- actions: 2-5 concrete actions, most important first, for work the checklist does
+  not already list. They become open checklist items.
+- Do not repeat a checklist item, whether it is open or done.
 - Be specific: name files, branches, issues, people where relevant.
 - If a repository group is listed, treat those repositories as potentially
   relevant: consult them for context and say which one matters.
@@ -76,6 +78,13 @@ def build_context_prompt(task: dict[str, Any], items: list[dict[str, Any]]) -> s
     if task.get("worktrees"):
         lines += ["", "## Active worktrees"]
         lines += [f"- {w['branch']} at {w['path']}" for w in task["worktrees"]]
+    checklist = task.get("checklist") or []
+    if checklist:
+        lines += ["", f"## Current checklist ({len(checklist)})"]
+        for item in checklist:
+            mark = "x" if item.get("done") else " "
+            suffix = "" if item.get("applicable", True) else " (no longer applies)"
+            lines.append(f"- [{mark}] {item['text']}{suffix}")
     lines += ["", f"## Associated items ({len(items)})"]
     for item in items:
         lines.append(f"\n### [{item['source']}] {item.get('title') or item.get('url')}")
@@ -196,14 +205,14 @@ def extract_context_json(text: str) -> dict[str, Any] | None:
     data = _extract_json(text, "summary")
     if data is None:
         return None
-    steps = data.get("next_steps") or []
-    data["next_steps"] = [
-        {
-            "text": str(s.get("text", s)) if isinstance(s, dict) else str(s),
-            "done": bool(s.get("done")) if isinstance(s, dict) else False,
-        }
-        for s in steps
-    ]
+    # Accept the old ``next_steps`` key too, so a reply written for an earlier
+    # prompt still contributes its actions.
+    raw = data.get("actions")
+    if raw is None:
+        raw = data.get("next_steps")
+    actions = [str(action.get("text", action)) if isinstance(action, dict) else str(action) for action in (raw or [])]
+    data["actions"] = [action.strip() for action in actions if action.strip()]
+    data.pop("next_steps", None)
     return data
 
 

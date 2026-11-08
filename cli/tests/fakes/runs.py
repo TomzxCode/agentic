@@ -49,7 +49,7 @@ class RunsFake:
         return None
 
     def get_context(self, task_id):
-        return {"summary": "s", "next_steps": [{"text": "a", "done": True}]}
+        return {"summary": "s", "checklist": [{"text": "a", "done": True}]}
 
     def refresh_context(self, task_id):
         return {"id": "r4"}

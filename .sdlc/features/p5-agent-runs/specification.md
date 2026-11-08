@@ -83,7 +83,7 @@ The normative contract is in [`api.yaml`](api.yaml) once written; the table belo
 | GET | /api/tasks/{task_id}/runs | List runs |
 | POST | /api/tasks/{task_id}/runs | Start a run |
 | POST | /api/tasks/{task_id}/context/refresh | Start a context refresh |
-| GET | /api/tasks/{task_id}/context | Current summary and next steps |
+| GET | /api/tasks/{task_id}/context | Current summary and checklist |
 | GET | /api/runs/{run_id} | Read a run with session links |
 | GET | /api/runs/{run_id}/events | Persisted transcript |
 | POST | /api/runs/{run_id}/cancel | Cancel a run |

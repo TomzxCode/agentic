@@ -11,6 +11,7 @@ from ..links import run_read, session_read
 from ..models.agents import AgentRun, AgentSession
 from ..models.base import WorktreeStatus
 from ..models.changes import Change
+from ..models.checklists import ChecklistItem
 from ..models.items import Association, ItemPerson, Person, SourceItem, TaskPerson, TaskRequester
 from ..models.repositories import Repository, TaskRepository, Worktree
 from ..models.tasks import Task, TimelineEvent
@@ -96,6 +97,13 @@ def _task_read(session: Session, task: Task) -> TaskRead:
     if task.waiting_on_person_id:
         person = session.get(Person, task.waiting_on_person_id)
         data.waiting_on_name = person.name if person is not None else None
+    open_items = session.exec(
+        select(ChecklistItem)
+        .where(ChecklistItem.task_id == task.id, ChecklistItem.done == False)  # noqa: E712
+        .order_by(col(ChecklistItem.position), col(ChecklistItem.created_at))
+    ).all()
+    data.checklist_open = len(open_items)
+    data.next_checklist_item = open_items[0].text if open_items else None
     return data
 
 
@@ -129,6 +137,14 @@ def _task_reads(session: Session, tasks: list[Task]) -> list[TaskRead]:
         for person in session.exec(select(Person).where(col(Person.id).in_(waiting_ids))).all():
             waiting_people[person.id] = person
 
+    open_items_by_task: dict[str, list[str]] = {task_id: [] for task_id in task_ids}
+    for item in session.exec(
+        select(ChecklistItem)
+        .where(col(ChecklistItem.task_id).in_(task_ids), ChecklistItem.done == False)  # noqa: E712
+        .order_by(col(ChecklistItem.position), col(ChecklistItem.created_at))
+    ).all():
+        open_items_by_task.setdefault(item.task_id, []).append(item.text)
+
     reads: list[TaskRead] = []
     for task in tasks:
         data = TaskRead.model_validate(task)
@@ -138,6 +154,9 @@ def _task_reads(session: Session, tasks: list[Task]) -> list[TaskRead]:
         if task.waiting_on_person_id:
             person = waiting_people.get(task.waiting_on_person_id)
             data.waiting_on_name = person.name if person is not None else None
+        open_items = open_items_by_task.get(task.id, [])
+        data.checklist_open = len(open_items)
+        data.next_checklist_item = open_items[0] if open_items else None
         reads.append(data)
     return reads
 

@@ -9,9 +9,10 @@ from sqlmodel import Session, select
 from agentic.agents import executions
 from agentic.agents.runner import persist_event
 from agentic.db import engine
+from agentic.models.checklists import ChecklistItem
 from agentic.models.tasks import Task, TimelineEvent
 
-VALID_CONTEXT = '{"summary": "Do the thing.", "next_steps": [{"text": "One", "done": false}]}'
+VALID_CONTEXT = '{"summary": "Do the thing.", "actions": ["One"]}'
 VALID_SUMMARY = '{"title": "Ship the thing", "summary": "They agreed to ship it."}'
 
 
@@ -33,7 +34,8 @@ async def test_context_refresh_parses_the_agent_reply(monkeypatch):
             task = session.get(Task, task_id)
             assert task is not None
             assert task.summary == "Do the thing."
-            assert task.next_steps == [{"text": "One", "done": False}]
+            items = session.exec(select(ChecklistItem).where(ChecklistItem.task_id == task_id)).all()
+            assert [item.text for item in items] == ["One"]
             assert task.context_updated_at is not None
             types = [e.type for e in session.exec(select(TimelineEvent).where(TimelineEvent.task_id == task_id)).all()]
             assert "context_updated" in types

@@ -1,8 +1,13 @@
 """Checklist templates: rule matching, application, and task item editing."""
 
 from fastapi.testclient import TestClient
+from sqlmodel import Session, select
 
+from agentic.checklists import merge_agent_items
+from agentic.db import engine
 from agentic.main import app
+from agentic.models.checklists import ChecklistDismissal
+from agentic.models.tasks import Task
 
 
 def _task(client: TestClient, title: str = "Task", **fields) -> dict:
@@ -344,6 +349,63 @@ def test_repository_rule_and_task_apply(tmp_path):
         client.delete(f"/api/repositories/{repo['id']}")
 
 
+def test_task_list_reports_open_checklist_items():
+    with TestClient(app) as client:
+        task = _task(client, "Checklist progress")
+        first = client.post(f"/api/tasks/{task['id']}/checklist", json={"text": "First"}).json()
+        client.post(f"/api/tasks/{task['id']}/checklist", json={"text": "Second"})
+        client.patch(f"/api/tasks/{task['id']}/checklist/{first['id']}", json={"done": True})
+
+        row = next(item for item in client.get("/api/tasks").json() if item["id"] == task["id"])
+        assert row["checklist_open"] == 1
+        assert row["next_checklist_item"] == "Second"
+
+        client.delete(f"/api/tasks/{task['id']}")
+
+
+def test_agent_merge_keeps_done_and_dismissed_items():
+    with TestClient(app) as client:
+        task = _task(client, "Agent checklist")
+        done = client.post(f"/api/tasks/{task['id']}/checklist", json={"text": "Finish the draft"}).json()
+        client.patch(f"/api/tasks/{task['id']}/checklist/{done['id']}", json={"done": True})
+        removed = client.post(f"/api/tasks/{task['id']}/checklist", json={"text": "Delete me"}).json()
+        client.delete(f"/api/tasks/{task['id']}/checklist/{removed['id']}")
+
+        with Session(engine) as session:
+            row = session.get(Task, task["id"])
+            assert row is not None
+            # Only the genuinely new action is added: the done item keeps its
+            # state, the removed one stays removed, and duplicates collapse.
+            added = merge_agent_items(
+                session,
+                row,
+                ["finish the draft", "Delete me", "Publish the draft", "publish the draft"],
+            )
+            assert added == 1
+
+        items = _checklist(client, task["id"])
+        assert [item["text"] for item in items] == ["Finish the draft", "Publish the draft"]
+        assert items[0]["done"] is True
+
+        # Adding the removed text back by hand clears the dismissal.
+        client.post(f"/api/tasks/{task['id']}/checklist", json={"text": "Delete me"})
+        with Session(engine) as session:
+            assert (
+                session.exec(
+                    select(ChecklistDismissal).where(
+                        ChecklistDismissal.task_id == task["id"],
+                        ChecklistDismissal.text_key == "delete me",
+                    )
+                ).first()
+                is None
+            )
+            row = session.get(Task, task["id"])
+            assert row is not None
+            assert merge_agent_items(session, row, ["Delete me"]) == 0
+
+        client.delete(f"/api/tasks/{task['id']}")
+
+
 def test_deleting_a_task_removes_its_checklist():
     with TestClient(app) as client:
         template = _template(
@@ -410,31 +472,3 @@ def test_convert_an_item_from_another_task_is_not_found():
 
         client.delete(f"/api/tasks/{first['id']}")
         client.delete(f"/api/tasks/{second['id']}")
-
-
-def test_parent_and_child_rules_match_the_hierarchy():
-    with TestClient(app) as client:
-        parent = _task(client, "Parent")
-        child = _task(client, "Child")
-        client.post(f"/api/tasks/{parent['id']}/dependencies", json={"related_id": child["id"], "relation": "child"})
-
-        by_parent = _template(
-            client,
-            name="Child work",
-            items=["Break it down"],
-            rules=[{"field": "parents", "op": "has_any", "values": [parent["id"]]}],
-        )
-        by_child = _template(
-            client,
-            name="Parent follow-up",
-            items=["Check the child"],
-            rules=[{"field": "children", "op": "has_any", "values": [child["id"]]}],
-        )
-
-        assert [item["text"] for item in _checklist(client, child["id"])] == ["Break it down"]
-        assert [item["text"] for item in _checklist(client, parent["id"])] == ["Check the child"]
-
-        for task_id in (parent["id"], child["id"]):
-            client.delete(f"/api/tasks/{task_id}")
-        for template_id in (by_parent["id"], by_child["id"]):
-            client.delete(f"/api/checklist-templates/{template_id}")

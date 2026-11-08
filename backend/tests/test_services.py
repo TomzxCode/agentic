@@ -7,20 +7,22 @@ from agentic.services.parsing import looks_like_path, looks_like_url, parse_path
 from agentic.services.prompts import extract_context_json
 from agentic.services.sources import infer_item_source
 
-VALID = (
-    '{"summary": "Do the thing.", "next_steps": '
-    '[{"text": "Step one", "done": false}, {"text": "Step two", "done": true}]}'
-)
+VALID = '{"summary": "Do the thing.", "actions": ["Step one", {"text": "Step two"}]}'
 
 
 def test_extracts_clean_json():
     data = extract_context_json(VALID)
     assert data is not None
     assert data["summary"] == "Do the thing."
-    assert data["next_steps"] == [
-        {"text": "Step one", "done": False},
-        {"text": "Step two", "done": True},
-    ]
+    assert data["actions"] == ["Step one", "Step two"]
+    assert "next_steps" not in data
+
+
+def test_accepts_the_old_next_steps_key():
+    data = extract_context_json('{"summary": "s", "next_steps": [{"text": "do a", "done": true}]}')
+    assert data is not None
+    assert data["actions"] == ["do a"]
+    assert "next_steps" not in data
 
 
 def test_extracts_json_from_surrounding_prose():
@@ -35,11 +37,11 @@ def test_extracts_json_from_code_fence():
 
 
 def test_repairs_truncated_json():
-    truncated = '{"summary": "Cut off here", "next_steps": [{"text": "One", "done": false}'
+    truncated = '{"summary": "Cut off here", "actions": ["One"'
     data = extract_context_json(truncated)
     assert data is not None
     assert data["summary"] == "Cut off here"
-    assert data["next_steps"][0]["text"] == "One"
+    assert data["actions"] == ["One"]
 
 
 def test_ignores_braces_in_thoughts_when_only_json_present():

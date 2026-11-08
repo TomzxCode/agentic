@@ -39,7 +39,6 @@ class Task(SQLModel, table=True):
 
     # Agent-maintained context. This is what makes coming back to a task fast.
     summary: str = ""
-    next_steps: list[dict[str, Any]] = Field(default_factory=list, sa_column=Column(JSON))
     context_updated_at: datetime | None = None
 
     created_at: datetime = Field(default_factory=utcnow)

@@ -127,7 +127,8 @@ async def execute_context_refresh(
     prompt: str,
     cancel_event: asyncio.Event,
 ) -> None:
-    """Run a context-refresh turn, then store the parsed summary and next steps."""
+    """Run a context-refresh turn, then store the parsed summary and actions."""
+    from ..checklists import merge_agent_items
     from ..crud import add_timeline
     from ..events import bus
     from ..models.tasks import Task
@@ -146,16 +147,16 @@ async def execute_context_refresh(
         task = session.get(Task, task_id)
         if data and task is not None:
             task.summary = data.get("summary", task.summary)
-            task.next_steps = data.get("next_steps", task.next_steps)
             task.context_updated_at = utcnow()
             session.add(task)
             session.commit()
+            added = merge_agent_items(session, task, data.get("actions") or [])
             add_timeline(
                 session,
                 task_id,
                 "context_updated",
-                "Context and next steps refreshed",
-                {"run_id": run_id},
+                "Context refreshed",
+                {"run_id": run_id, "checklist_items_added": added},
                 client=OperationClient.api,
                 actor=OperationActor.agent,
             )

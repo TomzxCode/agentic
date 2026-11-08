@@ -15,7 +15,9 @@ from ..checklists import (
     apply_task_templates,
     apply_template_to_matching_tasks,
     checklist_item_read,
+    clear_checklist_dismissal,
     delete_template_checklist,
+    dismiss_checklist_item,
     item_done,
     next_position,
     reorder_items,
@@ -156,6 +158,9 @@ async def add_checklist_item(
     text = payload.text.strip()
     if not text:
         raise HTTPException(status_code=400, detail="Item text is required")
+    # Adding the text back by hand revives an action an agent had proposed and
+    # the user had removed.
+    clear_checklist_dismissal(session, task.id, text)
     position = payload.position if payload.position is not None else next_position(session, task.id)
     item = ChecklistItem(task_id=task.id, text=text, position=position)
     session.add(item)
@@ -199,6 +204,7 @@ async def update_checklist_item(
         if not text:
             raise HTTPException(status_code=400, detail="Item text is required")
         item.text = text
+        clear_checklist_dismissal(session, task.id, text)
     if "done" in data and data["done"] is not None:
         item_done(item, bool(data["done"]))
     item.updated_at = utcnow()
@@ -267,6 +273,9 @@ async def delete_checklist_item(task_id: str, item_id: str, session: Session = D
     item = get_or_404(session, ChecklistItem, item_id, "Checklist item not found")
     if item.task_id != task.id:
         raise HTTPException(status_code=404, detail="Checklist item not found")
+    # A removed item stays removed: the dismissal stops the next context
+    # refresh from proposing the same action again.
+    dismiss_checklist_item(session, task.id, item.text)
     session.delete(item)
     session.commit()
     await bus.publish(f"task:{task.id}", {"kind": "task", "action": "checklist_changed"})

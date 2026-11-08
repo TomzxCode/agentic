@@ -187,5 +187,5 @@ None identified yet.
 ## Open Questions
 
 1. Should a later context refresh replace a summary written by this import, or should the import only fill it when empty?
-2. Should the agent also infer a description or next steps, or is a title plus summary enough?
+2. Should the agent also infer a description or checklist items, or is a title plus summary enough?
 3. Should re-pasting an already-imported Slack URL refresh the summary, or leave the existing task untouched?

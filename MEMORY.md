@@ -181,7 +181,7 @@
 - Stack was chosen with the user: FastAPI + SQLModel/SQLite, Vue 3 + Vite + vite-plugin-pwa, single-user local-first, lightweight integrations (metadata/content pulled on demand, no OAuth).
 - Harness abstraction is **ACP (Agent Client Protocol) over stdio** via the `agent-client-protocol` Python SDK. A harness is a `harness` table row (command + args); do not special-case individual agents in code. `opencode acp` and `pi-acp` both verified working.
 - Data model centers on `Task`; external things are `SourceItem`s linked via `Association` (many-to-many). Worktrees and agent runs hang off a task; every change writes a `TimelineEvent`.
-- Context refresh parses a JSON `{summary, next_steps}` out of the agent's reply. Parse **only `message` events, never `thought`**: opencode interleaves them on the same stream, so concatenating both corrupts the JSON. Extraction must also salvage truncated JSON (models do hit output limits).
+- Context refresh parses a JSON `{summary, actions}` out of the agent's reply and merges the actions into the task's checklist. Parse **only `message` events, never `thought`**: opencode interleaves them on the same stream, so concatenating both corrupts the JSON. Extraction must also salvage truncated JSON (models do hit output limits).
 
 ## 2026-10-10: ACP runner gotchas
 

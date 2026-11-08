@@ -432,8 +432,8 @@ onUnmounted(() => {
           <StatusSelect :model-value="p.status" @update:model-value="(value) => changeStatus(p, value)" />
           <router-link :to="`/task/${p.id}`" class="task-link" @click="sidebarOpen = false">
             <span class="t">{{ p.title }}</span>
-            <span v-if="p.next_steps?.length" class="badge steps">{{
-              p.next_steps.filter((s) => !s.done).length
+            <span v-if="p.checklist_open" class="badge checklist" :title="`${p.checklist_open} open checklist items`">{{
+              p.checklist_open
             }}</span>
             <span class="faint when">{{ timeAgo(p.updated_at) }}</span>
           </router-link>

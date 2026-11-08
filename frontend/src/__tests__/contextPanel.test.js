@@ -8,7 +8,6 @@ enableAutoUnmount(afterEach)
 config.global.stubs = { RouterLink: { props: ['to'], template: '<a><slot /></a>' } }
 
 const mocks = vi.hoisted(() => ({
-  taskUpdate: vi.fn(),
   associate: vi.fn(),
   unassociate: vi.fn(),
   itemRefresh: vi.fn(),
@@ -23,7 +22,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('../api', () => ({
   api: {
-    tasks: { update: mocks.taskUpdate, associate: mocks.associate, unassociate: mocks.unassociate },
+    tasks: { associate: mocks.associate, unassociate: mocks.unassociate },
     items: { refresh: mocks.itemRefresh, update: mocks.itemUpdate },
     worktrees: { create: mocks.worktreeCreate, remove: mocks.worktreeRemove },
     runs: { refreshContext: mocks.refreshContext, refreshSummary: mocks.refreshSummary },
@@ -48,55 +47,19 @@ describe('ContextPanel', () => {
   const task = (over = {}) => ({
     id: 't1',
     summary: 'The summary',
-    next_steps: [{ text: 'Step A', done: false }],
     context_updated_at: null,
     ...over
   })
 
-  it('renders the summary and edits the next steps as a Markdown field', async () => {
-    mocks.taskUpdate.mockResolvedValue({})
+  it('renders the summary', () => {
     const wrapper = mount(ContextPanel, { props: { task: task() } })
     expect(wrapper.get('.summary').text()).toBe('The summary')
-    expect(wrapper.find('.badge.warn').exists()).toBe(false)
-
-    const box = wrapper.get('.next-steps input.task-list-item-checkbox')
-    expect(box.element.disabled).toBe(false)
-    expect(box.element.checked).toBe(false)
-    expect(wrapper.get('.next-steps .md li').text()).toBe('Step A')
-
-    await wrapper.get('.next-steps').trigger('click')
-    const field = wrapper.get('textarea.inline-input')
-    expect(field.element.value).toBe('- [ ] Step A')
-    await field.setValue('- [ ] Step A\n- [x] Step B')
-    await field.trigger('blur')
-    await flushPromises()
-    expect(mocks.taskUpdate).toHaveBeenCalledWith('t1', {
-      next_steps: [
-        { text: 'Step A', done: false },
-        { text: 'Step B', done: true }
-      ]
-    })
-    expect(wrapper.emitted('changed')).toHaveLength(1)
   })
 
-  it('ticks a next step from its checkbox', async () => {
-    mocks.taskUpdate.mockResolvedValue({})
-    const wrapper = mount(ContextPanel, { props: { task: task() } })
-    await wrapper.get('.next-steps input.task-list-item-checkbox').trigger('click')
-    await flushPromises()
-    expect(mocks.taskUpdate).toHaveBeenCalledWith('t1', { next_steps: [{ text: 'Step A', done: true }] })
-    expect(wrapper.emitted('changed')).toHaveLength(1)
-  })
-
-  it('shows empty states', () => {
-    const wrapper = mount(ContextPanel, { props: { task: task({ summary: '', next_steps: [] }) } })
+  it('shows the empty state when there is no summary', () => {
+    const wrapper = mount(ContextPanel, { props: { task: task({ summary: '' }) } })
     expect(wrapper.text()).toContain('No context yet')
-    expect(wrapper.get('.next-steps').text()).toContain('No next steps yet')
-  })
-
-  it('flags a task with no next steps in the header badge', () => {
-    const wrapper = mount(ContextPanel, { props: { task: task({ summary: 'Has a summary', next_steps: [] }) } })
-    expect(wrapper.get('.badge.warn').text()).toBe('no next steps')
+    expect(wrapper.text()).toContain('proposes checklist items')
   })
 
   it('refreshes with the agent and emits changed', async () => {

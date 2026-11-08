@@ -9,7 +9,7 @@ session_link: "http://localhost:10000/?session=ses_ed778bb8affeJQ6f9Tkxe4MjUl"
 ## Overview
 
 This feature drives coding agents and keeps a task's context current.
-It manages harnesses (any ACP-compatible agent), runs a prompt in a working directory with a live, persisted transcript, supports cancellation, refreshes a task's summary and next steps by asking an agent to summarize, and builds links to reopen the resulting session.
+It manages harnesses (any ACP-compatible agent), runs a prompt in a working directory with a live, persisted transcript, supports cancellation, refreshes a task's summary and proposes checklist items by asking an agent to summarize, and builds links to reopen the resulting session.
 
 ## Stakeholders
 
@@ -27,7 +27,7 @@ It manages harnesses (any ACP-compatible agent), runs a prompt in a working dire
 | FR-3 | Must | The system shall create an agent run, resolving the working directory from an explicit path, a worktree, the newest active worktree, the first task repository, or the worktree root, in that order. |
 | FR-4 | Must | The system shall run the harness over ACP, normalize each update into an agent event, persist it, and stream it over SSE. |
 | FR-5 | Must | The system shall cancel a running agent run. |
-| FR-6 | Must | The system shall refresh a task's context by building a prompt from the task and its items, running it, parsing a JSON `{summary, next_steps}` object, and storing the result. |
+| FR-6 | Must | The system shall refresh a task's context by building a prompt from the task and its items, running it, parsing a JSON `{summary, actions}` object, storing the summary, and merging the actions into the checklist. |
 | FR-7 | Must | The system shall build session links for a run that produced a session: an OpenChamber URL, a terminal URL, and a copyable resume command. |
 | FR-8 | Must | The system shall read and update session-link settings, where stored overrides win over environment defaults. |
 
@@ -76,7 +76,7 @@ It manages harnesses (any ACP-compatible agent), runs a prompt in a working dire
     Scenario: Parse a truncated context payload
       Given an agent reply with a JSON object cut off before its closing braces
       When the context refresh parses the reply
-      Then the summary and next steps are still extracted
+      Then the summary and actions are still extracted
     ```
 
 - [ ] **FR-7**

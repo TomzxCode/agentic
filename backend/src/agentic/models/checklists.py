@@ -44,6 +44,22 @@ class ChecklistTemplateApplication(SQLModel, table=True):
     created_at: datetime = Field(default_factory=utcnow)
 
 
+class ChecklistDismissal(SQLModel, table=True):
+    """A checklist item text the user removed from a task.
+
+    The row stops an agent from proposing the same action again on the next
+    context refresh. Text is compared in a normalized form, because the agent
+    may rephrase capitalization or spacing but still mean the same action.
+    """
+
+    __table_args__ = (UniqueConstraint("task_id", "text_key", name="uq_checklist_dismissal"),)
+
+    id: str = Field(default_factory=new_id, primary_key=True)
+    task_id: str = Field(foreign_key="task.id", index=True)
+    text_key: str
+    created_at: datetime = Field(default_factory=utcnow)
+
+
 class ChecklistItem(SQLModel, table=True):
     """One checklist item on a task.
 

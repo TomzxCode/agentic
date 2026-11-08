@@ -27,8 +27,8 @@ agentic
 │   ├── wait                Block until a run finishes, then print it
 │   └── stream              Stream a run's events live (json lines or plain text)
 ├── context                 Read or refresh a task's agent-maintained context
-│   ├── get                 Show a task's current summary and next steps
-│   └── refresh             Ask an agent to rewrite the summary and next steps
+│   ├── get                 Show a task's current summary and checklist
+│   └── refresh             Ask an agent to rewrite the summary and propose checklist items
 ├── harness                 Inspect and configure agent harnesses
 │   ├── list                List harnesses and whether they are on PATH
 │   ├── create              Add an ACP harness
@@ -253,7 +253,7 @@ agentic run stream 4c1e77 | jq -c 'select(.type=="message")'
 
 ### `agentic context get`
 
-**Description:** Prints a task's current agent-maintained summary and next steps.
+**Description:** Prints a task's current agent-maintained summary and checklist.
 Serves FR-6 (read side).
 
 **Synopsis:**
@@ -280,7 +280,7 @@ agentic context get 8dcb9b08ca12
 
 ### `agentic context refresh`
 
-**Description:** Starts a context-refresh run that builds a prompt from the task and its items, runs it, and stores the parsed `{summary, next_steps}`.
+**Description:** Starts a context-refresh run that builds a prompt from the task and its items, runs it, stores the parsed `{summary, actions}` summary, and merges the actions into the checklist.
 Serves FR-6.
 
 **Synopsis:**
@@ -503,7 +503,7 @@ The `AGENTIC_*` connection variables are the documented defaults (FEAT-p6 FR-3),
 
 ## Output Behavior
 
-- **stdout:** run rows (`<id>  <status>  <kind>  <prompt>`), the run detail block with session links, `[<type>] <text>` transcript lines, the context summary and next steps, harness rows, settings, and JSON lines from `run stream`.
+- **stdout:** run rows (`<id>  <status>  <kind>  <prompt>`), the run detail block with session links, `[<type>] <text>` transcript lines, the context summary and checklist, harness rows, settings, and JSON lines from `run stream`.
 - **stderr:** error messages only.
 - **Machine-readable:** `--format json` (or piping) emits the full API objects; `run stream` emits one JSON object per line.
 - **TTY behavior:** text on a TTY, JSON when piped; no color and no wrapping so piped JSON and JSON lines stay valid.
@@ -592,7 +592,7 @@ $ echo $?
 | FR-3 | `run create --harness-id --worktree-id --cwd` | Working directory resolved server-side when the flags are omitted |
 | FR-4 | `run create`, `run events`, `run stream` | Events persisted and streamed over SSE; `run stream` follows the stream |
 | FR-5 | `run cancel`, `run wait` | Cancellation, and blocking until a terminal status |
-| FR-6 | `context get`, `context refresh` | Builds the prompt, runs it, stores the parsed summary and next steps |
+| FR-6 | `context get`, `context refresh` | Builds the prompt, runs it, stores the parsed summary and merges the actions into the checklist |
 | FR-7 | `run get`, `settings get` | OpenChamber URL, terminal URL, and resume command per run |
 | FR-8 | `settings get`, `settings set` | Stored overrides win over environment defaults |
 | NFR-1 | `run get`, `run wait` | A failed run is a terminal `failed` status, not a crash |

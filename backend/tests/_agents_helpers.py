@@ -6,6 +6,7 @@ from sqlmodel import Session, col, select
 from agentic.agents.harnesses import seed_harnesses
 from agentic.db import create_db_and_tables, engine
 from agentic.models.agents import AgentEvent, AgentRun
+from agentic.models.checklists import ChecklistDismissal, ChecklistItem, ChecklistTemplateApplication
 from agentic.models.tasks import Task, TimelineEvent
 
 
@@ -31,5 +32,10 @@ def _delete_task(task_id: str) -> None:
             session.exec(sa_delete(AgentEvent).where(col(AgentEvent.run_id).in_(run_ids)))
         session.exec(sa_delete(AgentRun).where(col(AgentRun.task_id) == task_id))
         session.exec(sa_delete(TimelineEvent).where(col(TimelineEvent.task_id) == task_id))
+        session.exec(sa_delete(ChecklistItem).where(col(ChecklistItem.task_id) == task_id))
+        session.exec(
+            sa_delete(ChecklistTemplateApplication).where(col(ChecklistTemplateApplication.task_id) == task_id)
+        )
+        session.exec(sa_delete(ChecklistDismissal).where(col(ChecklistDismissal.task_id) == task_id))
         session.exec(sa_delete(Task).where(col(Task.id) == task_id))
         session.commit()

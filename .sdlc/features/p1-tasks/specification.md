@@ -9,7 +9,7 @@ session_link: "http://localhost:10000/?session=ses_ed778bb8affeJQ6f9Tkxe4MjUl"
 ## Overview
 
 Tasks are served by `routers/tasks.py` over `/api/tasks`.
-The `Task` table holds the work item plus agent-maintained context (`summary`, `next_steps`, `context_updated_at`).
+The `Task` table holds the work item plus agent-maintained context (`summary`, `context_updated_at`).
 Repositories are attached through the `TaskRepository` join table.
 Meaningful changes are written as `TimelineEvent` rows, and the same changes are published on the in-process event bus so the SPA can refresh over SSE.
 
@@ -39,7 +39,6 @@ flowchart LR
 | group_id | string | FK repositorygroup, nullable | Repository group |
 | harness_id | string | FK harness, nullable | Preferred harness |
 | summary | string | default "" | Agent-maintained state |
-| next_steps | JSON | default [] | Agent-maintained actions |
 | context_updated_at | datetime | nullable | Last context refresh |
 | created_at / updated_at | datetime | not null | Timestamps |
 

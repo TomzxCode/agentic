@@ -21,6 +21,7 @@ from sqlmodel import Session, col, select
 from .dependencies import children, dependencies, parents, related_ids
 from .models.base import utcnow
 from .models.checklists import (
+    ChecklistDismissal,
     ChecklistItem,
     ChecklistTemplate,
     ChecklistTemplateApplication,
@@ -135,6 +136,66 @@ def _application_exists(session: Session, task_id: str, template_id: str) -> boo
         ).first()
         is not None
     )
+
+
+def checklist_text_key(text: str) -> str:
+    """Normalize item text so casing and spacing do not make a duplicate."""
+    return " ".join(str(text).split()).casefold()
+
+
+def dismiss_checklist_item(session: Session, task_id: str, text: str) -> None:
+    """Remember that the user removed this item, so an agent does not re-add it."""
+    key = checklist_text_key(text)
+    if not key:
+        return
+    existing = session.exec(
+        select(ChecklistDismissal).where(ChecklistDismissal.task_id == task_id, ChecklistDismissal.text_key == key)
+    ).first()
+    if existing is None:
+        session.add(ChecklistDismissal(task_id=task_id, text_key=key))
+        session.commit()
+
+
+def clear_checklist_dismissal(session: Session, task_id: str, text: str) -> None:
+    """Forget a dismissal when the user adds the same item back by hand."""
+    key = checklist_text_key(text)
+    session.exec(
+        sa_delete(ChecklistDismissal).where(
+            col(ChecklistDismissal.task_id) == task_id, col(ChecklistDismissal.text_key) == key
+        )
+    )
+    session.commit()
+
+
+def merge_agent_items(session: Session, task: Task, texts: list[str]) -> int:
+    """Add agent-proposed actions the task does not already hold.
+
+    An action that already exists keeps its done state and position, even when
+    it is already completed. A text the user removed is not brought back.
+    Returns how many items were added.
+    """
+    existing = {
+        checklist_text_key(item.text)
+        for item in session.exec(select(ChecklistItem).where(ChecklistItem.task_id == task.id)).all()
+    }
+    dismissed = {
+        row.text_key
+        for row in session.exec(select(ChecklistDismissal).where(ChecklistDismissal.task_id == task.id)).all()
+    }
+    position = next_position(session, task.id)
+    added = 0
+    for raw in texts:
+        text = str(raw).strip()
+        key = checklist_text_key(text)
+        if not text or key in existing or key in dismissed:
+            continue
+        session.add(ChecklistItem(task_id=task.id, text=text, position=position))
+        existing.add(key)
+        position += 1
+        added += 1
+    if added:
+        session.commit()
+    return added
 
 
 def next_position(session: Session, task_id: str) -> int:
@@ -328,6 +389,7 @@ def delete_task_checklist(session: Session, task_id: str) -> None:
     """Drop every checklist row a task owns (and the templates it applied)."""
     session.exec(sa_delete(ChecklistItem).where(col(ChecklistItem.task_id) == task_id))
     session.exec(sa_delete(ChecklistTemplateApplication).where(col(ChecklistTemplateApplication.task_id) == task_id))
+    session.exec(sa_delete(ChecklistDismissal).where(col(ChecklistDismissal.task_id) == task_id))
 
 
 def delete_template_checklist(session: Session, template_id: str) -> None:
@@ -345,9 +407,13 @@ __all__ = [
     "apply_template_to_matching_tasks",
     "checklist_item_read",
     "checklist_items",
+    "checklist_text_key",
+    "clear_checklist_dismissal",
     "delete_task_checklist",
     "delete_template_checklist",
+    "dismiss_checklist_item",
     "item_done",
+    "merge_agent_items",
     "next_position",
     "reorder_items",
     "rule_error",

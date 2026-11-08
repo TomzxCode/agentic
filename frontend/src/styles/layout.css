@@ -154,7 +154,7 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.task-card .steps {
+.task-card .checklist {
   flex: none;
   padding: 1px 7px;
 }

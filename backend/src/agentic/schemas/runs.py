@@ -8,6 +8,7 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 from .base import ORMModel
+from .checklists import ChecklistItemRead
 
 
 class RunCreate(BaseModel):
@@ -97,5 +98,5 @@ class AgentEventRead(ORMModel):
 class ContextPreview(BaseModel):
     task_id: str
     summary: str
-    next_steps: list[dict[str, Any]]
+    checklist: list[ChecklistItemRead] = []
     context_updated_at: datetime | None = None

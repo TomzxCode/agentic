@@ -3,7 +3,7 @@
 ## Product
 
 Agentic is a local-first work tracker for a developer who works alongside coding agents.
-It organizes work as tasks, attaches the external sources that feed them (Slack threads, GitHub issues and pull requests, Drive docs, URLs, notes, commits, local paths), creates git worktrees per task, and runs coding agents over ACP to keep each task's summary and next steps current, so resuming work takes under a minute.
+It organizes work as tasks, attaches the external sources that feed them (Slack threads, GitHub issues and pull requests, Drive docs, URLs, notes, commits, local paths), creates git worktrees per task, and runs coding agents over ACP to keep each task's summary and checklist current, so resuming work takes under a minute.
 It also measures the workflow itself: an instrumented change lifecycle produces autonomy rate (the share of accepted changes with no human touch) and yield (the share that survived its observation window without a revert).
 Delivery is one FastAPI + SQLModel backend with SQLite, a Vue 3 PWA designed for phones first, a scriptable HTTP CLI (`agentic`), a backend CLI (`agentic-server`), and an optional tray launcher with a global hotkey.
 
@@ -21,7 +21,7 @@ They run everything on their own machine, coordinate with no team, and want thei
   - People: a directory with aliases, merged duplicates, task and item links, and requester tracking.
   - Local repository registration, groups, worktrees, and a server-side directory picker.
   - ACP agent runs with a live persisted transcript, a durable queue with a worker process, model selection, and cancellation.
-  - Agent-maintained context refresh (summary plus next steps) and session links.
+  - Agent-maintained context refresh (summary plus proposed checklist items) and session links.
   - GitHub issue and PR import through `ghx`; task creation from a Slack thread.
   - An inbox with PR reviewer-feedback triage (implement, decline, defer) and a review SLO flag.
   - Factory metrics over recorded changes, with metric baselines and trend direction.

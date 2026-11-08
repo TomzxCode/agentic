@@ -51,7 +51,6 @@ class TaskUpdate(BaseModel):
     group_id: str | None = None
     harness_id: str | None = None
     summary: str | None = None
-    next_steps: list[dict[str, Any]] | None = None
 
 
 class TaskBulkUpdate(BaseModel):
@@ -97,7 +96,10 @@ class TaskRead(ORMModel):
     group_id: str | None = None
     harness_id: str | None = None
     summary: str
-    next_steps: list[dict[str, Any]]
+    # Open checklist items, and the first one, so list views can show progress
+    # without loading every task's full checklist.
+    checklist_open: int = 0
+    next_checklist_item: str | None = None
     context_updated_at: datetime | None = None
     created_at: datetime
     updated_at: datetime

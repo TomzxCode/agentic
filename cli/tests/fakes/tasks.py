@@ -24,7 +24,7 @@ class TasksFake:
             "priority": 1,
             "title": "T",
             "summary": "s",
-            "next_steps": [{"text": "a", "done": False}],
+            "checklist": [{"text": "a", "done": False, "applicable": True}],
             "requesters": [{"id": "p1", "name": "Ada"}],
         }
 

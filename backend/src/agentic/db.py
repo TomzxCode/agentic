@@ -61,8 +61,79 @@ def create_db_and_tables() -> None:
     _migrate_person_notes()
     _migrate_graph_schedules_to_triggers()
     _ensure_columns()
+    _migrate_next_steps_to_checklist()
     _migrate_graph_triggers_to_nodes()
     _initialized = True
+
+
+def _migrate_next_steps_to_checklist() -> None:
+    """Move old task next steps into the checklist, then empty the field.
+
+    Next steps and checklist items described the same thing, so the field is
+    gone and the checklist owns a task's actions. The legacy column stays
+    (SQLite column drops are disruptive) but is emptied; a fresh database never
+    has it.
+    """
+    tables = set(inspect(engine).get_table_names())
+    if "task" not in tables or "checklistitem" not in tables:
+        return
+    columns = {column["name"] for column in inspect(engine).get_columns("task")}
+    if "next_steps" not in columns:
+        return
+    with engine.begin() as connection:
+        rows = connection.execute(
+            text("SELECT id, next_steps FROM task WHERE next_steps IS NOT NULL AND next_steps <> '[]'")
+        ).all()
+        for task_id, raw in rows:
+            try:
+                steps = json.loads(raw) if isinstance(raw, str) else raw
+            except (TypeError, ValueError):
+                steps = []
+            if not isinstance(steps, list):
+                steps = []
+            existing = {
+                " ".join(str(value).split()).casefold()
+                for (value,) in connection.execute(
+                    text("SELECT text FROM checklistitem WHERE task_id = :task_id"), {"task_id": task_id}
+                ).all()
+            }
+            position = (
+                connection.execute(
+                    text("SELECT COALESCE(MAX(position) + 1, 0) FROM checklistitem WHERE task_id = :task_id"),
+                    {"task_id": task_id},
+                ).scalar()
+                or 0
+            )
+            for step in steps:
+                if isinstance(step, dict):
+                    value = str(step.get("text") or "").strip()
+                    done = bool(step.get("done"))
+                else:
+                    value = str(step).strip()
+                    done = False
+                key = " ".join(value.split()).casefold()
+                if not value or key in existing:
+                    continue
+                connection.execute(
+                    text(
+                        "INSERT INTO checklistitem "
+                        "(id, task_id, template_id, text, position, done, done_at, converted_task_id, "
+                        "created_at, updated_at) "
+                        "VALUES (:id, :task_id, NULL, :text, :position, :done, "
+                        "CASE WHEN :done THEN CURRENT_TIMESTAMP ELSE NULL END, NULL, "
+                        "CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"
+                    ),
+                    {
+                        "id": uuid.uuid4().hex[:12],
+                        "task_id": task_id,
+                        "text": value,
+                        "position": position,
+                        "done": done,
+                    },
+                )
+                existing.add(key)
+                position += 1
+            connection.execute(text("UPDATE task SET next_steps = '[]' WHERE id = :task_id"), {"task_id": task_id})
 
 
 def _migrate_task_repositories() -> None:

@@ -7,8 +7,8 @@ import StatusSelect from './StatusSelect.vue'
 
 // A single Task rendered as a card: inline status and priority pickers, a title
 // linking to the task, the people linked to it, its deadline and age, its next
-// step, and its tags. The tasks page (and its deadlines section) use it so a
-// task row looks the same wherever it appears.
+// open checklist item, and its tags. The tasks page (and its deadlines section)
+// use it so a task row looks the same wherever it appears.
 //
 // Person and tag chips act on the shared filters in the store, the same way the
 // tasks page's filter rows do.
@@ -25,7 +25,7 @@ const props = defineProps({
   // The exact deadline time, shown after the state badge (the deadlines list).
   showDeadlineTime: { type: Boolean, default: false },
   showAge: { type: Boolean, default: true },
-  showNextStep: { type: Boolean, default: true },
+  showNextItem: { type: Boolean, default: true },
   showTags: { type: Boolean, default: true }
 })
 
@@ -38,7 +38,7 @@ const deadline = computed(() => deadlineInfo(props.task.deadline))
 const snooze = computed(() => snoozeInfo(props.task))
 const waiting = computed(() => waitingInfo(props.task))
 const waitingName = computed(() => waiting.value?.name || peopleById.value[waiting.value?.personId]?.name || 'someone')
-const nextStep = computed(() => (props.task.next_steps || []).find((step) => !step.done))
+const nextItem = computed(() => props.task.next_checklist_item)
 
 // How long the task has existed and since it last changed; the two collapse to
 // one when they describe the same moment.
@@ -127,7 +127,7 @@ const age = computed(() => {
       <span v-if="showAge && age" class="faint">{{ age }}</span>
     </template>
 
-    <div v-if="showNextStep && nextStep" class="faint" style="margin-top: 6px">Next: {{ nextStep.text }}</div>
+    <div v-if="showNextItem && nextItem" class="faint" style="margin-top: 6px">Next: {{ nextItem }}</div>
 
     <div v-if="showTags && task.tags?.length" class="task-tags" style="margin-top: 6px">
       <button

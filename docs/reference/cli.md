@@ -100,7 +100,7 @@ agentic item reopen <item>           # reopen it
 
 ```bash
 agentic worktree create <task>
-agentic context refresh <task>       # agent rewrites summary and next steps
+agentic context refresh <task>       # agent rewrites summary and proposes checklist items
 agentic run create <task> --prompt "Investigate the failure"
 agentic run wait <run-id>            # block until it finishes
 agentic run stream <run-id>          # live transcript

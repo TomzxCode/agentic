@@ -17,7 +17,7 @@ It is the core of the product: items, worktrees, agent runs, and context all han
 | Stakeholder | Interest |
 |---|---|
 | Sole user | Capture work, find it again, see what changed, edit inline |
-| Coding agent | Read a task's current state, summary, and next steps through the API or CLI |
+| Coding agent | Read a task's current state, summary, and checklist through the API or CLI |
 
 ## Functional Requirements
 

@@ -128,13 +128,13 @@ describe('TaskCard', () => {
     title: 'Task One',
     status: 'open',
     priority: 3,
-    next_steps: [{ text: 'do it', done: false }],
+    next_checklist_item: 'do it',
     tags: ['bug'],
     updated_at: null,
     ...over
   })
 
-  it('renders the status picker, priority, title, next step, and tags', () => {
+  it('renders the status picker, priority, title, next checklist item, and tags', () => {
     const wrapper = mount(TaskCard, { props: { task: task() }, ...stub })
     expect(wrapper.get('.task-status-select').exists()).toBe(true)
     expect(wrapper.get('.task-priority').classes()).toContain('prio-urgent')

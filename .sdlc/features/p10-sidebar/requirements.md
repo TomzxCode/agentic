@@ -32,7 +32,7 @@ The sidebar's brand, primary navigation, and mobile drawer behavior stay with th
 | ID | Priority | Requirement |
 |---|---|---|
 | FR-1 | Must | The sidebar shall list the tasks in flight, and shall apply the active tag filter. |
-| FR-2 | Must | Each entry shall render on a single line, in the order status control, title, count of open next steps, and relative age of the last update in the app's `timeAgo` format (for example "5m ago"), and shall not show the task's tags. |
+| FR-2 | Must | Each entry shall render on a single line, in the order status control, title, count of open checklist items, and relative age of the last update in the app's `timeAgo` format (for example "5m ago"), and shall not show the task's tags. |
 | FR-3 | Must | When the entry's content does not fit the entry width, the title shall truncate with an ellipsis, so the sidebar keeps its width and the status control, step count, and age stay visible. |
 | FR-4 | Must | Selecting an entry shall open that task, and the entry for the task whose detail view is open shall be marked active. |
 | FR-5 | Must | The sidebar shall render a loading indicator while the first load is pending, a message when the list is empty (distinguishing "no tasks yet", "all caught up", and "no tasks match the active tag filter"), and an error state with a retry action when the load fails. |
@@ -79,14 +79,14 @@ The sidebar's brand, primary navigation, and mobile drawer behavior stay with th
     ```gherkin
     @FR-2
     Scenario: A full entry fits one line
-      Given an in-flight task with a short title, two open next steps, and an update 5 minutes ago
+      Given an in-flight task with a short title, two open checklist items, and an update 5 minutes ago
       When its entry is shown in the sidebar
       Then the entry shows the status control, the title, a step count of 2, and the age "5m ago"
       And the entry's content is laid out in a single row
 
     @FR-2
     Scenario: A missing field does not add a line
-      Given an in-flight task with no next steps
+      Given an in-flight task with no checklist items
       When its entry is shown in the sidebar
       Then no step count is shown
       And the entry still occupies a single line

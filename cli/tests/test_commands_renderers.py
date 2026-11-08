@@ -10,11 +10,10 @@ def test_renderers():
         "priority": 2,
         "title": "T",
         "summary": "s",
-        "next_steps": [{"text": "a", "done": False}, {"text": "b", "done": True}],
     }
     assert render._task_line(task).startswith("t1  [open] p2")
     text = render._task_text(task)
-    assert "summary: s" in text and "[ ] a" in text and "[x] b" in text
+    assert "summary: s" in text
 
     # Checklist items render with their done mark, and a stale item says why.
     checklist_text = render._task_text(

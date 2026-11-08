@@ -14,7 +14,7 @@ The goal is that resuming a task takes under a minute: the context you need sits
 - Attaches external items (Slack, GitHub, Drive, URLs, notes) to tasks, and links the people involved.
 - Keeps a focus stack: an ordered queue of in-flight tasks with the current one on top.
 - Creates git worktrees per task and runs any ACP harness against them.
-- Streams the agent transcript, then stores a summary and next steps on the task.
+- Streams the agent transcript, then stores a summary and proposes checklist items on the task.
 - Runs user-defined shell scripts on a cron schedule, with a run history.
 - Runs execution graphs of agent runs, Agentic commands, shell scripts, and forms, by hand, on a cron schedule, or from a webhook event.
 - Reads the review reports your review skills write, scans GitHub for the pull requests awaiting your review, and shows each open pull request's merge readiness.

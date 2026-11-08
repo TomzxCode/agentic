@@ -242,7 +242,7 @@ def test_refresh_context_builds_a_prompt_and_dispatches(monkeypatch, tmp_path):
 
         preview = client.get(f"/api/tasks/{task['id']}/context").json()
         assert preview["task_id"] == task["id"]
-        assert preview["next_steps"] == []
+        assert preview["checklist"] == []
 
         client.delete(f"/api/tasks/{task['id']}")
         client.delete(f"/api/groups/{group['id']}")

@@ -107,6 +107,61 @@ def test_migrate_task_repositories_is_a_noop_without_tables(monkeypatch, tmp_pat
     db._migrate_task_repositories()
 
 
+def test_migrate_next_steps_to_checklist_moves_and_deduplicates(monkeypatch, tmp_path):
+    engine = _engine(tmp_path, "p.db")
+    steps = [
+        {"text": "Existing", "done": False},
+        {"text": "One", "done": False},
+        {"text": "Two", "done": True},
+        {"text": "one", "done": True},
+    ]
+    with engine.begin() as conn:
+        conn.execute(sqlalchemy.text("CREATE TABLE task (id VARCHAR PRIMARY KEY, next_steps VARCHAR)"))
+        conn.execute(
+            sqlalchemy.text(
+                "CREATE TABLE checklistitem "
+                "(id VARCHAR PRIMARY KEY, task_id VARCHAR, template_id VARCHAR, text VARCHAR, position INTEGER, "
+                "done BOOLEAN, done_at DATETIME, converted_task_id VARCHAR, created_at DATETIME, updated_at DATETIME)"
+            )
+        )
+        conn.execute(
+            sqlalchemy.text("INSERT INTO task (id, next_steps) VALUES ('t1', :steps)"),
+            {"steps": json.dumps(steps)},
+        )
+        conn.execute(
+            sqlalchemy.text(
+                "INSERT INTO checklistitem (id, task_id, text, position, done) VALUES ('i1', 't1', 'Existing', 0, 0)"
+            )
+        )
+    monkeypatch.setattr(db, "engine", engine)
+
+    db._migrate_next_steps_to_checklist()
+
+    with engine.connect() as conn:
+        rows = conn.execute(
+            sqlalchemy.text("SELECT text, position, done FROM checklistitem WHERE task_id='t1' ORDER BY position")
+        ).all()
+        cleared = conn.execute(sqlalchemy.text("SELECT next_steps FROM task WHERE id='t1'")).scalar()
+    # The existing item is kept once, the duplicate collapses, and the new
+    # items append after it carrying their done state.
+    assert [tuple(row) for row in rows] == [("Existing", 0, 0), ("One", 1, 0), ("Two", 2, 1)]
+    assert cleared == "[]"
+
+    # A second pass adds nothing now that the field is empty.
+    db._migrate_next_steps_to_checklist()
+    with engine.connect() as conn:
+        assert conn.execute(sqlalchemy.text("SELECT count(*) FROM checklistitem")).scalar() == 3
+
+
+def test_migrate_next_steps_to_checklist_without_the_column_is_a_noop(monkeypatch, tmp_path):
+    engine = _engine(tmp_path, "q.db")
+    with engine.begin() as conn:
+        conn.execute(sqlalchemy.text("CREATE TABLE task (id VARCHAR PRIMARY KEY)"))
+        conn.execute(sqlalchemy.text("CREATE TABLE checklistitem (id VARCHAR PRIMARY KEY)"))
+    monkeypatch.setattr(db, "engine", engine)
+    db._migrate_next_steps_to_checklist()
+
+
 def test_ensure_columns_adds_missing_post_init_columns(monkeypatch, tmp_path):
     engine = _engine(tmp_path, "g.db")
     with engine.begin() as conn:

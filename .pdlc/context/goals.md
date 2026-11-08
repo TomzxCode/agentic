@@ -6,8 +6,8 @@ Time horizon: 2026 Q4 through 2027 Q2, reviewed monthly.
 
 ### O1: Resuming any task takes under a minute
 
-- **KR1:** At least 80% of in-flight tasks have a summary and next steps refreshed within the last 7 days, measured from task fields, by 2027-03-31.
-- **KR2:** The median time from opening a task to having usable context (summary plus next steps visible) is under 60 seconds, measured in a monthly self-check on 5 sampled tasks, from 2027-01-31.
+- **KR1:** At least 80% of in-flight tasks have a summary and checklist refreshed within the last 7 days, measured from task fields, by 2027-03-31.
+- **KR2:** The median time from opening a task to having usable context (summary plus checklist visible) is under 60 seconds, measured in a monthly self-check on 5 sampled tasks, from 2027-01-31.
 
 ### O2: Agent autonomy is measured and improving
 

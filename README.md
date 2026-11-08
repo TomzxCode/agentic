@@ -36,7 +36,7 @@ one virtualenv.
 
 | Concept | What it is |
 | --- | --- |
-| **Task** | The unit of work. Everything hangs off it. Carries an agent-maintained `summary` and `next_steps`. |
+| **Task** | The unit of work. Everything hangs off it. Carries an agent-maintained `summary` and a checklist of actions. |
 | **Item** | Something external: a Slack thread, GitHub issue/PR, Drive doc, URL, note, commit, or a local file/directory path. Items are deduplicated by URL / external id. |
 | **Association** | A link between an item and a task (many-to-many), with a note. |
 | **Person** | An individual a task or an item involves: a name plus optional email, handle, and notes. Linked to tasks and items many-to-many. |
@@ -44,7 +44,7 @@ one virtualenv.
 | **Repository group** | A named set of repositories. Picking one on a task tells the agent those checkouts may hold information relevant to it. |
 | **Agent run** | One prompt sent to a harness in a working directory, delivered to the worker through the run queue. Events stream live to the UI. |
 | **Agent session** | An agent session recorded against a task: its session id, harness, working directory, and a label. A run records the session it produced; this records one you attach by hand (for example one opened in OpenChamber), and both build the links that reopen it. |
-| **Context refresh** | A special agent run that reads the task + its items and writes the `summary` and `next_steps`. |
+| **Context refresh** | A special agent run that reads the task + its items and writes the `summary` and proposes checklist items. |
 | **Scheduled task** | A user-defined shell script the API runs on a cron schedule, with a recorded history of runs. |
 | **Execution graph** | A named DAG of agent runs, Agentic commands, shell scripts, forms, and an optional event trigger, fired by hand, on a cron schedule, or by a webhook event. |
 | **Webhook endpoint** | A named inbound URL (generic JSON or signed GitHub) whose subscriptions match stored events to execution graphs and keep a delivery record. |
@@ -200,7 +200,7 @@ only expose this on a trusted network.
    A task's **Create GitHub issue** button files its title and description as an
    issue: it uses the task's only repository directly, or asks which repository
    when none or several are linked, then links the new issue back to the task.
-4. **Refresh with agent** to generate the current summary and next steps.
+4. **Refresh with agent** to generate the current summary and proposed checklist items.
 5. **Run an agent** against the task; the transcript streams live.
 
 Press **Ctrl/Cmd+K** (or the ⌘K button) for a command palette to jump to any
@@ -652,7 +652,7 @@ agentic stack history                # popped and removed entries
 agentic link add <task> --url https://github.com/o/r/issues/482
 agentic link add <task> --item-id <item>
 agentic worktree create <task>
-agentic context refresh <task>    # agent rewrites summary + next steps
+agentic context refresh <task>    # agent rewrites summary + proposes checklist items
 agentic run create <task> --prompt "Investigate the failure"
 agentic run wait <run-id>            # block until it finishes
 agentic run stream <run-id>          # live transcript

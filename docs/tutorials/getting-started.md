@@ -104,7 +104,7 @@ The task now has a working directory the agent can use.
 ## Step 10: refresh the context with an agent
 
 In the task's **Context** panel, click **Refresh with agent**.
-Agentic sends the task, its items, and its worktrees to the default harness and asks for a summary and next steps.
+Agentic sends the task, its items, and its worktrees to the default harness and asks for a summary and proposed checklist items.
 When the run finishes, the task shows the summary and the next-steps list.
 
 ## Step 11: run an agent against the task
@@ -113,13 +113,13 @@ In the **Agent** panel, type a prompt such as `List the files in this repository
 The transcript streams into the panel as the agent works.
 When the run finishes, it is recorded against the task with links to reopen its session.
 
-![A task page: header fields, description, agent-written context and next steps, notes, worktrees, and the agent panel](../assets/task.png)
+![A task page: header fields, description, agent-written context, checklist, notes, worktrees, and the agent panel](../assets/task.png)
 
 ## What you have learned
 
 - Agentic runs as three processes: the API, a worker, and the frontend dev server.
 - Tasks hold the context, and worktrees give the agent an isolated checkout.
-- A context refresh writes the summary and next steps you read when you come back.
+- A context refresh writes the summary and proposes checklist items you read when you come back.
 - Every agent run is queued, streamed, and recorded.
 
 ## Next steps
