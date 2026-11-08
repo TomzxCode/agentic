@@ -226,6 +226,7 @@ onMounted(load)
               v-else
               class="grow"
               multiple
+              bulk-actions
               :model-value="rule.values"
               :options="optionSet(valueKind(rule))"
               :placeholder="valueKind(rule) === 'tasks' ? 'Choose tasks…' : 'Choose…'"

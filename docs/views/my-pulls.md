@@ -75,6 +75,9 @@ A read that could not run says so and offers `Retry`, which bypasses that cache.
 | `Review` chips | `Any`, `Changes requested`, `Review required`, `Approved`, `No review`. |
 | `Threads` chips | `Any`, `Open`, `None open`. |
 
+Chosen repositories appear in a `Selected` section above the picker's list, where tapping one removes it.
+The list below offers only repositories not chosen yet.
+
 One chip per facet is active at a time, and `Any` is the empty value.
 Chip counts cover the whole list, not the filtered result, so a count tells you what is there rather than what is shown.
 

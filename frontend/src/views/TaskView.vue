@@ -423,6 +423,7 @@ watch(
           <SearchSelect
             ref="statusRef"
             variant="inline"
+            drawer
             :model-value="task.status"
             :options="STATUS_OPTIONS"
             :sort="false"
@@ -435,6 +436,7 @@ watch(
           <SearchSelect
             ref="priorityRef"
             variant="inline"
+            drawer
             :model-value="task.priority"
             :options="PRIORITY_OPTIONS"
             :sort="false"

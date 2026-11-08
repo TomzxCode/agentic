@@ -44,6 +44,7 @@ const selectedName = computed(
     <SearchSelect
       v-else
       variant="inline"
+      drawer
       :model-value="''"
       :options="options"
       placeholder="+ Link person"

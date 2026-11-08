@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import { markRaw } from 'vue'
 import { mount } from '@vue/test-utils'
 import SearchSelect from '../components/SearchSelect.vue'
@@ -104,29 +104,56 @@ describe('SearchSelect', () => {
     it('toggles a value and keeps the list open', async () => {
       const wrapper = multi()
       await open(wrapper)
-      await wrapper.findAll('.ss-option')[1].trigger('click')
+      const alpha = wrapper.findAll('.ss-option').find((option) => option.text().includes('Alpha'))
+      await alpha.trigger('click')
       await wrapper.setProps({ modelValue: ['a'] })
-      await wrapper.findAll('.ss-option')[2].trigger('click')
+      const beta = wrapper.findAll('.ss-option').find((option) => option.text().includes('Beta'))
+      await beta.trigger('click')
 
       expect(wrapper.emitted('update:modelValue')).toEqual([[['a']], [['a', 'b']]])
       expect(wrapper.find('.ss-panel').exists()).toBe(true)
       expect(wrapper.get('.ss-search').element.value).toBe('')
     })
 
-    it('untoggles a chosen value', async () => {
+    it('moves a chosen value into the selected section and untoggles it there', async () => {
       const wrapper = mount(SearchSelect, { props: { modelValue: ['a', 'b'], options, multiple: true } })
       await open(wrapper)
-      await wrapper.findAll('.ss-option')[1].trigger('click')
+      expect(wrapper.find('.ss-selected').exists()).toBe(true)
+      expect(wrapper.findAll('.ss-option').map((option) => option.text())).toEqual(['None'])
+
+      const alpha = wrapper.findAll('.ss-selected-item').find((item) => item.text().includes('Alpha'))
+      expect(alpha.attributes('aria-label')).toBe('Unselect Alpha')
+      await alpha.trigger('click')
       expect(wrapper.emitted('update:modelValue')).toEqual([[['b']]])
     })
 
-    it('summarizes the chosen labels on the trigger and ticks the options', async () => {
+    it('summarizes the chosen labels on the trigger and lists them as selected', async () => {
       const wrapper = mount(SearchSelect, { props: { modelValue: ['b'], options, multiple: true } })
       expect(wrapper.get('.ss-label').text()).toBe('Beta')
       await open(wrapper)
-      const beta = wrapper.findAll('.ss-option').find((option) => option.text().includes('Beta'))
-      expect(beta.text()).toContain('✓')
-      expect(beta.attributes('aria-pressed')).toBe('true')
+      expect(wrapper.get('.ss-selected-head').text()).toBe('Selected')
+      expect(wrapper.get('.ss-selected-item').text()).toContain('Beta')
+      expect(wrapper.findAll('.ss-option').map((option) => option.text())).not.toContain('Beta')
+    })
+
+    it('keeps the selected section visible when the filter hides everything else', async () => {
+      const wrapper = mount(SearchSelect, { props: { modelValue: ['b'], options, multiple: true } })
+      await open(wrapper)
+      await wrapper.get('.ss-search').setValue('zzz')
+
+      expect(wrapper.find('.ss-option').exists()).toBe(false)
+      expect(wrapper.get('.ss-selected-item').text()).toContain('Beta')
+    })
+
+    it('says everything is selected when no option is left to pick', async () => {
+      const noSentinel = [
+        { value: 'a', label: 'Alpha' },
+        { value: 'b', label: 'Beta' }
+      ]
+      const wrapper = mount(SearchSelect, { props: { modelValue: ['a', 'b'], options: noSentinel, multiple: true } })
+      await open(wrapper)
+      expect(wrapper.find('.ss-option').exists()).toBe(false)
+      expect(wrapper.get('.ss-empty').text()).toBe('All selected')
     })
 
     it('shows the placeholder when nothing is chosen', () => {
@@ -134,6 +161,14 @@ describe('SearchSelect', () => {
         props: { modelValue: [], options, multiple: true, placeholder: 'All authors' }
       })
       expect(wrapper.get('.ss-label').text()).toBe('All authors')
+      expect(wrapper.get('.ss-label').classes()).toContain('placeholder')
+    })
+
+    it('keeps the placeholder when summary is off', () => {
+      const wrapper = mount(SearchSelect, {
+        props: { modelValue: ['b'], options, multiple: true, summary: false, placeholder: 'Link a task' }
+      })
+      expect(wrapper.get('.ss-label').text()).toBe('Link a task')
       expect(wrapper.get('.ss-label').classes()).toContain('placeholder')
     })
   })
@@ -225,6 +260,71 @@ describe('SearchSelect', () => {
       await open(wrapper)
       await wrapper.get('.ss-search').setValue('Gamma')
       expect(wrapper.find('.ss-option.create').exists()).toBe(false)
+    })
+  })
+
+  describe('mobile drawer', () => {
+    const original = window.innerWidth
+    afterEach(() => {
+      window.innerWidth = original
+    })
+
+    it('opens a repeated-pick select as a bottom drawer on a phone', async () => {
+      window.innerWidth = 375
+      const wrapper = mount(SearchSelect, {
+        props: { modelValue: [], options, multiple: true, title: 'Filter by repositories' }
+      })
+      await open(wrapper)
+      expect(wrapper.get('.ss-panel').classes()).toContain('drawer')
+      expect(wrapper.get('.ss-backdrop').exists()).toBe(true)
+      expect(wrapper.get('.ss-drawer-title').text()).toBe('Filter by repositories')
+      expect(wrapper.get('.ss-drawer-close').attributes('aria-label')).toBe('Close')
+    })
+
+    it('treats a keep-open select, such as a relationship link, as a drawer too', async () => {
+      window.innerWidth = 375
+      const wrapper = mount(SearchSelect, {
+        props: { modelValue: '', options, keepOpen: true, title: 'Link a task' }
+      })
+      await open(wrapper)
+      expect(wrapper.get('.ss-panel').classes()).toContain('drawer')
+    })
+
+    it('opens a single pick as a drawer when it asks for one', async () => {
+      window.innerWidth = 375
+      const wrapper = mount(SearchSelect, { props: { modelValue: 'a', options, drawer: true, title: 'Status' } })
+      await open(wrapper)
+      expect(wrapper.get('.ss-panel').classes()).toContain('drawer')
+      expect(wrapper.get('.ss-backdrop').exists()).toBe(true)
+      expect(wrapper.get('.ss-drawer-title').text()).toBe('Status')
+    })
+
+    it('keeps a single fixed pick anchored on a phone', async () => {
+      window.innerWidth = 375
+      const wrapper = mount(SearchSelect, { props: { modelValue: 'a', options } })
+      await open(wrapper)
+      expect(wrapper.get('.ss-panel').classes()).not.toContain('drawer')
+      expect(wrapper.find('.ss-backdrop').exists()).toBe(false)
+    })
+
+    it('keeps the anchored popup on a desktop', async () => {
+      window.innerWidth = 1024
+      const wrapper = mount(SearchSelect, { props: { modelValue: [], options, multiple: true } })
+      await open(wrapper)
+      expect(wrapper.get('.ss-panel').classes()).not.toContain('drawer')
+      expect(wrapper.find('.ss-backdrop').exists()).toBe(false)
+    })
+
+    it('closes on the backdrop and on the close button', async () => {
+      window.innerWidth = 375
+      const wrapper = mount(SearchSelect, { props: { modelValue: [], options, multiple: true } })
+      await open(wrapper)
+      await wrapper.get('.ss-backdrop').trigger('click')
+      expect(wrapper.find('.ss-panel').exists()).toBe(false)
+
+      await open(wrapper)
+      await wrapper.get('.ss-drawer-close').trigger('click')
+      expect(wrapper.find('.ss-panel').exists()).toBe(false)
     })
   })
 })

@@ -186,9 +186,36 @@
 .ss-search:focus {
   border-color: var(--accent-2);
 }
-.ss-options {
+/* The chosen options, kept above the list so they stay reachable while the
+   filter hides them and do not have to be found and unticked in the list. */
+.ss-selected {
+  padding: 2px 0 6px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid var(--border);
+}
+.ss-selected-head {
+  padding: 2px 8px 4px;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--faint);
+}
+/* Selected rows keep the option row's shape; the tick marks the choice. */
+.ss-selected-item:hover {
+  background: var(--bg-3);
+}
+.ss-selected-check {
+  flex: none;
+  margin-left: auto;
+  color: var(--accent);
+}
+/* The scrolling part of the panel: the chosen section, the bulk actions, and
+   the option list move together, so chosen values are not pinned while the
+   rest is browsed. */
+.ss-body {
   max-height: 240px;
   overflow: auto;
+  overscroll-behavior: contain;
 }
 /* The Select all / Deselect all row above a multi-select's options. */
 .ss-bulk {
@@ -214,7 +241,8 @@
   color: var(--faint);
   cursor: default;
 }
-.ss-option {
+.ss-option,
+.ss-selected-item {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -244,14 +272,82 @@
 .ss-option.create {
   color: var(--accent);
 }
-/* The tick gutter kept on every option in multiple mode, so labels line up. */
-.ss-check {
-  flex: none;
-  width: 12px;
-  color: var(--accent);
-}
 .ss-empty {
   padding: 6px 8px;
+}
+
+/* On a phone a repeated-pick select (multi-select, or one that stays open for
+   the next pick) opens as a bottom drawer instead of an anchored popup, which
+   is too narrow there and ends up under the on-screen keyboard. */
+.ss-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 69;
+  background: rgba(0, 0, 0, 0.5);
+}
+.ss-panel.drawer {
+  position: fixed;
+  top: auto;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  min-width: 0;
+  max-width: none;
+  max-height: 78vh;
+  z-index: 70;
+  display: flex;
+  flex-direction: column;
+  border-radius: 16px 16px 0 0;
+  padding: 8px max(12px, env(safe-area-inset-right)) calc(12px + env(safe-area-inset-bottom))
+    max(12px, env(safe-area-inset-left));
+  box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.55);
+}
+.ss-drawer-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 2px 2px 8px;
+}
+.ss-drawer-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  color: var(--muted);
+}
+.ss-drawer-close {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-2);
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+.ss-drawer-close:hover {
+  color: var(--text);
+  border-color: var(--muted);
+}
+.ss-panel.drawer .ss-search {
+  flex: none;
+  padding: 10px 12px;
+  font-size: 16px;
+}
+.ss-panel.drawer .ss-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: none;
+}
+.ss-panel.drawer .ss-option,
+.ss-panel.drawer .ss-selected-item {
+  padding: 12px 10px;
+  font-size: 16px;
 }
 
 /* Command palette */

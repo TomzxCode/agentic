@@ -34,6 +34,9 @@ The scan runs after each successful ghx cache refresh, and its SLOs are configur
 | `All authors` | The same multi-select over authors. |
 | Search | `Search repository, number, title, or author…`. |
 
+Chosen repositories and authors appear in a `Selected` section above each picker's list, where tapping one removes it.
+The list below offers only values not chosen yet, and `Select all` takes the remaining options.
+
 Status, request-scope, drafts, repository, author, and search preferences are remembered on this device under `agentic.reviewQueueFilters`, so leaving and returning keeps them.
 A repository or author that disappears from the queue is dropped from the selection on the next load.
 

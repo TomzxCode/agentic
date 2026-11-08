@@ -30,6 +30,7 @@ defineEmits(['update:modelValue'])
   <SearchSelect
     class="task-status-select"
     :variant="variant"
+    drawer
     :model-value="modelValue"
     :options="statusOptions"
     :sort="false"

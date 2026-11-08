@@ -32,7 +32,7 @@ It is also the page that drives the agent, so the prompt, the worktree, and the 
 | People | Link the people involved, including suggested people taken from the linked items' authors and commenters. |
 | Requested by | Link whoever asked for the task. |
 | Repositories | Link the checkouts the work touches. |
-| Links | Link a task `before` or `after` this one, as `related`, or as a `parent` or `child`, and unlink with `×`. Each link shows the linked task's current status icon next to its title. A `related` link is symmetric and has no ordering, so it reads the same from both tasks. Parent/child links form a separate hierarchy, and a task can have several of each. The API refuses a before/after or parent/child link that would close a cycle. |
+| Links | Link a task `before` or `after` this one, as `related`, or as a `parent` or `child`, and unlink with `×`. The picker lists an already linked task in its `Selected` section, where tapping it unlinks it, and its `Select all` / `Deselect all` actions link every task the filter lists or clear the group. Each chip shows the linked task's current status icon next to its title. A `related` link is symmetric and has no ordering, so it reads the same from both tasks. Parent/child links form a separate hierarchy, and a task can have several of each. The API refuses a before/after or parent/child link that would close a cycle. |
 
 ### The panels
 

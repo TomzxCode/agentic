@@ -33,6 +33,7 @@ defineEmits(['update:modelValue'])
   <SearchSelect
     class="task-priority-select"
     :variant="variant"
+    drawer
     :model-value="modelValue"
     :options="priorityOptions"
     :sort="false"

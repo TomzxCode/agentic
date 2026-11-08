@@ -43,6 +43,8 @@ A rubric with no scored review is left out rather than drawn as a flat zero.
 | `All authors`      | The same multi-select over the pull request authors.                                                          |
 | `Clear filters`    | Appears once a repository or author is chosen and resets both.                                                |
 
+Chosen repositories and authors appear in a `Selected` section above each picker's list, where tapping one removes it.
+The list below offers only values not chosen yet.
 Both choices are remembered on this device under `agentic.reviewScoreFilters`, so leaving and returning keeps them.
 A repository or author that disappears from the store after a refresh is dropped from the selection.
 
