@@ -69,6 +69,16 @@ class SettingsUpdate(BaseModel):
     # before the inbox offers to poke its reviewers ("1h30m", "1d"; empty
     # disables it).
     review_nudge_slo: str | None = None
+    # Ages since a pull request was last marked ready for review (or opened)
+    # at which to DM its reviewers automatically, such as "24h,26h,28h",
+    # "24h+1h" (aligned to the SLO), "24h+~1h" (after each poke), "now+1h"
+    # (immediately, then hourly), or "next+1h" (the next boundary, then
+    # hourly); empty disables it.
+    review_auto_poke: str | None = None
+    # The auto-poke message template; {link}, {url}, {title}, {slo}, {elapsed}.
+    review_auto_poke_message: str | None = None
+    # The manual poke message template, with the same variables.
+    review_poke_message: str | None = None
     # A JSON list of user-defined agent prompts (kind, label, template).
     agent_prompts: str | None = None
     # The Slack channel the on-call view scans.

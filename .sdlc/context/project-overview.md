@@ -43,6 +43,7 @@ It solves the problem of scattered context: the threads, issues, and checkouts r
 - PR reviewer-feedback triage: the per-comment analysis files the feedback skills write, read as a queue with implement / decline / defer decisions.
 - A review SLO that flags pull requests past their review deadline in the inbox.
 - A review nudge SLO that offers to poke the reviewers of the user's own pull requests that nobody has reviewed yet.
+- A review auto-poke schedule that DMs those reviewers at configured ages without waiting for the inbox.
 - A people directory, with people linked to tasks and to items.
 - An inbox of derived suggestions (reviews overdue past the SLO, unreviewed pull requests to poke, closable tasks, missing change records, leftover worktrees), recomputed on every read.
 - An events feed: every task's timeline as one stream, grouped by day with a timeline chart per day.

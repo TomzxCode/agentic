@@ -23,6 +23,37 @@ class ReviewScanSource(StrEnum):
     reviewed = "reviewed"
 
 
+class ReviewAutoPoke(SQLModel, table=True):
+    """How many scheduled auto-poke rounds a pull request has already had.
+
+    One row per pull request the auto-poke job is poking. It is not an audit
+    log: it exists so a tick or a restart does not send the same round twice.
+    The row is kept when the pull request leaves the set (reviewed, closed, back
+    to draft, or no requested reviewer), so a read that omits it for a tick does
+    not make it look unpoked when it returns; a new ready-for-review round
+    resets its rounds.
+    """
+
+    __table_args__ = (UniqueConstraint("repository", "number", name="uq_review_auto_poke"),)
+
+    id: str = Field(default_factory=new_id, primary_key=True)
+    # "owner/name", normalized to lowercase so the key matches across sources.
+    repository: str = Field(index=True)
+    number: int
+    # The schedule text the delivered rounds were counted against. A changed
+    # schedule starts the rounds over.
+    schedule: str = ""
+    # How many scheduled rounds have been delivered, including a round whose
+    # reviewers could not all be reached.
+    poked_rounds: int = 0
+    last_poked_at: datetime | None = None
+    # When the current schedule started for this pull request. ``next+...``
+    # uses it to find the first boundary; the other forms keep it for a stable
+    # reset point and for display.
+    anchor_at: datetime | None = None
+    updated_at: datetime = Field(default_factory=utcnow)
+
+
 class ReviewRequest(SQLModel, table=True):
     """A pull request the review scan found awaiting the user's feedback.
 

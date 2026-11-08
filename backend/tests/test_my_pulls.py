@@ -20,6 +20,7 @@ def _record(**overrides):
         "number": 12,
         "title": "Fix the thing",
         "url": "https://github.com/o/r/pull/12",
+        "state": "OPEN",
         "isDraft": False,
         "createdAt": "2026-10-01T00:00:00Z",
         "updatedAt": "2026-10-02T00:00:00Z",
@@ -171,6 +172,21 @@ def test_list_my_open_pulls_reports_reviews_and_requested_reviewers(monkeypatch)
     assert pulls[0]["requested_reviewers"] == ["alice", "platform"]
 
 
+def test_list_my_open_pulls_leaves_the_author_out_of_the_requested_reviewers(monkeypatch):
+    record = _record(
+        author={"login": "tomzx"},
+        reviewRequests=[
+            {"type": "User", "login": "tomzx"},
+            {"type": "User", "login": "alice"},
+        ],
+    )
+    monkeypatch.setattr(shell, "_run_cli", lambda cmd, timeout=60: _payload([record]))
+
+    pulls = github.list_my_open_pulls(["o/r"], "tomzx")
+    assert pulls is not None
+    assert pulls[0]["requested_reviewers"] == ["alice"]
+
+
 def test_list_my_open_pulls_ignores_the_author_s_own_reviews(monkeypatch):
     # GitHub lets an author leave comment reviews on their own pull request;
     # those are not a review the pull request received.
@@ -186,6 +202,29 @@ def test_list_my_open_pulls_ignores_the_author_s_own_reviews(monkeypatch):
     pulls = github.list_my_open_pulls(["o/r"], "tomzx")
     assert pulls is not None
     assert pulls[0]["reviewed"] is False
+
+
+def test_list_my_open_pulls_maps_the_latest_ready_for_review_event(monkeypatch):
+    record = _record(
+        timeline=[
+            {"kind": "ready_for_review", "createdAt": "2026-10-03T09:00:00Z"},
+            {"kind": "converted_to_draft", "createdAt": "2026-10-03T10:00:00Z"},
+            {"kind": "ready_for_review", "createdAt": "2026-10-04T08:00:00Z"},
+            {"kind": "review_requested", "createdAt": "2026-10-04T08:05:00Z"},
+        ]
+    )
+    monkeypatch.setattr(shell, "_run_cli", lambda cmd, timeout=60: _payload([record]))
+
+    pulls = github.list_my_open_pulls(["o/r"], "tomzx")
+    assert pulls is not None
+    assert pulls[0]["ready_for_review_at"] == "2026-10-04T08:00:00+00:00"
+
+    # A pull request opened ready has no such event; the caller falls back to
+    # its opening time.
+    monkeypatch.setattr(shell, "_run_cli", lambda cmd, timeout=60: _payload([_record(timeline=[])]))
+    pulls = github.list_my_open_pulls(["o/r"], "tomzx")
+    assert pulls is not None
+    assert pulls[0]["ready_for_review_at"] is None
 
 
 def test_pull_counts_summarizes_the_list():
@@ -440,10 +479,10 @@ def test_my_pulls_poke_dms_each_requested_reviewer_once(monkeypatch):
     def fake_person(session, login):
         return person if login.lower() == "alice" else None
 
-    monkeypatch.setattr("agentic.routers.my_pulls.person_for_alias", fake_person)
-    monkeypatch.setattr("agentic.routers.my_pulls.resolve_slack_user_id", lambda aliases: "U123")
+    monkeypatch.setattr("agentic.reviewer_pokes.person_for_alias", fake_person)
+    monkeypatch.setattr("agentic.reviewer_pokes.resolve_slack_user_id", lambda aliases: "U123")
     monkeypatch.setattr(
-        "agentic.routers.my_pulls.slack_send_dm",
+        "agentic.reviewer_pokes.slack_send_dm",
         lambda user_id, text, unfurl=True: sent.append((user_id, text)) or {"ts": "1.2"},
     )
 
@@ -476,8 +515,8 @@ def test_my_pulls_poke_dms_each_requested_reviewer_once(monkeypatch):
 
 def test_my_pulls_poke_reports_a_reviewer_without_slack(monkeypatch):
     person = SimpleNamespace(id="p1", name="Alice")
-    monkeypatch.setattr("agentic.routers.my_pulls.person_for_alias", lambda session, login: person)
-    monkeypatch.setattr("agentic.routers.my_pulls.resolve_slack_user_id", lambda aliases: None)
+    monkeypatch.setattr("agentic.reviewer_pokes.person_for_alias", lambda session, login: person)
+    monkeypatch.setattr("agentic.reviewer_pokes.resolve_slack_user_id", lambda aliases: None)
 
     with TestClient(app) as client:
         payload = client.post(

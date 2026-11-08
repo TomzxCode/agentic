@@ -405,6 +405,7 @@ erDiagram
 
 A person is a flat directory entry whose handles and emails are aliases in `PersonAlias`, so the same person dedupes across GitHub and Slack.
 `ReviewRequest` stands alone: GitHub is its source of truth, and each scan replaces the stored set, so its rows carry GitHub's own `owner/name` and PR number rather than foreign keys.
+`ReviewAutoPoke` also stands alone: one row per pull request the auto-poke job is poking, keyed by `owner/name` and PR number, holding the delivered rounds, the last poke, and when the current schedule started.
 The full schema with types, constraints, and indexes lives in [`schema.dbml`](schema.dbml).
 
 ## Key Components

@@ -227,6 +227,42 @@ def test_review_scan_setting_validates():
         cleared = client.patch("/api/settings", json={"review_nudge_slo": ""}).json()
         assert cleared["effective"]["review_nudge_slo"] == ""
 
+        # The auto-poke schedule accepts absolute ages and the now/next repeat
+        # forms, rejects a malformed list, and a blank turns it off.
+        assert client.patch("/api/settings", json={"review_auto_poke": "soon"}).status_code == 422
+        assert client.patch("/api/settings", json={"review_auto_poke": "24h+1h,26h"}).status_code == 422
+        assert client.patch("/api/settings", json={"review_auto_poke": "next+1h,26h"}).status_code == 422
+        auto = client.patch("/api/settings", json={"review_auto_poke": "24h,24h+~1h"}).json()
+        assert auto["effective"]["review_auto_poke"] == "24h,24h+~1h"
+        immediate = client.patch("/api/settings", json={"review_auto_poke": "now+1h"}).json()
+        assert immediate["effective"]["review_auto_poke"] == "now+1h"
+        next_form = client.patch("/api/settings", json={"review_auto_poke": "next+~1h"}).json()
+        assert next_form["effective"]["review_auto_poke"] == "next+~1h"
+
+        # The auto-poke message accepts the documented variables and rejects
+        # anything else; a blank restores the default.
+        assert client.patch(
+            "/api/settings", json={"review_auto_poke_message": "SLO {slo}: {wat}"}
+        ).status_code == 422
+        message = client.patch(
+            "/api/settings",
+            json={"review_auto_poke_message": "Waiting {elapsed} (SLO {slo}): {link}"},
+        ).json()
+        assert message["effective"]["review_auto_poke_message"] == "Waiting {elapsed} (SLO {slo}): {link}"
+        cleared_message = client.patch("/api/settings", json={"review_auto_poke_message": ""}).json()
+        assert cleared_message["effective"]["review_auto_poke_message"] == ""
+        assert client.patch(
+            "/api/settings", json={"review_poke_message": "SLO {slo}: {wat}"}
+        ).status_code == 422
+        manual_message = client.patch(
+            "/api/settings",
+            json={"review_poke_message": "Age {elapsed} (SLO {slo}): {link}"},
+        ).json()
+        assert manual_message["effective"]["review_poke_message"] == "Age {elapsed} (SLO {slo}): {link}"
+        client.patch("/api/settings", json={"review_poke_message": ""})
+        cleared_auto = client.patch("/api/settings", json={"review_auto_poke": ""}).json()
+        assert cleared_auto["effective"]["review_auto_poke"] == ""
+
         # The default is one of the two policies a repository can fall back to.
         assert client.patch("/api/settings", json={"review_scan_default": "sometimes"}).status_code == 422
         excluded = client.patch("/api/settings", json={"review_scan_default": "exclude"}).json()

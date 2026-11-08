@@ -8,15 +8,17 @@ from sqlmodel import Session
 from ..crud import get_or_404
 from ..db import get_session
 from ..models.repositories import Repository
+from ..review_auto_poke import next_poke_at
 from ..schemas.github import GithubIssue, GithubIssueCreate, GithubPullPokeRequest, GithubRepoListing
 from ..schemas.items import ItemGithubReviewer, ItemGithubReviewers, ItemPoke
 from ..services.github import (
     create_github_issue,
     fetch_github_issue,
-    fetch_github_pull_reviewers,
+    fetch_github_pull_reviewers_with_record,
     github_owner_repo,
     list_github_issues,
     list_github_repo_items,
+    pull_row_from_record,
 )
 from ..services.parsing import parse_github
 from .items_refresh import sync_github_listing
@@ -49,7 +51,7 @@ def _pull_request_fields(url: str) -> tuple[str, str, str]:
 
 
 @router.get("/pull/reviewers", response_model=ItemGithubReviewers)
-def get_pull_request_reviewers(url: str) -> ItemGithubReviewers:
+def get_pull_request_reviewers(url: str, session: Session = Depends(get_session)) -> ItemGithubReviewers:
     """List a pull request's reviewers from its URL, read live through ``gh``.
 
     The standalone pull request view has no stored item to address, so this is
@@ -57,12 +59,16 @@ def get_pull_request_reviewers(url: str) -> ItemGithubReviewers:
     reports its error rather than reading as "no reviewers".
     """
     owner, repo, number = _pull_request_fields(url)
-    reviews = fetch_github_pull_reviewers(owner, repo, number)
-    if reviews is None:
+    result = fetch_github_pull_reviewers_with_record(owner, repo, number)
+    if result is None:
         return ItemGithubReviewers(
             error="Could not read this pull request's reviewers (is `ghx` installed and authenticated?)"
         )
-    return ItemGithubReviewers(reviewers=[ItemGithubReviewer.model_validate(review) for review in reviews])
+    pull = pull_row_from_record(result.record, f"{owner}/{repo}")
+    return ItemGithubReviewers(
+        reviewers=[ItemGithubReviewer.model_validate(review) for review in result.reviewers],
+        next_poke_at=next_poke_at(session, pull),
+    )
 
 
 @router.post("/pull/poke", response_model=ItemPoke)

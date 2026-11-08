@@ -1,7 +1,7 @@
 <script setup>
 import { onMounted, ref } from 'vue'
 import { api } from '../api'
-import { store } from '../store'
+import { formatDateTime, formatDuration, store } from '../store'
 import ReviewPeople from './ReviewPeople.vue'
 
 // The reviewers of a pull request, read live from GitHub, with the Slack poke
@@ -14,23 +14,35 @@ const props = defineProps({
 })
 
 const reviewers = ref([])
+const nextPokeAt = ref(null)
 const error = ref(null)
 const loading = ref(false)
 const poking = ref(null)
 
 async function load() {
   reviewers.value = []
+  nextPokeAt.value = null
   error.value = null
   loading.value = true
   try {
     const data = props.itemId ? await api.items.reviewers(props.itemId) : await api.github.pullReviewers(props.url)
     reviewers.value = data.reviewers || []
+    nextPokeAt.value = data.next_poke_at || null
     error.value = data.error || null
   } catch (e) {
     error.value = e.message
   } finally {
     loading.value = false
   }
+}
+
+// The auto-poke line reads as an interval first, with the exact time in
+// parentheses, so a reviewer sees what is about to happen without opening Slack.
+function nextPokeText(iso) {
+  const ms = new Date(iso).getTime() - Date.now()
+  if (!Number.isFinite(ms)) return ''
+  if (ms <= 0) return 'Auto-poke due now'
+  return `Next auto-poke in ${formatDuration(ms)} (${formatDateTime(iso)})`
 }
 
 // The emoji itself is the action; the toast reports who the message reached, or
@@ -60,5 +72,6 @@ onMounted(load)
     <p v-else-if="error" class="faint" style="margin: 0">{{ error }}</p>
     <p v-else-if="!reviewers.length" class="faint" style="margin: 0">No reviewers yet.</p>
     <ReviewPeople v-else :reviewers="reviewers" :poking="poking" @poke="poke" />
+    <p v-if="nextPokeAt" class="faint auto-poke-next" style="margin: 4px 0 0">{{ nextPokeText(nextPokeAt) }}</p>
   </div>
 </template>

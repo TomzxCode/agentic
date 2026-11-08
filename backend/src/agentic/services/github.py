@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import re
 from collections.abc import Callable
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -225,16 +226,20 @@ def fetch_github_issue(owner: str, repo: str, number: object, kind: str = "issue
 _DECISIVE_REVIEW_STATES = frozenset({"APPROVED", "CHANGES_REQUESTED", "DISMISSED"})
 
 
-def fetch_github_pull_reviewers(owner: str, repo: str, number: object) -> list[dict[str, Any]] | None:
-    """The reviewers assigned to a pull request, via ``ghx``.
+@dataclass(frozen=True)
+class PullRequestReviewers:
+    """A pull request's reviewers and the ghx record they were read from.
 
-    ghx carries the pull request's submitted reviews and the reviewers still
-    requested, so this read needs no second tool. Each reviewer appears once:
-    their latest decisive review state wins over a later plain comment, their
-    last submitted review time is kept, and a reviewer a review is still
-    requested from carries state ``PENDING`` with ``requested`` set. None when
-    the read could not run.
+    The record rides along so a reader that also needs the pull request's own
+    fields (the auto-poke next time) does not have to ask ghx again.
     """
+
+    reviewers: list[dict[str, Any]]
+    record: dict[str, Any]
+
+
+def fetch_github_pull_record(owner: str, repo: str, number: object) -> dict[str, Any] | None:
+    """One pull request's raw ghx record, or None when the read could not run."""
     raw = shell._run_cli(
         ["ghx", "pr", "view", str(number), "--repo", f"{owner}/{repo}", "--json"],
         timeout=60,
@@ -245,14 +250,33 @@ def fetch_github_pull_reviewers(owner: str, repo: str, number: object) -> list[d
         data = json.loads(raw)
     except json.JSONDecodeError:
         return None
-    if not isinstance(data, dict):
+    return data if isinstance(data, dict) else None
+
+
+def fetch_github_pull_review_reference(owner: str, repo: str, number: object) -> datetime | None:
+    """When the pull request's review wait started, or None when it is unknown.
+
+    This is the latest ready-for-review event, falling back to the opening time,
+    the same reference the review SLOs use.
+    """
+    record = fetch_github_pull_record(owner, repo, number)
+    if record is None:
         return None
+    return _optional_instant(_ready_for_review_at(record)) or _optional_instant(record.get("createdAt"))
+
+
+def fetch_github_pull_reviewers_with_record(owner: str, repo: str, number: object) -> PullRequestReviewers | None:
+    """A pull request's reviewers and the raw ghx record, or None on failure."""
+    data = fetch_github_pull_record(owner, repo, number)
+    if data is None:
+        return None
+    author = str((data.get("author") or {}).get("login") or "").strip().lower()
     reviewers: dict[str, dict[str, Any]] = {}
     for review in data.get("reviews") or []:
         if not isinstance(review, dict):
             continue
         login = (review.get("author") or {}).get("login")
-        if not login:
+        if not login or str(login).strip().lower() == author:
             continue
         state = str(review.get("state") or "").upper()
         submitted_at = review.get("submittedAt")
@@ -275,7 +299,7 @@ def fetch_github_pull_reviewers(owner: str, repo: str, number: object) -> list[d
         if not isinstance(request, dict) or request.get("type") != "User":
             continue
         login = request.get("login")
-        if not login:
+        if not login or str(login).strip().lower() == author:
             continue
         current = reviewers.get(str(login).lower())
         if current is None:
@@ -288,7 +312,21 @@ def fetch_github_pull_reviewers(owner: str, repo: str, number: object) -> list[d
         else:
             current["state"] = "PENDING"
             current["requested"] = True
-    return list(reviewers.values())
+    return PullRequestReviewers(reviewers=list(reviewers.values()), record=data)
+
+
+def fetch_github_pull_reviewers(owner: str, repo: str, number: object) -> list[dict[str, Any]] | None:
+    """The reviewers assigned to a pull request, via ``ghx``.
+
+    ghx carries the pull request's submitted reviews and the reviewers still
+    requested, so this read needs no second tool. Each reviewer appears once:
+    their latest decisive review state wins over a later plain comment, their
+    last submitted review time is kept, and a reviewer a review is still
+    requested from carries state ``PENDING`` with ``requested`` set. None when
+    the read could not run.
+    """
+    result = fetch_github_pull_reviewers_with_record(owner, repo, number)
+    return result.reviewers if result is not None else None
 
 
 def create_github_issue(owner: str, repo: str, title: str, body: str = "") -> dict[str, Any] | None:
@@ -515,7 +553,8 @@ MY_PULLS_LIMIT = 500
 #: The fields a My PRs row reads. ghx's --json takes a field list, so the
 #: payload stays to what the row needs instead of the whole record.
 _MY_PULLS_FIELDS = (
-    "number,title,url,isDraft,createdAt,updatedAt,reviewDecision,author,reviews,reviewRequests,checks,reviewThreads"
+    "number,title,url,state,isDraft,createdAt,updatedAt,reviewDecision,author,reviews,reviewRequests,"
+    "checks,reviewThreads,timeline"
 )
 
 #: A check rollup state, as the CI badge reads it. ``EXPECTED`` means a check is
@@ -607,14 +646,18 @@ def _requested_reviewers(record: dict[str, Any]) -> list[str]:
     return names
 
 
-def pr_review_request_message(url: str, title: str) -> str:
-    """The Slack message a poke sends: a wave, a robot, and the PR's title as a link."""
+def pr_slack_link(url: str, title: str) -> str:
+    """The pull request as a Slack link: ``<url|title>`` with the title sanitized."""
     title = " ".join(str(title or "").split())
     # Slack's link label ends at "|", and the angle brackets delimit the link.
     for char in ("|", "<", ">"):
         title = title.replace(char, "-")
-    label = f"<{url}|{title}>" if title else f"<{url}>"
-    return f":wave::robot_face: I would love your review on this PR: {label}"
+    return f"<{url}|{title}>" if title else f"<{url}>"
+
+
+def pr_review_request_message(url: str, title: str) -> str:
+    """The default Slack message a poke sends: a wave, a robot, and the PR link."""
+    return f":wave::robot_face: I would love your review on this PR: {pr_slack_link(url, title)}"
 
 
 def _pull_row(record: dict[str, Any], repository: str, login: str = "") -> dict[str, Any] | None:
@@ -632,8 +675,13 @@ def _pull_row(record: dict[str, Any], repository: str, login: str = "") -> dict[
         "title": record.get("title") or "",
         "url": record.get("url") or "",
         "draft": bool(record.get("isDraft")),
+        "state": str(record.get("state") or "").upper(),
         "created_at": record.get("createdAt"),
+        "ready_for_review_at": _ready_for_review_at(record),
         "updated_at": record.get("updatedAt"),
+        # The pull request's author, so a reader can tell the user's own PRs
+        # from the ones they are only reviewing.
+        "author": author,
         "review_decision": decision,
         # The decision is APPROVED only once the reviews the branch protection
         # requires are in, which is not the same as having one approval.
@@ -645,18 +693,64 @@ def _pull_row(record: dict[str, Any], repository: str, login: str = "") -> dict[
         # Whether anyone but the author has submitted a review, and who GitHub
         # still lists as requested reviewers; the inbox's review nudge reads both.
         "reviewed": _was_reviewed(reviews, author),
-        "requested_reviewers": _requested_reviewers(record),
+        "requested_reviewers": [
+            name for name in _requested_reviewers(record) if name.strip().lower() != author.strip().lower()
+        ],
     }
+
+
+def pull_row_from_record(record: dict[str, Any], repository: str, login: str = "") -> dict[str, Any] | None:
+    """One ghx pull request record as the My PRs row.
+
+    The reviewers read reuses this so the auto-poke next time counts from the
+    same fields the auto-poke job does.
+    """
+    return _pull_row(record, repository, login)
+
+
+def _optional_instant(value: object) -> datetime | None:
+    """A ghx timestamp as a comparable instant, or None when it cannot be read."""
+    text = str(value or "").replace("Z", "+00:00")
+    if not text:
+        return None
+    try:
+        parsed = datetime.fromisoformat(text)
+    except ValueError:
+        return None
+    return parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)
 
 
 def _updated_at(value: object) -> datetime:
     """A ghx timestamp as a comparable instant, for the cross-repository sort."""
-    text = str(value or "").replace("Z", "+00:00")
-    try:
-        parsed = datetime.fromisoformat(text)
-    except ValueError:
-        return datetime.min.replace(tzinfo=UTC)
-    return parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)
+    return _optional_instant(value) or datetime.min.replace(tzinfo=UTC)
+
+
+def _ready_for_review_at(record: dict[str, Any]) -> str | None:
+    """When ghx's timeline last marked the pull request ready for review.
+
+    A pull request opened ready has no such event, so the caller falls back to
+    its opening time. None also stands for the empty timeline of a cache row
+    written before ghx carried the field.
+    """
+    latest: datetime | None = None
+    timeline = record.get("timeline")
+    if not isinstance(timeline, list):
+        return None
+    for event in timeline:
+        if not isinstance(event, dict) or event.get("kind") != "ready_for_review":
+            continue
+        text = str(event.get("createdAt") or "").replace("Z", "+00:00")
+        if not text:
+            continue
+        try:
+            parsed = datetime.fromisoformat(text)
+        except ValueError:
+            continue
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=UTC)
+        if latest is None or parsed > latest:
+            latest = parsed
+    return latest.isoformat() if latest else None
 
 
 def list_my_open_pulls(

@@ -16,8 +16,12 @@ const props = defineProps({
 
 const form = reactive({
   review_slo: '',
-  review_nudge_slo: ''
+  review_nudge_slo: '',
+  review_auto_poke: '',
+  review_auto_poke_message: '',
+  review_poke_message: ''
 })
+const defaultAutoPokeMessage = ':wave::robot_face: I would love your review on this PR: {link}'
 const status = ref(null)
 const saving = ref('')
 const saved = ref('')
@@ -69,6 +73,9 @@ watch(
   (overrides) => {
     form.review_slo = overrides.review_slo ?? ''
     form.review_nudge_slo = overrides.review_nudge_slo ?? ''
+    form.review_auto_poke = overrides.review_auto_poke ?? ''
+    form.review_auto_poke_message = overrides.review_auto_poke_message ?? ''
+    form.review_poke_message = overrides.review_poke_message ?? ''
   },
   { immediate: true }
 )
@@ -147,6 +154,69 @@ onMounted(load)
         How long a pull request of yours may wait without any review from anyone before the inbox offers to poke its
         reviewers, such as <code>1h30m</code> or <code>1d</code>. The wait runs from when the pull request was opened.
         Leave it blank to turn the nudge off.
+      </p>
+    </div>
+
+    <div class="field">
+      <label>
+        Review auto-poke
+        <span v-if="saving === 'review_auto_poke'" class="faint">saving…</span>
+        <span v-else-if="saved === 'review_auto_poke'" class="faint">saved</span>
+      </label>
+      <input
+        v-model="form.review_auto_poke"
+        class="input mono"
+        :placeholder="defaults.review_auto_poke || '24h,26h,28h'"
+        @blur="save('review_auto_poke')"
+      />
+      <p class="faint" style="margin: 4px 0 0">
+        Comma-separated absolute ages at which to DM the requested reviewers of a pull request of yours that nobody has
+        reviewed, counted from when it was last marked ready for review (or opened if it never was a draft):
+        <code>24h,26h,28h</code> pokes three times. A repeat stays on the SLO's clock, such as <code>24h+1h</code>;
+        <code>24h+~1h</code> waits that long after each poke instead. <code>now+1h</code> pokes now and then hourly,
+        <code>next+1h</code> waits for the next hourly boundary, and <code>next+~1h</code> waits one interval from now.
+        Leave it blank to turn auto-poking off.
+      </p>
+    </div>
+
+    <div class="field">
+      <label>
+        Auto-poke message
+        <span v-if="saving === 'review_auto_poke_message'" class="faint">saving…</span>
+        <span v-else-if="saved === 'review_auto_poke_message'" class="faint">saved</span>
+      </label>
+      <textarea
+        v-model="form.review_auto_poke_message"
+        class="textarea mono"
+        rows="3"
+        :placeholder="defaults.review_auto_poke_message || defaultAutoPokeMessage"
+        @blur="save('review_auto_poke_message')"
+      ></textarea>
+      <p class="faint" style="margin: 4px 0 0">
+        The DM the auto-poke sends. Variables: <code>{link}</code> (the pull request as a Slack link),
+        <code>{url}</code>, <code>{title}</code>, <code>{slo}</code> (the age that triggered the poke, such as
+        <code>1d</code>), and <code>{elapsed}</code> (the pull request's age since it was opened or last marked
+        ready for review, such as <code>1d 6h</code>). Leave it blank for the default message.
+      </p>
+    </div>
+
+    <div class="field">
+      <label>
+        Poke message
+        <span v-if="saving === 'review_poke_message'" class="faint">saving…</span>
+        <span v-else-if="saved === 'review_poke_message'" class="faint">saved</span>
+      </label>
+      <textarea
+        v-model="form.review_poke_message"
+        class="textarea mono"
+        rows="3"
+        :placeholder="defaults.review_poke_message || defaultAutoPokeMessage"
+        @blur="save('review_poke_message')"
+      ></textarea>
+      <p class="faint" style="margin: 4px 0 0">
+        The DM a manual poke sends. The variables are the same; <code>{slo}</code> is the review nudge SLO and
+        <code>{elapsed}</code> is the pull request's age since it was opened or last marked ready for review. Leave it
+        blank for the default message.
       </p>
     </div>
   </section>

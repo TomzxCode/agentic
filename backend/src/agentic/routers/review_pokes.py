@@ -10,8 +10,8 @@ from __future__ import annotations
 from fastapi import HTTPException
 from sqlmodel import Session
 
+from ..reviewer_pokes import manual_review_message
 from ..schemas.items import ItemPoke
-from ..services.github import pr_review_request_message
 from ..services.slack import SlackError, resolve_slack_user_id, slack_send_dm
 from .people_service import person_aliases, person_for_alias
 
@@ -46,7 +46,7 @@ def poke_pull_request_reviewer(session: Session, url: str, title: str, login: st
         )
     try:
         # The PR link is the whole message, so no preview: the DM stays one line.
-        sent = slack_send_dm(slack_user_id, pr_review_request_message(url, title), unfurl=False)
+        sent = slack_send_dm(slack_user_id, manual_review_message(session, url=url, title=title), unfurl=False)
     except SlackError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     return ItemPoke(

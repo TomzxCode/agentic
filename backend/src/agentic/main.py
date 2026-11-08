@@ -160,6 +160,34 @@ async def _ghx_cache_forever() -> None:
             log.info("refreshed ghx caches", refreshed=result["refreshed"], failed=result.get("failed", 0))
 
 
+def _review_auto_poke_once() -> dict[str, int | str | None]:
+    """Poke the reviewers whose auto-poke schedule says a round is due.
+
+    Opens its own session, like the other background passes, so the Slack DM
+    calls never touch the event loop's connection.
+    """
+    from .review_auto_poke import run_auto_poke_once
+
+    with Session(engine) as session:
+        return run_auto_poke_once(session)
+
+
+async def _review_auto_poke_forever() -> None:
+    """Tick on a timer and send the auto-pokes that have come due."""
+    tick = settings.review_auto_poke_tick
+    if tick <= 0:
+        return
+    while True:
+        await asyncio.sleep(tick)
+        try:
+            result = await asyncio.to_thread(_review_auto_poke_once)
+        except Exception as exc:  # noqa: BLE001
+            log.warning("review auto-poke tick failed", error=str(exc))
+            continue
+        if result.get("poked"):
+            log.info("auto-poked reviewers", poked=result["poked"], failed=result.get("failed", 0))
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Sync endpoints run in the threadpool; binding the loop lets them wake SSE
@@ -191,6 +219,8 @@ async def lifespan(app: FastAPI):
     # Keep the ghx caches the pages read current, and rescan the review requests
     # after each pass. The Settings button runs the same pass by hand.
     cache_task = asyncio.create_task(_ghx_cache_forever())
+    # DM the reviewers of the user's unreviewed pull requests on their schedule.
+    auto_poke_task = asyncio.create_task(_review_auto_poke_forever())
     # Fire the user-defined scheduled tasks whose time has come.
     schedule_task = asyncio.create_task(scheduler_loop())
     # Fire the execution graphs whose cron time has come.
@@ -210,12 +240,15 @@ async def lifespan(app: FastAPI):
     graphs_shutdown()
     refresh_task.cancel()
     cache_task.cancel()
+    auto_poke_task.cancel()
     schedule_task.cancel()
     graph_schedule_task.cancel()
     with suppress(asyncio.CancelledError):
         await refresh_task
     with suppress(asyncio.CancelledError):
         await cache_task
+    with suppress(asyncio.CancelledError):
+        await auto_poke_task
     with suppress(asyncio.CancelledError):
         await schedule_task
     with suppress(asyncio.CancelledError):

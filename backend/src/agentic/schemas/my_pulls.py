@@ -28,6 +28,9 @@ class MyPullRead(BaseModel):
     url: str = ""
     draft: bool = False
     created_at: str | None = None
+    # When the pull request was last marked ready for review, from ghx's
+    # timeline; None when it was opened ready (fall back to created_at).
+    ready_for_review_at: str | None = None
     updated_at: str | None = None
     # GitHub's review decision (APPROVED / CHANGES_REQUESTED / REVIEW_REQUIRED),
     # or "" when no review has decided it.

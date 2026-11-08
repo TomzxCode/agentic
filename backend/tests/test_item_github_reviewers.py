@@ -1,6 +1,7 @@
 """A PR item's GitHub reviewers, and the Slack poke that asks for a review."""
 
 import json
+from datetime import UTC, datetime, timedelta
 
 from fastapi.testclient import TestClient
 
@@ -82,6 +83,29 @@ def test_fetch_pull_reviewers_marks_a_re_requested_reviewer_pending(monkeypatch)
     ]
 
 
+def test_fetch_pull_reviewers_leaves_the_author_out(monkeypatch):
+    payload = json.dumps(
+        {
+            "author": {"login": "alice"},
+            "reviews": [
+                {"state": "COMMENTED", "submittedAt": "2026-01-01T00:00:00Z", "author": {"login": "alice"}},
+                {"state": "APPROVED", "submittedAt": "2026-01-02T00:00:00Z", "author": {"login": "bob"}},
+            ],
+            "reviewRequests": [
+                {"type": "User", "login": "alice"},
+                {"type": "User", "login": "carol"},
+            ],
+        }
+    )
+    monkeypatch.setattr(shell, "_run_cli", lambda cmd, timeout=60: payload)
+    # The author cannot be poked on their own pull request, whether they left a
+    # review or GitHub still lists them as a requested reviewer.
+    assert github.fetch_github_pull_reviewers("acme", "api", 42) == [
+        {"login": "bob", "state": "APPROVED", "submitted_at": "2026-01-02T00:00:00Z", "requested": False},
+        {"login": "carol", "state": "PENDING", "submitted_at": None, "requested": True},
+    ]
+
+
 def test_fetch_pull_reviewers_reads_through_ghx(monkeypatch):
     seen = []
 
@@ -109,7 +133,11 @@ def test_github_reviewers_endpoint_lists_reviews(monkeypatch):
         assert body["error"] is None
 
         issue = client.post("/api/items", json={"url": "https://github.com/acme/api/issues/7", "fetch": False}).json()
-        assert client.get(f"/api/items/{issue['id']}/reviewers").json() == {"reviewers": [], "error": None}
+        assert client.get(f"/api/items/{issue['id']}/reviewers").json() == {
+            "reviewers": [],
+            "next_poke_at": None,
+            "error": None,
+        }
 
         client.delete(f"/api/items/{item['id']}")
         client.delete(f"/api/items/{issue['id']}")
@@ -227,7 +255,87 @@ def test_url_reviewers_endpoint_lists_reviews(monkeypatch):
         body = client.get("/api/github/pull/reviewers", params={"url": "https://github.com/acme/api/pull/42"}).json()
         assert [review["login"] for review in body["reviewers"]] == ["alice", "bob", "carol"]
         assert body["reviewers"][2]["requested"] is True
+        assert body["next_poke_at"] is None
         assert body["error"] is None
+
+
+def test_url_reviewers_endpoint_reports_the_next_auto_poke(monkeypatch):
+    created = datetime.now(UTC) - timedelta(hours=1)
+    payload = json.dumps(
+        {
+            "number": 42,
+            "createdAt": created.isoformat(),
+            "isDraft": False,
+            "state": "OPEN",
+            "author": {"login": "tomzx"},
+            "reviews": [],
+            "reviewRequests": [{"type": "User", "login": "carol"}],
+            "timeline": [],
+        }
+    )
+    monkeypatch.setattr(shell, "_run_cli", lambda cmd, timeout=60: payload)
+    with TestClient(app) as client:
+        client.patch("/api/settings", json={"review_auto_poke": "24h", "github_login": "tomzx"})
+        try:
+            body = client.get(
+                "/api/github/pull/reviewers", params={"url": "https://github.com/acme/api/pull/42"}
+            ).json()
+            assert body["next_poke_at"] is not None
+            assert datetime.fromisoformat(body["next_poke_at"]) == created + timedelta(hours=24)
+        finally:
+            client.patch("/api/settings", json={"review_auto_poke": "", "github_login": ""})
+
+
+def test_url_reviewers_endpoint_has_no_next_auto_poke_for_a_closed_pr(monkeypatch):
+    created = datetime.now(UTC) - timedelta(hours=1)
+    payload = json.dumps(
+        {
+            "number": 42,
+            "createdAt": created.isoformat(),
+            "isDraft": False,
+            "state": "CLOSED",
+            "author": {"login": "tomzx"},
+            "reviews": [],
+            "reviewRequests": [{"type": "User", "login": "carol"}],
+            "timeline": [],
+        }
+    )
+    monkeypatch.setattr(shell, "_run_cli", lambda cmd, timeout=60: payload)
+    with TestClient(app) as client:
+        client.patch("/api/settings", json={"review_auto_poke": "24h", "github_login": "tomzx"})
+        try:
+            body = client.get(
+                "/api/github/pull/reviewers", params={"url": "https://github.com/acme/api/pull/42"}
+            ).json()
+            assert body["next_poke_at"] is None
+        finally:
+            client.patch("/api/settings", json={"review_auto_poke": "", "github_login": ""})
+
+
+def test_url_reviewers_endpoint_has_no_next_auto_poke_for_another_author(monkeypatch):
+    created = datetime.now(UTC) - timedelta(hours=1)
+    payload = json.dumps(
+        {
+            "number": 42,
+            "createdAt": created.isoformat(),
+            "isDraft": False,
+            "state": "OPEN",
+            "author": {"login": "carol"},
+            "reviews": [],
+            "reviewRequests": [{"type": "User", "login": "carol"}],
+            "timeline": [],
+        }
+    )
+    monkeypatch.setattr(shell, "_run_cli", lambda cmd, timeout=60: payload)
+    with TestClient(app) as client:
+        client.patch("/api/settings", json={"review_auto_poke": "24h", "github_login": "tomzx"})
+        try:
+            body = client.get(
+                "/api/github/pull/reviewers", params={"url": "https://github.com/acme/api/pull/42"}
+            ).json()
+            assert body["next_poke_at"] is None
+        finally:
+            client.patch("/api/settings", json={"review_auto_poke": "", "github_login": ""})
 
 
 def test_url_reviewers_endpoint_reports_a_failed_read(monkeypatch):
@@ -277,6 +385,45 @@ def test_url_poke_sends_the_review_request(monkeypatch):
             "<https://github.com/acme/api/pull/42|Fix the parser>"
         )
         client.delete(f"/api/people/{person}")
+
+
+def test_url_poke_renders_the_configured_manual_message(monkeypatch):
+    now = datetime(2026, 11, 8, 12, 0, tzinfo=UTC)
+    monkeypatch.setattr(
+        "agentic.reviewer_pokes.fetch_github_pull_review_reference",
+        lambda owner, repo, number: now - timedelta(days=1, hours=6),
+    )
+    monkeypatch.setattr("agentic.reviewer_pokes.utcnow", lambda: now)
+    sent: dict = {}
+
+    def fake_send(user_id, text, **kwargs):
+        sent["text"] = text
+        return {"ok": True, "ts": "1.0"}
+
+    monkeypatch.setattr(review_pokes, "slack_send_dm", fake_send)
+    with TestClient(app) as client:
+        client.patch(
+            "/api/settings",
+            json={"review_nudge_slo": "1d", "review_poke_message": "SLO {slo}; age {elapsed}; {link}"},
+        )
+        person = client.post(
+            "/api/people",
+            json={"name": "Alice Manual", "aliases": ["alice-manual", "U0MANUAL1"]},
+        ).json()["id"]
+        try:
+            body = client.post(
+                "/api/github/pull/poke",
+                json={
+                    "url": "https://github.com/acme/api/pull/42",
+                    "title": "Fix the parser",
+                    "login": "alice-manual",
+                },
+            ).json()
+            assert body["name"] == "Alice Manual"
+            assert sent["text"] == ("SLO 1d; age 1d 6h; <https://github.com/acme/api/pull/42|Fix the parser>")
+        finally:
+            client.patch("/api/settings", json={"review_nudge_slo": "", "review_poke_message": ""})
+            client.delete(f"/api/people/{person}")
 
 
 def test_url_poke_rejects_an_issue_url():

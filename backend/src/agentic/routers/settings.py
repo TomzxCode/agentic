@@ -9,6 +9,8 @@ from ..db import get_session
 from ..diagnostics import collect_diagnostics
 from ..ghx_cache import cache_interval, run_ghx_cache_refresh
 from ..refresh import POLICY_SETTING_KEYS, PolicyError, describe_policy, parse_policy
+from ..review_auto_poke import parse_auto_poke
+from ..review_messages import validate_message_template
 from ..review_scan import slo_interval
 from ..schemas.settings import (
     DiagnosticsRead,
@@ -91,6 +93,20 @@ def patch_settings(payload: SettingsUpdate, session: Session = Depends(get_sessi
             status_code=422,
             detail="review_nudge_slo: use a duration such as 1h30m or 1d, or leave it blank to turn it off",
         )
+    auto_poke = values.get("review_auto_poke")
+    if auto_poke is not None and auto_poke.strip():
+        try:
+            parse_auto_poke(auto_poke)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=f"review_auto_poke: {exc}") from exc
+    for key in ("review_auto_poke_message", "review_poke_message"):
+        message = values.get(key)
+        if message is None:
+            continue
+        try:
+            validate_message_template(message)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=f"{key}: {exc}") from exc
     prompts = values.get("agent_prompts")
     if prompts is not None:
         try:

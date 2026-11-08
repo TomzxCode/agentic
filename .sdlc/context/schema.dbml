@@ -527,6 +527,25 @@ Table reviewrequest {
   }
 }
 
+// How many scheduled auto-poke rounds a pull request has already had. One row
+// per pull request the auto-poke job is poking; it is kept when the pull
+// request leaves the set, so a read that omits it for a tick does not reset it.
+Table reviewautopoke {
+  id varchar [pk]
+  repository varchar [not null] // "owner/name", lowercased
+  number integer [not null]
+  schedule varchar [not null, default: ''] // the schedule text the rounds were counted against
+  poked_rounds integer [not null, default: 0] // rounds delivered, missed rounds collapsed
+  last_poked_at datetime
+  anchor_at datetime // when the current schedule started for this pull request
+  updated_at datetime [not null]
+
+  Indexes {
+    repository
+    (repository, number) [unique, name: 'uq_review_auto_poke']
+  }
+}
+
 // The event bus: an inbound webhook URL, the execution graphs it feeds, the
 // stored deliveries, and what each delivery did to each workflow.
 Table webhookendpoint {

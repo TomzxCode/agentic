@@ -105,7 +105,7 @@ A manual item has no template and always applies.
 | `GET` | `/api/items/{id}/path` | Read a path item's current file preview or directory listing. The read does not write the content back to the item. |
 | `GET` | `/api/items/{id}/reviews` | List the review reports a pull request item has on disk. |
 | `GET` | `/api/items/{id}/reviews/{name}` | Read one review report. |
-| `GET` | `/api/items/{id}/reviewers` | The PR's reviewers and pending review requests, one row each, read live from GitHub through `ghx`. |
+| `GET` | `/api/items/{id}/reviewers` | The PR's reviewers and pending review requests, one row each, read live from GitHub through `ghx`, plus `next_poke_at` when the review auto-poke schedule has a next round. |
 | `POST` | `/api/items/{id}/poke` | Send a reviewer a Slack DM asking for their review. The body is `{"login": "<github login>"}`. |
 | `GET` / `POST` | `/api/repositories` | List and create registered repositories. The listing re-reads each checkout's `origin` and adopts a changed remote and derived name. |
 | `POST` | `/api/repositories/bulk` | Add several repositories at once. |
@@ -233,7 +233,7 @@ Both inbound routes answer `202` with the stored event id, its type, and one del
 | `GET` | `/api/github/issues` | Issue picker for import. |
 | `POST` | `/api/github/issues` | Create an issue from a title and body. |
 | `GET` | `/api/github/issue` | One issue by URL. |
-| `GET` | `/api/github/pull/reviewers` | A pull request's reviewers, read from its `?url=` the way the item read does. Backs the standalone pull request page, which has no stored item to address. |
+| `GET` | `/api/github/pull/reviewers` | A pull request's reviewers, read from its `?url=` the way the item read does, plus `next_poke_at` when the review auto-poke schedule has a next round. Backs the standalone pull request page, which has no stored item to address. |
 | `POST` | `/api/github/pull/poke` | Send a reviewer a Slack DM asking for their review, addressed by URL. The body is `{"url": "...", "title": "...", "login": "<github login>"}`. |
 | `GET` | `/api/github/repository` | A repository's issues and pull requests (via `ghx`), all states by default, read from ghx's cache. The cache is refreshed by a background job, never by this endpoint, so it never waits on a delta fetch. |
 | `GET` | `/api/slack/users` | Name the Slack user ids given (via `slackx`), fetching an uncached user from Slack. |

@@ -45,6 +45,9 @@ OVERRIDABLE_KEYS = (
     "review_scan_default",
     "review_slo",
     "review_nudge_slo",
+    "review_auto_poke",
+    "review_auto_poke_message",
+    "review_poke_message",
     "agent_prompts",
     "on_call_channel",
     "on_call_config",
@@ -108,6 +111,9 @@ def env_defaults() -> dict[str, str]:
         "review_scan_default": settings.review_scan_default,
         "review_slo": settings.review_slo,
         "review_nudge_slo": settings.review_nudge_slo,
+        "review_auto_poke": settings.review_auto_poke,
+        "review_auto_poke_message": settings.review_auto_poke_message,
+        "review_poke_message": settings.review_poke_message,
         "agent_prompts": json.dumps(DEFAULT_AGENT_PROMPTS),
     }
 

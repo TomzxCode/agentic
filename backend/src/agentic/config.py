@@ -210,6 +210,21 @@ class Settings(BaseSettings):
     # reviewers. A duration such as "1h30m" or "1d"; empty disables it. The wait
     # runs from when GitHub says the pull request was opened.
     review_nudge_slo: str = ""
+    # The review auto-poke schedule: comma-separated ages since a pull request
+    # was last marked ready for review (or opened when it never was), at which
+    # to DM its requested reviewers automatically. The last entry may carry
+    # "+<step>" to repeat, e.g. "24h,26h,28h" or "24h+1h". Empty disables it.
+    review_auto_poke: str = ""
+    # The message the auto-poke job sends. Variables: {link}, {url}, {title},
+    # {slo}, and {elapsed}. Empty uses
+    # ":wave::robot_face: I would love your review on this PR: {link}".
+    review_auto_poke_message: str = ""
+    # The message a manual poke sends. Same variables as the auto-poke message;
+    # {slo} is the review nudge SLO and {elapsed} the pull request's age.
+    review_poke_message: str = ""
+    # How often (seconds) the auto-poke job checks for a due round. 0 disables
+    # the loop, leaving the setting with no effect.
+    review_auto_poke_tick: int = 60
 
     # Where application logs are written. Empty uses <data_dir>/logs/agentic.log.
     # Set to a path to override, or to "none"/"off" to disable file logging.

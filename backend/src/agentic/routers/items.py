@@ -16,6 +16,7 @@ from ..models.items import Association, ItemPerson, SourceItem
 from ..refresh import (
     policies_from_settings,
 )
+from ..review_auto_poke import next_poke_at
 from ..reviews import list_report_files, read_report, review_dir
 from ..schemas.items import (
     ItemCreate,
@@ -31,7 +32,7 @@ from ..schemas.items import (
     ItemUpdate,
 )
 from ..schemas.settings import RefreshDueReport
-from ..services.github import fetch_github_pull_reviewers
+from ..services.github import fetch_github_pull_reviewers_with_record, pull_row_from_record
 from ..services.parsing import looks_like_url, parse_github, parse_path
 from ..services.slack import slack_ts_after, slack_ts_datetime
 from ..services.sources import fetch_source, infer_item_source, read_path
@@ -368,12 +369,16 @@ def list_item_github_reviewers(item_id: str, session: Session = Depends(get_sess
     location = _pull_request_location(item)
     if location is None:
         return ItemGithubReviewers()
-    reviews = fetch_github_pull_reviewers(*location)
-    if reviews is None:
+    result = fetch_github_pull_reviewers_with_record(*location)
+    if result is None:
         return ItemGithubReviewers(
             error="Could not read this pull request's reviewers (is `ghx` installed and authenticated?)"
         )
-    return ItemGithubReviewers(reviewers=[ItemGithubReviewer.model_validate(review) for review in reviews])
+    pull = pull_row_from_record(result.record, f"{location[0]}/{location[1]}")
+    return ItemGithubReviewers(
+        reviewers=[ItemGithubReviewer.model_validate(review) for review in result.reviewers],
+        next_poke_at=next_poke_at(session, pull),
+    )
 
 
 @router.post("/{item_id}/poke", response_model=ItemPoke)

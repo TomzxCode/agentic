@@ -522,6 +522,37 @@ describe('ItemDetailView', () => {
     expect(rows.map((row) => row.get('.review-poke').text())).toEqual(['👉', '👉', '👉'])
   })
 
+  it('shows when the reviewers will next be auto-poked', async () => {
+    mocks.itemsGet.mockResolvedValue(item({ url: 'https://github.com/acme/api/pull/42', kind: 'pull_request' }))
+    const next = new Date(Date.now() + 5 * 60 * 60 * 1000 + 60 * 1000).toISOString()
+    mocks.reviewersGet.mockResolvedValue({
+      reviewers: [{ login: 'alice', state: 'PENDING', submitted_at: null, requested: true }],
+      next_poke_at: next,
+      error: null
+    })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    const line = wrapper.get('.auto-poke-next').text()
+    expect(line).toContain('Next auto-poke in')
+    expect(line).toContain('5h')
+  })
+
+  it('says the auto-poke is due now once its round has passed', async () => {
+    mocks.itemsGet.mockResolvedValue(item({ url: 'https://github.com/acme/api/pull/42', kind: 'pull_request' }))
+    mocks.reviewersGet.mockResolvedValue({
+      reviewers: [{ login: 'alice', state: 'PENDING', submitted_at: null, requested: true }],
+      next_poke_at: new Date(Date.now() - 1000).toISOString(),
+      error: null
+    })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(wrapper.get('.auto-poke-next').text()).toBe('Auto-poke due now')
+  })
+
   it('pokes a reviewer through Slack and reports who was reached', async () => {
     mocks.itemsGet.mockResolvedValue(item({ url: 'https://github.com/acme/api/pull/42', kind: 'pull_request' }))
     mocks.reviewersGet.mockResolvedValue({

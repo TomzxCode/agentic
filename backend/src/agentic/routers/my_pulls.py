@@ -26,6 +26,7 @@ from ..models.base import utcnow
 from ..models.items import Association, SourceItem
 from ..models.tasks import Task
 from ..my_pulls import fetch_my_pull_checks, fetch_my_pulls, known_github_repositories
+from ..reviewer_pokes import poke_reviewers
 from ..schemas.my_pulls import (
     MyPullChecksRead,
     MyPullPokeFailure,
@@ -35,10 +36,7 @@ from ..schemas.my_pulls import (
     MyPullsRead,
     MyPullTask,
 )
-from ..services.github import pr_review_request_message
-from ..services.slack import SlackError, resolve_slack_user_id, slack_send_dm
 from ..settings_store import resolve_github_login
-from .people_service import person_aliases, person_for_alias
 
 router = APIRouter(prefix="/api/my-pulls", tags=["my-pulls"])
 
@@ -158,39 +156,11 @@ def poke_my_pull_reviewers(payload: MyPullPokeRequest, session: Session = Depend
     if not logins:
         raise HTTPException(status_code=400, detail="Provide at least one reviewer's GitHub login")
     url = payload.url.strip() or f"https://github.com/{payload.repository}/pull/{payload.number}"
-    message = pr_review_request_message(url, payload.title)
-
-    poked: list[MyPullPokeSent] = []
-    failed: list[MyPullPokeFailure] = []
-
-    def unreachable(login: str, reason: str) -> None:
-        failed.append(MyPullPokeFailure(login=login, reason=reason))
-
-    for login in logins:
-        person = person_for_alias(session, login)
-        if person is None:
-            unreachable(
-                login,
-                f"No person carries the GitHub login @{login}. Create them in People with that login, then poke again.",
-            )
-            continue
-        slack_user_id = resolve_slack_user_id(person_aliases(session, person.id))
-        if slack_user_id is None:
-            unreachable(
-                login,
-                f"{person.name} has no Slack user id or handle among their aliases. "
-                "Add one on their person page, then poke again.",
-            )
-            continue
-        try:
-            # The PR link is the whole message, so no preview: the DM stays one line.
-            sent = slack_send_dm(slack_user_id, message, unfurl=False)
-        except SlackError as exc:
-            unreachable(login, str(exc))
-            continue
-        ts = str(sent["ts"]) if sent.get("ts") else None
-        poked.append(MyPullPokeSent(login=login, name=person.name, slack_user_id=slack_user_id, ts=ts))
-    return MyPullPokeRead(poked=poked, failed=failed)
+    outcome = poke_reviewers(session, url=url, title=payload.title, logins=logins)
+    return MyPullPokeRead(
+        poked=[MyPullPokeSent(**row) for row in outcome.poked],
+        failed=[MyPullPokeFailure(**row) for row in outcome.failed],
+    )
 
 
 __all__ = ["router"]

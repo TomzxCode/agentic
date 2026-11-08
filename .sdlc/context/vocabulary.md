@@ -53,6 +53,9 @@
 | Review queue | The pull requests awaiting the user's review: the stored review-skill reports enriched with each pull request's own fields from ghx, cached briefly. |
 | Review SLO | A duration a pull request may await the user's review before the inbox flags it, measured from when the review scan first saw it waiting. |
 | Review nudge SLO | A duration a pull request authored by the user may wait without any review from anyone before the inbox offers to poke its reviewers, measured from when the pull request was opened. |
+| Review auto-poke | A comma-separated schedule of absolute ages at which the app DMs the requested reviewers of the user's unreviewed pull requests without being asked, counted from when the pull request was last marked ready for review (or opened when it never was a draft). A `+` repeats on the SLO's clock, `+~` repeats after each poke, `now+` starts immediately, and `next+` skips the immediate round. |
+| Auto-poke message | The Slack DM text the review auto-poke sends, with the `{link}`, `{url}`, `{title}`, `{slo}`, and `{elapsed}` variables. `{slo}` is the triggering age; `{elapsed}` is the pull request's age since opened or last ready for review. |
+| Poke message | The Slack DM text a manual review poke sends, with the same variables; `{slo}` is the review nudge SLO. |
 | Review scan | The GitHub search that finds pull requests awaiting the user's review (`review-requested:@me` and `reviewed-by:@me`), so the queue can show them before any review report exists. |
 | Scheduled task | A user-defined shell command the scheduler runs when its 5-field cron expression is due; each execution is recorded as a `ScheduledTaskRun` with its exit code and output tail. |
 | Session link | A way to reopen an agent session: an OpenChamber URL, a terminal URL, or a copyable resume command. |

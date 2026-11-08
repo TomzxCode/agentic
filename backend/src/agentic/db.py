@@ -425,6 +425,11 @@ def _ensure_columns() -> None:
                 connection.execute(
                     text("ALTER TABLE reviewrequest ADD COLUMN review_scope VARCHAR NOT NULL DEFAULT 'me'")
                 )
+    if "reviewautopoke" in inspector.get_table_names():
+        auto_poke_columns = {column["name"] for column in inspector.get_columns("reviewautopoke")}
+        if "anchor_at" not in auto_poke_columns:
+            with engine.begin() as connection:
+                connection.execute(text("ALTER TABLE reviewautopoke ADD COLUMN anchor_at DATETIME"))
     if "repository" in inspector.get_table_names():
         repository_columns = {column["name"] for column in inspector.get_columns("repository")}
         if "review_scan" not in repository_columns:

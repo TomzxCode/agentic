@@ -7,7 +7,7 @@ from typing import Any
 
 from pydantic import BaseModel
 
-from .base import ORMModel
+from .base import ORMModel, UtcDateTime
 
 
 class ItemCreate(BaseModel):
@@ -133,9 +133,12 @@ class ItemGithubReviewers(BaseModel):
 
     ``error`` names a read that could not run (``gh`` missing or not
     authenticated) instead of letting an empty list read as "no reviewers".
+    ``next_poke_at`` is the next round the review auto-poke job has scheduled
+    for this pull request, or None when it is off or has no round left.
     """
 
     reviewers: list[ItemGithubReviewer] = []
+    next_poke_at: UtcDateTime | None = None
     error: str | None = None
 
 

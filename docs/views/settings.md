@@ -114,7 +114,13 @@ Which repositories it considers is set under **GitHub**.
 
 `Review SLO` is how long a pull request may await your review before the inbox flags it, such as `8h` or `1d`; blank turns it off.
 `Review nudge SLO` is how long a pull request of yours may wait without any review from anyone before the inbox offers to poke its reviewers, such as `1h30m` or `1d`; blank turns it off.
-Both accept a combination of units (`1h30m`).
+`Review auto-poke` is a comma-separated list of absolute ages at which to DM those reviewers without waiting for the inbox: `24h,26h,28h` pokes at those ages and stops.
+A last entry with `+` repeats: without `~` it stays on the SLO's own clock (`24h+1h`, `now+1h`, `next+1h`), and with `~` it waits that interval after each poke (`24h+~1h`, `now+~1h`, `next+~1h`).
+`now+` pokes immediately, while `next+` skips the immediate poke and uses the next boundary (or, with `~`, one interval from now).
+The ages count from when the pull request was last marked ready for review, or from when it was opened if it never was a draft; blank turns auto-poking off.
+`Auto-poke message` is the DM text. It defaults to `:wave::robot_face: I would love your review on this PR: {link}` and accepts `{link}` (the pull request as a Slack link), `{url}`, `{title}`, `{slo}` (the age that triggered the poke, such as `1d`), and `{elapsed}` (the pull request's age since it was opened or last marked ready for review, such as `1d 6h`).
+`Poke message` is the same for a manual poke; its `{slo}` is the review nudge SLO, and a blank uses the same default.
+Both SLOs accept a combination of units (`1h30m`).
 
 The queue the scan feeds is the [Review queue](reviews.md).
 

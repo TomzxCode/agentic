@@ -60,6 +60,10 @@ The Slack credentials keep the names `slackx` uses (`SLACK_TOKEN`, `SLACK_COOKIE
 | `AGENTIC_REVIEW_SCAN_EXCLUDE_AUTHORS` | `dependabot[bot]` | Comma-separated logins the review scan leaves out of its results. |
 | `AGENTIC_REVIEW_SLO` | (empty) | How long a pull request may await your review before the inbox flags it and the review queue highlights it. A duration such as `8h` or `1d`; empty disables it. Measured from when the pull request was last marked ready for review, falling back to when the scan first saw it waiting when the timeline has no such event. |
 | `AGENTIC_REVIEW_NUDGE_SLO` | (empty) | How long a pull request of yours may wait without any review from anyone before the inbox offers to poke its reviewers on Slack. A duration such as `1h30m` or `1d`; empty disables it. Measured from when the pull request was opened. |
+| `AGENTIC_REVIEW_AUTO_POKE` | (empty) | Absolute ages at which to DM the requested reviewers of your unreviewed pull requests automatically, such as `24h,26h,28h`. A `+` repeats on the SLO's clock; `+~` repeats after each poke; `now+` starts immediately and `next+` skips the immediate round. Empty disables it. |
+| `AGENTIC_REVIEW_AUTO_POKE_MESSAGE` | (empty) | The auto-poke DM text. Variables: `{link}`, `{url}`, `{title}`, `{slo}` (the triggering age), and `{elapsed}` (the pull request's age since opened or last ready for review). Empty uses the default wave message. |
+| `AGENTIC_REVIEW_POKE_MESSAGE` | (empty) | The manual poke DM text, with the same variables. `{slo}` is the review nudge SLO. Empty uses the default wave message. |
+| `AGENTIC_REVIEW_AUTO_POKE_TICK` | `60` | Seconds between checks for a due auto-poke round. `0` disables the loop. |
 | `AGENTIC_SCHEDULED_TASK_TICK` | `30` | Seconds between checks for scheduled shell tasks that are due. `0` disables the loop. |
 | `AGENTIC_SCHEDULED_TASK_TIMEOUT` | `3600` | Seconds a scheduled shell task may run before it is stopped and marked failed. |
 
@@ -94,6 +98,11 @@ The job uses a delta fetch for a repository whose cache is warm and a full histo
 After a pass that refreshed a repository, the job runs the review scan, so the review queue's stored set follows the same cadence.
 
 The review scan's SLOs are editable under **Settings → Review requests**: the review SLO (`review_slo`) and the review nudge SLO (`review_nudge_slo`).
+The review auto-poke schedule (`review_auto_poke`) sits beside them: comma-separated absolute ages at which the requested reviewers of the user's unreviewed pull requests are DMed automatically, such as `24h,26h,28h`.
+A repeat without `~` stays on the SLO's clock (`24h+1h`); `+~` waits that interval after each poke (`24h+~1h`). `now+` starts immediately, `next+` skips the immediate round, and the SLO's start time is the pull request's opening or last ready-for-review time.
+The auto-poke message (`review_auto_poke_message`) accepts `{link}`, `{url}`, `{title}`, `{slo}`, and `{elapsed}`; blank uses the default wave message.
+The manual poke message (`review_poke_message`) uses the same variables, with the review nudge SLO as `{slo}`.
+Its background tick is `AGENTIC_REVIEW_AUTO_POKE_TICK` (60 seconds by default; 0 disables the loop).
 Which repositories it considers is set under **Settings → GitHub**: `review_scan_default`, and a per-repository `review_scan` choice.
 The scan covers reviews requested from a team you belong to through ghx's `@me` expansion, which reads the team memberships `ghx cache` records.
 Each registered repository can also be set to include or exclude on its own.
