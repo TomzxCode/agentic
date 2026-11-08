@@ -18,7 +18,7 @@ dependencies = [
     "saq[sqlite]",
     "scalar-fastapi>=1.9.1",
     "croniter>=6.2.4",
-    "tzlocal>=5.4.4",
+    "tzlocal>=5.4.5",
     "pyyaml>=6.0.3",
 ]
 
