@@ -181,6 +181,19 @@ describe('groupQueueByRepository', () => {
     expect(groups[0].prs.map((pr) => pr.number)).toEqual([2, 1])
   })
 
+  it('groups one repository once when its casing differs across rows', () => {
+    const groups = groupQueueByRepository([
+      { repository: 'Shopify/davies', number: 2 },
+      { repository: 'shopify/davies', number: 1 }
+    ])
+    expect(groups).toEqual([
+      {
+        repository: 'Shopify/davies',
+        prs: [expect.objectContaining({ number: 2 }), expect.objectContaining({ number: 1 })]
+      }
+    ])
+  })
+
   it('returns nothing for an empty queue', () => {
     expect(groupQueueByRepository([])).toEqual([])
     expect(groupQueueByRepository(undefined)).toEqual([])
@@ -411,6 +424,11 @@ describe('repository filter', () => {
       { value: 'TomzxCode/agentic', count: 2 }
     ])
     expect(repositoriesWithCounts(undefined)).toEqual([])
+  })
+
+  it('counts one repository once when its casing differs across rows', () => {
+    const repositories = repositoriesWithCounts([pr('Shopify/davies'), pr('shopify/davies'), pr('Shopify/davies')])
+    expect(repositories).toEqual([{ value: 'Shopify/davies', count: 3 }])
   })
 
   it('matches a row against one or more repositories, case-insensitively', () => {

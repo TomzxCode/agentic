@@ -413,17 +413,20 @@ export function matchesAuthorFilter(pr, value) {
 // The distinct repositories in a row list (the review queue or My PRs), each
 // with the number of rows it carries, ordered by name case-insensitively. Rows
 // with no repository are left out of the list: they match only the unfiltered
-// list.
+// list. Repositories are keyed by lowercased name, since the review store and
+// the GitHub scan can disagree on owner casing ("Shopify/davies" and
+// "shopify/davies"); the first casing seen is the one listed.
 export function repositoriesWithCounts(prs) {
   const counts = new Map()
   for (const pr of prs || []) {
     const repository = String(pr?.repository || '').trim()
     if (!repository) continue
-    counts.set(repository, (counts.get(repository) || 0) + 1)
+    const key = repository.toLowerCase()
+    const entry = counts.get(key)
+    if (entry) entry.count += 1
+    else counts.set(key, { value: repository, count: 1 })
   }
-  return [...counts.entries()]
-    .map(([value, count]) => ({ value, count }))
-    .sort((a, b) => a.value.toLowerCase().localeCompare(b.value.toLowerCase()))
+  return [...counts.values()].sort((a, b) => a.value.toLowerCase().localeCompare(b.value.toLowerCase()))
 }
 
 // Whether a row matches the repository filter. An empty selection matches every
@@ -445,14 +448,22 @@ export function matchesRepositoryFilter(pr, value) {
 }
 
 // The queue grouped by repository, repositories in name order and the PRs in
-// each group newest first (the API already orders them that way).
+// each group newest first (the API already orders them that way). Grouping is
+// case-insensitive so one repository does not split into two sections when the
+// review store and the GitHub scan disagree on owner casing; the first casing
+// seen names the group.
 export function groupQueueByRepository(prs) {
   const groups = new Map()
   for (const pr of prs || []) {
-    if (!groups.has(pr.repository)) groups.set(pr.repository, [])
-    groups.get(pr.repository).push(pr)
+    const key = String(pr.repository || '').toLowerCase()
+    let group = groups.get(key)
+    if (!group) {
+      group = { repository: pr.repository, prs: [] }
+      groups.set(key, group)
+    }
+    group.prs.push(pr)
   }
-  return [...groups.entries()].map(([repository, repositoryPrs]) => ({ repository, prs: repositoryPrs }))
+  return [...groups.values()]
 }
 
 // A commit as the short form the table shows.
