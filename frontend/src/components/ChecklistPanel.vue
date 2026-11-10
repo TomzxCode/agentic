@@ -174,8 +174,9 @@ async function saveText(item, value) {
   }
 }
 
-// Turn the item into a child task. The item stays in the checklist, done and
-// linked to the new task, so the step is not lost.
+// Turn the item into a child task. The item stays in the checklist, open and
+// linked to the new task, so the step is not lost and its completion stays
+// yours to record.
 async function convert(item) {
   if (converting.value || item.converted_task_id) return
   converting.value = item.id

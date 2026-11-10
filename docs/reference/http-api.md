@@ -42,7 +42,7 @@ The task detail (`GET /api/tasks/{id}`) also returns `checklist`, a list of the 
 | `POST` | `/api/tasks/{id}/checklist/apply` | Add missing items from templates already applied to the task. |
 | `POST` | `/api/tasks/{id}/checklist/reorder` | Apply a new display order; the body is `{"item_ids": [...]}` in the wanted order. Listed items get positions `0..n-1`, unlisted ones keep their relative order after them, and ids from another task are ignored. |
 | `PATCH` / `DELETE` | `/api/tasks/{id}/checklist/{item_id}` | Check or uncheck, rename, or remove an item. |
-| `POST` | `/api/tasks/{id}/checklist/{item_id}/convert` | Turn an item into a child task. The item stays, done, and carries `converted_task_id` and `converted_task_title`; the new task inherits the parent's group, harness, and repositories. |
+| `POST` | `/api/tasks/{id}/checklist/{item_id}/convert` | Turn an item into a child task. The item stays, open, and carries `converted_task_id` and `converted_task_title`; the new task inherits the parent's group, harness, and repositories. |
 
 A template has a `name`, an optional `description`, a list of `rules`, and a list of `items`.
 Every rule must match for the template to apply.

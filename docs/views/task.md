@@ -39,7 +39,7 @@ It is also the page that drives the agent, so the prompt, the worktree, and the 
 | Panel | What it does |
 | --- | --- |
 | Description | Markdown body. `✎ Edit` opens the editor; links and `<details>` inside it stay clickable. |
-| Checklist | The items from the checklists that matched the task, the agent's proposed actions, plus your own. Tick one to complete it, drag the `⠿` handle to reorder them, click its text to rename it, `+` turns it into a child task, and `✕` removes it. A converted item stays, done, and links to its task. An item whose checklist no longer matches stays visible but disabled. |
+| Checklist | The items from the checklists that matched the task, the agent's proposed actions, plus your own. Tick one to complete it, drag the `⠿` handle to reorder them, click its text to rename it, `+` turns it into a child task, and `✕` removes it. A converted item stays, open, and links to its task. An item whose checklist no longer matches stays visible but disabled. |
 | Context | The agent-written `summary`. `↻ Refresh with agent` starts a context run that also proposes actions for the task's checklist, skipping items already there or removed by hand. `↻ Name & summarize` appears when a Slack item is linked. |
 | Notes | Short notes, added with `Add note` or `Ctrl/Cmd+Enter`, edited in place, removed with `✕`. |
 | Items | Paste a Slack, GitHub, or Drive link (the source is inferred), add a title and a note, then `Associate` or press `Enter` in any field (`Ctrl/Cmd+Enter` in the pasted-content box). Each row can be refreshed, expanded, unlinked, marked `Done` or `Reopen` (Slack), and opens in ghx or slackx when those URLs are configured. |
@@ -62,7 +62,7 @@ Drag an item's `⠿` handle to move it, or focus the handle and press `↑` / `�
 `Add` at the bottom of the panel adds an item to this task only.
 `Refresh with agent` adds the agent's proposed actions to this task's checklist: an item already present is not duplicated, a completed item keeps its state, and an item you removed is not proposed again unless you add its text back.
 `Apply now` in Settings adds any missing items from a template to the tasks it currently matches.
-`+` converts an item into a full task: the item is marked done, links to the new task, and the new task appears under this task's `children` links.
+`+` converts an item into a full task: the item links to the new task and keeps its own done state, and the new task appears under this task's `children` links.
 The converted item's text shows the task title, so editing it renames the task.
 The new task inherits the parent's group, harness, and repositories, and picks up any checklist templates it matches.
 

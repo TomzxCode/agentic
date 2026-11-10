@@ -434,10 +434,10 @@ def test_convert_checklist_item_into_a_child_task(tmp_path):
         assert created["title"] == "Write the release note"
         assert created["repository_ids"] == [repo["id"]]
 
-        # The item stays, done, and points at the new task.
+        # The item stays, open, and points at the new task.
         items = _checklist(client, task["id"])
         assert len(items) == 1
-        assert items[0]["done"] is True
+        assert items[0]["done"] is False
         assert items[0]["converted_task_id"] == created["id"]
         assert items[0]["converted_task_title"] == created["title"]
 

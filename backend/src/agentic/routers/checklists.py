@@ -219,10 +219,10 @@ async def update_checklist_item(
 async def convert_checklist_item(task_id: str, item_id: str, session: Session = Depends(get_session)) -> TaskRead:
     """Turn a checklist item into a task that is a child of this one.
 
-    The item stays in the checklist, marked done and linked to its task, so the
-    record of the step is not lost and a template cannot add it back. The new
-    task inherits the parent's group, harness, and repositories, and links back
-    to the parent as a child.
+    The item stays in the checklist, linked to its task and keeping its own done
+    state, so the record of the step is not lost and a template cannot add it
+    back. The new task inherits the parent's group, harness, and repositories,
+    and links back to the parent as a child.
     """
     task = get_task_or_404(session, task_id)
     item = get_or_404(session, ChecklistItem, item_id, "Checklist item not found")
@@ -239,7 +239,6 @@ async def convert_checklist_item(task_id: str, item_id: str, session: Session = 
     for member in session.exec(select(TaskRepository).where(TaskRepository.task_id == task.id)).all():
         session.add(TaskRepository(task_id=child.id, repository_id=member.repository_id))
     session.add(TaskParent(parent_id=task.id, child_id=child.id))
-    item_done(item, True)
     item.converted_task_id = child.id
     item.updated_at = utcnow()
     session.add(item)
