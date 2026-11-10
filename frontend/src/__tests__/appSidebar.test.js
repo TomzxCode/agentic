@@ -268,7 +268,7 @@ describe('App', () => {
       await drag(wrapper, 500, 50)
       expect(appWidth(wrapper)).toBe('260px')
       await drag(wrapper, 500, 2000)
-      expect(appWidth(wrapper)).toBe('560px')
+      expect(appWidth(wrapper)).toBe('720px')
     })
 
     it('sizes with the keyboard from the separator', async () => {
@@ -282,7 +282,7 @@ describe('App', () => {
       await handle.trigger('keydown', { key: 'Home' })
       expect(appWidth(wrapper)).toBe('260px')
       await handle.trigger('keydown', { key: 'End' })
-      expect(appWidth(wrapper)).toBe('560px')
+      expect(appWidth(wrapper)).toBe('720px')
       await handle.trigger('keydown', { key: 'Enter' })
       expect(appWidth(wrapper)).toBe('300px')
     })
@@ -316,6 +316,19 @@ describe('App', () => {
       const wrapper = mountApp()
       await flushPromises()
       expect(appWidth(wrapper)).toBe('300px')
+    })
+
+    it('starts wider on a wide window and restores that width', async () => {
+      window.innerWidth = 2000
+      const wrapper = mountApp()
+      await flushPromises()
+      // A share of the window, so the task titles have room on a large screen.
+      expect(appWidth(wrapper)).toBe('480px')
+      await drag(wrapper, 500, 700)
+      expect(appWidth(wrapper)).toBe('680px')
+      await wrapper.get('.sidebar-resizer').trigger('dblclick')
+      expect(appWidth(wrapper)).toBe('480px')
+      window.innerWidth = 1024
     })
 
     it('does not resize on the mobile layout', async () => {

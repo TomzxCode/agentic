@@ -27,7 +27,7 @@ The tag-filter clauses of FR-1 and FR-5 are not implemented (tag filtering was r
 | TC-5 | Empty states | no tasks shows "No tasks yet."; only finished tasks shows "All caught up." |
 | TC-6 | The entry for the open task is marked active | `route.params.id` matches the entry's task |
 | TC-7 | Drawer gestures | a rightward swipe (including edge, flick, and drift cases) opens the drawer, leftward closes, short swipes spring back, vertical drags and sideways-scrolling strips are ignored, modals suppress it |
-| TC-8 | Width resizer | dragging changes the width within 260 to 560px, the choice persists in `localStorage`, double-click restores the default, the mobile layout has no resizer |
+| TC-8 | Width resizer | dragging changes the width within 260 to 720px, the choice persists in `localStorage`, double-click and Enter restore the starting width (300px, or a share of a wide window), the mobile layout has no resizer |
 | TC-9 | Visibility toggle | the floated toggle hides the sidebar and remembers it (desktop preference), Cmd/Ctrl+B toggles, the mobile menu button reveals it, a drawer close never writes the desktop preference |
 | TC-10 | Status change from an entry | picking a status updates the task and drops done/archived entries; a failed update reverts the row |
 

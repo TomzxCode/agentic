@@ -115,9 +115,12 @@ export function useSidebar({ sidebarOpen, showNew, paletteOpen }) {
   // ceiling that leaves the page usable. Width is a per-device preference, so it
   // is kept in localStorage rather than on the server.
   const SIDEBAR_DEFAULT_PX = 300
+  // A wide window starts with a wider column, so the task titles have room; the
+  // ratio never drops the start below the default, and a drag still wins.
+  const SIDEBAR_START_RATIO = 0.24
   // The floor keeps the Search / New task row and the nav icon row intact.
   const SIDEBAR_MIN_PX = 260
-  const SIDEBAR_MAX_PX = 560
+  const SIDEBAR_MAX_PX = 720
   const SIDEBAR_WIDTH_KEY = 'agentic.sidebarWidth'
   const SIDEBAR_HIDDEN_KEY = 'agentic.sidebarHidden'
   // Above this width the sidebar is a column; at or below it is a drawer.
@@ -150,7 +153,13 @@ export function useSidebar({ sidebarOpen, showNew, paletteOpen }) {
 
   function readStoredWidth() {
     const stored = readStoredNumber(SIDEBAR_WIDTH_KEY)
-    return stored !== null && stored > 0 ? clampSidebarWidth(stored) : SIDEBAR_DEFAULT_PX
+    return stored !== null && stored > 0 ? clampSidebarWidth(stored) : defaultSidebarWidth()
+  }
+
+  // The width a fresh device starts at, and the one double-click and Enter
+  // restore: the default, or a share of a wide window.
+  function defaultSidebarWidth() {
+    return clampSidebarWidth(Math.max(SIDEBAR_DEFAULT_PX, Math.round(window.innerWidth * SIDEBAR_START_RATIO)))
   }
 
   function clampSidebarWidth(px) {
@@ -216,7 +225,7 @@ export function useSidebar({ sidebarOpen, showNew, paletteOpen }) {
   }
 
   function resetSidebarWidth() {
-    setSidebarWidth(SIDEBAR_DEFAULT_PX)
+    setSidebarWidth(defaultSidebarWidth())
   }
 
   // The handle is a separator the keyboard can drive: arrows nudge it, Home/End
