@@ -415,6 +415,14 @@
   padding: 2px 8px;
   color: inherit;
 }
+/* These ghost buttons sit on a row that can be tinted (current, selected,
+   hover). Left transparent, the tint shows through them and their border reads
+   differently from the same button on an untinted row. The panel background
+   keeps them identical in every row; the danger button's own hover still wins. */
+.stack-open-cell .btn,
+.stack-actions .btn {
+  background: var(--bg-1);
+}
 .stack-desc-row td {
   padding: 4px 8px 12px;
   background: var(--bg-2);
@@ -496,8 +504,12 @@ body.row-dragging .stack-handle {
   .stack-row:first-child {
     border-top: 0;
   }
-  /* The highlight moves to the row, since the cells are no longer its columns. */
-  .stack-row td {
+  /* The highlight and the row separator move to the row, since the cells are no
+     longer its columns. The desktop `+ .stack-row td` rule outranks the reset
+     here, so it is repeated with the same specificity: otherwise every cell
+     draws a short line of its own above the controls. */
+  .stack-row td,
+  .stack-row + .stack-row td {
     display: flex;
     align-items: center;
     padding: 0;
@@ -517,6 +529,15 @@ body.row-dragging .stack-handle {
   }
   .stack-row.current {
     background: color-mix(in srgb, var(--accent) 12%, transparent);
+  }
+  /* The highlight is on the row now. The desktop cell rules still match, and a
+     translucent background painted on both the row and each cell doubles where
+     they overlap, so every cell shows as a band. Reset the cells explicitly,
+     with the same specificity as those desktop rules. */
+  .stack-row:hover td,
+  .stack-row.selected td,
+  .stack-row.current td {
+    background: none;
   }
   .stack-title-cell,
   .stack-handle-cell,

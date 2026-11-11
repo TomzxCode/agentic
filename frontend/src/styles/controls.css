@@ -255,7 +255,12 @@
   .grid-even {
     grid-template-columns: 1fr;
   }
-  .app {
+}
+/* A full sidebar narrows here so the page keeps its width. The rail is already
+   one icon wide and takes its width from --sidebar-width, and below 760px the
+   sidebar is a drawer rather than a column, so neither case gets the cap. */
+@media (min-width: 761px) and (max-width: 1000px) {
+  .app:not(.sidebar-rail) {
     grid-template-columns: 240px 1fr;
   }
 }
