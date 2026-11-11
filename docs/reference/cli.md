@@ -111,6 +111,7 @@ agentic run stream <run-id>          # live transcript
 ```bash
 agentic session add <task> <session-id> --cwd /path/to/checkout --label "repro"
 agentic session list <task>          # recorded sessions, with reopen links
+agentic session tasks <session-id>   # the tasks a session is recorded against
 agentic session get <task> <session> # one session and how to reopen it
 agentic session remove <task> <session>
 ```

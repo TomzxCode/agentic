@@ -19,8 +19,16 @@ from ..links import session_read
 from ..models.agents import AgentSession, Harness
 from ..models.tasks import Task
 from ..schemas.runs import SessionCreate, SessionRead, SessionUpdate
+from ..schemas.tasks import SessionTaskRead
+from .task_service import _task_reads
 
 router = APIRouter(prefix="/api/tasks", tags=["sessions"])
+
+# The reverse direction, addressed by the agent's own session id rather than a
+# task: a client holding only the session id (OpenChamber's status section) has
+# no task to start from, and walking every task's sessions to find it is both
+# slow and racy.
+lookup_router = APIRouter(prefix="/api/sessions", tags=["sessions"])
 
 
 def _resolve_harness_id(session: Session, task: Task, harness_id: str | None) -> str | None:
@@ -120,3 +128,22 @@ async def delete_session(task_id: str, session_id: str, session: Session = Depen
         {"id": session_id, "session_id": agent_session_id},
     )
     await bus.publish(f"task:{task_id}", {"kind": "task", "action": "sessions_changed"})
+
+
+@lookup_router.get("/{session_id}", response_model=list[SessionTaskRead])
+def list_session_tasks(session_id: str, session: Session = Depends(get_session)) -> list[SessionTaskRead]:
+    """Every task an agent session is recorded against.
+
+    An unknown session id answers an empty list: the question is which tasks
+    this session is on, and "none" is an answer rather than an error.
+    """
+    rows = session.exec(
+        select(AgentSession).where(AgentSession.session_id == session_id).order_by(col(AgentSession.created_at).desc())
+    ).all()
+    tasks = [task for task in (session.get(Task, row.task_id) for row in rows) if task is not None]
+    reads = {read.id: read for read in _task_reads(session, tasks)}
+    return [
+        SessionTaskRead(session=session_read(session, row), task=reads[row.task_id])
+        for row in rows
+        if row.task_id in reads
+    ]

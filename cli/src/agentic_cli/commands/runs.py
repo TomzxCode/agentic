@@ -14,6 +14,7 @@ from ..render import (
     _run_text,
     _session_line,
     _session_text,
+    _task_line,
 )
 from ..runtime import (
     _resolve_format,
@@ -127,6 +128,19 @@ def session_list(task_id: str) -> str:
     with runtime._client() as client:
         sessions = client.list_sessions(task_id)
     return emit(sessions, _join(sessions, _session_line))
+
+
+@session_app.command(name="tasks")
+@safe
+def session_tasks(session_id: str) -> str:
+    """List the tasks an agent session is recorded against.
+
+    The reverse of `session list`: start from the session id when the task is
+    what you are looking for, as when following a session out of OpenChamber.
+    """
+    with runtime._client() as client:
+        rows = client.list_session_tasks(session_id)
+    return emit(rows, _join(rows, lambda row: _task_line(row["task"])))
 
 
 @session_app.command(name="get")

@@ -470,6 +470,13 @@ def _ensure_columns() -> None:
                 connection.execute(
                     text("CREATE INDEX ix_checklistitem_converted_task_id ON checklistitem (converted_task_id)")
                 )
+    if "agentsession" in inspector.get_table_names():
+        index_names = {index["name"] for index in inspector.get_indexes("agentsession")}
+        if "ix_agentsession_session_id" not in index_names:
+            # Sessions are read by task most of the time, but the reverse
+            # lookup (which tasks is this session on) starts from this column.
+            with engine.begin() as connection:
+                connection.execute(text("CREATE INDEX ix_agentsession_session_id ON agentsession (session_id)"))
     if "stackentry" in inspector.get_table_names():
         entry_columns = {column["name"] for column in inspector.get_columns("stackentry")}
         if "deleted_reason" not in entry_columns:

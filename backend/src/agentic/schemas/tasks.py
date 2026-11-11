@@ -105,6 +105,17 @@ class TaskRead(ORMModel):
     updated_at: datetime
 
 
+class SessionTaskRead(BaseModel):
+    """A recorded session with the task it is attached to.
+
+    The reverse of the per-task session list: a client that holds only a
+    session id reads every task it is recorded against in one call.
+    """
+
+    session: SessionRead
+    task: TaskRead
+
+
 class TaskBulkResult(BaseModel):
     """The tasks a bulk edit matched, plus any ids that no longer exist."""
 

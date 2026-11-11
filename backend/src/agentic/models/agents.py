@@ -82,7 +82,7 @@ class AgentSession(SQLModel, table=True):
     id: str = Field(default_factory=new_id, primary_key=True)
     task_id: str = Field(foreign_key="task.id", index=True)
     harness_id: str | None = Field(default=None, foreign_key="harness.id")
-    session_id: str  # the ACP (or agent) session id
+    session_id: str = Field(index=True)  # the ACP (or agent) session id
     label: str = ""
     cwd: str | None = None
     created_at: datetime = Field(default_factory=utcnow)

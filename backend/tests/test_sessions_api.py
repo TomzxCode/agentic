@@ -47,6 +47,30 @@ def test_session_crud_records_timeline_and_task_detail():
         client.delete(f"/api/tasks/{task['id']}")
 
 
+def test_a_session_reads_back_the_tasks_it_is_recorded_against():
+    with TestClient(app) as client:
+        first = client.post("/api/tasks", json={"title": "Reverse A"}).json()
+        second = client.post("/api/tasks", json={"title": "Reverse B", "priority": 3}).json()
+        elsewhere = client.post("/api/tasks", json={"title": "Unrelated"}).json()
+        row_a = client.post(f"/api/tasks/{first['id']}/sessions", json={"session_id": "ses_rev"}).json()
+        row_b = client.post(f"/api/tasks/{second['id']}/sessions", json={"session_id": "ses_rev"}).json()
+        client.post(f"/api/tasks/{elsewhere['id']}/sessions", json={"session_id": "ses_other"})
+
+        listed = client.get("/api/sessions/ses_rev").json()
+        assert {entry["task"]["id"] for entry in listed} == {first["id"], second["id"]}
+        assert {entry["session"]["id"] for entry in listed} == {row_a["id"], row_b["id"]}
+        # The task travels with the row, so a client needs no second lookup.
+        by_task = {entry["task"]["id"]: entry["task"] for entry in listed}
+        assert by_task[second["id"]]["priority"] == 3
+        assert by_task[first["id"]]["title"] == "Reverse A"
+
+        # An unrecorded session is answered with nothing rather than an error.
+        assert client.get("/api/sessions/ses_unknown").json() == []
+
+        for task in (first, second, elsewhere):
+            client.delete(f"/api/tasks/{task['id']}")
+
+
 def test_session_requires_an_id_and_valid_harness():
     with TestClient(app) as client:
         task = client.post("/api/tasks", json={"title": "S"}).json()

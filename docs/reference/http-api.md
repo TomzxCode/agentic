@@ -71,6 +71,7 @@ A manual item has no template and always applies.
 | `DELETE` | `/api/tasks/{id}/worktrees/{worktree_id}` | Remove a worktree. |
 | `GET` / `POST` | `/api/tasks/{id}/sessions` | List and record agent sessions. |
 | `GET` / `PATCH` / `DELETE` | `/api/tasks/{id}/sessions/{session_id}` | Read, update, and remove one recorded session. |
+| `GET` | `/api/sessions/{session_id}` | The tasks an agent session is recorded against, each with its session row and task. An unrecorded session answers `[]`. |
 | `GET` / `POST` | `/api/tasks/{id}/runs` | List runs and enqueue a run (a `model` in the body overrides the harness's model for that run). |
 | `POST` | `/api/tasks/{id}/context/refresh` | Enqueue a context-refresh run. |
 | `GET` | `/api/tasks/{id}/context` | Read the task's summary and checklist. |

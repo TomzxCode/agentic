@@ -288,6 +288,10 @@ class AgenticClient:
     def get_session(self, task_id: str, session_id: str) -> dict:
         return self._request("GET", f"/api/tasks/{task_id}/sessions/{session_id}")
 
+    def list_session_tasks(self, session_id: str) -> list[dict]:
+        """The tasks a session is recorded against, addressed by the session id."""
+        return self._request("GET", f"/api/sessions/{session_id}")
+
     def create_session(
         self,
         task_id: str,

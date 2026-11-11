@@ -348,6 +348,9 @@ for module in (
 ):
     app.include_router(module.router)
 
+# Recorded sessions are also addressed by the agent's own session id, so a
+# client that starts from a session reads its tasks in one call.
+app.include_router(sessions.lookup_router)
 # The task- and item-side people links are mounted at their natural paths.
 app.include_router(people.link_router)
 # Inbound webhook entry points live outside /api/webhooks, at /api/hooks.
