@@ -6,6 +6,7 @@ from datetime import datetime
 
 from pydantic import BaseModel
 
+from ..models.base import TaskStatus
 from .base import ORMModel
 
 
@@ -79,9 +80,11 @@ class ChecklistItemRead(ORMModel):
     position: int
     done: bool
     done_at: datetime | None = None
-    # The task this item was converted into, with its current title for display.
+    # The task this item was converted into, with its current title and status
+    # so the checklist can show and change the task without a second lookup.
     converted_task_id: str | None = None
     converted_task_title: str | None = None
+    converted_task_status: TaskStatus | None = None
     # False when the item came from a template whose rules no longer match the
     # task. The item stays, shown disabled, so a completed step is not lost.
     applicable: bool = True

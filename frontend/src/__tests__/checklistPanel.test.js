@@ -111,7 +111,8 @@ describe('ChecklistPanel', () => {
             done: true,
             applicable: true,
             converted_task_id: 'new-task',
-            converted_task_title: 'Announce the feature'
+            converted_task_title: 'Announce the feature',
+            converted_task_status: 'open'
           }
         ])
       },
@@ -122,6 +123,42 @@ describe('ChecklistPanel', () => {
     const link = wrapper.get('a[href="/task/new-task"]')
     expect(link.find('svg').exists()).toBe(true)
     expect(link.attributes('aria-label')).toBe('Open the task: Announce the feature')
+  })
+
+  it('shows the converted task status and changes it from the checklist', async () => {
+    mocks.updateTask.mockResolvedValue({})
+    const wrapper = mount(ChecklistPanel, {
+      props: {
+        task: task([
+          {
+            id: 'i1',
+            text: 'Announce the feature',
+            done: false,
+            applicable: true,
+            converted_task_id: 'new-task',
+            converted_task_title: 'Announce the feature',
+            converted_task_status: 'open'
+          },
+          { id: 'i2', text: 'Write docs', done: false, applicable: true }
+        ])
+      },
+      global: { stubs: { RouterLink: { props: ['to'], template: '<a :href="to"><slot /></a>' } } }
+    })
+
+    // Only the item that is a task carries a status picker.
+    const pickers = wrapper.findAll('.checklist-status')
+    expect(pickers).toHaveLength(1)
+    expect(pickers[0].get('.task-status').attributes('aria-label')).toBe('Open')
+
+    await pickers[0].get('.ss-trigger').trigger('click')
+    await wrapper
+      .findAll('.ss-option')
+      .find((option) => option.text() === 'Done')
+      .trigger('click')
+    await flushPromises()
+
+    expect(mocks.updateTask).toHaveBeenCalledWith('new-task', { status: 'done' })
+    expect(wrapper.emitted('changed')).toHaveLength(1)
   })
 
   it('edits the linked task title from a converted item', async () => {

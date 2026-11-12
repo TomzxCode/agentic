@@ -4,6 +4,7 @@ import { api } from '../api'
 import { store } from '../store'
 import EditableText from './EditableText.vue'
 import Icon from './Icon.vue'
+import StatusSelect from './StatusSelect.vue'
 
 const props = defineProps({ task: { type: Object, required: true } })
 const emit = defineEmits(['changed'])
@@ -148,6 +149,20 @@ async function toggle(item) {
   }
 }
 
+// A converted item shows the status of the task it became, and changing it here
+// changes the task. Moving the task to done marks the item done on the server,
+// so the reload that follows draws the item as completed too.
+async function changeStatus(item, status) {
+  if (!item.converted_task_id || status === (item.converted_task_status || 'open')) return
+  try {
+    await api.tasks.update(item.converted_task_id, { status })
+    emit('changed')
+  } catch (e) {
+    store.notify(e.message, true)
+    emit('changed')
+  }
+}
+
 // A converted item points at its task, so its field shows and edits the live
 // task title. A normal item keeps editing its own text.
 function itemText(item) {
@@ -253,6 +268,13 @@ function onAddKeydown(event) {
         >
           ⠿
         </button>
+        <StatusSelect
+          v-if="item.converted_task_id"
+          class="checklist-status"
+          :model-value="item.converted_task_status || 'open'"
+          :title="`Change the status of the task: ${itemText(item)}`"
+          @update:model-value="(value) => changeStatus(item, value)"
+        />
         <input
           type="checkbox"
           :checked="item.done"
@@ -356,6 +378,10 @@ function onAddKeydown(event) {
 .checklist-item input[type='checkbox'] {
   margin-top: 4px;
   flex-shrink: 0;
+}
+/* The converted task's status picker lines up with its row's checkbox. */
+.checklist-item .checklist-status {
+  margin-top: 1px;
 }
 .checklist-item.done .checklist-text {
   text-decoration: line-through;

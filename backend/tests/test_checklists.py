@@ -440,6 +440,7 @@ def test_convert_checklist_item_into_a_child_task(tmp_path):
         assert items[0]["done"] is False
         assert items[0]["converted_task_id"] == created["id"]
         assert items[0]["converted_task_title"] == created["title"]
+        assert items[0]["converted_task_status"] == "open"
 
         # The new task is a child of the one it came from.
         assert [t["id"] for t in client.get(f"/api/tasks/{task['id']}/dependencies").json()["children"]] == [
@@ -448,6 +449,19 @@ def test_convert_checklist_item_into_a_child_task(tmp_path):
         assert [t["id"] for t in client.get(f"/api/tasks/{created['id']}/dependencies").json()["parents"]] == [
             task["id"]
         ]
+
+        # Completing the task completes the checklist item it came from.
+        client.patch(f"/api/tasks/{created['id']}", json={"status": "done"})
+        item_done = _checklist(client, task["id"])[0]
+        assert item_done["done"] is True
+        assert item_done["done_at"] is not None
+        assert item_done["converted_task_status"] == "done"
+
+        # Reopening the task leaves the item alone: its own state is the record.
+        client.patch(f"/api/tasks/{created['id']}", json={"status": "in_progress"})
+        reopened = _checklist(client, task["id"])[0]
+        assert reopened["done"] is True
+        assert reopened["converted_task_status"] == "in_progress"
 
         # A second conversion is refused while the task exists.
         assert client.post(f"/api/tasks/{task['id']}/checklist/{item['id']}/convert").status_code == 400

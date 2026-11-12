@@ -20,7 +20,7 @@ from typing import TypedDict, overload
 from sqlalchemy import or_
 from sqlmodel import Session, col, select
 
-from .checklists import apply_task_templates
+from .checklists import apply_task_templates, complete_items_for_converted_task
 from .crud import add_timeline
 from .models.base import TaskStatus, utcnow
 from .models.tasks import StackEntry, Task, TaskSession
@@ -326,6 +326,8 @@ def pop(session: Session, now: datetime | None = None) -> list[StackEntry]:
         task.status = TaskStatus.done
         task.updated_at = now
         session.add(task)
+        # A task converted from a checklist item completes that item too.
+        complete_items_for_converted_task(session, task.id)
     _reindex(session, entries)
     _set_current(session, entries, now)
     session.commit()

@@ -342,6 +342,9 @@ def checklist_items(session: Session, task: Task) -> list[ChecklistItemRead]:
             converted_task_title=(
                 converted[row.converted_task_id].title if row.converted_task_id in converted else None
             ),
+            converted_task_status=(
+                converted[row.converted_task_id].status if row.converted_task_id in converted else None
+            ),
             # A derived item follows its template; a manual item always applies.
             applicable=applicability.get(row.template_id, True) if row.template_id else True,
             created_at=row.created_at,
@@ -372,6 +375,7 @@ def checklist_item_read(session: Session, task: Task, item: ChecklistItem) -> Ch
         done_at=item.done_at,
         converted_task_id=item.converted_task_id,
         converted_task_title=converted.title if converted is not None else None,
+        converted_task_status=converted.status if converted is not None else None,
         applicable=template_matches(context, template) if template is not None else True,
         created_at=item.created_at,
         updated_at=item.updated_at,
@@ -383,6 +387,26 @@ def item_done(item: ChecklistItem, done: bool) -> None:
     item.done = done
     item.done_at = utcnow() if done else None
     item.updated_at = utcnow()
+
+
+def complete_items_for_converted_task(session: Session, task_id: str) -> list[str]:
+    """Mark the checklist items that became ``task_id`` done.
+
+    Completing a converted task completes the step it came from, so every item
+    pointing at that task is marked done. Moving the task back out of done
+    leaves the items alone: their own state is the record of the step. Returns
+    the ids of the tasks whose checklist changed, so their views can be told.
+    """
+    parents: list[str] = []
+    items = session.exec(select(ChecklistItem).where(col(ChecklistItem.converted_task_id) == task_id)).all()
+    for item in items:
+        if item.done:
+            continue
+        item_done(item, True)
+        session.add(item)
+        if item.task_id not in parents:
+            parents.append(item.task_id)
+    return parents
 
 
 def delete_task_checklist(session: Session, task_id: str) -> None:
@@ -409,6 +433,7 @@ __all__ = [
     "checklist_items",
     "checklist_text_key",
     "clear_checklist_dismissal",
+    "complete_items_for_converted_task",
     "delete_task_checklist",
     "delete_template_checklist",
     "dismiss_checklist_item",

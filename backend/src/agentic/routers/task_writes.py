@@ -16,7 +16,7 @@ from sqlalchemy import update as sa_update
 from sqlmodel import Session, col, select
 
 from ..auto_changes import record_merged_pr_changes
-from ..checklists import apply_task_templates, delete_task_checklist
+from ..checklists import apply_task_templates, complete_items_for_converted_task, delete_task_checklist
 from ..crud import add_timeline, field_label, get_task_or_404, jsonable, normalize_tags
 from ..db import get_session
 from ..events import bus
@@ -232,6 +232,14 @@ async def _apply_task_update(
     # with it), so run the templates before returning the fresh read.
     apply_task_templates(session, task)
 
+    # A converted checklist item follows its task into done, so completing the
+    # task completes the step it came from.
+    completed_parents: list[str] = []
+    if changes.get("status", {}).get("to") == TaskStatus.done:
+        completed_parents = complete_items_for_converted_task(session, task.id)
+        if completed_parents:
+            session.commit()
+
     if set(changes) - {"summary"}:
         add_timeline(
             session,
@@ -243,6 +251,10 @@ async def _apply_task_update(
     await bus.publish(f"task:{task.id}", {"kind": "task", "action": "updated"})
     # A status, snooze, or waiting change can add or drop a stack entry.
     await bus.publish("stack", {"kind": "stack"})
+    # A task completed this way also completed the checklist item it came from,
+    # so the task holding that item reloads its checklist.
+    for parent_id in completed_parents:
+        await bus.publish(f"task:{parent_id}", {"kind": "task", "action": "checklist_changed"})
     return _task_read(session, task)
 
 
