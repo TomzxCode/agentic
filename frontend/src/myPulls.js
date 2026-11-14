@@ -44,6 +44,25 @@ export function hasMergeConflicts(pull) {
   return null
 }
 
+// The Conflicts cell: "none" when the branches merge cleanly, "conflicts" when
+// they do not, and a dash when GitHub's mergeability could not be read.
+export function conflictsLabel(pull) {
+  const conflicts = hasMergeConflicts(pull)
+  if (conflicts === null) return '—'
+  return conflicts ? 'conflicts' : 'none'
+}
+
+export function conflictsTone(pull) {
+  const conflicts = hasMergeConflicts(pull)
+  if (conflicts === null) return 'faint'
+  return conflicts ? 'danger' : 'ok'
+}
+
+// The badge class for a pull request's status, matching the item badges.
+export function pullStatusClass(pull) {
+  return `st-${pullStatus(pull)}`
+}
+
 // Whether the head commit's checks pass. No checks at all counts as passing,
 // since nothing blocks the merge.
 export function checksPassing(pull) {

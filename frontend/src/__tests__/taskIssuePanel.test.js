@@ -6,7 +6,8 @@ enableAutoUnmount(afterEach)
 const mocks = vi.hoisted(() => ({
   issue: vi.fn(),
   taskLinks: vi.fn(),
-  routeQuery: {}
+  routeQuery: {},
+  routerPush: vi.fn()
 }))
 
 vi.mock('../api', () => ({
@@ -14,7 +15,8 @@ vi.mock('../api', () => ({
 }))
 
 vi.mock('vue-router', () => ({
-  useRoute: () => ({ query: mocks.routeQuery })
+  useRoute: () => ({ query: mocks.routeQuery }),
+  useRouter: () => ({ push: mocks.routerPush })
 }))
 
 import TaskIssuePanel from '../components/TaskIssuePanel.vue'

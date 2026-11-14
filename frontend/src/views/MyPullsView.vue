@@ -8,8 +8,9 @@ import {
   assignedReviewers,
   attentionState,
   CI_FILTERS,
+  conflictsLabel,
+  conflictsTone,
   groupPulls,
-  hasMergeConflicts,
   isReadyToMerge,
   matchesCiFilter,
   matchesPullSearch,
@@ -18,7 +19,7 @@ import {
   PULL_GROUPINGS,
   pullCounts,
   pullFilterCounts,
-  pullStatus,
+  pullStatusClass,
   pullStatusLabel,
   readyToMergeTitle,
   reviewLabel,
@@ -208,24 +209,6 @@ function reviewerPrefix(pull) {
 
 function reviewerEmptyLabel(pull) {
   return (pull.requested_teams || []).length ? 'team only' : 'none'
-}
-
-// The Conflicts cell: "none" when the branches merge cleanly, "conflicts" when
-// they do not, and a dash when GitHub's mergeability could not be read.
-function conflictsLabel(pull) {
-  const conflicts = hasMergeConflicts(pull)
-  if (conflicts === null) return '—'
-  return conflicts ? 'conflicts' : 'none'
-}
-
-function conflictsTone(pull) {
-  const conflicts = hasMergeConflicts(pull)
-  if (conflicts === null) return 'faint'
-  return conflicts ? 'danger' : 'ok'
-}
-
-function statusClass(pull) {
-  return `st-${pullStatus(pull)}`
 }
 
 // A thread cell's tooltip: how many of the pull request's threads are still
@@ -438,7 +421,7 @@ onMounted(load)
                     />
                   </td>
                   <td>
-                    <span class="badge" :class="statusClass(pull)">{{ pullStatusLabel(pull) }}</span>
+                    <span class="badge" :class="pullStatusClass(pull)">{{ pullStatusLabel(pull) }}</span>
                   </td>
                   <td>
                     <span class="badge" :class="reviewTone(pull)">{{ reviewLabel(pull) }}</span>

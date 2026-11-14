@@ -176,6 +176,7 @@ const items = computed(() =>
       owner: pr.owner,
       repo: pr.repo,
       number: pr.number,
+      repository: summary?.repository || `${pr.owner}/${pr.repo}`,
       title: summary?.title || pr.item?.title || '',
       url: pr.url,
       item: pr.item,

@@ -14,7 +14,8 @@ const mocks = vi.hoisted(() => ({
   pullReviewers: vi.fn(),
   feedbackList: vi.fn(),
   setFeedbackDecision: vi.fn(),
-  routeQuery: {}
+  routeQuery: {},
+  routerPush: vi.fn()
 }))
 
 vi.mock('../api', () => ({
@@ -27,7 +28,8 @@ vi.mock('../api', () => ({
 }))
 
 vi.mock('vue-router', () => ({
-  useRoute: () => ({ query: mocks.routeQuery })
+  useRoute: () => ({ query: mocks.routeQuery }),
+  useRouter: () => ({ push: mocks.routerPush })
 }))
 
 import TaskReviewPanel from '../components/TaskReviewPanel.vue'
@@ -508,20 +510,35 @@ describe('TaskReviewPanel', () => {
     const wrapper = mount(TaskReviewPanel, { props: { task: multi, selected: 'acme/api/43' }, ...stub })
     await flushPromises()
 
-    const links = wrapper.findAll('.task-link')
+    // The list is the My PRs table, stating every fact the page asks for.
+    expect(wrapper.findAll('.task-link-table th').map((cell) => cell.text())).toEqual([
+      'PR',
+      'Status',
+      'Review',
+      'Reviewers',
+      'Checks',
+      'Comments',
+      'Conflicts',
+      'Ready',
+      'Updated'
+    ])
+    const links = wrapper.findAll('.task-link-row')
     expect(links).toHaveLength(2)
-    // The first pull request states every fact the list asks for.
     expect(links[0].text()).toContain('Passing')
-    expect(links[0].text()).toContain('1 reviewer')
+    expect(links[0].text()).toContain('carol')
     expect(links[0].text()).toContain('2 open')
-    expect(links[0].text()).toContain('no conflicts')
-    expect(links[0].text()).toContain('not ready')
+    expect(links[0].text()).toContain('none')
+    expect(links[0].text()).toContain('No')
     expect(links[1].text()).toContain('Merged')
     // Selecting one reads and renders only that pull request.
-    expect(wrapper.get('.task-link.active').text()).toContain('#43')
+    expect(wrapper.get('.task-link-row.active').text()).toContain('#43')
     expect(mocks.githubIssue).toHaveBeenCalledWith('https://github.com/acme/api/pull/43')
     expect(mocks.githubIssue).not.toHaveBeenCalledWith('https://github.com/acme/api/pull/42')
     expect(wrapper.findAll('.task-item-panel')).toHaveLength(1)
+
+    // Clicking a row navigates to that pull request inside the same task.
+    await links[0].trigger('click')
+    expect(mocks.routerPush).toHaveBeenCalledWith({ query: { view: 'pr', item: 'acme/api/42' } })
   })
 
   it('shows a message when the task links no pull request', async () => {

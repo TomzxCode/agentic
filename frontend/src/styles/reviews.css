@@ -344,7 +344,27 @@
   margin-left: 6px;
 }
 
-/* The list of GitHub items a task links, above the selected item's panel. It
+/* The pull request list above a task's PR panel: the My PRs table, with each
+   row opening that pull request in the task instead of navigating away. */
+.task-link-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-1);
+  margin-bottom: 12px;
+}
+.task-link-table tbody tr {
+  cursor: pointer;
+}
+.task-link-table tbody tr.active td {
+  background: var(--bg-2);
+}
+.task-link-table tbody tr:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+/* The list of GitHub issues a task links, above the selected issue's panel. It
    appears only when the task links more than one, and each row names the item
    and its current state. */
 .task-link-list {
