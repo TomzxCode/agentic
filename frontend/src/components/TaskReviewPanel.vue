@@ -186,12 +186,13 @@ const items = computed(() =>
   })
 )
 
-// The pull request the panel renders: the selected one, or the first linked
-// pull request when the URL carries no selection (or names one no longer
-// linked).
+// The pull request the panel renders. A task that links one pull request shows
+// it straight away; one that links several shows only the list until the user
+// picks a row (or the URL names one), so opening the mode does not silently
+// land on the first pull request.
 const selectedKey = computed(() => {
   if (props.selected && items.value.some((entry) => entry.key === props.selected)) return props.selected
-  return items.value[0]?.key || ''
+  return items.value.length === 1 ? items.value[0].key : ''
 })
 
 const current = computed(() => items.value.find((entry) => entry.key === selectedKey.value) || null)
@@ -680,6 +681,10 @@ watch(signature, async () => {
         No review reports for this pull request yet. Run <code>/review-pr-full</code> on it to fill the queue.
       </p>
     </GithubItemPanel>
+
+    <p v-if="!props.url && items.length > 1 && !current" class="faint" style="margin: 8px 0 0">
+      Select a pull request above to open it here.
+    </p>
 
     <div v-if="!items.length" class="empty">This task is not linked to a pull request.</div>
 

@@ -541,6 +541,33 @@ describe('TaskReviewPanel', () => {
     expect(mocks.routerPush).toHaveBeenCalledWith({ query: { view: 'pr', item: 'acme/api/42' } })
   })
 
+  it('shows only the list, not a pull request, until one is selected', async () => {
+    const second = {
+      id: 'a2',
+      item: {
+        id: 'i2',
+        source: 'github',
+        kind: 'pull_request',
+        url: 'https://github.com/acme/api/pull/43',
+        title: 'Second PR',
+        content: '',
+        metadata_json: {}
+      }
+    }
+    const multi = { ...task, associations: [...task.associations, second] }
+    mocks.routeQuery = { view: 'pr' }
+
+    const wrapper = mount(TaskReviewPanel, { props: { task: multi }, ...stub })
+    await flushPromises()
+
+    expect(wrapper.find('.task-link-table').exists()).toBe(true)
+    expect(wrapper.find('.task-link-row.active').exists()).toBe(false)
+    // No pull request panel and no GitHub read until a row is chosen.
+    expect(wrapper.find('.task-item-panel').exists()).toBe(false)
+    expect(mocks.githubIssue).not.toHaveBeenCalled()
+    expect(wrapper.text()).toContain('Select a pull request above to open it here.')
+  })
+
   it('shows a message when the task links no pull request', async () => {
     const wrapper = mount(TaskReviewPanel, { props: { task: { id: 't1', associations: [] } }, ...stub })
     await flushPromises()

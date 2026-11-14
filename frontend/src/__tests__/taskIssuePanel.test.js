@@ -158,6 +158,32 @@ describe('TaskIssuePanel', () => {
     expect(wrapper.text()).toContain('Second issue')
   })
 
+  it('shows only the list, not an issue, until one is selected', async () => {
+    const second = {
+      id: 'a2',
+      item: {
+        id: 'i2',
+        source: 'github',
+        kind: 'issue',
+        url: 'https://github.com/acme/api/issues/8',
+        title: 'Second issue',
+        content: '',
+        metadata_json: { state: 'OPEN' }
+      }
+    }
+    const multi = { ...task, associations: [...task.associations, second] }
+    mocks.routeQuery = { view: 'issue' }
+
+    const wrapper = mount(TaskIssuePanel, { props: { task: multi, harnesses: [] }, ...stub })
+    await flushPromises()
+
+    expect(wrapper.findAll('.task-link')).toHaveLength(2)
+    expect(wrapper.find('.task-link.active').exists()).toBe(false)
+    expect(wrapper.find('.task-item-panel').exists()).toBe(false)
+    expect(mocks.issue).not.toHaveBeenCalled()
+    expect(wrapper.text()).toContain('Select an issue above to open it here.')
+  })
+
   it('says so when the task links no issue', async () => {
     const wrapper = mount(TaskIssuePanel, { props: { task: { id: 't1', associations: [] }, harnesses: [] }, ...stub })
     await flushPromises()

@@ -152,11 +152,12 @@ const issues = computed(() => {
   })
 })
 
-// The issue the panel renders: the selected one, or the first linked issue when
-// the URL carries no selection (or names one the task no longer links).
+// The issue the panel renders. A task that links one issue shows it straight
+// away; one that links several shows only the list until the user picks a row
+// (or the URL names one), so opening the mode does not land on the first issue.
 const selectedKey = computed(() => {
   if (props.selected && issues.value.some((issue) => issue.key === props.selected)) return props.selected
-  return issues.value[0]?.key || ''
+  return issues.value.length === 1 ? issues.value[0].key : ''
 })
 
 const current = computed(() => issues.value.find((issue) => issue.key === selectedKey.value) || null)
@@ -167,6 +168,10 @@ const current = computed(() => issues.value.find((issue) => issue.key === select
     <TaskGithubLinks v-if="!props.url && issues.length > 1" kind="issue" :items="issues" :selected="selectedKey" />
 
     <GithubItemPanel v-if="current" :key="current.key" :url="current.url" :item="current.item" />
+
+    <p v-if="!props.url && issues.length > 1 && !current" class="faint" style="margin: 8px 0 0">
+      Select an issue above to open it here.
+    </p>
 
     <div v-if="!issues.length" class="empty">This task is not linked to an issue.</div>
 
