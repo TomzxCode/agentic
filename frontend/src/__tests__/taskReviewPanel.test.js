@@ -510,6 +510,74 @@ describe('TaskReviewPanel', () => {
     const wrapper = mount(TaskReviewPanel, { props: { task: multi, selected: 'acme/api/43' }, ...stub })
     await flushPromises()
 
+    // The selected pull request replaces the list rather than sitting under it.
+    expect(wrapper.find('.task-link-table').exists()).toBe(false)
+    expect(mocks.githubIssue).toHaveBeenCalledWith('https://github.com/acme/api/pull/43')
+    expect(mocks.githubIssue).not.toHaveBeenCalledWith('https://github.com/acme/api/pull/42')
+    expect(wrapper.findAll('.task-item-panel')).toHaveLength(1)
+
+    // The back control returns to the list.
+    expect(wrapper.get('.task-link-back').text()).toContain('All pull requests')
+    await wrapper.get('.task-link-back button').trigger('click')
+    expect(mocks.routerPush).toHaveBeenCalledWith({ query: { view: 'pr' } })
+  })
+
+  it('shows only the list, not a pull request, until one is selected', async () => {
+    const second = {
+      id: 'a2',
+      item: {
+        id: 'i2',
+        source: 'github',
+        kind: 'pull_request',
+        url: 'https://github.com/acme/api/pull/43',
+        title: 'Second PR',
+        content: '',
+        metadata_json: {}
+      }
+    }
+    const multi = { ...task, associations: [...task.associations, second] }
+    mocks.taskLinks.mockResolvedValue({
+      issues: [],
+      pulls: [
+        {
+          repository: 'acme/api',
+          number: 42,
+          title: 'Do the thing',
+          url: 'https://github.com/acme/api/pull/42',
+          state: 'OPEN',
+          draft: false,
+          requested_users: ['carol'],
+          requested_teams: [],
+          approvers: [],
+          ci: 'success',
+          open_threads: 2,
+          mergeable: true,
+          merge_state: 'CLEAN',
+          ready_to_merge: false
+        },
+        {
+          repository: 'acme/api',
+          number: 43,
+          title: 'Second PR',
+          url: 'https://github.com/acme/api/pull/43',
+          state: 'MERGED',
+          draft: false,
+          requested_users: [],
+          requested_teams: [],
+          approvers: ['bob'],
+          ci: 'success',
+          open_threads: 0,
+          mergeable: true,
+          merge_state: 'CLEAN',
+          ready_to_merge: false
+        }
+      ]
+    })
+    mocks.routeQuery = { view: 'pr' }
+
+    const wrapper = mount(TaskReviewPanel, { props: { task: multi }, ...stub })
+    await flushPromises()
+
     // The list is the My PRs table, stating every fact the page asks for.
     expect(wrapper.findAll('.task-link-table th').map((cell) => cell.text())).toEqual([
       'PR',
@@ -530,42 +598,12 @@ describe('TaskReviewPanel', () => {
     expect(links[0].text()).toContain('none')
     expect(links[0].text()).toContain('No')
     expect(links[1].text()).toContain('Merged')
-    // Selecting one reads and renders only that pull request.
-    expect(wrapper.get('.task-link-row.active').text()).toContain('#43')
-    expect(mocks.githubIssue).toHaveBeenCalledWith('https://github.com/acme/api/pull/43')
-    expect(mocks.githubIssue).not.toHaveBeenCalledWith('https://github.com/acme/api/pull/42')
-    expect(wrapper.findAll('.task-item-panel')).toHaveLength(1)
-
-    // Clicking a row navigates to that pull request inside the same task.
-    await links[0].trigger('click')
-    expect(mocks.routerPush).toHaveBeenCalledWith({ query: { view: 'pr', item: 'acme/api/42' } })
-  })
-
-  it('shows only the list, not a pull request, until one is selected', async () => {
-    const second = {
-      id: 'a2',
-      item: {
-        id: 'i2',
-        source: 'github',
-        kind: 'pull_request',
-        url: 'https://github.com/acme/api/pull/43',
-        title: 'Second PR',
-        content: '',
-        metadata_json: {}
-      }
-    }
-    const multi = { ...task, associations: [...task.associations, second] }
-    mocks.routeQuery = { view: 'pr' }
-
-    const wrapper = mount(TaskReviewPanel, { props: { task: multi }, ...stub })
-    await flushPromises()
-
-    expect(wrapper.find('.task-link-table').exists()).toBe(true)
-    expect(wrapper.find('.task-link-row.active').exists()).toBe(false)
     // No pull request panel and no GitHub read until a row is chosen.
     expect(wrapper.find('.task-item-panel').exists()).toBe(false)
     expect(mocks.githubIssue).not.toHaveBeenCalled()
-    expect(wrapper.text()).toContain('Select a pull request above to open it here.')
+
+    await links[0].trigger('click')
+    expect(mocks.routerPush).toHaveBeenCalledWith({ query: { view: 'pr', item: 'acme/api/42' } })
   })
 
   it('shows a message when the task links no pull request', async () => {

@@ -1,5 +1,6 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { api } from '../api'
 import { parseGithubUrl } from '../repositories/parse'
 import { store } from '../store'
@@ -24,6 +25,8 @@ const props = defineProps({
   selected: { type: String, default: '' }
 })
 const emit = defineEmits(['changed'])
+const route = useRoute()
+const router = useRouter()
 
 const resolvedTask = ref(props.task)
 watch(
@@ -161,17 +164,29 @@ const selectedKey = computed(() => {
 })
 
 const current = computed(() => issues.value.find((issue) => issue.key === selectedKey.value) || null)
+
+// Return to the list from an open issue, keeping the mode in the URL.
+function clearSelection() {
+  const query = { ...route.query }
+  delete query.item
+  router.push({ query })
+}
 </script>
 
 <template>
   <div class="task-issues">
-    <TaskGithubLinks v-if="!props.url && issues.length > 1" kind="issue" :items="issues" :selected="selectedKey" />
+    <TaskGithubLinks
+      v-if="!props.url && issues.length > 1 && !current"
+      kind="issue"
+      :items="issues"
+      :selected="selectedKey"
+    />
+
+    <div v-if="!props.url && issues.length > 1 && current" class="task-link-back">
+      <button class="btn sm ghost" @click="clearSelection">← All issues</button>
+    </div>
 
     <GithubItemPanel v-if="current" :key="current.key" :url="current.url" :item="current.item" />
-
-    <p v-if="!props.url && issues.length > 1 && !current" class="faint" style="margin: 8px 0 0">
-      Select an issue above to open it here.
-    </p>
 
     <div v-if="!issues.length" class="empty">This task is not linked to an issue.</div>
 

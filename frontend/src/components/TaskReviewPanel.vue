@@ -1,5 +1,6 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { api } from '../api'
 import { renderMarkdown } from '../markdown'
 import {
@@ -46,6 +47,8 @@ const props = defineProps({
   selected: { type: String, default: '' }
 })
 const emit = defineEmits(['changed'])
+const route = useRoute()
+const router = useRouter()
 
 const resolvedTask = ref(props.task)
 watch(
@@ -196,6 +199,14 @@ const selectedKey = computed(() => {
 })
 
 const current = computed(() => items.value.find((entry) => entry.key === selectedKey.value) || null)
+
+// Return to the list from an open pull request, keeping the mode in the URL.
+function clearSelection() {
+  const query = { ...route.query }
+  delete query.item
+  router.push({ query })
+}
+
 // The aliases the template uses for the selected item's pull request and review
 // row, so the panel's fields read the same as they did when every linked PR had
 // its own iteration.
@@ -417,7 +428,16 @@ watch(signature, async () => {
 
 <template>
   <div class="task-review">
-    <TaskGithubLinks v-if="!props.url && items.length > 1" kind="pr" :items="items" :selected="selectedKey" />
+    <TaskGithubLinks
+      v-if="!props.url && items.length > 1 && !current"
+      kind="pr"
+      :items="items"
+      :selected="selectedKey"
+    />
+
+    <div v-if="!props.url && items.length > 1 && current" class="task-link-back">
+      <button class="btn sm ghost" @click="clearSelection">← All pull requests</button>
+    </div>
 
     <GithubItemPanel
       v-if="current"
@@ -681,10 +701,6 @@ watch(signature, async () => {
         No review reports for this pull request yet. Run <code>/review-pr-full</code> on it to fill the queue.
       </p>
     </GithubItemPanel>
-
-    <p v-if="!props.url && items.length > 1 && !current" class="faint" style="margin: 8px 0 0">
-      Select a pull request above to open it here.
-    </p>
 
     <div v-if="!items.length" class="empty">This task is not linked to a pull request.</div>
 

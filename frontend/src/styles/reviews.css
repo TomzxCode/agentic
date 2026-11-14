@@ -363,6 +363,11 @@
   outline: 2px solid var(--accent);
   outline-offset: -2px;
 }
+/* The return control above an open item, since the list and the item are two
+   separate views rather than one under the other. */
+.task-link-back {
+  margin-bottom: 8px;
+}
 
 /* The list of GitHub issues a task links, above the selected issue's panel. It
    appears only when the task links more than one, and each row names the item

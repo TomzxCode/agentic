@@ -147,15 +147,17 @@ describe('TaskIssuePanel', () => {
     const wrapper = mount(TaskIssuePanel, { props: { task: multi, harnesses: [], selected: 'acme/api/8' }, ...stub })
     await flushPromises()
 
-    // The task links two issues, so they are listed with their states.
-    expect(wrapper.findAll('.task-link')).toHaveLength(2)
-    expect(wrapper.get('.task-link.active').text()).toContain('#8')
-    expect(wrapper.get('.task-link.active').text()).toContain('Closed')
-    // Only the selected issue is read and rendered, and the task page stays put.
+    // The selected issue replaces the list rather than sitting under it.
+    expect(wrapper.find('.task-link-list').exists()).toBe(false)
     expect(mocks.issue).toHaveBeenCalledWith('https://github.com/acme/api/issues/8')
     expect(mocks.issue).not.toHaveBeenCalledWith('https://github.com/acme/api/issues/7')
     expect(wrapper.findAll('.task-item-panel')).toHaveLength(1)
     expect(wrapper.text()).toContain('Second issue')
+
+    // The back control returns to the list.
+    expect(wrapper.get('.task-link-back').text()).toContain('All issues')
+    await wrapper.get('.task-link-back button').trigger('click')
+    expect(mocks.routerPush).toHaveBeenCalledWith({ query: { view: 'issue' } })
   })
 
   it('shows only the list, not an issue, until one is selected', async () => {
@@ -180,8 +182,8 @@ describe('TaskIssuePanel', () => {
     expect(wrapper.findAll('.task-link')).toHaveLength(2)
     expect(wrapper.find('.task-link.active').exists()).toBe(false)
     expect(wrapper.find('.task-item-panel').exists()).toBe(false)
+    expect(wrapper.find('.task-link-back').exists()).toBe(false)
     expect(mocks.issue).not.toHaveBeenCalled()
-    expect(wrapper.text()).toContain('Select an issue above to open it here.')
   })
 
   it('says so when the task links no issue', async () => {
