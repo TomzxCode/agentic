@@ -451,9 +451,9 @@ a.my-pulls-check-name:hover {
   }
   .my-pulls-table tr {
     display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 6px 10px;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 4px;
     padding: 10px 12px;
     border: 1px solid var(--border);
     border-left: 3px solid var(--attention-color);
@@ -471,24 +471,31 @@ a.my-pulls-check-name:hover {
     padding: 0;
     border: 0;
   }
-  /* The card layout hides the table header, so each cell names its own column
-     instead of showing a bare value such as "none" or "No". */
+  /* The card layout hides the table header, so each cell reads as a labelled
+     row: a fixed column of faint column names and a value beside it, instead of
+     a bare "none" or "No" with no context. */
+  .my-pulls-table td[data-label] {
+    display: grid;
+    grid-template-columns: 92px minmax(0, 1fr);
+    column-gap: 8px;
+    align-items: baseline;
+  }
   .my-pulls-table td[data-label]::before {
-    content: attr(data-label) ': ';
+    content: attr(data-label);
     color: var(--faint);
     font-size: 10px;
+    line-height: 1.7;
     text-transform: uppercase;
     letter-spacing: 0.03em;
+  }
+  .my-pulls-value {
+    min-width: 0;
   }
   /* Re-assert the flex row: the generic mobile `td` rule above would otherwise
      turn the PR cell into a block and let its nowrap title overflow the card. */
   .my-pulls-table .my-pulls-pr-cell {
     display: flex;
-    flex: 1 1 100%;
-  }
-  /* The approvers take a line of their own so they can wrap. */
-  .my-pulls-table td:nth-child(4) {
-    flex: 1 1 100%;
+    margin-bottom: 2px;
   }
   .my-pulls-approvers {
     overflow: visible;

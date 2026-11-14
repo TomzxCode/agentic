@@ -158,59 +158,77 @@ function personLinkFor(login) {
             <span class="my-pulls-title" :title="entry.title">{{ entry.title || 'Untitled' }}</span>
           </td>
           <td data-label="Status">
-            <span class="badge" :class="pullStatusClass(entry)">{{ pullStatusLabel(entry) }}</span>
+            <span class="my-pulls-value">
+              <span class="badge" :class="pullStatusClass(entry)">{{ pullStatusLabel(entry) }}</span>
+            </span>
           </td>
           <td data-label="Review">
-            <span class="badge" :class="reviewTone(entry)">{{ reviewLabel(entry) }}</span>
+            <span class="my-pulls-value">
+              <span class="badge" :class="reviewTone(entry)">{{ reviewLabel(entry) }}</span>
+            </span>
           </td>
           <td class="my-pulls-approvers" data-label="Reviewers" :title="reviewersTitle(entry)">
-            <template v-if="reviewers(entry).length">
-              <span class="my-pulls-approvers-label faint">{{ reviewerPrefix(entry) }}</span>
-              <template v-for="(login, index) in reviewers(entry)" :key="login">
-                <span v-if="index" class="faint">, </span>
-                <router-link
-                  v-if="personLinkFor(login)"
-                  :to="personLinkFor(login).path"
-                  :class="{ faint: personLinkFor(login).missing }"
-                  @click.stop
-                  >{{ login }}</router-link
-                >
-                <span v-else>{{ login }}</span>
+            <span class="my-pulls-value">
+              <template v-if="reviewers(entry).length">
+                <span class="my-pulls-approvers-label faint">{{ reviewerPrefix(entry) }}</span>
+                <template v-for="(login, index) in reviewers(entry)" :key="login">
+                  <span v-if="index" class="faint">, </span>
+                  <router-link
+                    v-if="personLinkFor(login)"
+                    :to="personLinkFor(login).path"
+                    :class="{ faint: personLinkFor(login).missing }"
+                    @click.stop
+                    >{{ login }}</router-link
+                  >
+                  <span v-else>{{ login }}</span>
+                </template>
               </template>
-            </template>
-            <span v-else class="faint" :class="{ 'tone-warn': reviewerNeedsPerson(entry) }">{{
-              reviewerEmptyLabel(entry)
-            }}</span>
+              <span v-else class="faint" :class="{ 'tone-warn': reviewerNeedsPerson(entry) }">{{
+                reviewerEmptyLabel(entry)
+              }}</span>
+            </span>
           </td>
           <td data-label="Checks" @click.stop>
-            <PullChecksPopover :pull="entry" />
+            <span class="my-pulls-value"><PullChecksPopover :pull="entry" /></span>
           </td>
           <td class="my-pulls-threads" data-label="Comments" :title="commentsTitle(entry)">
-            <span :class="{ 'my-pulls-threads-open': entry.open_threads > 0 }">{{ entry.open_threads || 0 }} open</span>
+            <span class="my-pulls-value">
+              <span :class="{ 'my-pulls-threads-open': entry.open_threads > 0 }"
+                >{{ entry.open_threads || 0 }} open</span
+              >
+            </span>
           </td>
-          <td data-label="Conflicts" :class="conflictsTone(entry)" :title="conflictsTitle(entry)">
-            {{ conflictsLabel(entry) }}
+          <td data-label="Conflicts" :title="conflictsTitle(entry)">
+            <span class="my-pulls-value" :class="conflictsTone(entry)">{{ conflictsLabel(entry) }}</span>
           </td>
           <td data-label="Issue">
-            <span class="badge" :class="linkedIssueTone(entry)" :title="linkedIssueTitle(entry)">{{
-              linkedIssueLabel(entry)
-            }}</span>
+            <span class="my-pulls-value">
+              <span class="badge" :class="linkedIssueTone(entry)" :title="linkedIssueTitle(entry)">{{
+                linkedIssueLabel(entry)
+              }}</span>
+            </span>
           </td>
           <td data-label="Description">
-            <span class="badge" :class="descriptionTone(entry)" :title="descriptionTitle(entry)">{{
-              descriptionLabel(entry)
-            }}</span>
+            <span class="my-pulls-value">
+              <span class="badge" :class="descriptionTone(entry)" :title="descriptionTitle(entry)">{{
+                descriptionLabel(entry)
+              }}</span>
+            </span>
           </td>
           <td data-label="Ready">
-            <span class="badge" :class="isReadyToMerge(entry) ? 'ok' : ''" :title="readyToMergeTitle(entry)">{{
-              isReadyToMerge(entry) ? 'Yes' : 'No'
-            }}</span>
+            <span class="my-pulls-value">
+              <span class="badge" :class="isReadyToMerge(entry) ? 'ok' : ''" :title="readyToMergeTitle(entry)">{{
+                isReadyToMerge(entry) ? 'Yes' : 'No'
+              }}</span>
+            </span>
           </td>
           <td class="faint" data-label="Updated">
-            <span v-if="entry.updated_at" class="mono" :title="formatDateTime(entry.updated_at)">{{
-              timeAgo(entry.updated_at)
-            }}</span>
-            <span v-else>—</span>
+            <span class="my-pulls-value">
+              <span v-if="entry.updated_at" class="mono" :title="formatDateTime(entry.updated_at)">{{
+                timeAgo(entry.updated_at)
+              }}</span>
+              <span v-else>—</span>
+            </span>
           </td>
         </tr>
       </tbody>
