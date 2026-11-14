@@ -24,6 +24,7 @@ import AgentPanel from './AgentPanel.vue'
 import FeedbackCard from './FeedbackCard.vue'
 import FindingsSelector from './FindingsSelector.vue'
 import GithubItemPanel from './GithubItemPanel.vue'
+import TaskGithubLinks from './TaskGithubLinks.vue'
 
 // The task's pull-request mode: for each PR the task is linked to (or a single
 // PR given by `url`), the same detail panel the issue mode shows for an issue
@@ -39,7 +40,10 @@ const props = defineProps({
   task: { type: Object, default: null },
   harnesses: { type: Array, default: () => [] },
   // A single pull request URL to render on its own, without a task association.
-  url: { type: String, default: '' }
+  url: { type: String, default: '' },
+  // The pull request selected in the linked-items list, named by its key. Empty
+  // falls back to the first linked pull request.
+  selected: { type: String, default: '' }
 })
 const emit = defineEmits(['changed'])
 
@@ -114,6 +118,7 @@ const linked = computed(() => {
     const tracked = (store.items || []).find((item) => item.url === props.url)
     return [
       {
+        key: `${parsed.owner}/${parsed.repo}/${parsed.number}`,
         owner: parsed.owner,
         repo: parsed.repo,
         number: Number(parsed.number),
@@ -126,6 +131,25 @@ const linked = computed(() => {
   return props.task ? taskPullRequests(props.task) : []
 })
 
+// The task's GitHub links, read in one request so the list can show each pull
+// request's status, reviewers, checks, open comments, conflicts, and merge
+// readiness without a request per item.
+const summaries = ref({ issues: [], pulls: [] })
+
+async function loadLinks() {
+  if (!resolvedTask.value?.id || props.url) {
+    summaries.value = { issues: [], pulls: [] }
+    return
+  }
+  try {
+    summaries.value = await api.github.taskLinks(resolvedTask.value.id)
+  } catch {
+    // The list still renders from the stored links below; a failed read must
+    // not hide the pull requests the task links.
+    summaries.value = { issues: [], pulls: [] }
+  }
+}
+
 // A signature of the linked PRs, so the panel refetches when the links change.
 const signature = computed(() => linked.value.map((pr) => `${pr.owner}/${pr.repo}#${pr.number}`).join('|'))
 
@@ -133,10 +157,48 @@ const queue = ref({ prs: [] })
 const loading = ref(true)
 const error = ref(false)
 
-// Each linked PR paired with its review-queue row, or null when the store has no
-// reports for it. The template renders this rather than looking the row up again
-// per field.
-const items = computed(() => linked.value.map((pr) => ({ pr, row: queueRowFor(queue.value.prs, pr) })))
+// Each linked PR paired with its review-queue row (null when the store has no
+// reports for it) and its current GitHub state from the links read. The
+// template renders this rather than looking the row up again per field.
+const items = computed(() =>
+  linked.value.map((pr) => {
+    // The list's selection key is the URL-shaped "owner/repo/number", shared
+    // with the issue list; the panes keep their own "#number" key.
+    const key = `${pr.owner}/${pr.repo}/${pr.number}`
+    const summary = (summaries.value.pulls || []).find(
+      (entry) =>
+        Number(entry.number) === Number(pr.number) &&
+        String(entry.repository || '').toLowerCase() === `${pr.owner}/${pr.repo}`.toLowerCase()
+    )
+    return {
+      ...(summary || {}),
+      key,
+      owner: pr.owner,
+      repo: pr.repo,
+      number: pr.number,
+      title: summary?.title || pr.item?.title || '',
+      url: pr.url,
+      item: pr.item,
+      pr,
+      row: queueRowFor(queue.value.prs, pr)
+    }
+  })
+)
+
+// The pull request the panel renders: the selected one, or the first linked
+// pull request when the URL carries no selection (or names one no longer
+// linked).
+const selectedKey = computed(() => {
+  if (props.selected && items.value.some((entry) => entry.key === props.selected)) return props.selected
+  return items.value[0]?.key || ''
+})
+
+const current = computed(() => items.value.find((entry) => entry.key === selectedKey.value) || null)
+// The aliases the template uses for the selected item's pull request and review
+// row, so the panel's fields read the same as they did when every linked PR had
+// its own iteration.
+const pr = computed(() => current.value?.pr || null)
+const row = computed(() => current.value?.row || null)
 
 // The analyzed reviewer comments the store holds for each pull request, keyed by
 // the PR's coordinates: the same cards the PR feedback page shows, scoped to
@@ -342,20 +404,22 @@ async function refresh() {
 }
 
 onMounted(async () => {
-  await load()
+  await Promise.all([load(), loadLinks()])
   await loadFeedback()
 })
 watch(signature, async () => {
-  await load()
+  await Promise.all([load(), loadLinks()])
   await loadFeedback()
 })
 </script>
 
 <template>
   <div class="task-review">
+    <TaskGithubLinks v-if="!props.url && items.length > 1" kind="pr" :items="items" :selected="selectedKey" />
+
     <GithubItemPanel
-      v-for="{ pr, row } in items"
-      :key="`${pr.owner}/${pr.repo}#${pr.number}`"
+      v-if="current"
+      :key="current.key"
       :url="pr.url"
       :item="pr.item"
       :show-body="tabFor(pr, row) === 'description'"

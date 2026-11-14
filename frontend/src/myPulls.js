@@ -6,6 +6,87 @@
 export const CI_LABELS = { success: 'Passing', pending: 'Running', failure: 'Failing', none: 'No checks' }
 export const CI_TONES = { success: 'ok', pending: 'warn', failure: 'danger', none: '' }
 
+// The four states a pull request can be in, as the status badge reads it. ghx
+// reports OPEN / MERGED / CLOSED and a draft PR separately, so an open draft
+// reads as "draft".
+export const PULL_STATUS_LABELS = { open: 'Open', draft: 'Draft', merged: 'Merged', closed: 'Closed' }
+
+export function pullStatus(pull) {
+  const state = String(pull?.state || '').toUpperCase()
+  if (state === 'MERGED') return 'merged'
+  if (state === 'CLOSED') return 'closed'
+  return pull?.draft ? 'draft' : 'open'
+}
+
+export function pullStatusLabel(pull) {
+  return PULL_STATUS_LABELS[pullStatus(pull)] || 'Open'
+}
+
+// GitHub's merge state, as the Ready cell explains it. CLEAN is the only state
+// in which merging does not wait on something.
+export const MERGE_STATE_LABELS = {
+  CLEAN: 'Ready to merge',
+  BLOCKED: 'Blocked by required reviews or checks',
+  BEHIND: 'Behind its base branch',
+  DIRTY: 'Has merge conflicts',
+  DRAFT: 'Draft',
+  HAS_HOOKS: 'Waiting on a pre-receive hook',
+  UNSTABLE: 'Checks failing or still running',
+  UNKNOWN: 'GitHub has not computed mergeability yet'
+}
+
+// Whether the branches conflict. GitHub's mergeability is the source; the merge
+// state covers a read that only carried that. Null when neither is known.
+export function hasMergeConflicts(pull) {
+  if (pull?.mergeable === false || pull?.merge_state === 'DIRTY') return true
+  if (pull?.mergeable === true) return false
+  if (pull?.merge_state) return false
+  return null
+}
+
+// Whether the head commit's checks pass. No checks at all counts as passing,
+// since nothing blocks the merge.
+export function checksPassing(pull) {
+  return !pull?.ci || pull.ci === 'success' || pull.ci === 'none'
+}
+
+// Whether a person, not just a team, is reviewing the pull request: a pending
+// request naming a user, or a review someone already submitted.
+export function hasIndividualReviewer(pull) {
+  return Boolean((pull?.requested_users || []).length || (pull?.approvers || []).length)
+}
+
+// The individual logins a review is still requested from, or the approvers when
+// nobody is left to review, so the Reviewers cell names the people involved.
+export function assignedReviewers(pull) {
+  const waiting = pull?.requested_users || []
+  if (waiting.length) return waiting
+  return pull?.approvers || []
+}
+
+// Whether the pull request is ready to merge right now, as the API computed it.
+export function isReadyToMerge(pull) {
+  return Boolean(pull?.ready_to_merge)
+}
+
+// Why the Ready cell reads the way it does, for its tooltip.
+export function readyToMergeTitle(pull) {
+  if (pull?.ready_to_merge) return 'GitHub reports this pull request is ready to merge'
+  const status = pullStatus(pull)
+  if (status === 'merged') return 'Already merged'
+  if (status === 'closed') return 'Closed without merging'
+  if (status === 'draft') return 'Draft: mark it ready for review first'
+  if (hasMergeConflicts(pull) === true) return 'The branches have merge conflicts'
+  const reason = MERGE_STATE_LABELS[pull?.merge_state]
+  if (reason) return reason
+  const missing = []
+  if (!pull?.approved) missing.push('an approved review')
+  if (!checksPassing(pull)) missing.push('passing checks')
+  if (Number(pull?.open_threads) > 0) missing.push('no open review comments')
+  if (!hasIndividualReviewer(pull)) missing.push('an assigned reviewer')
+  return missing.length ? `Waiting on ${missing.join(', ')}` : 'Not ready to merge'
+}
+
 // GitHub's review decision: APPROVED once the reviews the branch requires are
 // in, CHANGES_REQUESTED when someone asked for changes, REVIEW_REQUIRED while a
 // required review is still missing. A pull request GitHub decided nothing about

@@ -1,11 +1,12 @@
 <script setup>
-import { computed, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { api } from '../api'
 import { parseGithubUrl } from '../repositories/parse'
 import { store } from '../store'
 import { taskIssues } from '../reviews'
 import AgentPanel from './AgentPanel.vue'
 import GithubItemPanel from './GithubItemPanel.vue'
+import TaskGithubLinks from './TaskGithubLinks.vue'
 
 // The task's issue mode: for each GitHub issue the task links (or a single issue
 // given by `url`), its current detail (read fresh from GitHub, falling back to
@@ -17,7 +18,10 @@ const props = defineProps({
   task: { type: Object, default: null },
   harnesses: { type: Array, default: () => [] },
   // A single issue URL to render on its own, without a task association.
-  url: { type: String, default: '' }
+  url: { type: String, default: '' },
+  // The item selected in the linked-items list, named by its key. Empty falls
+  // back to the first linked issue.
+  selected: { type: String, default: '' }
 })
 const emit = defineEmits(['changed'])
 
@@ -82,8 +86,39 @@ async function adoptTask(task) {
   }
 }
 
-// The GitHub issues to render: the task's linked issues, or the single issue
-// named by `url` when this panel is used as a standalone view.
+// The GitHub issues the task links, each with the current state the links
+// endpoint read. A standalone view (`url`) has no list, because it renders one
+// issue on its own.
+const linked = computed(() => (props.task ? taskIssues(props.task) : []))
+
+// The task's GitHub links, read in one request so the list can show each
+// issue's current state without a request per item.
+const summaries = ref({ issues: [], pulls: [] })
+
+async function loadLinks() {
+  if (!resolvedTask.value?.id || props.url) {
+    summaries.value = { issues: [], pulls: [] }
+    return
+  }
+  try {
+    summaries.value = await api.github.taskLinks(resolvedTask.value.id)
+  } catch {
+    // The list still renders from the stored items below; a failed read must
+    // not hide the issues the task links.
+    summaries.value = { issues: [], pulls: [] }
+  }
+}
+
+onMounted(loadLinks)
+watch(
+  () => [resolvedTask.value?.id, props.url],
+  () => {
+    loadLinks()
+  }
+)
+
+// The issues to render: the single issue named by `url` when this panel is
+// used as a standalone view, or the task's linked issues with their state.
 const issues = computed(() => {
   if (props.url) {
     const parsed = parseGithubUrl(props.url)
@@ -91,22 +126,47 @@ const issues = computed(() => {
     const tracked = (store.items || []).find((item) => item.url === props.url)
     return [
       {
+        key: `${parsed.owner}/${parsed.repo}/${parsed.number}`,
         owner: parsed.owner,
         repo: parsed.repo,
         number: Number(parsed.number),
         url: props.url,
         item: tracked || null,
-        item_id: tracked?.id
+        item_id: tracked?.id,
+        state: tracked?.metadata_json?.state || ''
       }
     ]
   }
-  return props.task ? taskIssues(props.task) : []
+  return linked.value.map((issue) => {
+    const summary = (summaries.value.issues || []).find(
+      (entry) =>
+        Number(entry.number) === Number(issue.number) &&
+        String(entry.url || '').toLowerCase() === String(issue.url || '').toLowerCase()
+    )
+    return {
+      ...issue,
+      key: `${issue.owner}/${issue.repo}/${issue.number}`,
+      title: summary?.title || issue.item?.title || '',
+      state: summary?.state || issue.item?.metadata_json?.state || ''
+    }
+  })
 })
+
+// The issue the panel renders: the selected one, or the first linked issue when
+// the URL carries no selection (or names one the task no longer links).
+const selectedKey = computed(() => {
+  if (props.selected && issues.value.some((issue) => issue.key === props.selected)) return props.selected
+  return issues.value[0]?.key || ''
+})
+
+const current = computed(() => issues.value.find((issue) => issue.key === selectedKey.value) || null)
 </script>
 
 <template>
   <div class="task-issues">
-    <GithubItemPanel v-for="issue in issues" :key="issue.url" :url="issue.url" :item="issue.item" />
+    <TaskGithubLinks v-if="!props.url && issues.length > 1" kind="issue" :items="issues" :selected="selectedKey" />
+
+    <GithubItemPanel v-if="current" :key="current.key" :url="current.url" :item="current.item" />
 
     <div v-if="!issues.length" class="empty">This task is not linked to an issue.</div>
 

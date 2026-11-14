@@ -4,11 +4,17 @@ import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
 enableAutoUnmount(afterEach)
 
 const mocks = vi.hoisted(() => ({
-  issue: vi.fn()
+  issue: vi.fn(),
+  taskLinks: vi.fn(),
+  routeQuery: {}
 }))
 
 vi.mock('../api', () => ({
-  api: { github: { issue: mocks.issue } }
+  api: { github: { issue: mocks.issue, taskLinks: mocks.taskLinks } }
+}))
+
+vi.mock('vue-router', () => ({
+  useRoute: () => ({ query: mocks.routeQuery })
 }))
 
 import TaskIssuePanel from '../components/TaskIssuePanel.vue'
@@ -42,6 +48,8 @@ beforeEach(() => {
   vi.clearAllMocks()
   store.toast = null
   store.people = []
+  mocks.routeQuery = {}
+  mocks.taskLinks.mockResolvedValue({ issues: [], pulls: [] })
   mocks.issue.mockResolvedValue({
     number: 7,
     title: 'Broken thing',
@@ -100,6 +108,52 @@ describe('TaskIssuePanel', () => {
     const link = wrapper.get('.task-item-meta a[href="/person/new?name=alice&alias=alice"]')
     expect(link.text()).toBe('alice')
     expect(link.classes()).toContain('faint')
+  })
+
+  it('lists every linked issue and renders only the selected one', async () => {
+    const second = {
+      id: 'a2',
+      item: {
+        id: 'i2',
+        source: 'github',
+        kind: 'issue',
+        url: 'https://github.com/acme/api/issues/8',
+        title: 'Second issue',
+        content: '',
+        metadata_json: { state: 'OPEN' }
+      }
+    }
+    const multi = { ...task, associations: [...task.associations, second] }
+    mocks.taskLinks.mockResolvedValue({
+      issues: [
+        { number: 7, title: 'Broken thing', url: 'https://github.com/acme/api/issues/7', state: 'OPEN' },
+        { number: 8, title: 'Second issue', url: 'https://github.com/acme/api/issues/8', state: 'CLOSED' }
+      ],
+      pulls: []
+    })
+    mocks.issue.mockImplementation(async (url) => ({
+      number: Number(url.split('/').pop()),
+      title: url.includes('/8') ? 'Second issue' : 'Broken thing',
+      url,
+      state: url.includes('/8') ? 'CLOSED' : 'OPEN',
+      author: 'alice',
+      labels: [],
+      body: ''
+    }))
+    mocks.routeQuery = { view: 'issue', item: 'acme/api/8' }
+
+    const wrapper = mount(TaskIssuePanel, { props: { task: multi, harnesses: [], selected: 'acme/api/8' }, ...stub })
+    await flushPromises()
+
+    // The task links two issues, so they are listed with their states.
+    expect(wrapper.findAll('.task-link')).toHaveLength(2)
+    expect(wrapper.get('.task-link.active').text()).toContain('#8')
+    expect(wrapper.get('.task-link.active').text()).toContain('Closed')
+    // Only the selected issue is read and rendered, and the task page stays put.
+    expect(mocks.issue).toHaveBeenCalledWith('https://github.com/acme/api/issues/8')
+    expect(mocks.issue).not.toHaveBeenCalledWith('https://github.com/acme/api/issues/7')
+    expect(wrapper.findAll('.task-item-panel')).toHaveLength(1)
+    expect(wrapper.text()).toContain('Second issue')
   })
 
   it('says so when the task links no issue', async () => {

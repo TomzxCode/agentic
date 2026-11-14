@@ -26,6 +26,8 @@ class MyPullRead(BaseModel):
     number: int
     title: str = ""
     url: str = ""
+    # OPEN / MERGED / CLOSED. A draft is an open pull request flagged by `draft`.
+    state: str = ""
     draft: bool = False
     created_at: str | None = None
     # When the pull request was last marked ready for review, from ghx's
@@ -49,6 +51,20 @@ class MyPullRead(BaseModel):
     # and who GitHub still lists as requested reviewers.
     reviewed: bool = False
     requested_reviewers: list[str] = []
+    # The individual login each pending review request names, and the teams it
+    # names instead. A team request alone does not say which person owes the
+    # review, so a reader that asks for an assigned reviewer looks at the users.
+    requested_users: list[str] = []
+    requested_teams: list[str] = []
+    # GitHub's mergeability for the head commit: True when it merges cleanly,
+    # False when the branches conflict, None when the read could not tell.
+    mergeable: bool | None = None
+    # GitHub's merge state (CLEAN, BLOCKED, DIRTY, BEHIND, UNSTABLE, DRAFT,
+    # HAS_HOOKS, UNKNOWN), or "" when it could not be read.
+    merge_state: str = ""
+    # Whether GitHub reports the pull request as ready to merge now: merge state
+    # CLEAN, or, when that read failed, approved and green with no open threads.
+    ready_to_merge: bool = False
     # The tasks the pull request's stored item is associated with, if the app
     # tracks it. A pull request the app does not track carries none.
     tasks: list[MyPullTask] = []

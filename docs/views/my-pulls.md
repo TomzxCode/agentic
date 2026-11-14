@@ -8,9 +8,10 @@
 
 Your own pull requests fail quietly: CI goes red, a reviewer asks for changes, a thread stays unanswered.
 Checking each one on GitHub costs a tab per pull request.
-This page answers "which of mine are moving, and which need a nudge" with one row per pull request, carrying its check rollup, review decision, approvers, and open thread count.
+This page answers "which of mine are moving, and which need a nudge" with one row per pull request, carrying its status, review decision, individual reviewers, check rollup, open comment count, merge conflicts, and merge readiness.
 
 The list is read-only over GitHub: `ghx` reads each registered GitHub repository, nothing is stored, so a merged pull request leaves on the next refresh.
+`ghx` does not cache mergeability, so one GraphQL read per repository fills the Conflicts and Ready columns; when that read cannot run, those columns fall back to the pull request's other signals (`Ready` then needs an approval, green checks, and no open comments).
 A pull request's task link is resolved from the app's own stored items, so linking or unlinking a task shows on the next load without a GitHub refresh.
 
 The read covers the repositories registered in **Repositories** that carry a GitHub remote.
@@ -20,18 +21,21 @@ A pull request in a repository neither the app nor `ghx` knows is not listed, so
 
 ### The page
 
-The header reads `My PRs` with a summary of open pull requests, how many need attention, how many are approved, and how many threads are open.
+The header reads `My PRs` with a summary of open pull requests, how many are ready to merge, how many need attention, how many are approved, and how many threads are open.
 The root line names the login the list was read for, taken from **Settings → GitHub** or the authenticated `gh` account.
 
 The table has one row per pull request:
 
 | Column | What it shows |
 | --- | --- |
-| PR | A `ghx` link (when a ghx web server is configured) and a `gh` link to GitHub, then the number, linking to the app's PR page; a `draft` badge; the repository (hidden when grouped by repository, linking to the app's repository page); the title; and a link to each task the pull request is associated with, if the app tracks it. |
-| CI | The check rollup: passing, failing, running, or no checks. Click it to list the pull request's individual checks, failing first. |
+| PR | A `ghx` link (when a ghx web server is configured) and a `gh` link to GitHub, then the number, linking to the app's PR page; the repository (hidden when grouped by repository, linking to the app's repository page); the title; and a link to each task the pull request is associated with, if the app tracks it. |
+| Status | `Open`, `Draft`, `Merged`, or `Closed`. The list reads open pull requests, so a row here reads `Open` or `Draft`. |
 | Review | The review decision: approved, changes requested, review required, or no review. |
-| Approvers | The logins whose latest decisive review approves, each a person link, or a dash when none are known. |
-| Threads | `N open`, with a tooltip giving how many of the review threads are still open. |
+| Reviewers | The individual logins a review is still requested from, each a person link, prefixed `waiting on`; when nobody is left to review, the approvers read as `approved by`; a team-only request reads `team only`, and no reviewer at all reads `none`. |
+| Checks | The check rollup: passing, failing, running, or no checks. Click it to list the pull request's individual checks, failing first. |
+| Comments | `N open`, with a tooltip giving how many of the review threads are still open. |
+| Conflicts | `none` when the branches merge cleanly, `conflicts` when they do not, and a dash when GitHub's mergeability could not be read. |
+| Ready | `Yes` when GitHub reports the pull request ready to merge, `No` otherwise; the tooltip names what still blocks it (a draft, conflicts, a required review, failing checks, open comments, or a merge state such as `BLOCKED` or `BEHIND`). |
 | Updated | When the pull request last changed, relative, with the full time in a tooltip. |
 
 Every row carries a vertical edge down its first cell in the colour of the rank that placed it, and hovering the edge names the state behind it:

@@ -442,6 +442,76 @@ def test_create_issue_endpoint(monkeypatch):
         assert client.post("/api/github/issues", json={"owner": "o", "repo": "r", "title": "T"}).status_code == 502
 
 
+def test_task_links_endpoint_reads_each_linked_item_state(monkeypatch):
+    issue = json.dumps(
+        {
+            "number": 1,
+            "title": "An issue",
+            "url": "https://github.com/o/r/issues/1",
+            "state": "OPEN",
+            "author": {"login": "alice"},
+        }
+    )
+    pull = json.dumps(
+        {
+            "number": 2,
+            "title": "A pull request",
+            "url": "https://github.com/o/r/pull/2",
+            "state": "OPEN",
+            "isDraft": False,
+            "author": {"login": "alice"},
+            "reviewDecision": "APPROVED",
+            "reviews": [{"author": {"login": "bob"}, "state": "APPROVED"}],
+            "reviewRequests": [{"type": "User", "login": "carol"}, {"type": "Team", "name": "platform"}],
+            "checks": {"state": "SUCCESS", "total": 1},
+            "reviewThreads": {"total": 2, "open": 1},
+        }
+    )
+    merge = json.dumps(
+        {"data": {"repository": {"n0": {"number": 2, "mergeable": "MERGEABLE", "mergeStateStatus": "CLEAN"}}}}
+    )
+
+    def fake(cmd, timeout=60):
+        if cmd[:2] == ["ghx", "issue"]:
+            return issue
+        if cmd[:2] == ["ghx", "pr"]:
+            return pull
+        if cmd[:3] == ["gh", "api", "graphql"]:
+            return merge
+        return None
+
+    monkeypatch.setattr(shell, "_run_cli", fake)
+    with TestClient(app) as client:
+        task = client.post("/api/tasks", json={"title": "Linked work"}).json()
+        issue_item = client.post(
+            "/api/items", json={"url": "https://github.com/o/r/issues/1", "title": "An issue", "fetch": False}
+        ).json()
+        pull_item = client.post(
+            "/api/items", json={"url": "https://github.com/o/r/pull/2", "title": "A pull request", "fetch": False}
+        ).json()
+        client.post(f"/api/tasks/{task['id']}/items", json={"item_id": issue_item["id"]})
+        client.post(f"/api/tasks/{task['id']}/items", json={"item_id": pull_item["id"]})
+
+        links = client.get(f"/api/github/task/{task['id']}").json()
+
+        assert links["issues"] == [
+            {"number": 1, "title": "An issue", "url": "https://github.com/o/r/issues/1", "state": "OPEN"}
+        ]
+        row = links["pulls"][0]
+        assert row["number"] == 2
+        assert row["state"] == "OPEN"
+        assert row["requested_users"] == ["carol"]
+        assert row["requested_teams"] == ["platform"]
+        assert row["mergeable"] is True
+        assert row["merge_state"] == "CLEAN"
+        assert row["ready_to_merge"] is True
+        assert row["open_threads"] == 1
+
+        client.delete(f"/api/tasks/{task['id']}")
+        client.delete(f"/api/items/{issue_item['id']}")
+        client.delete(f"/api/items/{pull_item['id']}")
+
+
 def test_create_task_from_github(monkeypatch):
     # Stub the item fetch so no network/gh is needed.
     from agentic.routers import task_writes as tasks_router

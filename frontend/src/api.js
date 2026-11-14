@@ -449,6 +449,10 @@ export const api = {
       return request(`/github/issues?${qs.toString()}`)
     },
     issue: (url) => request(`/github/issue?${new URLSearchParams({ url }).toString()}`),
+    // The GitHub issues and pull requests a task links, with their current
+    // state (status, reviewers, checks, open comments, conflicts, readiness), in
+    // one read for the task view's Issue and PR lists.
+    taskLinks: (taskId) => request(`/github/task/${taskId}`),
     createIssue: (body) => request('/github/issues', { method: 'POST', body }),
     repository: ({ repository_id, owner, repo, state = 'all', limit = 1000 } = {}) => {
       const qs = new URLSearchParams()

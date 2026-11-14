@@ -51,6 +51,10 @@ let closeStream = null
 const linkedPrs = computed(() => taskPullRequests(task.value))
 // The GitHub issues the task is linked to, for the issue mode.
 const linkedIssues = computed(() => taskIssues(task.value))
+// The linked item selected in the Issue or PR mode's list, named by its key in
+// the URL (`?item=owner/repo/42`), so selecting one is a navigation within the
+// task and the back button returns to the previous one.
+const selectedLink = computed(() => String(route.query.item || ''))
 
 // A task's notes are its note-source items, normalized to the fields the shared
 // NotesPanel renders for both tasks and people.
@@ -101,6 +105,9 @@ function setMode(next) {
   if (!modeAvailable(next)) return
   mode.value = next
   const query = { ...route.query }
+  // A selection belongs to the mode that made it, so switching modes drops it
+  // rather than carrying an issue key into the PR list (or the reverse).
+  delete query.item
   if (next === 'default') delete query.view
   else query.view = next
   router.replace({ query })
@@ -401,8 +408,20 @@ watch(
       </div>
     </div>
 
-    <TaskIssuePanel v-if="mode === 'issue'" :task="task" :harnesses="store.harnesses" @changed="onChanged" />
-    <TaskReviewPanel v-else-if="mode === 'pr'" :task="task" :harnesses="store.harnesses" @changed="onChanged" />
+    <TaskIssuePanel
+      v-if="mode === 'issue'"
+      :task="task"
+      :harnesses="store.harnesses"
+      :selected="selectedLink"
+      @changed="onChanged"
+    />
+    <TaskReviewPanel
+      v-else-if="mode === 'pr'"
+      :task="task"
+      :harnesses="store.harnesses"
+      :selected="selectedLink"
+      @changed="onChanged"
+    />
 
     <template v-else>
       <div v-if="showCreateIssue" class="row create-issue-pick">

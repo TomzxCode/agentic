@@ -344,6 +344,59 @@
   margin-left: 6px;
 }
 
+/* The list of GitHub items a task links, above the selected item's panel. It
+   appears only when the task links more than one, and each row names the item
+   and its current state. */
+.task-link-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+.task-link {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-1);
+  color: inherit;
+  text-decoration: none;
+}
+.task-link:hover {
+  border-color: var(--accent);
+  text-decoration: none;
+}
+.task-link.active {
+  border-color: var(--accent);
+  background: var(--bg-2);
+}
+.task-link-number {
+  flex: none;
+  font-family: var(--font-mono);
+  color: var(--muted);
+}
+.task-link-title {
+  flex: 1 1 180px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.task-link-facts {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.task-link-facts .badge {
+  text-transform: none;
+  letter-spacing: 0;
+  white-space: nowrap;
+}
+
 /* A task view mode's per-item panel: the review queue's row for each PR the
    task links, or the detail of each issue it links. */
 .task-item-panel .task-item-head {

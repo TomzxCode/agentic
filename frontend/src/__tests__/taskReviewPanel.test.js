@@ -10,18 +10,24 @@ const mocks = vi.hoisted(() => ({
   findings: vi.fn(),
   createRun: vi.fn(),
   githubIssue: vi.fn(),
+  taskLinks: vi.fn(),
   pullReviewers: vi.fn(),
   feedbackList: vi.fn(),
-  setFeedbackDecision: vi.fn()
+  setFeedbackDecision: vi.fn(),
+  routeQuery: {}
 }))
 
 vi.mock('../api', () => ({
   api: {
-    github: { issue: mocks.githubIssue, pullReviewers: mocks.pullReviewers },
+    github: { issue: mocks.githubIssue, taskLinks: mocks.taskLinks, pullReviewers: mocks.pullReviewers },
     reviews: { task: mocks.taskReviews, report: mocks.report, findings: mocks.findings },
     runs: { create: mocks.createRun },
     feedback: { list: mocks.feedbackList, setDecision: mocks.setFeedbackDecision }
   }
+}))
+
+vi.mock('vue-router', () => ({
+  useRoute: () => ({ query: mocks.routeQuery })
 }))
 
 import TaskReviewPanel from '../components/TaskReviewPanel.vue'
@@ -141,6 +147,8 @@ beforeEach(() => {
   vi.clearAllMocks()
   store.toast = null
   store.people = []
+  mocks.routeQuery = {}
+  mocks.taskLinks.mockResolvedValue({ issues: [], pulls: [] })
   vi.spyOn(store, 'loadPeople').mockResolvedValue()
   mocks.taskReviews.mockResolvedValue({ root: null, counts: { total: 1 }, prs: [pr()] })
   mocks.findings.mockResolvedValue([finding()])
@@ -431,6 +439,89 @@ describe('TaskReviewPanel', () => {
     await flushPromises()
     expect(wrapper.find('.review-content').exists()).toBe(false)
     expect(wrapper.find('.task-pr-steps').exists()).toBe(true)
+  })
+
+  it('lists every linked pull request with its state and renders only the selected one', async () => {
+    const second = {
+      id: 'a2',
+      item: {
+        id: 'i2',
+        source: 'github',
+        kind: 'pull_request',
+        url: 'https://github.com/acme/api/pull/43',
+        title: 'Second PR',
+        content: '',
+        metadata_json: {}
+      }
+    }
+    const multi = { ...task, associations: [...task.associations, second] }
+    mocks.taskLinks.mockResolvedValue({
+      issues: [],
+      pulls: [
+        {
+          repository: 'acme/api',
+          number: 42,
+          title: 'Do the thing',
+          url: 'https://github.com/acme/api/pull/42',
+          state: 'OPEN',
+          draft: false,
+          requested_users: ['carol'],
+          requested_teams: [],
+          approvers: [],
+          ci: 'success',
+          open_threads: 2,
+          mergeable: true,
+          merge_state: 'CLEAN',
+          ready_to_merge: false
+        },
+        {
+          repository: 'acme/api',
+          number: 43,
+          title: 'Second PR',
+          url: 'https://github.com/acme/api/pull/43',
+          state: 'MERGED',
+          draft: false,
+          requested_users: [],
+          requested_teams: [],
+          approvers: ['bob'],
+          ci: 'success',
+          open_threads: 0,
+          mergeable: true,
+          merge_state: 'CLEAN',
+          ready_to_merge: false
+        }
+      ]
+    })
+    mocks.githubIssue.mockImplementation(async (url) => ({
+      number: Number(url.split('/').pop()),
+      title: url.includes('/43') ? 'Second PR' : 'Do the thing',
+      url,
+      state: url.includes('/43') ? 'MERGED' : 'OPEN',
+      is_draft: false,
+      created_at: '2026-01-10T00:00:00Z',
+      author: 'alice',
+      labels: [],
+      body: ''
+    }))
+    mocks.routeQuery = { view: 'pr', item: 'acme/api/43' }
+
+    const wrapper = mount(TaskReviewPanel, { props: { task: multi, selected: 'acme/api/43' }, ...stub })
+    await flushPromises()
+
+    const links = wrapper.findAll('.task-link')
+    expect(links).toHaveLength(2)
+    // The first pull request states every fact the list asks for.
+    expect(links[0].text()).toContain('Passing')
+    expect(links[0].text()).toContain('1 reviewer')
+    expect(links[0].text()).toContain('2 open')
+    expect(links[0].text()).toContain('no conflicts')
+    expect(links[0].text()).toContain('not ready')
+    expect(links[1].text()).toContain('Merged')
+    // Selecting one reads and renders only that pull request.
+    expect(wrapper.get('.task-link.active').text()).toContain('#43')
+    expect(mocks.githubIssue).toHaveBeenCalledWith('https://github.com/acme/api/pull/43')
+    expect(mocks.githubIssue).not.toHaveBeenCalledWith('https://github.com/acme/api/pull/42')
+    expect(wrapper.findAll('.task-item-panel')).toHaveLength(1)
   })
 
   it('shows a message when the task links no pull request', async () => {

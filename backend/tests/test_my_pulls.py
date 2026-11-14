@@ -43,6 +43,8 @@ def test_list_my_open_pulls_reduces_a_ghx_record(monkeypatch):
     seen: dict = {}
 
     def fake(cmd, timeout=60):
+        if cmd[0] != "ghx":
+            return None
         seen["cmd"] = cmd
         return _payload([_record()])
 
@@ -134,6 +136,8 @@ def test_list_my_open_pulls_merges_repositories_newest_update_first(monkeypatch)
     lock = threading.Lock()
 
     def fake(cmd, timeout=60):
+        if cmd[0] != "ghx":
+            return None
         repo = cmd[cmd.index("--repo") + 1]
         with lock:
             seen.append(repo)
@@ -170,6 +174,10 @@ def test_list_my_open_pulls_reports_reviews_and_requested_reviewers(monkeypatch)
     assert pulls is not None
     assert pulls[0]["reviewed"] is True
     assert pulls[0]["requested_reviewers"] == ["alice", "platform"]
+    # The user and team requests are kept apart, so a reader can tell an
+    # assigned person from a team that says nothing about who owes the review.
+    assert pulls[0]["requested_users"] == ["alice"]
+    assert pulls[0]["requested_teams"] == ["platform"]
 
 
 def test_list_my_open_pulls_leaves_the_author_out_of_the_requested_reviewers(monkeypatch):
@@ -227,6 +235,75 @@ def test_list_my_open_pulls_maps_the_latest_ready_for_review_event(monkeypatch):
     assert pulls[0]["ready_for_review_at"] is None
 
 
+def test_pull_merge_states_split_requests_into_users_and_teams():
+    record = _record(
+        reviewDecision="REVIEW_REQUIRED",
+        reviewRequests=[
+            {"type": "User", "login": "alice"},
+            {"type": "Team", "name": "platform"},
+            {"type": "Bot", "login": "dependabot[bot]"},
+        ],
+    )
+    row = github.pull_row_from_record(record, "o/r")
+    assert row is not None
+    assert row["requested_users"] == ["alice", "dependabot[bot]"]
+    assert row["requested_teams"] == ["platform"]
+    # Nothing read the mergeability yet, so readiness falls back to the signals;
+    # a still-required review keeps it from reading as ready.
+    assert row["mergeable"] is None
+    assert row["merge_state"] == ""
+    assert row["ready_to_merge"] is False
+
+
+def test_list_my_open_pulls_fills_merge_state_and_readiness(monkeypatch):
+    def fake(cmd, timeout=60):
+        if cmd[0] == "ghx":
+            return _payload([_record(number=1), _record(number=2, isDraft=True)])
+        return json.dumps(
+            {
+                "data": {
+                    "repository": {
+                        "n0": {"number": 1, "mergeable": "MERGEABLE", "mergeStateStatus": "CLEAN"},
+                        "n1": {"number": 2, "mergeable": "CONFLICTING", "mergeStateStatus": "DIRTY"},
+                    }
+                }
+            }
+        )
+
+    monkeypatch.setattr(shell, "_run_cli", fake)
+    pulls = github.list_my_open_pulls(["o/r"], "tomzx")
+
+    assert pulls is not None
+    clean, conflicting = pulls
+    assert clean["mergeable"] is True
+    assert clean["merge_state"] == "CLEAN"
+    assert clean["ready_to_merge"] is True
+    assert conflicting["mergeable"] is False
+    assert conflicting["merge_state"] == "DIRTY"
+    assert conflicting["ready_to_merge"] is False
+
+
+def test_ready_to_merge_requires_an_open_clean_pull_request():
+    base = {
+        "state": "OPEN",
+        "draft": False,
+        "mergeable": True,
+        "merge_state": "CLEAN",
+        "approved": True,
+        "ci": "success",
+        "open_threads": 0,
+    }
+    assert github._ready_to_merge(dict(base)) is True
+    assert github._ready_to_merge({**base, "draft": True}) is False
+    assert github._ready_to_merge({**base, "state": "MERGED"}) is False
+    assert github._ready_to_merge({**base, "merge_state": "BLOCKED"}) is False
+    assert github._ready_to_merge({**base, "mergeable": False}) is False
+    # With no merge state read, the row's own signals decide.
+    assert github._ready_to_merge({**base, "merge_state": ""}) is True
+    assert github._ready_to_merge({**base, "merge_state": "", "ci": "failure"}) is False
+    assert github._ready_to_merge({**base, "merge_state": "", "open_threads": 1}) is False
+
+
 def test_pull_counts_summarizes_the_list():
     counts = my_pulls.pull_counts(
         [
@@ -245,6 +322,7 @@ def test_pull_counts_summarizes_the_list():
         "total": 3,
         "attention": 2,
         "approved": 1,
+        "ready": 0,
         "failing": 1,
         "open_threads": 2,
         "draft": 1,

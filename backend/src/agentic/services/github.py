@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import re
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -496,9 +496,10 @@ def _graphql(
         payload = json.loads(raw)
     except json.JSONDecodeError:
         return None
-    if not isinstance(payload, dict) or payload.get("errors"):
-        if payload.get("errors"):
-            log.warning("github graphql error", errors=payload.get("errors"))
+    if not isinstance(payload, dict):
+        return None
+    if payload.get("errors"):
+        log.warning("github graphql error", errors=payload.get("errors"))
         return None
     return payload
 
@@ -646,6 +647,126 @@ def _requested_reviewers(record: dict[str, Any]) -> list[str]:
     return names
 
 
+def _requested_reviewer_kinds(record: dict[str, Any]) -> tuple[list[str], list[str]]:
+    """The requested reviewers, split into individual users and teams.
+
+    GitHub may satisfy a team request with one member's review, while a user
+    request names the person whose review the pull request is waiting on. A
+    reader that asks "has a reviewer been assigned?" must therefore look at the
+    users a request names, not at the teams.
+    """
+    requests = record.get("reviewRequests") or []
+    if not isinstance(requests, list):
+        return [], []
+    users: list[str] = []
+    teams: list[str] = []
+    for request in requests:
+        if not isinstance(request, dict):
+            continue
+        if str(request.get("type") or "").lower() == "team":
+            name = request.get("name") or request.get("login")
+            if name and str(name) not in teams:
+                teams.append(str(name))
+            continue
+        login = request.get("login")
+        if login and str(login) not in users:
+            users.append(str(login))
+    return users, teams
+
+
+#: How many pull requests one mergeability query asks about. Each number is a
+#: top-level field on the query, so a large list is split to keep it small.
+MERGE_STATE_CHUNK = 50
+
+
+def _merge_state_query(owner: str, repo: str, numbers: list[int]) -> tuple[str, dict[str, Any]]:
+    """The GraphQL query reading one repository's mergeability, and its variables."""
+    variables: dict[str, Any] = {"owner": owner, "repo": repo}
+    fields: list[str] = []
+    for index, number in enumerate(numbers):
+        key = f"n{index}"
+        variables[key] = number
+        fields.append(f"{key}: pullRequest(number: ${key}) {{ number mergeable mergeStateStatus }}")
+    query = (
+        "query($owner: String!, $repo: String!, "
+        + ", ".join(f"${key}: Int!" for key in variables if key.startswith("n"))
+        + ") { repository(owner: $owner, name: $repo) { "
+        + " ".join(fields)
+        + " } }"
+    )
+    return query, variables
+
+
+def pull_merge_states(repository: str, numbers: Sequence[int]) -> dict[int, dict[str, str]]:
+    """Each pull request's mergeability and merge state, keyed by its number.
+
+    ghx caches a pull request's checks and review threads but not GitHub's
+    mergeability, so this one read fills it from the GraphQL API through
+    ``gh``. A read that cannot run returns no entries; callers treat that as
+    unknown rather than as "mergeable".
+    """
+    parsed = github_owner_repo(repository)
+    owner, repo = parsed if parsed else (repository.split("/", 1) + [""])[:2]
+    if not owner or not repo:
+        return {}
+    wanted = sorted({int(number) for number in numbers if number is not None})
+    states: dict[int, dict[str, str]] = {}
+    for start in range(0, len(wanted), MERGE_STATE_CHUNK):
+        chunk = wanted[start : start + MERGE_STATE_CHUNK]
+        query, variables = _merge_state_query(owner, repo, chunk)
+        typed = {key for key in variables if key.startswith("n")}
+        payload = _graphql(query, variables, typed=typed)
+        repository_data = ((payload or {}).get("data") or {}).get("repository") or {}
+        for entry in repository_data.values():
+            if not isinstance(entry, dict) or entry.get("number") is None:
+                continue
+            states[int(entry["number"])] = {
+                "mergeable": str(entry.get("mergeable") or "").upper(),
+                "merge_state": str(entry.get("mergeStateStatus") or "").upper(),
+            }
+    return states
+
+
+def _ready_to_merge(row: dict[str, Any]) -> bool:
+    """Whether GitHub considers the pull request mergeable right now.
+
+    GitHub's own ``mergeStateStatus`` decides when it was read: only ``CLEAN``
+    means every requirement is satisfied. When it could not be read, the row's
+    other signals stand in, conservatively: an approved, green pull request
+    with no open threads is ready.
+    """
+    if str(row.get("state") or "").upper() != "OPEN" or row.get("draft"):
+        return False
+    if row.get("mergeable") is False or row.get("merge_state") == "DIRTY":
+        return False
+    if row.get("merge_state"):
+        return row["merge_state"] == "CLEAN"
+    return (
+        bool(row.get("approved"))
+        and row.get("ci") not in ("failure", "pending")
+        and not int(row.get("open_threads") or 0)
+    )
+
+
+def apply_merge_states(rows: list[dict[str, Any]], states: dict[int, dict[str, str]]) -> None:
+    """Fill each row's merge fields, in place, from a mergeability read."""
+    for row in rows:
+        state = states.get(int(row.get("number") or 0))
+        if state:
+            mergeable = state.get("mergeable") or ""
+            row["mergeable"] = True if mergeable == "MERGEABLE" else False if mergeable == "CONFLICTING" else None
+            row["merge_state"] = state.get("merge_state") or ""
+        row["ready_to_merge"] = _ready_to_merge(row)
+
+
+def fetch_pull_row(owner: str, repo: str, number: object, login: str = "") -> dict[str, Any] | None:
+    """One pull request as a row with its current state, or None when unreadable."""
+    record = fetch_github_pull_record(owner, repo, number)
+    if record is None:
+        return None
+    return _pull_row(record, f"{owner}/{repo}", login)
+
+
 def pr_slack_link(url: str, title: str) -> str:
     """The pull request as a Slack link: ``<url|title>`` with the title sanitized."""
     title = " ".join(str(title or "").split())
@@ -669,7 +790,9 @@ def _pull_row(record: dict[str, Any], repository: str, login: str = "") -> dict[
     reviews = _reviews(record)
     open_threads, total_threads = _thread_counts(record)
     author = str((record.get("author") or {}).get("login") or login)
-    return {
+    requested_users, requested_teams = _requested_reviewer_kinds(record)
+    author_key = author.strip().lower()
+    row = {
         "repository": repository,
         "number": int(number),
         "title": record.get("title") or "",
@@ -696,7 +819,19 @@ def _pull_row(record: dict[str, Any], repository: str, login: str = "") -> dict[
         "requested_reviewers": [
             name for name in _requested_reviewers(record) if name.strip().lower() != author.strip().lower()
         ],
+        # The individual reviewers a review is still requested from, and the
+        # teams a request names. A team request does not say which person owes
+        # the review, so the two are kept apart.
+        "requested_users": [login for login in requested_users if login.strip().lower() != author_key],
+        "requested_teams": requested_teams,
+        # GitHub's mergeability and merge state, filled by the mergeability read.
+        # None / "" means the read did not cover this pull request.
+        "mergeable": None,
+        "merge_state": "",
+        "ready_to_merge": False,
     }
+    row["ready_to_merge"] = _ready_to_merge(row)
+    return row
 
 
 def pull_row_from_record(record: dict[str, Any], repository: str, login: str = "") -> dict[str, Any] | None:
@@ -815,7 +950,9 @@ def _list_my_pulls_in(repository: str, login: str, limit: int) -> list[dict[str,
         return None
     if not isinstance(records, list):
         return None
-    return [row for record in records if isinstance(record, dict) and (row := _pull_row(record, repository, login))]
+    rows = [row for record in records if isinstance(record, dict) and (row := _pull_row(record, repository, login))]
+    apply_merge_states(rows, pull_merge_states(repository, [row["number"] for row in rows]))
+    return rows
 
 
 # --- A pull request's individual checks -------------------------------------

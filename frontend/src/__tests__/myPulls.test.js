@@ -14,16 +14,21 @@ vi.mock('../api', () => ({
 
 import MyPullsView from '../views/MyPullsView.vue'
 import {
+  assignedReviewers,
   attentionRank,
   attentionState,
   checkCounts,
   checkLabel,
   checkTone,
+  checksPassing,
   checksSummary,
   ciLabel,
   ciTone,
   CI_FILTERS,
   groupPulls,
+  hasIndividualReviewer,
+  hasMergeConflicts,
+  isReadyToMerge,
   matchesCiFilter,
   matchesPullSearch,
   matchesReviewFilter,
@@ -32,6 +37,9 @@ import {
   PULL_GROUPINGS,
   pullCounts,
   pullFilterCounts,
+  pullStatus,
+  pullStatusLabel,
+  readyToMergeTitle,
   reviewLabel,
   REVIEW_FILTERS,
   reviewTone,
@@ -81,6 +89,45 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.restoreAllMocks()
+})
+
+describe('pull state helpers', () => {
+  it('reads the four states a pull request can be in', () => {
+    expect(pullStatus(pull({ state: 'OPEN' }))).toBe('open')
+    expect(pullStatus(pull({ state: 'OPEN', draft: true }))).toBe('draft')
+    expect(pullStatus(pull({ state: 'MERGED' }))).toBe('merged')
+    expect(pullStatus(pull({ state: 'CLOSED' }))).toBe('closed')
+    expect(pullStatusLabel(pull({ state: 'MERGED' }))).toBe('Merged')
+  })
+
+  it('tells a person assigned to review from a team-only request', () => {
+    expect(hasIndividualReviewer(pull({ requested_users: ['alice'], requested_teams: [] }))).toBe(true)
+    expect(hasIndividualReviewer(pull({ requested_users: [], approvers: ['bob'] }))).toBe(true)
+    expect(hasIndividualReviewer(pull({ requested_users: [], approvers: [], requested_teams: ['platform'] }))).toBe(
+      false
+    )
+    expect(assignedReviewers(pull({ requested_users: ['alice'], approvers: ['bob'] }))).toEqual(['alice'])
+    expect(assignedReviewers(pull({ requested_users: [], approvers: ['bob'] }))).toEqual(['bob'])
+  })
+
+  it('reads merge conflicts and readiness', () => {
+    expect(hasMergeConflicts(pull({ mergeable: false }))).toBe(true)
+    expect(hasMergeConflicts(pull({ merge_state: 'DIRTY' }))).toBe(true)
+    expect(hasMergeConflicts(pull({ mergeable: true }))).toBe(false)
+    expect(hasMergeConflicts(pull({ mergeable: null, merge_state: '' }))).toBe(null)
+    expect(isReadyToMerge(pull({ ready_to_merge: true }))).toBe(true)
+    expect(isReadyToMerge(pull({ ready_to_merge: false }))).toBe(false)
+    expect(readyToMergeTitle(pull({ ready_to_merge: false, state: 'MERGED' }))).toContain('Already merged')
+    expect(readyToMergeTitle(pull({ ready_to_merge: false, merge_state: 'DIRTY' }))).toContain('conflicts')
+    expect(readyToMergeTitle(pull({ ready_to_merge: true }))).toContain('ready to merge')
+  })
+
+  it('counts no checks as not blocking a merge', () => {
+    expect(checksPassing(pull({ ci: 'success' }))).toBe(true)
+    expect(checksPassing(pull({ ci: 'none' }))).toBe(true)
+    expect(checksPassing(pull({ ci: 'pending' }))).toBe(false)
+    expect(checksPassing(pull({ ci: 'failure' }))).toBe(false)
+  })
 })
 
 describe('my pulls helpers', () => {
@@ -291,7 +338,15 @@ describe('MyPullsView', () => {
   it('renders each pull request with its state', async () => {
     mocks.list.mockResolvedValue(
       report([
-        pull({ review_decision: 'APPROVED', approved: true }),
+        pull({
+          review_decision: 'APPROVED',
+          approved: true,
+          state: 'OPEN',
+          requested_users: ['carol'],
+          mergeable: true,
+          merge_state: 'CLEAN',
+          ready_to_merge: true
+        }),
         pull({
           repository: 'TomzxCode/other',
           number: 7,
@@ -300,13 +355,27 @@ describe('MyPullsView', () => {
           ci: 'failure',
           approvers: ['alice', 'bob'],
           open_threads: 2,
-          threads_total: 3
+          threads_total: 3,
+          state: 'OPEN',
+          mergeable: false,
+          merge_state: 'DIRTY'
         })
       ])
     )
     const wrapper = mount(MyPullsView, { global: { stubs: { RouterLink: RouterLinkStub } } })
     await flushPromises()
 
+    expect(wrapper.findAll('.my-pulls-table th').map((cell) => cell.text())).toEqual([
+      'PR',
+      'Status',
+      'Review',
+      'Reviewers',
+      'Checks',
+      'Comments',
+      'Conflicts',
+      'Ready',
+      'Updated'
+    ])
     expect(wrapper.text()).toContain('2 open')
     expect(wrapper.text()).toContain('1 need attention')
     expect(wrapper.text()).toContain('1 approved')
@@ -317,6 +386,12 @@ describe('MyPullsView', () => {
     expect(wrapper.text()).toContain('Changes requested')
     expect(wrapper.text()).toContain('alice')
     expect(wrapper.text()).toContain('bob')
+    // The reviewers cell names the person the review is waiting on, and the
+    // conflicts and ready cells state the merge facts.
+    expect(wrapper.text()).toContain('carol')
+    expect(wrapper.text()).toContain('conflicts')
+    expect(wrapper.text()).toContain('Yes')
+    expect(wrapper.text()).toContain('No')
     // The failing PR needs attention, so it sorts above the other one.
     const numbers = wrapper.findAll('.my-pulls-number').map((link) => link.text())
     expect(numbers).toEqual(['#7', '#42'])

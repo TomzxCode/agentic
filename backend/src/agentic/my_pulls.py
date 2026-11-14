@@ -92,6 +92,7 @@ def pull_counts(pulls: list[dict[str, Any]]) -> dict[str, int]:
             or int(pull["open_threads"]) > 0
         ),
         "approved": sum(1 for pull in pulls if pull["approved"]),
+        "ready": sum(1 for pull in pulls if pull.get("ready_to_merge")),
         "failing": sum(1 for pull in pulls if pull["ci"] == "failure"),
         "open_threads": sum(int(pull["open_threads"]) for pull in pulls),
         "draft": sum(1 for pull in pulls if pull["draft"]),

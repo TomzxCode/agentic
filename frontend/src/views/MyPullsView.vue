@@ -5,9 +5,12 @@ import PullChecksPopover from '../components/PullChecksPopover.vue'
 import SearchSelect from '../components/SearchSelect.vue'
 import TaskLink from '../components/TaskLink.vue'
 import {
+  assignedReviewers,
   attentionState,
   CI_FILTERS,
   groupPulls,
+  hasMergeConflicts,
+  isReadyToMerge,
   matchesCiFilter,
   matchesPullSearch,
   matchesReviewFilter,
@@ -15,6 +18,9 @@ import {
   PULL_GROUPINGS,
   pullCounts,
   pullFilterCounts,
+  pullStatus,
+  pullStatusLabel,
+  readyToMergeTitle,
   reviewLabel,
   REVIEW_FILTERS,
   reviewTone,
@@ -189,6 +195,39 @@ function personLinkFor(login) {
   return personLink(store.people, login)
 }
 
+// The Reviewers cell: the people the pull request is waiting on, or the ones
+// who already approved it. An empty list still says what it holds, so a
+// team-only request reads differently from no reviewer at all.
+function reviewerNames(pull) {
+  return assignedReviewers(pull)
+}
+
+function reviewerPrefix(pull) {
+  return (pull.requested_users || []).length ? 'waiting on ' : 'approved by '
+}
+
+function reviewerEmptyLabel(pull) {
+  return (pull.requested_teams || []).length ? 'team only' : 'none'
+}
+
+// The Conflicts cell: "none" when the branches merge cleanly, "conflicts" when
+// they do not, and a dash when GitHub's mergeability could not be read.
+function conflictsLabel(pull) {
+  const conflicts = hasMergeConflicts(pull)
+  if (conflicts === null) return '—'
+  return conflicts ? 'conflicts' : 'none'
+}
+
+function conflictsTone(pull) {
+  const conflicts = hasMergeConflicts(pull)
+  if (conflicts === null) return 'faint'
+  return conflicts ? 'danger' : 'ok'
+}
+
+function statusClass(pull) {
+  return `st-${pullStatus(pull)}`
+}
+
 // A thread cell's tooltip: how many of the pull request's threads are still
 // open, which the cell shows as "open / total".
 function threadTitle(pull) {
@@ -228,8 +267,8 @@ onMounted(load)
       <h1>My PRs</h1>
       <span class="row" style="gap: 8px; align-items: center">
         <span v-if="!loading && !error && !report.error" class="faint">
-          {{ counts.total }} open · {{ counts.attention }} need attention · {{ counts.approved }} approved ·
-          {{ counts.openThreads }} open thread{{ counts.openThreads === 1 ? '' : 's' }}
+          {{ counts.total }} open · {{ counts.ready }} ready · {{ counts.attention }} need attention ·
+          {{ counts.approved }} approved · {{ counts.openThreads }} open thread{{ counts.openThreads === 1 ? '' : 's' }}
         </span>
         <button
           class="btn sm ghost"
@@ -325,10 +364,13 @@ onMounted(load)
               <thead>
                 <tr>
                   <th>PR</th>
-                  <th>CI</th>
+                  <th>Status</th>
                   <th>Review</th>
-                  <th>Approvers</th>
-                  <th>Threads</th>
+                  <th>Reviewers</th>
+                  <th>Checks</th>
+                  <th>Comments</th>
+                  <th>Conflicts</th>
+                  <th>Ready</th>
                   <th>Updated</th>
                 </tr>
               </thead>
@@ -364,7 +406,6 @@ onMounted(load)
                       >gh</a
                     >
                     <span class="my-pulls-number">#{{ pull.number }}</span>
-                    <span v-if="pull.draft" class="badge st-draft">draft</span>
                     <!-- The heading already names the repository when the list is
                          grouped by it, so the row does not repeat it. -->
                     <template v-if="groupBy !== 'repository'">
@@ -397,15 +438,15 @@ onMounted(load)
                     />
                   </td>
                   <td>
-                    <PullChecksPopover :pull="pull" />
+                    <span class="badge" :class="statusClass(pull)">{{ pullStatusLabel(pull) }}</span>
                   </td>
                   <td>
                     <span class="badge" :class="reviewTone(pull)">{{ reviewLabel(pull) }}</span>
                   </td>
                   <td class="my-pulls-approvers">
-                    <span v-if="pull.approvers.length" class="my-pulls-approvers-label faint">approved by </span>
-                    <template v-if="pull.approvers.length">
-                      <template v-for="(login, index) in pull.approvers" :key="login">
+                    <template v-if="reviewerNames(pull).length">
+                      <span class="my-pulls-approvers-label faint">{{ reviewerPrefix(pull) }}</span>
+                      <template v-for="(login, index) in reviewerNames(pull)" :key="login">
                         <span v-if="index" class="faint">, </span>
                         <router-link
                           v-if="personLinkFor(login)"
@@ -416,12 +457,21 @@ onMounted(load)
                         <span v-else>{{ login }}</span>
                       </template>
                     </template>
-                    <span v-else class="faint">—</span>
+                    <span v-else class="faint">{{ reviewerEmptyLabel(pull) }}</span>
+                  </td>
+                  <td>
+                    <PullChecksPopover :pull="pull" />
                   </td>
                   <td class="my-pulls-threads" :title="threadTitle(pull)">
                     <span :class="{ 'my-pulls-threads-open': pull.open_threads > 0 }"
                       >{{ pull.open_threads }} open</span
                     >
+                  </td>
+                  <td :class="conflictsTone(pull)">{{ conflictsLabel(pull) }}</td>
+                  <td>
+                    <span class="badge" :class="isReadyToMerge(pull) ? 'ok' : ''" :title="readyToMergeTitle(pull)">{{
+                      isReadyToMerge(pull) ? 'Yes' : 'No'
+                    }}</span>
                   </td>
                   <td class="faint">
                     <span v-if="pull.updated_at" class="mono" :title="formatDateTime(pull.updated_at)">{{

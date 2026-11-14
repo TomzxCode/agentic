@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pydantic import BaseModel
 
+from .my_pulls import MyPullRead
+
 
 class GithubIssue(BaseModel):
     number: int
@@ -50,6 +52,22 @@ class GithubRepoListing(BaseModel):
 
     items: list[GithubRepoItem] = []
     failed: list[str] = []
+
+
+class GithubTaskIssue(BaseModel):
+    """One issue a task links, with its current state."""
+
+    number: int
+    title: str = ""
+    url: str = ""
+    state: str = ""
+
+
+class GithubTaskLinks(BaseModel):
+    """The GitHub issues and pull requests a task links, with their state."""
+
+    issues: list[GithubTaskIssue] = []
+    pulls: list[MyPullRead] = []
 
 
 class GithubPullPokeRequest(BaseModel):
