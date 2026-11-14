@@ -601,7 +601,7 @@ describe('TaskReviewPanel', () => {
       'Conflicts',
       'Issue',
       'Description',
-      'Ready',
+      'Blocker',
       'Updated'
     ])
     const links = wrapper.findAll('.task-link-row')
@@ -617,7 +617,7 @@ describe('TaskReviewPanel', () => {
       'Conflicts',
       'Issue',
       'Description',
-      'Ready',
+      'Blocker',
       'Updated'
     ])
     expect(links[0].text()).toContain('Passing')
@@ -625,9 +625,15 @@ describe('TaskReviewPanel', () => {
     expect(links[0].text()).toContain('2 open')
     expect(links[0].text()).toContain('none')
     expect(links[0].text()).toContain('up to date')
-    expect(links[0].text()).toContain('No')
+    // The Blocker cell names the first blocker; open comments come before the
+    // review this pull request is still waiting on.
+    expect(links[0].find('td[data-label="Blocker"]').text()).toBe('comments open')
     expect(links[1].text()).toContain('Merged')
     expect(links[1].text()).toContain('stale')
+    // A merged pull request has no blocker, and it no longer waits on anyone.
+    expect(links[1].find('td[data-label="Blocker"]').text()).toBe('none')
+    expect(links[1].text()).not.toContain('waiting on')
+    expect(links[1].text()).toContain('approved by')
     // No pull request panel and no GitHub read until a row is chosen.
     expect(wrapper.find('.task-item-panel').exists()).toBe(false)
     expect(mocks.githubIssue).not.toHaveBeenCalled()

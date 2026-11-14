@@ -133,17 +133,101 @@ export function hasIndividualReviewer(pull) {
   return Boolean((pull?.requested_users || []).length || (pull?.approvers || []).length)
 }
 
-// The individual logins a review is still requested from, or the approvers when
-// nobody is left to review, so the Reviewers cell names the people involved.
+// The reviewers a row names: while the pull request is open, the people a review
+// is still requested from; a merged or closed one names only the people who
+// approved, because it no longer waits on anyone.
 export function assignedReviewers(pull) {
+  const status = pullStatus(pull)
   const waiting = pull?.requested_users || []
+  if (status === 'merged' || status === 'closed') return pull?.approvers || []
   if (waiting.length) return waiting
   return pull?.approvers || []
+}
+
+// How the named reviewers are introduced. A merged or closed pull request reads
+// "approved by" (or nothing, when nobody approved), never "waiting on".
+export function reviewerPrefix(pull) {
+  const status = pullStatus(pull)
+  if (status === 'merged' || status === 'closed') return 'approved by '
+  return (pull?.requested_users || []).length ? 'waiting on ' : 'approved by '
 }
 
 // Whether the pull request is ready to merge right now, as the API computed it.
 export function isReadyToMerge(pull) {
   return Boolean(pull?.ready_to_merge)
+}
+
+// The short reason a pull request is not ready, in the order that blocks it
+// first. GitHub's merge state is the source when it names something other than
+// CLEAN; otherwise the row's own signals decide.
+//
+// BLOCKED is deliberately not a reason of its own: GitHub uses it for any unmet
+// branch rule, so the label is worked out from the row (a missing approval,
+// failing checks, open comments) and falls back to "branch rules" only when
+// none of those explains it.
+const MERGE_STATE_REASONS = {
+  BEHIND: 'behind',
+  DIRTY: 'conflicts',
+  DRAFT: 'draft',
+  HAS_HOOKS: 'hooks',
+  UNSTABLE: 'checks failing',
+  UNKNOWN: 'unknown'
+}
+
+const REASON_TITLES = {
+  'needs review': 'an approved review',
+  'checks failing': 'passing checks',
+  'checks pending': 'checks to finish',
+  'comments open': 'no open review comments',
+  'no reviewer': 'an assigned reviewer',
+  'branch rules': 'branch protection rules'
+}
+
+// The blockers GitHub's merge state can hide, in the order the author should act
+// on them: failing or running checks first, then open comments, and only then a
+// review the pull request is still waiting on.
+function mergeSignalReasons(pull) {
+  const reasons = []
+  if (!checksPassing(pull)) reasons.push(pull?.ci === 'pending' ? 'checks pending' : 'checks failing')
+  if (Number(pull?.open_threads) > 0) reasons.push('comments open')
+  if (!pull?.approved) reasons.push('needs review')
+  return reasons
+}
+
+function readyReasons(pull) {
+  if (pull?.ready_to_merge) return []
+  const status = pullStatus(pull)
+  if (status === 'merged') return ['merged']
+  if (status === 'closed') return ['closed']
+  if (status === 'draft') return ['draft']
+  if (hasMergeConflicts(pull) === true) return ['conflicts']
+  const state = String(pull?.merge_state || '')
+  if (state === 'BLOCKED') {
+    const reasons = mergeSignalReasons(pull)
+    return reasons.length ? reasons : ['branch rules']
+  }
+  if (state && state !== 'CLEAN') return [MERGE_STATE_REASONS[state] || 'unknown']
+  const reasons = mergeSignalReasons(pull)
+  if (!hasIndividualReviewer(pull)) reasons.push('no reviewer')
+  return reasons
+}
+
+// The first reason a pull request is not ready, as the Ready cell shows it.
+// Empty when it is ready, so the cell keeps saying "Yes".
+export function readyToMergeReason(pull) {
+  return readyReasons(pull)[0] || ''
+}
+
+// The Blocker cell's value: the first reason a pull request is not ready, or
+// "none" when nothing blocks it. A merged pull request is done, so it has no
+// blocker either.
+export function blockerLabel(pull) {
+  if (pullStatus(pull) === 'merged') return 'none'
+  return isReadyToMerge(pull) ? 'none' : readyToMergeReason(pull) || 'unknown'
+}
+
+export function blockerTone(pull) {
+  return blockerLabel(pull) === 'none' ? 'ok' : 'warn'
 }
 
 // Why the Ready cell reads the way it does, for its tooltip.
@@ -154,13 +238,13 @@ export function readyToMergeTitle(pull) {
   if (status === 'closed') return 'Closed without merging'
   if (status === 'draft') return 'Draft: mark it ready for review first'
   if (hasMergeConflicts(pull) === true) return 'The branches have merge conflicts'
-  const reason = MERGE_STATE_LABELS[pull?.merge_state]
-  if (reason) return reason
-  const missing = []
-  if (!pull?.approved) missing.push('an approved review')
-  if (!checksPassing(pull)) missing.push('passing checks')
-  if (Number(pull?.open_threads) > 0) missing.push('no open review comments')
-  if (!hasIndividualReviewer(pull)) missing.push('an assigned reviewer')
+  const state = String(pull?.merge_state || '')
+  if (state && state !== 'CLEAN' && state !== 'BLOCKED' && MERGE_STATE_LABELS[state]) {
+    return MERGE_STATE_LABELS[state]
+  }
+  const missing = readyReasons(pull)
+    .map((reason) => REASON_TITLES[reason])
+    .filter(Boolean)
   return missing.length ? `Waiting on ${missing.join(', ')}` : 'Not ready to merge'
 }
 

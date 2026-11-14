@@ -465,10 +465,16 @@ def test_task_links_endpoint_reads_each_linked_item_state(monkeypatch):
             "reviewRequests": [{"type": "User", "login": "carol"}, {"type": "Team", "name": "platform"}],
             "checks": {"state": "SUCCESS", "total": 1},
             "reviewThreads": {"total": 2, "open": 1},
+            "mergeable": "MERGEABLE",
+            "mergeStateStatus": "CLEAN",
+            "body": "Closes the thing",
+            "createdAt": "2026-10-01T00:00:00Z",
+            "lastEditedAt": "2026-10-02T00:00:00Z",
+            "headCommittedAt": "2026-10-01T12:00:00Z",
+            "closingIssuesReferences": [
+                {"number": 7, "title": "The bug", "state": "OPEN", "url": "https://github.com/o/r/issues/7"}
+            ],
         }
-    )
-    merge = json.dumps(
-        {"data": {"repository": {"n0": {"number": 2, "mergeable": "MERGEABLE", "mergeStateStatus": "CLEAN"}}}}
     )
 
     def fake(cmd, timeout=60):
@@ -476,8 +482,6 @@ def test_task_links_endpoint_reads_each_linked_item_state(monkeypatch):
             return issue
         if cmd[:2] == ["ghx", "pr"]:
             return pull
-        if cmd[:3] == ["gh", "api", "graphql"]:
-            return merge
         return None
 
     monkeypatch.setattr(shell, "_run_cli", fake)
@@ -506,6 +510,9 @@ def test_task_links_endpoint_reads_each_linked_item_state(monkeypatch):
         assert row["merge_state"] == "CLEAN"
         assert row["ready_to_merge"] is True
         assert row["open_threads"] == 1
+        assert row["linked_issues"] == [7]
+        assert row["has_description"] is True
+        assert row["description_updated"] is True
 
         client.delete(f"/api/tasks/{task['id']}")
         client.delete(f"/api/items/{issue_item['id']}")

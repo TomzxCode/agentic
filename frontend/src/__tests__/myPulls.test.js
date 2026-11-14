@@ -42,10 +42,14 @@ import {
   PULL_GROUPINGS,
   pullCounts,
   pullFilterCounts,
+  blockerLabel,
+  blockerTone,
   pullStatus,
   pullStatusLabel,
+  readyToMergeReason,
   readyToMergeTitle,
   reviewLabel,
+  reviewerPrefix,
   REVIEW_FILTERS,
   reviewTone,
   sortChecks,
@@ -113,6 +117,15 @@ describe('pull state helpers', () => {
     )
     expect(assignedReviewers(pull({ requested_users: ['alice'], approvers: ['bob'] }))).toEqual(['alice'])
     expect(assignedReviewers(pull({ requested_users: [], approvers: ['bob'] }))).toEqual(['bob'])
+    // A merged pull request names only its approvers, never a pending request.
+    expect(assignedReviewers(pull({ state: 'MERGED', requested_users: ['carol'], approvers: ['bob'] }))).toEqual([
+      'bob'
+    ])
+    expect(assignedReviewers(pull({ state: 'MERGED', requested_users: ['carol'], approvers: [] }))).toEqual([])
+    expect(reviewerPrefix(pull({ requested_users: ['carol'] }))).toBe('waiting on ')
+    expect(reviewerPrefix(pull({ state: 'MERGED', requested_users: ['carol'], approvers: ['bob'] }))).toBe(
+      'approved by '
+    )
   })
 
   it('reads merge conflicts and readiness', () => {
@@ -125,6 +138,42 @@ describe('pull state helpers', () => {
     expect(readyToMergeTitle(pull({ ready_to_merge: false, state: 'MERGED' }))).toContain('Already merged')
     expect(readyToMergeTitle(pull({ ready_to_merge: false, merge_state: 'DIRTY' }))).toContain('conflicts')
     expect(readyToMergeTitle(pull({ ready_to_merge: true }))).toContain('ready to merge')
+  })
+
+  it('names the first reason a pull request is not ready', () => {
+    expect(readyToMergeReason(pull({ ready_to_merge: false, state: 'OPEN', draft: true }))).toBe('draft')
+    expect(readyToMergeReason(pull({ ready_to_merge: false, state: 'MERGED' }))).toBe('merged')
+    expect(readyToMergeReason(pull({ ready_to_merge: false, merge_state: 'DIRTY' }))).toBe('conflicts')
+    // GitHub's BLOCKED names no cause, so the row's own signals decide.
+    expect(readyToMergeReason(pull({ ready_to_merge: false, merge_state: 'BLOCKED' }))).toBe('needs review')
+    expect(
+      readyToMergeReason(pull({ ready_to_merge: false, merge_state: 'BLOCKED', approved: true, ci: 'pending' }))
+    ).toBe('checks pending')
+    expect(
+      readyToMergeReason(pull({ ready_to_merge: false, merge_state: 'BLOCKED', approved: true, approvers: ['bob'] }))
+    ).toBe('branch rules')
+    expect(readyToMergeReason(pull({ ready_to_merge: false, merge_state: 'UNSTABLE' }))).toBe('checks failing')
+    // With no merge state read, the row's own signals decide, and what the
+    // author can act on now comes before a review the PR is waiting on.
+    expect(readyToMergeReason(pull({ ready_to_merge: false, merge_state: '', approved: false }))).toBe('needs review')
+    expect(readyToMergeReason(pull({ ready_to_merge: false, merge_state: '', approved: false, ci: 'failure' }))).toBe(
+      'checks failing'
+    )
+    expect(readyToMergeReason(pull({ ready_to_merge: false, merge_state: '', approved: true, ci: 'failure' }))).toBe(
+      'checks failing'
+    )
+    expect(readyToMergeReason(pull({ ready_to_merge: false, merge_state: '', approved: false, open_threads: 2 }))).toBe(
+      'comments open'
+    )
+    expect(readyToMergeReason(pull({ ready_to_merge: true }))).toBe('')
+    // The Blocker cell reads "none" when nothing blocks, and a merged pull
+    // request is done rather than blocked.
+    expect(blockerLabel(pull({ state: 'MERGED', ready_to_merge: false }))).toBe('none')
+    expect(blockerTone(pull({ state: 'MERGED', ready_to_merge: false }))).toBe('ok')
+    expect(blockerLabel(pull({ state: 'CLOSED', ready_to_merge: false }))).toBe('closed')
+    expect(blockerLabel(pull({ ready_to_merge: true }))).toBe('none')
+    expect(blockerLabel(pull({ ready_to_merge: false, merge_state: 'DIRTY' }))).toBe('conflicts')
+    expect(blockerTone(pull({ ready_to_merge: false, merge_state: 'DIRTY' }))).toBe('warn')
   })
 
   it('reads the linked-issue and description checks', () => {
@@ -401,7 +450,7 @@ describe('MyPullsView', () => {
       'Conflicts',
       'Issue',
       'Description',
-      'Ready',
+      'Blocker',
       'Updated'
     ])
     // The mobile cards hide the header, so every state cell carries its own
@@ -416,7 +465,7 @@ describe('MyPullsView', () => {
       'Conflicts',
       'Issue',
       'Description',
-      'Ready',
+      'Blocker',
       'Updated'
     ])
     expect(wrapper.text()).toContain('2 open')
@@ -435,8 +484,14 @@ describe('MyPullsView', () => {
     expect(wrapper.text()).toContain('conflicts')
     expect(wrapper.text()).toContain('up to date')
     expect(wrapper.text()).toContain('stale')
-    expect(wrapper.text()).toContain('Yes')
-    expect(wrapper.text()).toContain('No')
+    const readyCell = (number) =>
+      wrapper
+        .findAll('.my-pulls-table tbody tr')
+        .find((row) => row.find('.my-pulls-number').text() === number)
+        .find('td[data-label="Blocker"]')
+        .text()
+    expect(readyCell('#42')).toBe('none')
+    expect(readyCell('#7')).toBe('conflicts')
     const linked = wrapper.findAll('.my-pulls-table tbody tr').find((row) => row.text().includes('#42'))
     expect(linked.text()).toContain('#7')
     // The failing PR needs attention, so it sorts above the other one.

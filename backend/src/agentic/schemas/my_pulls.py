@@ -2,7 +2,8 @@
 
 The rows are read from GitHub, not stored, so these models carry the fields the
 page renders: the pull request's identity, its check rollup, its review state
-and approvers, and how many review threads are still open.
+and approvers, how many review threads are still open, its mergeability and
+closing issues, and when its description was last edited.
 """
 
 from __future__ import annotations

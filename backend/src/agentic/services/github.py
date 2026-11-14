@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import re
-from collections.abc import Callable, Sequence
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -542,11 +542,12 @@ def _paginate_connection(
 # --- The viewer's own open pull requests ------------------------------------
 #
 # ghx caches a repository's pull requests with the reviews, review requests,
-# head-commit check rollup, and review-thread counts the My PRs page shows, so
-# this read goes through ghx like every other GitHub read instead of querying
-# GraphQL itself. ghx lists one repository at a time, so the rows come from the
-# repositories the app knows: a pull request in a repository neither side knows
-# is out of scope rather than silently missed.
+# head-commit check rollup, review-thread counts, mergeability, closing issues,
+# and description/commit timestamps the My PRs page shows, so this read goes
+# through ghx like every other GitHub read instead of querying GraphQL itself.
+# ghx lists one repository at a time, so the rows come from the repositories
+# the app knows: a pull request in a repository neither side knows is out of
+# scope rather than silently missed.
 
 #: The most open pull requests one repository's lookup reads.
 MY_PULLS_LIMIT = 500
@@ -555,7 +556,8 @@ MY_PULLS_LIMIT = 500
 #: payload stays to what the row needs instead of the whole record.
 _MY_PULLS_FIELDS = (
     "number,title,url,state,isDraft,createdAt,updatedAt,reviewDecision,author,reviews,reviewRequests,"
-    "checks,reviewThreads,timeline"
+    "checks,reviewThreads,timeline,body,mergeable,mergeStateStatus,closingIssuesReferences,lastEditedAt,"
+    "headCommittedAt"
 )
 
 #: A check rollup state, as the CI badge reads it. ``EXPECTED`` means a check is
@@ -674,110 +676,6 @@ def _requested_reviewer_kinds(record: dict[str, Any]) -> tuple[list[str], list[s
     return users, teams
 
 
-#: How many pull requests one GitHub-facts query asks about. Each number is a
-#: top-level field on the query, so a large list is split to keep it small.
-PULL_FACTS_CHUNK = 50
-
-
-def _pull_facts_query(owner: str, repo: str, numbers: list[int]) -> tuple[str, dict[str, Any]]:
-    """The GraphQL query reading one repository's pull request facts, and its variables."""
-    variables: dict[str, Any] = {"owner": owner, "repo": repo}
-    fields: list[str] = []
-    for index, number in enumerate(numbers):
-        key = f"n{index}"
-        variables[key] = number
-        fields.append(
-            f"{key}: pullRequest(number: ${key}) {{ "
-            "number mergeable mergeStateStatus lastEditedAt createdAt bodyText "
-            "closingIssuesReferences(first: 10) { nodes { number } } "
-            "commits(last: 1) { nodes { commit { committedDate } } } "
-            "}"
-        )
-    query = (
-        "query($owner: String!, $repo: String!, "
-        + ", ".join(f"${key}: Int!" for key in variables if key.startswith("n"))
-        + ") { repository(owner: $owner, name: $repo) { "
-        + " ".join(fields)
-        + " } }"
-    )
-    return query, variables
-
-
-def _linked_issue_numbers(entry: dict[str, Any]) -> list[int]:
-    """The issue numbers GitHub says the pull request closes."""
-    connection = entry.get("closingIssuesReferences") or {}
-    nodes = connection.get("nodes") if isinstance(connection, dict) else None
-    numbers: list[int] = []
-    for node in nodes or []:
-        if not isinstance(node, dict) or node.get("number") is None:
-            continue
-        try:
-            number = int(node["number"])
-        except (TypeError, ValueError):
-            continue
-        if number not in numbers:
-            numbers.append(number)
-    return numbers
-
-
-def _description_updated(entry: dict[str, Any], has_description: bool) -> bool:
-    """Whether the description was written or edited after the latest commit.
-
-    A pull request opened ready has no edit event, so the opening time stands in
-    for it: a body written at creation is current until a later commit arrives.
-    Without either timestamp, a non-empty body counts as current, since nothing
-    proves it stale.
-    """
-    if not has_description:
-        return False
-    edited = _optional_instant(entry.get("lastEditedAt")) or _optional_instant(entry.get("createdAt"))
-    commits = ((entry.get("commits") or {}).get("nodes") or []) if isinstance(entry.get("commits"), dict) else []
-    committed: datetime | None = None
-    for node in commits:
-        commit = (node or {}).get("commit") if isinstance(node, dict) else None
-        instant = _optional_instant((commit or {}).get("committedDate") if isinstance(commit, dict) else None)
-        if instant and (committed is None or instant > committed):
-            committed = instant
-    if edited is None or committed is None:
-        return True
-    return edited >= committed
-
-
-def pull_facts(repository: str, numbers: Sequence[int]) -> dict[int, dict[str, Any]]:
-    """Each pull request's GitHub facts that ghx does not cache, by its number.
-
-    ghx caches a pull request's checks and review threads but not GitHub's
-    mergeability, the issues its description links, or when the description was
-    last edited, so this one read fills them from the GraphQL API through
-    ``gh``. A read that cannot run returns no entries; callers leave those
-    facts unknown rather than guessing.
-    """
-    parsed = github_owner_repo(repository)
-    owner, repo = parsed if parsed else (repository.split("/", 1) + [""])[:2]
-    if not owner or not repo:
-        return {}
-    wanted = sorted({int(number) for number in numbers if number is not None})
-    facts: dict[int, dict[str, Any]] = {}
-    for start in range(0, len(wanted), PULL_FACTS_CHUNK):
-        chunk = wanted[start : start + PULL_FACTS_CHUNK]
-        query, variables = _pull_facts_query(owner, repo, chunk)
-        typed = {key for key in variables if key.startswith("n")}
-        payload = _graphql(query, variables, typed=typed)
-        repository_data = ((payload or {}).get("data") or {}).get("repository") or {}
-        for entry in repository_data.values():
-            if not isinstance(entry, dict) or entry.get("number") is None:
-                continue
-            body = str(entry.get("bodyText") or "").strip()
-            facts[int(entry["number"])] = {
-                "mergeable": str(entry.get("mergeable") or "").upper(),
-                "merge_state": str(entry.get("mergeStateStatus") or "").upper(),
-                "linked_issues": _linked_issue_numbers(entry),
-                "has_description": bool(body),
-                "description_updated": _description_updated(entry, bool(body)),
-            }
-    return facts
-
-
 def _ready_to_merge(row: dict[str, Any]) -> bool:
     """Whether GitHub considers the pull request mergeable right now.
 
@@ -797,20 +695,6 @@ def _ready_to_merge(row: dict[str, Any]) -> bool:
         and row.get("ci") not in ("failure", "pending")
         and not int(row.get("open_threads") or 0)
     )
-
-
-def apply_pull_facts(rows: list[dict[str, Any]], facts: dict[int, dict[str, Any]]) -> None:
-    """Fill each row's GitHub facts, in place, from a facts read."""
-    for row in rows:
-        fact = facts.get(int(row.get("number") or 0))
-        if fact:
-            mergeable = fact.get("mergeable") or ""
-            row["mergeable"] = True if mergeable == "MERGEABLE" else False if mergeable == "CONFLICTING" else None
-            row["merge_state"] = fact.get("merge_state") or ""
-            row["linked_issues"] = fact.get("linked_issues") or []
-            row["has_description"] = fact.get("has_description")
-            row["description_updated"] = fact.get("description_updated")
-        row["ready_to_merge"] = _ready_to_merge(row)
 
 
 def fetch_pull_row(owner: str, repo: str, number: object, login: str = "") -> dict[str, Any] | None:
@@ -835,6 +719,50 @@ def pr_review_request_message(url: str, title: str) -> str:
     return f":wave::robot_face: I would love your review on this PR: {pr_slack_link(url, title)}"
 
 
+def _mergeable_flag(record: dict[str, Any]) -> bool | None:
+    """GitHub's mergeability as a flag: True merges cleanly, False conflicts."""
+    value = str(record.get("mergeable") or "").upper()
+    if value == "MERGEABLE":
+        return True
+    if value == "CONFLICTING":
+        return False
+    return None
+
+
+def _closing_issue_numbers(record: dict[str, Any]) -> list[int] | None:
+    """The issue numbers the description closes, or None when ghx had no read."""
+    values = record.get("closingIssuesReferences")
+    if not isinstance(values, list):
+        return None
+    numbers: list[int] = []
+    for entry in values:
+        if not isinstance(entry, dict) or entry.get("number") is None:
+            continue
+        try:
+            number = int(entry["number"])
+        except (TypeError, ValueError):
+            continue
+        if number not in numbers:
+            numbers.append(number)
+    return numbers
+
+
+def _description_freshness(record: dict[str, Any]) -> tuple[bool, bool | None]:
+    """Whether the PR has a description, and whether it is current.
+
+    The second value is None when the edit or commit time is unknown, so a
+    reader does not report a stale description it cannot prove.
+    """
+    has_description = bool(str(record.get("body") or "").strip())
+    if not has_description:
+        return False, False
+    edited = _optional_instant(record.get("lastEditedAt")) or _optional_instant(record.get("createdAt"))
+    committed = _optional_instant(record.get("headCommittedAt"))
+    if edited is None or committed is None:
+        return True, None
+    return True, edited >= committed
+
+
 def _pull_row(record: dict[str, Any], repository: str, login: str = "") -> dict[str, Any] | None:
     """One ghx pull request record as the My PRs row, or None when it names no PR."""
     number = record.get("number")
@@ -846,6 +774,8 @@ def _pull_row(record: dict[str, Any], repository: str, login: str = "") -> dict[
     author = str((record.get("author") or {}).get("login") or login)
     requested_users, requested_teams = _requested_reviewer_kinds(record)
     author_key = author.strip().lower()
+    linked_issues = _closing_issue_numbers(record)
+    has_description, description_updated = _description_freshness(record)
     row = {
         "repository": repository,
         "number": int(number),
@@ -878,14 +808,14 @@ def _pull_row(record: dict[str, Any], repository: str, login: str = "") -> dict[
         # the review, so the two are kept apart.
         "requested_users": [login for login in requested_users if login.strip().lower() != author_key],
         "requested_teams": requested_teams,
-        # GitHub facts ghx does not cache, filled by the facts read. None means
-        # the read did not cover this pull request, which is different from a
-        # pull request that links no issue or has no description.
-        "mergeable": None,
-        "merge_state": "",
-        "linked_issues": None,
-        "has_description": None,
-        "description_updated": None,
+        # GitHub facts ghx caches on the pull request itself. None means the
+        # cached row predates the field, which is different from a pull request
+        # that links no issue or has no description.
+        "mergeable": _mergeable_flag(record),
+        "merge_state": str(record.get("mergeStateStatus") or "").upper(),
+        "linked_issues": linked_issues,
+        "has_description": has_description,
+        "description_updated": description_updated,
         "ready_to_merge": False,
     }
     row["ready_to_merge"] = _ready_to_merge(row)
@@ -1008,9 +938,7 @@ def _list_my_pulls_in(repository: str, login: str, limit: int) -> list[dict[str,
         return None
     if not isinstance(records, list):
         return None
-    rows = [row for record in records if isinstance(record, dict) and (row := _pull_row(record, repository, login))]
-    apply_pull_facts(rows, pull_facts(repository, [row["number"] for row in rows]))
-    return rows
+    return [row for record in records if isinstance(record, dict) and (row := _pull_row(record, repository, login))]
 
 
 # --- A pull request's individual checks -------------------------------------

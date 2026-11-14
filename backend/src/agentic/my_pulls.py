@@ -2,7 +2,8 @@
 
 The rows come from ghx (``services.github.list_my_open_pulls``), one listing per
 repository the app knows, because ghx caches one repository at a time and
-carries the check rollup and review-thread counts the page shows. This module
+carries the check rollup, review-thread counts, mergeability, closing issues,
+and description timestamps the page shows. This module
 caches the assembled result for a short time and derives the header's counts, so
 reloading the page does not re-query GitHub. It never refreshes the ghx cache:
 that is the background job's job (``ghx_cache.py``), and a page load reads the

@@ -14,7 +14,6 @@ import {
   descriptionTone,
   descriptionTitle,
   groupPulls,
-  isReadyToMerge,
   linkedIssueLabel,
   linkedIssueTone,
   linkedIssueTitle,
@@ -25,9 +24,12 @@ import {
   PULL_GROUPINGS,
   pullCounts,
   pullFilterCounts,
+  blockerLabel,
+  blockerTone,
   pullStatusClass,
   pullStatusLabel,
   readyToMergeTitle,
+  reviewerPrefix,
   reviewLabel,
   REVIEW_FILTERS,
   reviewTone,
@@ -209,10 +211,6 @@ function reviewerNames(pull) {
   return assignedReviewers(pull)
 }
 
-function reviewerPrefix(pull) {
-  return (pull.requested_users || []).length ? 'waiting on ' : 'approved by '
-}
-
 function reviewerEmptyLabel(pull) {
   return (pull.requested_teams || []).length ? 'team only' : 'none'
 }
@@ -361,7 +359,7 @@ onMounted(load)
                   <th>Conflicts</th>
                   <th>Issue</th>
                   <th>Description</th>
-                  <th>Ready</th>
+                  <th>Blocker</th>
                   <th>Updated</th>
                 </tr>
               </thead>
@@ -429,74 +427,56 @@ onMounted(load)
                     />
                   </td>
                   <td data-label="Status">
-                    <span class="my-pulls-value">
-                      <span class="badge" :class="pullStatusClass(pull)">{{ pullStatusLabel(pull) }}</span>
-                    </span>
+                    <span class="badge" :class="pullStatusClass(pull)">{{ pullStatusLabel(pull) }}</span>
                   </td>
                   <td data-label="Review">
-                    <span class="my-pulls-value">
-                      <span class="badge" :class="reviewTone(pull)">{{ reviewLabel(pull) }}</span>
-                    </span>
+                    <span class="badge" :class="reviewTone(pull)">{{ reviewLabel(pull) }}</span>
                   </td>
                   <td class="my-pulls-approvers" data-label="Reviewers">
-                    <span class="my-pulls-value">
-                      <template v-if="reviewerNames(pull).length">
-                        <span class="my-pulls-approvers-label faint">{{ reviewerPrefix(pull) }}</span>
-                        <template v-for="(login, index) in reviewerNames(pull)" :key="login">
-                          <span v-if="index" class="faint">, </span>
-                          <router-link
-                            v-if="personLinkFor(login)"
-                            :to="personLinkFor(login).path"
-                            :class="{ faint: personLinkFor(login).missing }"
-                            >{{ login }}</router-link
-                          >
-                          <span v-else>{{ login }}</span>
-                        </template>
+                    <template v-if="reviewerNames(pull).length">
+                      <span class="my-pulls-approvers-label faint">{{ reviewerPrefix(pull) }}</span>
+                      <template v-for="(login, index) in reviewerNames(pull)" :key="login">
+                        <span v-if="index" class="faint">, </span>
+                        <router-link
+                          v-if="personLinkFor(login)"
+                          :to="personLinkFor(login).path"
+                          :class="{ faint: personLinkFor(login).missing }"
+                          >{{ login }}</router-link
+                        >
+                        <span v-else>{{ login }}</span>
                       </template>
-                      <span v-else class="faint">{{ reviewerEmptyLabel(pull) }}</span>
-                    </span>
+                    </template>
+                    <span v-else class="faint">{{ reviewerEmptyLabel(pull) }}</span>
                   </td>
                   <td data-label="Checks">
-                    <span class="my-pulls-value"><PullChecksPopover :pull="pull" /></span>
+                    <PullChecksPopover :pull="pull" />
                   </td>
                   <td class="my-pulls-threads" data-label="Comments" :title="threadTitle(pull)">
-                    <span class="my-pulls-value">
-                      <span :class="{ 'my-pulls-threads-open': pull.open_threads > 0 }"
-                        >{{ pull.open_threads }} open</span
-                      >
-                    </span>
+                    <span :class="{ 'my-pulls-threads-open': pull.open_threads > 0 }"
+                      >{{ pull.open_threads }} open</span
+                    >
                   </td>
-                  <td data-label="Conflicts">
-                    <span class="my-pulls-value" :class="conflictsTone(pull)">{{ conflictsLabel(pull) }}</span>
-                  </td>
+                  <td data-label="Conflicts" :class="conflictsTone(pull)">{{ conflictsLabel(pull) }}</td>
                   <td data-label="Issue">
-                    <span class="my-pulls-value">
-                      <span class="badge" :class="linkedIssueTone(pull)" :title="linkedIssueTitle(pull)">{{
-                        linkedIssueLabel(pull)
-                      }}</span>
-                    </span>
+                    <span class="badge" :class="linkedIssueTone(pull)" :title="linkedIssueTitle(pull)">{{
+                      linkedIssueLabel(pull)
+                    }}</span>
                   </td>
                   <td data-label="Description">
-                    <span class="my-pulls-value">
-                      <span class="badge" :class="descriptionTone(pull)" :title="descriptionTitle(pull)">{{
-                        descriptionLabel(pull)
-                      }}</span>
-                    </span>
+                    <span class="badge" :class="descriptionTone(pull)" :title="descriptionTitle(pull)">{{
+                      descriptionLabel(pull)
+                    }}</span>
                   </td>
-                  <td data-label="Ready">
-                    <span class="my-pulls-value">
-                      <span class="badge" :class="isReadyToMerge(pull) ? 'ok' : ''" :title="readyToMergeTitle(pull)">{{
-                        isReadyToMerge(pull) ? 'Yes' : 'No'
-                      }}</span>
-                    </span>
+                  <td data-label="Blocker">
+                    <span class="badge" :class="blockerTone(pull)" :title="readyToMergeTitle(pull)">{{
+                      blockerLabel(pull)
+                    }}</span>
                   </td>
                   <td class="faint" data-label="Updated">
-                    <span class="my-pulls-value">
-                      <span v-if="pull.updated_at" class="mono" :title="formatDateTime(pull.updated_at)">{{
-                        timeAgo(pull.updated_at)
-                      }}</span>
-                      <span v-else>—</span>
-                    </span>
+                    <span v-if="pull.updated_at" class="mono" :title="formatDateTime(pull.updated_at)">{{
+                      timeAgo(pull.updated_at)
+                    }}</span>
+                    <span v-else>—</span>
                   </td>
                 </tr>
               </tbody>

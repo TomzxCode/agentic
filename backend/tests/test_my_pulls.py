@@ -67,6 +67,10 @@ def test_list_my_open_pulls_reduces_a_ghx_record(monkeypatch):
     assert "--state" in seen["cmd"] and "open" in seen["cmd"]
     assert "reviewThreads" in seen["cmd"][-1]
     assert "checks" in seen["cmd"][-1]
+    assert "mergeStateStatus" in seen["cmd"][-1]
+    assert "closingIssuesReferences" in seen["cmd"][-1]
+    assert "lastEditedAt" in seen["cmd"][-1]
+    assert "headCommittedAt" in seen["cmd"][-1]
 
 
 def test_list_my_open_pulls_maps_check_states(monkeypatch):
@@ -255,22 +259,13 @@ def test_pull_merge_states_split_requests_into_users_and_teams():
     assert row["ready_to_merge"] is False
 
 
-def test_list_my_open_pulls_fills_merge_state_and_readiness(monkeypatch):
-    def fake(cmd, timeout=60):
-        if cmd[0] == "ghx":
-            return _payload([_record(number=1), _record(number=2, isDraft=True)])
-        return json.dumps(
-            {
-                "data": {
-                    "repository": {
-                        "n0": {"number": 1, "mergeable": "MERGEABLE", "mergeStateStatus": "CLEAN"},
-                        "n1": {"number": 2, "mergeable": "CONFLICTING", "mergeStateStatus": "DIRTY"},
-                    }
-                }
-            }
-        )
+def test_list_my_open_pulls_reads_merge_state_and_readiness(monkeypatch):
+    records = [
+        _record(number=1, mergeable="MERGEABLE", mergeStateStatus="CLEAN"),
+        _record(number=2, isDraft=True, mergeable="CONFLICTING", mergeStateStatus="DIRTY"),
+    ]
+    monkeypatch.setattr(shell, "_run_cli", lambda cmd, timeout=60: _payload(records))
 
-    monkeypatch.setattr(shell, "_run_cli", fake)
     pulls = github.list_my_open_pulls(["o/r"], "tomzx")
 
     assert pulls is not None
@@ -283,100 +278,57 @@ def test_list_my_open_pulls_fills_merge_state_and_readiness(monkeypatch):
     assert conflicting["ready_to_merge"] is False
 
 
-def test_pull_facts_read_linked_issues_and_description_freshness(monkeypatch):
-    seen: list[str] = []
-
-    def fake(cmd, timeout=60):
-        seen.append(cmd[4])
-        return json.dumps(
-            {
-                "data": {
-                    "repository": {
-                        "n0": {
-                            "number": 1,
-                            "mergeable": "MERGEABLE",
-                            "mergeStateStatus": "CLEAN",
-                            "createdAt": "2026-10-01T00:00:00Z",
-                            "lastEditedAt": "2026-10-02T00:00:00Z",
-                            "bodyText": "Closes the thing",
-                            "closingIssuesReferences": {"nodes": [{"number": 7}, {"number": 9}]},
-                            "commits": {"nodes": [{"commit": {"committedDate": "2026-10-01T12:00:00Z"}}]},
-                        },
-                        "n1": {
-                            "number": 2,
-                            "createdAt": "2026-10-01T00:00:00Z",
-                            "lastEditedAt": None,
-                            "bodyText": "",
-                            "closingIssuesReferences": {"nodes": []},
-                            "commits": {"nodes": [{"commit": {"committedDate": "2026-10-03T00:00:00Z"}}]},
-                        },
-                        "n2": {
-                            "number": 3,
-                            "createdAt": "2026-10-01T00:00:00Z",
-                            "lastEditedAt": None,
-                            "bodyText": "Written at open",
-                            "closingIssuesReferences": {"nodes": []},
-                            "commits": {"nodes": [{"commit": {"committedDate": "2026-10-04T00:00:00Z"}}]},
-                        },
-                    }
-                }
-            }
-        )
-
-    monkeypatch.setattr(shell, "_run_cli", fake)
-    facts = github.pull_facts("o/r", [1, 2, 3])
-
-    assert facts[1]["linked_issues"] == [7, 9]
-    assert facts[1]["has_description"] is True
-    assert facts[1]["description_updated"] is True
-    # An empty description fails both the presence and freshness checks.
-    assert facts[2]["has_description"] is False
-    assert facts[2]["description_updated"] is False
-    # A description written at open goes stale once a later commit arrives.
-    assert facts[3]["has_description"] is True
-    assert facts[3]["description_updated"] is False
-    # The query reads the facts ghx does not cache.
-    assert "closingIssuesReferences" in seen[0]
-    assert "lastEditedAt" in seen[0]
-    assert "committedDate" in seen[0]
-
-
-def test_apply_pull_facts_leaves_unread_checks_unknown():
-    def row(number: int) -> dict:
-        return {
-            "number": number,
-            "state": "OPEN",
-            "draft": False,
-            "approved": True,
-            "ci": "success",
-            "open_threads": 0,
-            "mergeable": None,
-            "merge_state": "",
-            "linked_issues": None,
-            "has_description": None,
-            "description_updated": None,
-        }
-
-    rows = [row(1), row(2)]
-    github.apply_pull_facts(
-        rows,
-        {
-            1: {
-                "mergeable": "MERGEABLE",
-                "merge_state": "CLEAN",
-                "linked_issues": [7],
-                "has_description": True,
-                "description_updated": True,
-            }
-        },
+def test_pull_row_maps_linked_issues_and_description_freshness():
+    record = _record(
+        number=1,
+        body="Closes the thing",
+        createdAt="2026-10-01T00:00:00Z",
+        lastEditedAt="2026-10-02T00:00:00Z",
+        headCommittedAt="2026-10-01T12:00:00Z",
+        closingIssuesReferences=[
+            {"number": 7, "title": "The bug", "state": "OPEN", "url": "https://github.com/o/r/issues/7"},
+            {"number": 9, "title": "The follow-up", "state": "OPEN", "url": "https://github.com/o/r/issues/9"},
+        ],
+        mergeable="MERGEABLE",
+        mergeStateStatus="CLEAN",
     )
-    assert rows[0]["linked_issues"] == [7]
-    assert rows[0]["description_updated"] is True
-    assert rows[0]["ready_to_merge"] is True
-    # A pull request the read missed keeps unknown checks, not empty ones.
-    assert rows[1]["linked_issues"] is None
-    assert rows[1]["has_description"] is None
-    assert rows[1]["description_updated"] is None
+    row = github.pull_row_from_record(record, "o/r")
+    assert row is not None
+    assert row["linked_issues"] == [7, 9]
+    assert row["has_description"] is True
+    assert row["description_updated"] is True
+    assert row["mergeable"] is True
+    assert row["merge_state"] == "CLEAN"
+    assert row["ready_to_merge"] is True
+
+    # An empty description fails both the presence and freshness checks.
+    empty = github.pull_row_from_record(
+        _record(number=2, body="", closingIssuesReferences=[]), "o/r"
+    )
+    assert empty is not None
+    assert empty["has_description"] is False
+    assert empty["description_updated"] is False
+    # A description written at open goes stale once a later commit arrives.
+    stale = github.pull_row_from_record(
+        _record(
+            number=3,
+            body="Written at open",
+            createdAt="2026-10-01T00:00:00Z",
+            headCommittedAt="2026-10-04T00:00:00Z",
+            closingIssuesReferences=[],
+        ),
+        "o/r",
+    )
+    assert stale is not None
+    assert stale["has_description"] is True
+    assert stale["description_updated"] is False
+    # A row cached before the fields existed keeps them unknown, not empty.
+    old = github.pull_row_from_record(_record(number=4, body="Body"), "o/r")
+    assert old is not None
+    assert old["linked_issues"] is None
+    assert old["has_description"] is True
+    assert old["description_updated"] is None
+    assert old["mergeable"] is None
 
 
 def test_ready_to_merge_requires_an_open_clean_pull_request():
