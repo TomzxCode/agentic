@@ -471,6 +471,15 @@ a.my-pulls-check-name:hover {
     padding: 0;
     border: 0;
   }
+  /* The card layout hides the table header, so each cell names its own column
+     instead of showing a bare value such as "none" or "No". */
+  .my-pulls-table td[data-label]::before {
+    content: attr(data-label) ': ';
+    color: var(--faint);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
   /* Re-assert the flex row: the generic mobile `td` rule above would otherwise
      turn the PR cell into a block and let its nowrap title overflow the card. */
   .my-pulls-table .my-pulls-pr-cell {

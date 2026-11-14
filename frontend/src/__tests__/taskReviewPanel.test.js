@@ -606,6 +606,20 @@ describe('TaskReviewPanel', () => {
     ])
     const links = wrapper.findAll('.task-link-row')
     expect(links).toHaveLength(2)
+    // The mobile cards hide the header, so every state cell carries its own
+    // column name.
+    expect(links[0].findAll('td[data-label]').map((cell) => cell.attributes('data-label'))).toEqual([
+      'Status',
+      'Review',
+      'Reviewers',
+      'Checks',
+      'Comments',
+      'Conflicts',
+      'Issue',
+      'Description',
+      'Ready',
+      'Updated'
+    ])
     expect(links[0].text()).toContain('Passing')
     expect(links[0].text()).toContain('carol')
     expect(links[0].text()).toContain('2 open')

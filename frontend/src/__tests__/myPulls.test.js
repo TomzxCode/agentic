@@ -404,6 +404,21 @@ describe('MyPullsView', () => {
       'Ready',
       'Updated'
     ])
+    // The mobile cards hide the header, so every state cell carries its own
+    // column name.
+    const firstRow = wrapper.findAll('.my-pulls-table tbody tr')[0]
+    expect(firstRow.findAll('td[data-label]').map((cell) => cell.attributes('data-label'))).toEqual([
+      'Status',
+      'Review',
+      'Reviewers',
+      'Checks',
+      'Comments',
+      'Conflicts',
+      'Issue',
+      'Description',
+      'Ready',
+      'Updated'
+    ])
     expect(wrapper.text()).toContain('2 open')
     expect(wrapper.text()).toContain('1 need attention')
     expect(wrapper.text()).toContain('1 approved')

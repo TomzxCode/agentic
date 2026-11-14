@@ -157,13 +157,13 @@ function personLinkFor(login) {
             <span class="my-pulls-repository faint" :title="repositoryName(entry)">{{ repositoryName(entry) }}</span>
             <span class="my-pulls-title" :title="entry.title">{{ entry.title || 'Untitled' }}</span>
           </td>
-          <td>
+          <td data-label="Status">
             <span class="badge" :class="pullStatusClass(entry)">{{ pullStatusLabel(entry) }}</span>
           </td>
-          <td>
+          <td data-label="Review">
             <span class="badge" :class="reviewTone(entry)">{{ reviewLabel(entry) }}</span>
           </td>
-          <td class="my-pulls-approvers" :title="reviewersTitle(entry)">
+          <td class="my-pulls-approvers" data-label="Reviewers" :title="reviewersTitle(entry)">
             <template v-if="reviewers(entry).length">
               <span class="my-pulls-approvers-label faint">{{ reviewerPrefix(entry) }}</span>
               <template v-for="(login, index) in reviewers(entry)" :key="login">
@@ -182,29 +182,31 @@ function personLinkFor(login) {
               reviewerEmptyLabel(entry)
             }}</span>
           </td>
-          <td @click.stop>
+          <td data-label="Checks" @click.stop>
             <PullChecksPopover :pull="entry" />
           </td>
-          <td class="my-pulls-threads" :title="commentsTitle(entry)">
+          <td class="my-pulls-threads" data-label="Comments" :title="commentsTitle(entry)">
             <span :class="{ 'my-pulls-threads-open': entry.open_threads > 0 }">{{ entry.open_threads || 0 }} open</span>
           </td>
-          <td :class="conflictsTone(entry)" :title="conflictsTitle(entry)">{{ conflictsLabel(entry) }}</td>
-          <td>
+          <td data-label="Conflicts" :class="conflictsTone(entry)" :title="conflictsTitle(entry)">
+            {{ conflictsLabel(entry) }}
+          </td>
+          <td data-label="Issue">
             <span class="badge" :class="linkedIssueTone(entry)" :title="linkedIssueTitle(entry)">{{
               linkedIssueLabel(entry)
             }}</span>
           </td>
-          <td>
+          <td data-label="Description">
             <span class="badge" :class="descriptionTone(entry)" :title="descriptionTitle(entry)">{{
               descriptionLabel(entry)
             }}</span>
           </td>
-          <td>
+          <td data-label="Ready">
             <span class="badge" :class="isReadyToMerge(entry) ? 'ok' : ''" :title="readyToMergeTitle(entry)">{{
               isReadyToMerge(entry) ? 'Yes' : 'No'
             }}</span>
           </td>
-          <td class="faint">
+          <td class="faint" data-label="Updated">
             <span v-if="entry.updated_at" class="mono" :title="formatDateTime(entry.updated_at)">{{
               timeAgo(entry.updated_at)
             }}</span>
