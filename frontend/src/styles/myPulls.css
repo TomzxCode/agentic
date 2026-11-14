@@ -85,7 +85,7 @@
 .my-pulls-table {
   width: 100%;
   /* A floor keeps every column legible; narrower viewports scroll sideways. */
-  min-width: 1000px;
+  min-width: 1200px;
   /* Fixed layout gives every column the width declared below, so a long
      repository or title truncates in its cell instead of widening the table. */
   table-layout: fixed;
@@ -93,33 +93,40 @@
 }
 /* The PR column carries the number, repository, and title, so it takes the
    room the state columns do not need. The columns follow the row's facts:
-   status, review decision, reviewers, checks, open comments, conflicts, merge
-   readiness, and when the pull request last changed. */
+   status, review decision, reviewers, checks, open comments, conflicts, linked
+   issue, description freshness, merge readiness, and when the pull request
+   last changed. */
 .my-pulls-table th:nth-child(1) {
-  width: 32%;
+  width: 24%;
 }
 .my-pulls-table th:nth-child(2) {
-  width: 7%;
+  width: 6%;
 }
 .my-pulls-table th:nth-child(3) {
-  width: 12%;
-}
-.my-pulls-table th:nth-child(4) {
-  width: 14%;
-}
-.my-pulls-table th:nth-child(5) {
   width: 10%;
 }
+.my-pulls-table th:nth-child(4) {
+  width: 12%;
+}
+.my-pulls-table th:nth-child(5) {
+  width: 9%;
+}
 .my-pulls-table th:nth-child(6) {
-  width: 8%;
+  width: 7%;
 }
 .my-pulls-table th:nth-child(7) {
   width: 7%;
 }
 .my-pulls-table th:nth-child(8) {
-  width: 5%;
+  width: 7%;
 }
 .my-pulls-table th:nth-child(9) {
+  width: 8%;
+}
+.my-pulls-table th:nth-child(10) {
+  width: 5%;
+}
+.my-pulls-table th:nth-child(11) {
   width: 5%;
 }
 .my-pulls-table th {

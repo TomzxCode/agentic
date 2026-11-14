@@ -474,7 +474,10 @@ describe('TaskReviewPanel', () => {
           open_threads: 2,
           mergeable: true,
           merge_state: 'CLEAN',
-          ready_to_merge: false
+          ready_to_merge: false,
+          linked_issues: [7],
+          has_description: true,
+          description_updated: true
         },
         {
           repository: 'acme/api',
@@ -490,7 +493,10 @@ describe('TaskReviewPanel', () => {
           open_threads: 0,
           mergeable: true,
           merge_state: 'CLEAN',
-          ready_to_merge: false
+          ready_to_merge: false,
+          linked_issues: [],
+          has_description: true,
+          description_updated: false
         }
       ]
     })
@@ -553,7 +559,10 @@ describe('TaskReviewPanel', () => {
           open_threads: 2,
           mergeable: true,
           merge_state: 'CLEAN',
-          ready_to_merge: false
+          ready_to_merge: false,
+          linked_issues: [7],
+          has_description: true,
+          description_updated: true
         },
         {
           repository: 'acme/api',
@@ -569,7 +578,10 @@ describe('TaskReviewPanel', () => {
           open_threads: 0,
           mergeable: true,
           merge_state: 'CLEAN',
-          ready_to_merge: false
+          ready_to_merge: false,
+          linked_issues: [],
+          has_description: true,
+          description_updated: false
         }
       ]
     })
@@ -587,6 +599,8 @@ describe('TaskReviewPanel', () => {
       'Checks',
       'Comments',
       'Conflicts',
+      'Issue',
+      'Description',
       'Ready',
       'Updated'
     ])
@@ -596,8 +610,10 @@ describe('TaskReviewPanel', () => {
     expect(links[0].text()).toContain('carol')
     expect(links[0].text()).toContain('2 open')
     expect(links[0].text()).toContain('none')
+    expect(links[0].text()).toContain('up to date')
     expect(links[0].text()).toContain('No')
     expect(links[1].text()).toContain('Merged')
+    expect(links[1].text()).toContain('stale')
     // No pull request panel and no GitHub read until a row is chosen.
     expect(wrapper.find('.task-item-panel').exists()).toBe(false)
     expect(mocks.githubIssue).not.toHaveBeenCalled()

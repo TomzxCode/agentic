@@ -8,10 +8,10 @@
 
 Your own pull requests fail quietly: CI goes red, a reviewer asks for changes, a thread stays unanswered.
 Checking each one on GitHub costs a tab per pull request.
-This page answers "which of mine are moving, and which need a nudge" with one row per pull request, carrying its status, review decision, individual reviewers, check rollup, open comment count, merge conflicts, and merge readiness.
+This page answers "which of mine are moving, and which need a nudge" with one row per pull request, carrying its status, review decision, individual reviewers, check rollup, open comment count, merge conflicts, linked issue, description freshness, and merge readiness.
 
 The list is read-only over GitHub: `ghx` reads each registered GitHub repository, nothing is stored, so a merged pull request leaves on the next refresh.
-`ghx` does not cache mergeability, so one GraphQL read per repository fills the Conflicts and Ready columns; when that read cannot run, those columns fall back to the pull request's other signals (`Ready` then needs an approval, green checks, and no open comments).
+`ghx` does not cache mergeability, the issues a description closes, or when the description was last edited, so one GraphQL read per repository fills the Conflicts, Issue, and Description columns; when that read cannot run, those columns show a dash and `Ready` falls back to the pull request's other signals (an approval, green checks, and no open comments).
 A pull request's task link is resolved from the app's own stored items, so linking or unlinking a task shows on the next load without a GitHub refresh.
 
 The read covers the repositories registered in **Repositories** that carry a GitHub remote.
@@ -35,6 +35,8 @@ The table has one row per pull request:
 | Checks | The check rollup: passing, failing, running, or no checks. Click it to list the pull request's individual checks, failing first. |
 | Comments | `N open`, with a tooltip giving how many of the review threads are still open. |
 | Conflicts | `none` when the branches merge cleanly, `conflicts` when they do not, and a dash when GitHub's mergeability could not be read. |
+| Issue | The issue the description closes: `#12` for one, `N issues` for several, or `none` when it closes nothing. The tooltip lists every number. A dash means GitHub could not be read. |
+| Description | `up to date` when the description is non-empty and was written or edited after the latest commit, `stale` when a commit came later, and `missing` when the pull request has no description. A dash means GitHub could not be read. |
 | Ready | `Yes` when GitHub reports the pull request ready to merge, `No` otherwise; the tooltip names what still blocks it (a draft, conflicts, a required review, failing checks, open comments, or a merge state such as `BLOCKED` or `BEHIND`). |
 | Updated | When the pull request last changed, relative, with the full time in a tooltip. |
 

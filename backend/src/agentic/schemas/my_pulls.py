@@ -65,6 +65,13 @@ class MyPullRead(BaseModel):
     # Whether GitHub reports the pull request as ready to merge now: merge state
     # CLEAN, or, when that read failed, approved and green with no open threads.
     ready_to_merge: bool = False
+    # The issues the description closes, or None when the read could not tell.
+    # A pull request that links none carries an empty list.
+    linked_issues: list[int] | None = None
+    # Whether the description is non-empty, and whether it was written or edited
+    # after the latest commit. None when the read could not tell.
+    has_description: bool | None = None
+    description_updated: bool | None = None
     # The tasks the pull request's stored item is associated with, if the app
     # tracks it. A pull request the app does not track carries none.
     tasks: list[MyPullTask] = []

@@ -22,7 +22,7 @@ from ..schemas.github import (
 from ..schemas.items import ItemGithubReviewer, ItemGithubReviewers, ItemPoke
 from ..schemas.my_pulls import MyPullRead
 from ..services.github import (
-    apply_merge_states,
+    apply_pull_facts,
     create_github_issue,
     fetch_github_issue,
     fetch_github_pull_reviewers_with_record,
@@ -30,7 +30,7 @@ from ..services.github import (
     github_owner_repo,
     list_github_issues,
     list_github_repo_items,
-    pull_merge_states,
+    pull_facts,
     pull_row_from_record,
 )
 from ..services.parsing import parse_github
@@ -125,7 +125,7 @@ def get_task_links(task_id: str, session: Session = Depends(get_session)) -> Git
     for row in pulls:
         by_repository.setdefault(str(row.get("repository") or ""), []).append(row)
     for repository, rows in by_repository.items():
-        apply_merge_states(rows, pull_merge_states(repository, [row["number"] for row in rows]))
+        apply_pull_facts(rows, pull_facts(repository, [row["number"] for row in rows]))
 
     return GithubTaskLinks(
         issues=issues,

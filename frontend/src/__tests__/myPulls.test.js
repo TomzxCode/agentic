@@ -25,10 +25,15 @@ import {
   ciLabel,
   ciTone,
   CI_FILTERS,
+  descriptionLabel,
+  descriptionState,
+  descriptionTitle,
   groupPulls,
   hasIndividualReviewer,
   hasMergeConflicts,
   isReadyToMerge,
+  linkedIssueLabel,
+  linkedIssueTitle,
   matchesCiFilter,
   matchesPullSearch,
   matchesReviewFilter,
@@ -120,6 +125,21 @@ describe('pull state helpers', () => {
     expect(readyToMergeTitle(pull({ ready_to_merge: false, state: 'MERGED' }))).toContain('Already merged')
     expect(readyToMergeTitle(pull({ ready_to_merge: false, merge_state: 'DIRTY' }))).toContain('conflicts')
     expect(readyToMergeTitle(pull({ ready_to_merge: true }))).toContain('ready to merge')
+  })
+
+  it('reads the linked-issue and description checks', () => {
+    expect(linkedIssueLabel(pull({ linked_issues: [7] }))).toBe('#7')
+    expect(linkedIssueLabel(pull({ linked_issues: [7, 9] }))).toBe('2 issues')
+    expect(linkedIssueLabel(pull({ linked_issues: [] }))).toBe('none')
+    expect(linkedIssueLabel(pull({ linked_issues: null }))).toBe('—')
+    expect(linkedIssueTitle(pull({ linked_issues: [7, 9] }))).toContain('#7, #9')
+
+    expect(descriptionState(pull({ has_description: true, description_updated: true }))).toBe('current')
+    expect(descriptionLabel(pull({ has_description: true, description_updated: true }))).toBe('up to date')
+    expect(descriptionLabel(pull({ has_description: true, description_updated: false }))).toBe('stale')
+    expect(descriptionLabel(pull({ has_description: false, description_updated: false }))).toBe('missing')
+    expect(descriptionLabel(pull({ has_description: null, description_updated: null }))).toBe('—')
+    expect(descriptionTitle(pull({ has_description: true, description_updated: false }))).toContain('not updated')
   })
 
   it('counts no checks as not blocking a merge', () => {
@@ -345,7 +365,10 @@ describe('MyPullsView', () => {
           requested_users: ['carol'],
           mergeable: true,
           merge_state: 'CLEAN',
-          ready_to_merge: true
+          ready_to_merge: true,
+          linked_issues: [7],
+          has_description: true,
+          description_updated: true
         }),
         pull({
           repository: 'TomzxCode/other',
@@ -358,7 +381,10 @@ describe('MyPullsView', () => {
           threads_total: 3,
           state: 'OPEN',
           mergeable: false,
-          merge_state: 'DIRTY'
+          merge_state: 'DIRTY',
+          linked_issues: [],
+          has_description: true,
+          description_updated: false
         })
       ])
     )
@@ -373,6 +399,8 @@ describe('MyPullsView', () => {
       'Checks',
       'Comments',
       'Conflicts',
+      'Issue',
+      'Description',
       'Ready',
       'Updated'
     ])
@@ -387,11 +415,15 @@ describe('MyPullsView', () => {
     expect(wrapper.text()).toContain('alice')
     expect(wrapper.text()).toContain('bob')
     // The reviewers cell names the person the review is waiting on, and the
-    // conflicts and ready cells state the merge facts.
+    // conflicts, issue, description, and ready cells state the PR's checks.
     expect(wrapper.text()).toContain('carol')
     expect(wrapper.text()).toContain('conflicts')
+    expect(wrapper.text()).toContain('up to date')
+    expect(wrapper.text()).toContain('stale')
     expect(wrapper.text()).toContain('Yes')
     expect(wrapper.text()).toContain('No')
+    const linked = wrapper.findAll('.my-pulls-table tbody tr').find((row) => row.text().includes('#42'))
+    expect(linked.text()).toContain('#7')
     // The failing PR needs attention, so it sorts above the other one.
     const numbers = wrapper.findAll('.my-pulls-number').map((link) => link.text())
     expect(numbers).toEqual(['#7', '#42'])

@@ -63,6 +63,64 @@ export function pullStatusClass(pull) {
   return `st-${pullStatus(pull)}`
 }
 
+// The "link to issues" check: does the description close at least one issue?
+// Null when the read could not tell, which is not the same as linking none.
+export function linkedIssueCount(pull) {
+  if (pull?.linked_issues === null || pull?.linked_issues === undefined) return null
+  return (pull.linked_issues || []).length
+}
+
+export function linkedIssueLabel(pull) {
+  const count = linkedIssueCount(pull)
+  if (count === null) return '—'
+  if (!count) return 'none'
+  return pull.linked_issues.length === 1 ? `#${pull.linked_issues[0]}` : `${count} issues`
+}
+
+export function linkedIssueTone(pull) {
+  const count = linkedIssueCount(pull)
+  if (count === null) return 'faint'
+  return count ? 'ok' : 'warn'
+}
+
+export function linkedIssueTitle(pull) {
+  const count = linkedIssueCount(pull)
+  if (count === null) return 'GitHub could not be read'
+  if (!count) return 'The description links no issue'
+  return `Closes ${pull.linked_issues.map((number) => `#${number}`).join(', ')}`
+}
+
+// The "description is up to date" check: the description is not empty and was
+// written or edited after the latest commit. Null when the read could not tell.
+export const DESCRIPTION_STATES = { current: 'up to date', stale: 'stale', missing: 'missing' }
+
+export function descriptionState(pull) {
+  if (pull?.has_description === null || pull?.description_updated === null) return null
+  if (pull?.has_description === undefined || pull?.description_updated === undefined) return null
+  if (!pull.has_description) return 'missing'
+  return pull.description_updated ? 'current' : 'stale'
+}
+
+export function descriptionLabel(pull) {
+  const state = descriptionState(pull)
+  return state ? DESCRIPTION_STATES[state] : '—'
+}
+
+export function descriptionTone(pull) {
+  const state = descriptionState(pull)
+  if (state === 'current') return 'ok'
+  if (!state) return 'faint'
+  return 'warn'
+}
+
+export function descriptionTitle(pull) {
+  const state = descriptionState(pull)
+  if (!state) return 'GitHub could not be read'
+  if (state === 'missing') return 'The pull request has no description'
+  if (state === 'stale') return 'The description was not updated after the latest commit'
+  return 'The description was updated after the latest commit'
+}
+
 // Whether the head commit's checks pass. No checks at all counts as passing,
 // since nothing blocks the merge.
 export function checksPassing(pull) {

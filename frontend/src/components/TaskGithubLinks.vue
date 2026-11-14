@@ -6,9 +6,15 @@ import {
   attentionState,
   conflictsLabel,
   conflictsTone,
+  descriptionLabel,
+  descriptionTone,
+  descriptionTitle,
   hasIndividualReviewer,
   hasMergeConflicts,
   isReadyToMerge,
+  linkedIssueLabel,
+  linkedIssueTone,
+  linkedIssueTitle,
   pullStatusClass,
   pullStatusLabel,
   readyToMergeTitle,
@@ -120,6 +126,8 @@ function personLinkFor(login) {
           <th>Checks</th>
           <th>Comments</th>
           <th>Conflicts</th>
+          <th>Issue</th>
+          <th>Description</th>
           <th>Ready</th>
           <th>Updated</th>
         </tr>
@@ -181,6 +189,16 @@ function personLinkFor(login) {
             <span :class="{ 'my-pulls-threads-open': entry.open_threads > 0 }">{{ entry.open_threads || 0 }} open</span>
           </td>
           <td :class="conflictsTone(entry)" :title="conflictsTitle(entry)">{{ conflictsLabel(entry) }}</td>
+          <td>
+            <span class="badge" :class="linkedIssueTone(entry)" :title="linkedIssueTitle(entry)">{{
+              linkedIssueLabel(entry)
+            }}</span>
+          </td>
+          <td>
+            <span class="badge" :class="descriptionTone(entry)" :title="descriptionTitle(entry)">{{
+              descriptionLabel(entry)
+            }}</span>
+          </td>
           <td>
             <span class="badge" :class="isReadyToMerge(entry) ? 'ok' : ''" :title="readyToMergeTitle(entry)">{{
               isReadyToMerge(entry) ? 'Yes' : 'No'

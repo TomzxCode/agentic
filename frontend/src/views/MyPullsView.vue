@@ -10,8 +10,14 @@ import {
   CI_FILTERS,
   conflictsLabel,
   conflictsTone,
+  descriptionLabel,
+  descriptionTone,
+  descriptionTitle,
   groupPulls,
   isReadyToMerge,
+  linkedIssueLabel,
+  linkedIssueTone,
+  linkedIssueTitle,
   matchesCiFilter,
   matchesPullSearch,
   matchesReviewFilter,
@@ -353,6 +359,8 @@ onMounted(load)
                   <th>Checks</th>
                   <th>Comments</th>
                   <th>Conflicts</th>
+                  <th>Issue</th>
+                  <th>Description</th>
                   <th>Ready</th>
                   <th>Updated</th>
                 </tr>
@@ -451,6 +459,16 @@ onMounted(load)
                     >
                   </td>
                   <td :class="conflictsTone(pull)">{{ conflictsLabel(pull) }}</td>
+                  <td>
+                    <span class="badge" :class="linkedIssueTone(pull)" :title="linkedIssueTitle(pull)">{{
+                      linkedIssueLabel(pull)
+                    }}</span>
+                  </td>
+                  <td>
+                    <span class="badge" :class="descriptionTone(pull)" :title="descriptionTitle(pull)">{{
+                      descriptionLabel(pull)
+                    }}</span>
+                  </td>
                   <td>
                     <span class="badge" :class="isReadyToMerge(pull) ? 'ok' : ''" :title="readyToMergeTitle(pull)">{{
                       isReadyToMerge(pull) ? 'Yes' : 'No'
