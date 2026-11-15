@@ -183,6 +183,15 @@ def _argv_value(args: list[str], flag: str) -> str | None:
         return None
 
 
+def _argv_values(args: list[str], *flags: str) -> list[str]:
+    """Every value given to *flags* in an argv, in order."""
+    values: list[str] = []
+    for index, arg in enumerate(args):
+        if arg in flags and index + 1 < len(args):
+            values.append(args[index + 1])
+    return values
+
+
 def _typed_ghx_list(
     endpoint: tuple[str, str], method: str, args: list[str], timeout: int
 ) -> tuple[int, str, str] | None:
@@ -191,11 +200,14 @@ def _typed_ghx_list(
     The CLI prints a bare array of records; the typed methods wrap the same
     records (pr.list without the field selection, so a superset the callers
     read field-by-field) in ``{items, total, source}``, and the adapter
-    unwraps back to the array.
+    unwraps back to the array. The typed methods take one repository, so a
+    call naming several stays on ``cli.run`` rather than answering with only
+    the first one's records.
     """
-    repo = _argv_value(args, "--repo")
-    if not repo or "--json" not in args:
+    repos = _argv_values(args, "--repo", "-R")
+    if len(repos) != 1 or "--json" not in args:
         return None
+    repo = repos[0]
     params: dict[str, Any] = {"repo": repo}
     state = _argv_value(args, "--state")
     if state:

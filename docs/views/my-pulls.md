@@ -96,7 +96,7 @@ There is no sort control.
 
 ### Caching and failures
 
-Each read lists the login's open pull requests from each registered repository's `ghx` cache.
+Each read lists the login's open pull requests from the registered repositories' `ghx` caches, in one `ghx pr list` call that repeats `--repo`.
 The cache itself is never refreshed by a page load: one background job runs `ghx cache` over the registered repositories on its own cadence (Settings → GitHub, `ghx_cache_refresh_interval`, 15 minutes by default), and it is the only caller.
 The repositories are read together, and the assembled answer is cached per login and repository set for 60 seconds; a failed read is retried after 30 seconds.
 `Refresh` bypasses that 60-second answer cache and reads `ghx`'s cache again; it never refreshes the cache and never forces a full re-fetch of the repository.
@@ -112,7 +112,7 @@ Three failures have their own messages:
 
 - `You have no open pull requests.` is the empty state, not an error.
 - The list is capped at 500 pull requests per repository, newest update first across all of them.
-- A repository `ghx` cannot list is left out of the rows instead of hiding the readable ones; when every repository fails, the page reports the unreachable error.
+- A repository `ghx` cannot list makes the one batch call fail; the read then falls back to listing each repository on its own, so the unreadable repository is left out of the rows instead of hiding the readable ones. When every repository fails, the page reports the unreachable error.
 - Approvers come from each pull request's latest decisive review, so a plain comment neither drops an approval nor adds one.
 - The open-thread count covers the first hundred threads of a pull request; the total stays exact.
 - A listing that `ghx` answers from its API fallback (a cache it could not refresh) carries the check rollup but not the thread counts.
@@ -129,7 +129,7 @@ Three failures have their own messages:
 | Poke a pull request's reviewers on Slack | none | `POST /api/my-pulls/poke` |
 | Act on one | use the review queue or a task | `POST /api/tasks` with `github_url` |
 
-An agent can reproduce the data with `ghx pr list --author <login> --state open --repo owner/name --json number,title,url,isDraft,createdAt,updatedAt,reviewDecision,author,reviews,reviewRequests,checks,reviewThreads` per registered repository, and `ghx pr checks <number> --repo owner/name --json` for the individual checks.
+An agent can reproduce the data with `ghx pr list --author <login> --state open -R owner/name -R other/owner --json number,title,url,isDraft,createdAt,updatedAt,reviewDecision,author,reviews,reviewRequests,checks,reviewThreads` over the registered repositories, and `ghx pr checks <number> --repo owner/name --json` for the individual checks.
 The app offers no command that wraps it.
 
 The read carries `reviewed` (whether anyone but the author has submitted a review) and `requested_reviewers` (who GitHub still lists as requested) beside each row's other fields, plus `tasks` for the tasks its stored item is associated with.

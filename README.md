@@ -374,8 +374,9 @@ it has open threads, each chip counting the pull requests it would show. **Group
 by** splits the list into sections (repository, CI status, or review status) and
 remembers the choice on the device, and **Refresh** re-reads the cache instead of
 reusing the short answer cache. The list
-comes from `ghx`, one cached `ghx pr list --author` per registered GitHub
-repository, read together and merged newest update first; a background job
+comes from `ghx`, one cached `ghx pr list --author` over every registered GitHub
+repository (repeating `--repo`), merged newest update first, with a per-repository
+read only if that one call cannot answer; a background job
 refreshes those caches with `ghx cache` on its own cadence and nothing else does,
 and nothing is stored, so a PR that merges leaves the page on the next refresh.
 

@@ -351,6 +351,23 @@ def test_list_github_pulls_tolerates_the_typed_methods_full_records(monkeypatch)
     ]
 
 
+def test_a_multi_repository_list_stays_on_cli_run(monkeypatch):
+    monkeypatch.setattr(settings, "ghx_backend", "rpc")
+    calls: list[dict] = []
+
+    def fake_post(url, **kwargs):
+        calls.append(kwargs["json"])
+        return _rpc_result(stdout='{"o/a": [], "o/b": []}')
+
+    monkeypatch.setattr(shell.httpx, "post", fake_post)
+    # The typed methods take one repository, so a call naming several goes to
+    # cli.run instead of answering with only the first one's records.
+    shell._run_cli(["ghx", "pr", "list", "--repo", "o/a", "--repo", "o/b", "--json"])
+
+    assert [call["method"] for call in calls] == ["cli.run"]
+    assert calls[0]["params"] == {"args": ["pr", "list", "--repo", "o/a", "--repo", "o/b", "--json"]}
+
+
 def test_fetch_github_issue_runs_over_the_typed_view(monkeypatch):
     monkeypatch.setattr(settings, "ghx_backend", "rpc")
     record = {

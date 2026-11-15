@@ -60,8 +60,8 @@ def test_list_my_open_pulls_reduces_a_ghx_record(monkeypatch):
     assert pull["ci"] == "success"
     assert pull["open_threads"] == 1
     assert pull["threads_total"] == 2
-    # One ghx listing per repository, kept to the login's own open PRs, with
-    # the fields the row reads.
+    # The one listing for the repository, kept to the login's own open PRs,
+    # with the fields the row reads.
     assert seen["cmd"][:3] == ["ghx", "pr", "list"]
     assert "--author" in seen["cmd"] and "tomzx" in seen["cmd"]
     assert "--state" in seen["cmd"] and "open" in seen["cmd"]
@@ -154,7 +154,89 @@ def test_list_my_open_pulls_merges_repositories_newest_update_first(monkeypatch)
 
     assert pulls is not None
     assert [pull["number"] for pull in pulls] == [2, 1]
-    assert sorted(seen) == ["o/first", "o/second"]
+    # Each repository is read, whether in the one batch call or on its own.
+    assert set(seen) == {"o/first", "o/second"}
+
+
+def test_list_my_open_pulls_reads_several_repositories_in_one_call(monkeypatch):
+    seen: list[list[str]] = []
+    lock = threading.Lock()
+
+    def fake(cmd, timeout=60):
+        if cmd[0] != "ghx":
+            return None
+        with lock:
+            seen.append(cmd)
+        # ghx answers a call naming several repositories with an object keyed
+        # by repository label.
+        return json.dumps(
+            {
+                "o/first": [_record(number=1, updatedAt="2026-10-05T00:00:00Z")],
+                "o/second": [_record(number=2, updatedAt="2026-10-09T00:00:00Z")],
+            }
+        )
+
+    monkeypatch.setattr(shell, "_run_cli", fake)
+    pulls = github.list_my_open_pulls(["o/first", "o/second"], "tomzx")
+
+    assert pulls is not None
+    assert [pull["number"] for pull in pulls] == [2, 1]
+    assert [pull["repository"] for pull in pulls] == ["o/second", "o/first"]
+    # Every repository rides on the one call, so no per-repository read runs.
+    assert len(seen) == 1
+    argv = seen[0]
+    assert [argv[index + 1] for index, arg in enumerate(argv) if arg == "--repo"] == ["o/first", "o/second"]
+
+
+def test_list_my_open_pulls_reads_repositories_one_at_a_time_when_the_batch_fails(monkeypatch):
+    seen: list[str] = []
+    lock = threading.Lock()
+
+    def fake(cmd, timeout=60):
+        if cmd[0] != "ghx":
+            return None
+        repos = [cmd[index + 1] for index, arg in enumerate(cmd) if arg == "--repo"]
+        with lock:
+            seen.extend(repos)
+        # ghx stops on the first repository it cannot read, so a call naming a
+        # broken repository answers with an error and no rows at all.
+        if len(repos) > 1 or repos == ["o/broken"]:
+            return None
+        return _payload([_record(number=1)])
+
+    monkeypatch.setattr(shell, "_run_cli", fake)
+    pulls = github.list_my_open_pulls(["o/broken", "o/r"], "tomzx")
+
+    assert pulls is not None
+    assert [pull["repository"] for pull in pulls] == ["o/r"]
+    # The batch is tried first, then each repository on its own.
+    assert sorted(seen) == ["o/broken", "o/broken", "o/r", "o/r"]
+
+
+def test_list_my_open_pulls_falls_back_when_the_batch_answers_one_list(monkeypatch):
+    lock = threading.Lock()
+    seen: list[list[str]] = []
+
+    def fake(cmd, timeout=60):
+        if cmd[0] != "ghx":
+            return None
+        repos = [cmd[index + 1] for index, arg in enumerate(cmd) if arg == "--repo"]
+        with lock:
+            seen.append(repos)
+        if len(repos) > 1:
+            # An older ghx accepts several --repo flags for other commands but
+            # still prints one repository's rows as a bare array. Those rows
+            # cannot be attributed, so the read must re-read per repository
+            # instead of borrowing them.
+            return _payload([_record(number=99)])
+        return _payload([_record(number=1)])
+
+    monkeypatch.setattr(shell, "_run_cli", fake)
+    pulls = github.list_my_open_pulls(["o/first", "o/second"], "tomzx")
+
+    assert pulls is not None
+    assert [(pull["repository"], pull["number"]) for pull in pulls] == [("o/first", 1), ("o/second", 1)]
+    assert seen[0] == ["o/first", "o/second"]
 
 
 def test_list_my_open_pulls_reports_reviews_and_requested_reviewers(monkeypatch):
@@ -302,9 +384,7 @@ def test_pull_row_maps_linked_issues_and_description_freshness():
     assert row["ready_to_merge"] is True
 
     # An empty description fails both the presence and freshness checks.
-    empty = github.pull_row_from_record(
-        _record(number=2, body="", closingIssuesReferences=[]), "o/r"
-    )
+    empty = github.pull_row_from_record(_record(number=2, body="", closingIssuesReferences=[]), "o/r")
     assert empty is not None
     assert empty["has_description"] is False
     assert empty["description_updated"] is False

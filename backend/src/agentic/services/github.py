@@ -545,9 +545,9 @@ def _paginate_connection(
 # head-commit check rollup, review-thread counts, mergeability, closing issues,
 # and description/commit timestamps the My PRs page shows, so this read goes
 # through ghx like every other GitHub read instead of querying GraphQL itself.
-# ghx lists one repository at a time, so the rows come from the repositories
-# the app knows: a pull request in a repository neither side knows is out of
-# scope rather than silently missed.
+# The rows come from the repositories the app knows, listed in one ghx call: a
+# pull request in a repository neither side knows is out of scope rather than
+# silently missed.
 
 #: The most open pull requests one repository's lookup reads.
 MY_PULLS_LIMIT = 500
@@ -883,10 +883,13 @@ def list_my_open_pulls(
 ) -> list[dict[str, Any]] | None:
     """The open pull requests authored by *login* across *repositories*.
 
-    *repositories* are ``owner/name`` strings. They are read together, so a
-    slow repository does not add its latency to the others. None when ghx
-    could not read any of them; a repository that could not be read on its own
-    is left out of the rows and named in a warning instead of hiding the rest.
+    *repositories* are ``owner/name`` strings. Several repositories are read in
+    one ``ghx pr list`` call, which ghx answers with an object keyed by
+    repository label. When that call cannot run (one repository's cache is
+    unreadable or its remote is gone), the repositories are read one at a time
+    instead, so one bad repository neither fails nor hides the others: it is
+    left out of the rows and named in a warning. None when ghx could not read
+    any of them.
     """
     login = login.strip()
     if not login:
@@ -894,6 +897,10 @@ def list_my_open_pulls(
     wanted = list(dict.fromkeys(repo for repo in repositories if repo))
     if not wanted:
         return []
+    rows = _list_my_pulls_together(wanted, login, limit) if len(wanted) > 1 else None
+    if rows is not None:
+        rows.sort(key=lambda row: _updated_at(row.get("updated_at")), reverse=True)
+        return rows
     listings = run_parallel([lambda repo=repo: _list_my_pulls_in(repo, login, limit) for repo in wanted])
     failed = [repo for repo, rows in zip(wanted, listings, strict=True) if rows is None]
     if len(failed) == len(wanted):
@@ -905,6 +912,61 @@ def list_my_open_pulls(
     return rows
 
 
+def _my_pulls_argv(repositories: list[str], login: str, limit: int) -> list[str]:
+    """The ``ghx pr list`` argv reading *repositories* for *login*.
+
+    ``--repo`` is repeated, which ghx answers with an object keyed by
+    repository label when it was given more than once. ``--limit`` applies per
+    repository, so the read keeps the same cap either way.
+    """
+    argv = ["ghx", "pr", "list"]
+    for repository in repositories:
+        argv += ["--repo", repository]
+    return argv + [
+        "--state",
+        "open",
+        "--author",
+        login,
+        "--limit",
+        str(max(1, limit)),
+        "--json",
+        _MY_PULLS_FIELDS,
+    ]
+
+
+def _list_my_pulls_together(repositories: list[str], login: str, limit: int) -> list[dict[str, Any]] | None:
+    """Every repository's open pull requests by *login*, in one ghx call.
+
+    A repository whose cache ghx cannot answer from, or whose remote no longer
+    resolves, fails the whole call, since ghx reports the first error and stops.
+    None then, so the caller falls back to reading each repository on its own.
+    """
+    raw = shell._run_cli(_my_pulls_argv(repositories, login, limit), timeout=120)
+    if not raw:
+        return None
+    try:
+        listing = json.loads(raw)
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(listing, dict):
+        # One repository would answer with a bare array, which this read never
+        # asks for; anything else is not the multi-repository shape.
+        return None
+    # ghx's label is the ``owner/name`` given on the command line (a host
+    # prefix only appears for a non-GitHub host), so an unrecognized key is
+    # still a usable repository string.
+    by_label = {repository.lower(): repository for repository in repositories}
+    rows: list[dict[str, Any]] = []
+    for label, records in listing.items():
+        repository = by_label.get(str(label).lower(), str(label))
+        if not isinstance(records, list):
+            continue
+        rows += [
+            row for record in records if isinstance(record, dict) and (row := _pull_row(record, repository, login))
+        ]
+    return rows
+
+
 def _list_my_pulls_in(repository: str, login: str, limit: int) -> list[dict[str, Any]] | None:
     """One repository's open pull requests by *login*, via ghx.
 
@@ -912,24 +974,7 @@ def _list_my_pulls_in(repository: str, login: str, limit: int) -> list[dict[str,
     fetches from GitHub when it is not, and ``--author`` keeps the read to the
     login's own pull requests. None when ghx could not run the read.
     """
-    raw = shell._run_cli(
-        [
-            "ghx",
-            "pr",
-            "list",
-            "--repo",
-            repository,
-            "--state",
-            "open",
-            "--author",
-            login,
-            "--limit",
-            str(max(1, limit)),
-            "--json",
-            _MY_PULLS_FIELDS,
-        ],
-        timeout=120,
-    )
+    raw = shell._run_cli(_my_pulls_argv([repository], login, limit), timeout=120)
     if not raw:
         return None
     try:

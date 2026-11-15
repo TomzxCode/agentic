@@ -1,9 +1,9 @@
 """My PRs: the open pull requests the viewer authored, with their state.
 
 One read answers the whole page (the open threads, the check rollup, the review
-decision and approvers) from ghx, one listing per repository the app knows,
-cached briefly; this router resolves who "my" is, which repositories to read,
-and wraps the result in the response model. Nothing is stored, so a pull
+decision and approvers) from ghx, listing every repository the app knows in one
+call and cached briefly; this router resolves who "my" is, which repositories to
+read, and wraps the result in the response model. Nothing is stored, so a pull
 request that merges leaves the page on the next refresh without a bookkeeping
 step.
 

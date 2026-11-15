@@ -112,7 +112,7 @@ sequenceDiagram
         M-->>R: cached rows
     else
         M->>S: list_my_open_pulls(repositories, login)
-        S->>GH: pr list --author login (per repository, together)
+        S->>GH: pr list --author login (one call, --repo repeated)
         S-->>M: rows (ci, decision, approvers, threads)
         M->>M: cache 60s, derive counts
     end
@@ -211,7 +211,7 @@ sequenceDiagram
 1. Every read depends on `ghx` or `gh` being installed and authenticated; the failure modes are explicit errors, but nothing works without them.
 2. `open_threads` counts only the first 100 review threads; the total stays exact but the unresolved count under-reports a pull request with more than a hundred threads.
 3. `ghx` serves listings from its cache, so a My PRs read is current only as of the last cache job pass; a slow or failing pass falls back to the cache the tool has.
-4. A My PRs read costs one `ghx pr list` per registered repository, and the cache job costs one `ghx repo list` plus one `ghx cache` per repository per pass; the calls run together, bounded by the helper-CLI pool.
+4. A My PRs read costs one `ghx pr list` naming every registered repository, or one per repository when that call cannot answer, and the cache job costs one `ghx repo list` plus one `ghx cache` per repository per pass; the calls run together, bounded by the helper-CLI pool.
 5. A repository ghx has never fully cached takes a full history walk on the job's first pass, so its rows stay on ghx's per-item reads until that pass completes; the walk can outlast the delta timeout and is retried after the failure backoff, not on the next tick.
 6. A list that ghx answers from its API fallback (a cache it could not refresh) carries the check rollup but not the review-thread counts, which only the full cache record holds.
 

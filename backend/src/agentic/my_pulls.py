@@ -1,9 +1,9 @@
 """The viewer's own open pull requests, with the state the My PRs page shows.
 
-The rows come from ghx (``services.github.list_my_open_pulls``), one listing per
-repository the app knows, because ghx caches one repository at a time and
-carries the check rollup, review-thread counts, mergeability, closing issues,
-and description timestamps the page shows. This module
+The rows come from ghx (``services.github.list_my_open_pulls``), one listing
+over every repository the app knows, because ghx caches each repository's pull
+requests and carries the check rollup, review-thread counts, mergeability,
+closing issues, and description timestamps the page shows. This module
 caches the assembled result for a short time and derives the header's counts, so
 reloading the page does not re-query GitHub. It never refreshes the ghx cache:
 that is the background job's job (``ghx_cache.py``), and a page load reads the
@@ -59,9 +59,9 @@ _checks_cache: dict[tuple[str, int], tuple[float, dict[str, Any] | None]] = {}
 def known_github_repositories(session: Session) -> list[str]:
     """The GitHub repositories the app knows, as deduplicated ``owner/name``.
 
-    ghx lists one repository at a time, so the My PRs read covers exactly the
-    repositories registered here. Two checkouts of the same remote collapse to
-    one entry, and a repository without a GitHub remote is left out.
+    The My PRs read covers exactly the repositories registered here, in one
+    ghx call. Two checkouts of the same remote collapse to one entry, and a
+    repository without a GitHub remote is left out.
     """
     repositories: list[str] = []
     seen: set[str] = set()

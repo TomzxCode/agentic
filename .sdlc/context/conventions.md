@@ -37,6 +37,7 @@
 ## GitHub and ghx
 
 - The ghx cache pass in `ghx_cache.py` (every `ghx_cache_refresh_interval`, 15 minutes by default) is what keeps every GitHub page current. No page load, CLI command, or agent action refreshes a repository's cache: pages read ghx's cache, so a read never waits on a delta fetch (or starts a whole-history walk). The one exception is the Settings page's `Force refresh` button (`POST /api/settings/ghx-cache/refresh`), which runs that same pass by hand and waits for it. A new feature that needs fresher GitHub data reads the cache, waits for the next pass, or belongs in that pass rather than adding a request path.
+- A read that spans several repositories repeats `--repo` on one `ghx pr list` / `ghx issue list` call instead of starting a process per repository (`list_my_open_pulls`). ghx answers such a call with an object keyed by repository label, so the caller maps the keys back to its repositories. ghx stops at the first repository it cannot read, so a read that must tolerate one bad repository falls back to listing each one on its own. The `pr.list`/`issue.list` JSON-RPC methods still take a single repository, so a multi-repository call stays on `cli.run` in `rpc`/`managed` mode (the typed adapter refuses to answer it with only the first repository's records).
 
 ## Testing
 
