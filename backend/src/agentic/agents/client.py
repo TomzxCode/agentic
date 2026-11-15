@@ -13,9 +13,11 @@ import structlog
 from acp import Agent, Client, RequestError
 from acp.schema import (
     AllowedOutcome,
+    ConnectMcpResponse,
     CreateElicitationResponse,
     CreateTerminalResponse,
     DeniedOutcome,
+    DisconnectMcpResponse,
     ElicitationMode,
     KillTerminalResponse,
     PermissionOption,
@@ -166,6 +168,23 @@ class AgenticClient(Client):
         raise RequestError.method_not_found("elicitation/create")
 
     async def complete_elicitation(self, elicitation_id: str, **kwargs: Any) -> None:
+        return None
+
+    async def connect_mcp(self, server_id: str, **kwargs: Any) -> ConnectMcpResponse:
+        # Client-side MCP servers (unstable in ACP 1.0) are not offered; agents bring their own tools.
+        raise RequestError.method_not_found("mcp/connect")
+
+    async def disconnect_mcp(self, connection_id: str, **kwargs: Any) -> DisconnectMcpResponse:
+        raise RequestError.method_not_found("mcp/disconnect")
+
+    async def mcp_message(
+        self, connection_id: str, method: str, params: dict[str, Any] | None = None, **kwargs: Any
+    ) -> Any:
+        raise RequestError.method_not_found("mcp/message")
+
+    async def notify_mcp(
+        self, connection_id: str, method: str, params: dict[str, Any] | None = None, **kwargs: Any
+    ) -> None:
         return None
 
     def on_connect(self, conn: Agent) -> None:
