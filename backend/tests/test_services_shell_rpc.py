@@ -511,6 +511,9 @@ def test_fetch_slack_mixes_the_typed_read_with_the_cli_run_fallback(monkeypatch)
         body = kwargs["json"]
         methods.append(body["method"])
         if body["method"] == "conversations.get":
+            # Both reads name agentic's own pointer, so a refresh never moves
+            # the `default` pointer a person tracks their reading with.
+            assert body["params"]["reader"] == "agentic"
             return _rpc_typed(thread)
         if body["method"] == "users.list":
             return _rpc_typed({"user_count": 1, "users": [{"id": "U0123ABCDEF", "name": "tom"}]})
@@ -522,6 +525,7 @@ def test_fetch_slack_mixes_the_typed_read_with_the_cli_run_fallback(monkeypatch)
             "show",
             "https://test.slack.com/archives/C0123ABCDEF/p1660000000000100",
         ]
+        assert body["params"]["args"][3:] == ["--fetch", "--reader", "agentic"]
         return _rpc_result(stdout="rendered thread text")
 
     monkeypatch.setattr(shell.httpx, "post", fake_post)
@@ -535,6 +539,67 @@ def test_fetch_slack_mixes_the_typed_read_with_the_cli_run_fallback(monkeypatch)
     assert "#test" in result["title"]
     assert methods.count("cli.run") == 1  # only the --fetch text read
     assert "conversations.get" in methods
+
+
+def test_a_conversation_read_runs_over_the_typed_method_with_its_flags(monkeypatch):
+    """`conversations get` answers from the RPC method that reads the same view.
+
+    The method takes the flags that bound what a channel read returns, so the
+    on-call scan stays in the server process instead of spawning a slackx
+    interpreter per scan.
+    """
+    monkeypatch.setattr(settings, "slackx_backend", "rpc")
+    payload = {"channel": "C0123ABCDEF", "channel_name": "help", "message_count": 0, "messages": []}
+
+    def fake_post(url, **kwargs):
+        body = kwargs["json"]
+        assert body["method"] == "conversations.get"
+        assert body["params"] == {
+            "target": "C0123ABCDEF",
+            "last": "2d5h",
+            "with_thread_message": True,
+            "fetch": True,
+            "reader": "agentic",
+        }
+        return _rpc_typed(payload)
+
+    monkeypatch.setattr(shell.httpx, "post", fake_post)
+    out = shell._run_cli(
+        [
+            "slackx",
+            "conversations",
+            "get",
+            "C0123ABCDEF",
+            "--json",
+            "--last",
+            "2d5h",
+            "--with-thread-message",
+            "--fetch",
+            "--reader",
+            "agentic",
+        ]
+    )
+    assert out is not None
+    assert json.loads(out) == payload
+
+
+def test_a_conversation_read_naming_another_cache_stays_on_cli_run(monkeypatch):
+    """A flag choosing which cache to read must not be dropped by the typed call.
+
+    `--db` (like `--workspace`) selects the database the CLI reads; the RPC
+    server would answer from its own. Such a read keeps the command line so it
+    reads the cache the caller named.
+    """
+    monkeypatch.setattr(settings, "slackx_backend", "rpc")
+
+    def fake_post(url, **kwargs):
+        assert kwargs["json"]["method"] == "cli.run"
+        return _rpc_result(stdout="from the named cache")
+
+    monkeypatch.setattr(shell.httpx, "post", fake_post)
+    assert shell._run_cli(["slackx", "conversations", "show", "C0123ABCDEF", "--json", "--db", "/tmp/x.db"]) == (
+        "from the named cache"
+    )
 
 
 def test_unmapped_commands_still_run_through_cli_run(monkeypatch):

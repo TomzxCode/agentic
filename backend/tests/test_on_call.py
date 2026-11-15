@@ -212,3 +212,32 @@ def test_scan_finds_a_resolved_thread_by_its_canonical_external_id(monkeypatch):
         # A reply after the resolved watermark shows as new activity.
         assert threads[0]["has_new_activity"] is True
         assert len([item for item in _slack_items(client) if "CONCALL3" in (item["url"] or "")]) == 1
+
+
+def test_scan_keeps_its_reads_out_of_the_default_read_pointer(monkeypatch):
+    """The scan reads a channel under agentic's own slackx reader.
+
+    slackx advances a read pointer on every conversation read. Naming its own
+    reader keeps the server's scans from moving the `default` pointer, which a
+    person uses to track what they have read themselves.
+    """
+    payload = {
+        "channel": HELP_CHANNEL_ID,
+        "channel_name": "help",
+        "message_count": 1,
+        "messages": [{"ts": HELP_CHANNEL_TS, "text": "Anyone around?", "user": "U1", "user_name": "ada"}],
+    }
+    seen: dict[str, list[str]] = {}
+
+    def fake_run(cmd, timeout=60):
+        seen["cmd"] = cmd
+        return 0, json.dumps(payload), ""
+
+    monkeypatch.setattr(on_call.shell, "_cli_run", fake_run)
+    with TestClient(app) as client:
+        assert client.post("/api/on-call/scan", json={"channel": HELP_CHANNEL_ID}).status_code == 200
+
+    cmd = seen["cmd"]
+    assert cmd[:5] == ["slackx", "conversations", "get", HELP_CHANNEL_ID, "--json"]
+    assert "--with-thread-message" in cmd
+    assert cmd[cmd.index("--reader") + 1] == "agentic"

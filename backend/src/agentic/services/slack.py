@@ -21,6 +21,13 @@ from .parsing import looks_like_slack_channel_id, parse_slack
 log = structlog.get_logger(__name__)
 
 
+# The slackx read pointer agentic reads under. slackx advances the reader's
+# pointer on every conversation read, so naming one leaves the `default`
+# pointer alone: that is where a person tracks what they have read themselves,
+# and the server's automatic refreshes must not clear it.
+SLACKX_READER = "agentic"
+
+
 class SlackError(RuntimeError):
     """A Slack send that could not run, or that Slack refused."""
 
@@ -617,7 +624,7 @@ def _fetch_slack(url: str, result: dict[str, Any]) -> None:
     # ``--fetch`` refreshes an already-cached thread, so a refresh from the web UI
     # (POST /api/items/{id}/refresh) sees new replies instead of the stale cache.
     # It also fetches on a cache miss, so no separate ``conversations fetch``.
-    text = shell._run_cli(["slackx", "conversations", "show", url, "--fetch"], timeout=90)
+    text = shell._run_cli(["slackx", "conversations", "show", url, "--fetch", "--reader", SLACKX_READER], timeout=90)
     if text:
         result["content"] = text
     else:
@@ -625,7 +632,7 @@ def _fetch_slack(url: str, result: dict[str, Any]) -> None:
         # expected to) but produced nothing, which must not read as success.
         result["error"] = "slackx could not fetch the Slack thread"
     # A second, structured read of the same (now cached) thread names its people.
-    raw = shell._run_cli(["slackx", "conversations", "show", url, "--json"], timeout=90)
+    raw = shell._run_cli(["slackx", "conversations", "show", url, "--json", "--reader", SLACKX_READER], timeout=90)
     channel_name = slack_channel_name(raw) if raw else None
     if raw:
         result["people"] = slack_people(raw, slack_user_names())

@@ -310,6 +310,59 @@ def _typed_ghx_checks(endpoint: tuple[str, str], args: list[str], timeout: int) 
     return 0, json.dumps(result), ""
 
 
+# The flags a conversation read can carry that the `conversations.get` RPC
+# method takes under the same names: (parameter, how the flag supplies it).
+_CONVERSATION_FLAGS: dict[str, tuple[str, str]] = {
+    "--ts": ("ts", "value"),
+    "--last": ("last", "value"),
+    "--reader": ("reader", "value"),
+    "--fetch": ("fetch", "true"),
+    "--no-fetch": ("fetch", "false"),
+    "--with-thread-message": ("with_thread_message", "true"),
+    "--no-with-thread-message": ("with_thread_message", "false"),
+}
+
+
+def _conversation_params(args: list[str]) -> dict[str, Any] | None:
+    """The `conversations.get` parameters a conversation read names.
+
+    A flag the typed method cannot express selects how the command runs rather
+    than what it reads (``--db``, ``--workspace``, ``--api-base-url``), and the
+    RPC server supplies its own. Returning None keeps such a call on cli.run,
+    where it reads the cache the caller named, instead of quietly dropping the
+    flag and answering from the server's cache. An unknown flag does the same,
+    so a later CLI option never turns into a silently optional one.
+
+    The value flags also accept the ``--flag=value`` spelling.
+    """
+    params: dict[str, Any] = {}
+    index = 0
+    while index < len(args):
+        arg = args[index]
+        if arg == "--json":
+            index += 1
+            continue
+        flag, _, inline = arg.partition("=")
+        spec = _CONVERSATION_FLAGS.get(flag)
+        if spec is None:
+            return None
+        name, kind = spec
+        if kind == "value":
+            if inline == "":
+                index += 1
+                if index >= len(args):
+                    return None
+                inline = args[index]
+            params[name] = inline
+        elif inline:
+            # ``--fetch=yes`` is not a spelling the CLI accepts either.
+            return None
+        else:
+            params[name] = kind == "true"
+        index += 1
+    return params
+
+
 def _typed_slackx(
     endpoint: tuple[str, str], method: str, target_key: str, args: list[str], timeout: int
 ) -> tuple[int, str, str] | None:
@@ -331,6 +384,12 @@ def _typed_slackx(
     fields = _argv_value(args, "--fields")
     if fields:
         params["fields"] = fields
+    if method == "conversations.get":
+        # args is ``conversations, get|show, <target>, <flags...>``.
+        conversation = _conversation_params(args[3:])
+        if conversation is None:
+            return None
+        params.update(conversation)
     code, result, error = _rpc_post(endpoint, method, params, ["slackx", *args], timeout)
     if code != 0:
         return 1, "", error
@@ -373,9 +432,10 @@ def _typed_dispatch(cmd: list[str], endpoint: tuple[str, str], timeout: int) -> 
         # `channels get` (channels list takes no positional).
         if head == ("channels", "get"):
             return _typed_slackx(endpoint, "channels.get", "channel", args, timeout)
-        # The --fetch variant prints rendered text only the CLI renders, so it
-        # stays on cli.run; the structured --json read maps to conversations.get.
-        if head == ("conversations", "show"):
+        # `get` is the canonical name and `show` its alias; both print the JSON
+        # builders the RPC method returns. A read without `--json` (the rendered
+        # text) stays on cli.run: only the CLI renders it.
+        if head in (("conversations", "get"), ("conversations", "show")):
             return _typed_slackx(endpoint, "conversations.get", "target", args, timeout)
     return None
 

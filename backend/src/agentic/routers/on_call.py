@@ -179,6 +179,8 @@ def scan_channel(payload: OnCallScanRequest) -> dict[str, Any]:
         lookback,
         "--with-thread-message",
         "--fetch",
+        "--reader",
+        slack_service.SLACKX_READER,
     ]
     outcome = shell._cli_run(cmd, timeout=60)
     if outcome is None:
