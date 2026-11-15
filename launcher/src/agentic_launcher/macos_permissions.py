@@ -85,7 +85,7 @@ def is_input_monitoring_trusted() -> bool:
     if sys.platform != "darwin":
         return True
     try:
-        from Quartz import CGPreflightListenEventAccess  # ty: ignore[unresolved-import]
+        from Quartz import CGPreflightListenEventAccess  # ty: ignore[import-not-found]
     except Exception:
         return True
     try:
@@ -105,7 +105,7 @@ def request_input_monitoring() -> bool:
     if sys.platform != "darwin":
         return True
     try:
-        from Quartz import CGRequestListenEventAccess  # ty: ignore[unresolved-import]
+        from Quartz import CGRequestListenEventAccess  # ty: ignore[import-not-found]
 
         return bool(CGRequestListenEventAccess())
     except Exception:
