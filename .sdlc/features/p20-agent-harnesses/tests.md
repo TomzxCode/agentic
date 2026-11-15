@@ -63,12 +63,16 @@ Backend, file `backend/tests/test_agents_pool.py` (async unit with a fake spawn)
 |---|---|---|---|
 | TC-29 | A warm session reads the models the harness offers | fake spawn, fake conn | choices and current model captured at open |
 | TC-30 | The pool answers the default harness from the session it holds | held session alive | `live: true` answer |
-| TC-31 | A harness the pool does not hold is read on demand and reused | non-default harness, two calls | one short-lived session, second call cached |
+| TC-31 | A harness the pool does not hold is read on demand and reused | non-default harness, two calls | one session opened and held, second call reuses it |
 | TC-32 | The pool reports a harness that will not start | spawn raises | `error` set, no exception escapes |
 | TC-33 | The pool closes a harness that fails after it starts | initialize raises | process closed, no leak |
 | TC-34 | The pool closes the process when an open is cancelled | cancel during open | process closed |
 | TC-35 | The loop keeps a session up for the default harness | background loop with fake DB | session held, reopened on fingerprint change, backoff on failure |
 | TC-36 | The fingerprint changes with command, args, model, and env | each field mutated | fingerprint changes |
+| TC-44 | A restarted process reuses the recorded session | a stored session and a fake conn | `resume_session` with the stored id, no `new_session` |
+| TC-45 | A harness without `session/resume` reuses its session through `session/load` | stored session, resume raises | `load_session` with the stored id, no `new_session` |
+| TC-46 | A changed harness opens and records a new session | stored session for a different fingerprint | no resume, one `new_session`, record replaced |
+| TC-47 | A session the harness no longer has is replaced | resume and load both raise | one `new_session`, record replaced |
 
 Frontend and CLI:
 
@@ -108,7 +112,7 @@ Frontend and CLI:
 | FR-8 | TC-15, TC-40 |
 | FR-9 | TC-16, TC-18, TC-22 |
 | FR-10 | TC-27, TC-29, TC-30, TC-31, TC-32 |
-| FR-11 | TC-33, TC-34, TC-35, TC-36, TC-43 |
+| FR-11 | TC-33, TC-34, TC-35, TC-36, TC-43, TC-44, TC-45, TC-46, TC-47 |
 | FR-12 | TC-1, TC-2, TC-3, TC-24, TC-39 |
 | FR-13 | TC-37 |
 | FR-14 | TC-38 |

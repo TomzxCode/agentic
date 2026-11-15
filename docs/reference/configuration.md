@@ -39,7 +39,7 @@ The Slack credentials keep the names `slackx` uses (`SLACK_TOKEN`, `SLACK_COOKIE
 | `AGENTIC_RPC_TOKEN` | (empty) | Bearer token required by this server's own JSON-RPC endpoint (`POST /rpc`) when it is bound beyond loopback. Clients send it as `Authorization: Bearer <token>`. |
 | `AGENTIC_RPC_ALLOW_EXEC` | `true` | Allow the `cli.run` JSON-RPC method, which runs the `agentic` CLI on the server. |
 | `AGENTIC_AUTO_APPROVE_PERMISSIONS` | `true` | Auto-approve ACP permission requests. |
-| `AGENTIC_WARM_HARNESS_SESSION` | `true` | Hold an ACP session open for the default harness from API startup, so the task view lists its model choices without spawning it. Runs still spawn their own session. |
+| `AGENTIC_WARM_HARNESS_SESSION` | `true` | Hold an ACP session open for the default harness from API startup, so the task view lists its model choices without spawning it. The session is recorded per harness and resumed on the next start, not opened again. Runs still spawn their own session. |
 | `AGENTIC_QUEUE_URL` | `sqlite:///<data_dir>/queue.db` | Agent-run queue. Use a `redis://` or `postgres://` URL to share the queue across machines. |
 | `AGENTIC_WORKER_CONCURRENCY` | `4` | Agent runs a worker processes concurrently. |
 | `AGENTIC_WORKER_SWEEP` | `60` | Seconds between sweeps for stuck jobs left by a dead worker. |

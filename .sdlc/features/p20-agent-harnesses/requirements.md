@@ -33,7 +33,7 @@ A run selects its model over ACP after the session exists, never through a comma
 | FR-8 | Should | When a harness exposes no model option or rejects the requested value, the system shall emit a warning into the run's transcript and continue the run with the harness's own default. |
 | FR-9 | Should | A run shall record the model the session answers with (`model`) and the harness's own label for it (`model_name`), resolved as the selected model, else the model reported for the session, else the requested model. |
 | FR-10 | Must | The system shall expose each harness's model choices, answered from the warm session held for the default harness or from a short-lived session for any other harness, with a `live` flag and an `error` reason when the harness cannot be asked. |
-| FR-11 | Should | The API shall hold one warm ACP session for the default harness for introspection only, reopen it when the harness's id, command, args, model, or env changes, and retry failures with exponential backoff; `AGENTIC_WARM_HARNESS_SESSION=0` shall disable it. |
+| FR-11 | Should | The API shall hold one warm ACP session for the default harness for introspection only, record that session and resume it when the API starts again instead of opening another one, reopen it when the harness's id, command, args, model, env, or working directory changes or the recorded session is gone, and retry failures with exponential backoff; `AGENTIC_WARM_HARNESS_SESSION=0` shall disable it. |
 | FR-12 | Should | The system shall display, for each harness, the model its own config file names (via `default_model_source`), read only for display. |
 | FR-13 | Should | The Settings page shall edit a harness's command, args, resume command, and model, and the task view's run panel shall offer a harness picker and a model picker with a "Harness default" option. |
 | FR-14 | Should | The CLI shall offer `agentic harness list`, `create`, `update`, and `delete`. |
@@ -184,6 +184,16 @@ A run selects its model over ACP after the session exists, never through a comma
       Then the held session is reopened for the new fingerprint
       When AGENTIC_WARM_HARNESS_SESSION is 0
       Then no session is held and models come from on-demand sessions
+    ```
+
+    ```gherkin
+    @FR-11
+    Scenario: A restart reuses the recorded session
+      Given a harness whose models were read in a previous API process
+      When the API starts again
+      Then it resumes the recorded session instead of opening a new one
+      When the recorded session no longer exists on the harness
+      Then it opens a new session and records that one
     ```
 
 - [ ] **FR-12**

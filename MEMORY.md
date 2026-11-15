@@ -236,3 +236,8 @@
 - A ghx older than these commits accepts several `--repo` flags but silently prints one repository's rows as a bare array, so a batch reply that is not an object must be discarded and re-read per repository rather than attributed to one of them.
 - The `pr.list`/`issue.list` JSON-RPC methods still take a single `repo`, so the typed adapter in `services/shell.py` refuses a call naming several repositories and leaves it on `cli.run`; taking the first `--repo` value would have answered with one repository's rows as if they were all of them.
 - The readiness columns (mergeability, closing issues, description edit time, head commit time) are ghx cache columns filled when a row is fetched, so rows cached before the ghx schema upgrade read empty until that repository's cache is refreshed: an empty mergeability value is a stale cache, not a pull request GitHub reports nothing for.
+
+## 2026-11-15: the warm harness session is recorded and resumed, not reopened per API start
+
+- A held model-list session is a real session in the agent's own store, so `agents/pool.py` records its id per harness in the non-overridable setting `harness_warm_session:<harness id>` (with the fingerprint and cwd it was opened for) and resumes it on the next start (`session/resume`, `session/load` for a harness like pi-acp that lacks resume). A changed harness or cwd, or a session the harness no longer has, opens a new one and records it; deleting a harness drops the record.
+- The pool must never call `session/new` when a usable record exists: with `--reload` the API starts on every file save, and each start used to leave an unused session in opencode's store. Runs still open their own session per run, which is intended.

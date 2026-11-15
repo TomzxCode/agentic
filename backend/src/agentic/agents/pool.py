@@ -5,10 +5,16 @@ list lives only on a live ACP session. Rather than spawn a harness per request,
 the API holds one session open per harness: the default harness's from startup,
 any other's from the first time its information is asked for. These sessions are
 never sent a message; their only job is to answer harness information, so one is
-reused for every later ask instead of spawning a fresh one. A changed harness
-(command, args, model, env) or a dead process is the only thing that reopens a
-session. Runs are untouched: the worker still spawns its own session per run, so
-a run survives an API restart.
+reused for every later ask instead of spawning a fresh one.
+
+The session is recorded against the harness and resumed when the API starts
+again, so a restart reuses it instead of asking the harness for another one.
+A harness session is a real session in the agent's own store, and leaving one
+behind per restart fills that store with sessions nobody ever used. A changed
+harness (command, args, model, env) or a working directory that moved opens a
+new session, because the recorded one was built from the old values. Runs are
+untouched: the worker still spawns its own session per run, so a run survives an
+API restart.
 
 Everything here is best effort. An unavailable harness, a spawn that fails, or a
 process that dies leaves the pool empty and retries with backoff; the server
@@ -19,6 +25,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import json
 from collections.abc import Callable
 from contextlib import AsyncExitStack
 from dataclasses import dataclass, field
@@ -32,6 +39,8 @@ from sqlmodel import Session
 from ..config import settings
 from ..db import engine
 from ..models.agents import Harness
+from ..models.base import utcnow
+from ..models.system import Setting
 from .client import AgenticClient
 from .harnesses import get_harness
 from .runner import harness_env, initialize, session_model, session_model_choices
@@ -63,6 +72,70 @@ class HarnessModels:
     # True when a session held open by this process answered.
     live: bool = False
     error: str | None = None
+
+
+# The setting row holding the session this process should resume for a harness.
+# Not an overridable setting: it is the API's bookkeeping, not configuration.
+WARM_SESSION_PREFIX = "harness_warm_session:"
+
+
+@dataclass
+class StoredSession:
+    """The session a harness's information was last read from.
+
+    ``fingerprint`` and ``cwd`` say what it was opened for, so a changed harness
+    or a moved working directory is not resumed.
+    """
+
+    session_id: str
+    fingerprint: str
+    cwd: str
+
+
+def _warm_session_key(harness_id: str) -> str:
+    return f"{WARM_SESSION_PREFIX}{harness_id}"
+
+
+def stored_session(harness_id: str) -> StoredSession | None:
+    """The session recorded for a harness, or None when none is usable."""
+    with Session(engine) as session:
+        row = session.get(Setting, _warm_session_key(harness_id))
+    if row is None or not row.value:
+        return None
+    try:
+        data = json.loads(row.value)
+    except ValueError:
+        return None
+    if not isinstance(data, dict):
+        return None
+    session_id = data.get("session_id")
+    if not isinstance(session_id, str) or not session_id:
+        return None
+    return StoredSession(session_id, str(data.get("fingerprint") or ""), str(data.get("cwd") or ""))
+
+
+def store_session(harness_id: str, session: StoredSession) -> None:
+    """Record the session to resume for a harness, replacing any previous one."""
+    key = _warm_session_key(harness_id)
+    value = json.dumps({"session_id": session.session_id, "fingerprint": session.fingerprint, "cwd": session.cwd})
+    with Session(engine) as db:
+        row = db.get(Setting, key)
+        if row is None:
+            row = Setting(key=key, value=value)
+        elif row.value != value:
+            row.value = value
+            row.updated_at = utcnow()
+        db.add(row)
+        db.commit()
+
+
+def forget_session(harness_id: str) -> None:
+    """Drop the record for a harness that no longer exists."""
+    with Session(engine) as db:
+        row = db.get(Setting, _warm_session_key(harness_id))
+        if row is not None:
+            db.delete(row)
+            db.commit()
 
 
 def fingerprint(harness: Harness) -> str:
@@ -105,7 +178,11 @@ class WarmSession:
         return self._process is not None and getattr(self._process, "returncode", None) is None
 
     async def open(self) -> None:
-        """Spawn the harness, handshake, and open a session to read its models."""
+        """Spawn the harness, then reuse the session recorded for it, or open one.
+
+        A session opened here (rather than reused) is recorded so the next API
+        start resumes it instead of asking the harness for another session.
+        """
         # A harness spawns in this directory, so it has to exist (a run resolves
         # the same root and creates it the same way).
         Path(self.cwd).mkdir(parents=True, exist_ok=True)
@@ -115,10 +192,56 @@ class WarmSession:
         )
         self._process = process
         await initialize(conn)
-        session = await conn.new_session(cwd=self.cwd)
-        self.session_id = session.session_id
-        self.choices = session_model_choices(session)
-        self.current = session_model(session)
+        if not await self._reuse(conn):
+            session = await conn.new_session(cwd=self.cwd)
+            self.session_id = session.session_id
+            self.choices = session_model_choices(session)
+            self.current = session_model(session)
+            # Bookkeeping must never cost the answer: a session that is up still
+            # answers the picker when the record cannot be written.
+            try:
+                store_session(
+                    self.harness_id,
+                    StoredSession(self.session_id, self.fingerprint, self.cwd),
+                )
+            except Exception as exc:  # noqa: BLE001 - the answer matters, the record is best effort
+                log.warning("could not record the harness session", harness_id=self.harness_id, error=str(exc))
+
+    async def _reuse(self, conn: Any) -> bool:
+        """Adopt the recorded session, or say it cannot be used.
+
+        A session the harness no longer has (deleted, or the agent's store was
+        reset) is not an error: the caller opens a new one and records it.
+        """
+        try:
+            recorded = stored_session(self.harness_id)
+        except Exception as exc:  # noqa: BLE001 - an unreadable record just means "no record"
+            log.warning("could not read the harness session record", harness_id=self.harness_id, error=str(exc))
+            return False
+        if recorded is None or recorded.fingerprint != self.fingerprint or recorded.cwd != self.cwd:
+            return False
+        try:
+            resumed = await conn.resume_session(session_id=recorded.session_id, cwd=self.cwd)
+        except Exception as exc:  # noqa: BLE001 - a missing session is recoverable
+            # Not every harness implements session/resume; pi-acp only has
+            # session/load, which restores the same session (it replays its
+            # history, which the pool's client drops).
+            try:
+                resumed = await conn.load_session(cwd=self.cwd, session_id=recorded.session_id)
+            except Exception as load_exc:  # noqa: BLE001 - the caller opens a new session
+                log.info(
+                    "could not reuse the harness's session; opening a new one",
+                    harness_id=self.harness_id,
+                    session_id=recorded.session_id,
+                    error=str(exc),
+                    load_error=str(load_exc),
+                )
+                return False
+        self.session_id = recorded.session_id
+        self.choices = session_model_choices(resumed)
+        self.current = session_model(resumed)
+        log.info("harness session reused", harness_id=self.harness_id, session_id=self.session_id)
+        return True
 
     async def close(self) -> None:
         self._process = None
@@ -266,4 +389,14 @@ class HarnessSessionPool:
 pool = HarnessSessionPool()
 
 
-__all__ = ["HarnessModels", "HarnessSessionPool", "WarmSession", "fingerprint", "pool"]
+__all__ = [
+    "HarnessModels",
+    "HarnessSessionPool",
+    "StoredSession",
+    "WarmSession",
+    "fingerprint",
+    "forget_session",
+    "pool",
+    "store_session",
+    "stored_session",
+]

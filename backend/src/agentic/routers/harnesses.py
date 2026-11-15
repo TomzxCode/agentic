@@ -11,7 +11,7 @@ from sqlalchemy import update as sa_update
 from sqlmodel import Session, col, select
 
 from ..agents.harnesses import harness_available, resolve_default_model, seed_harnesses
-from ..agents.pool import pool
+from ..agents.pool import forget_session, pool
 from ..crud import get_or_404
 from ..db import get_session
 from ..models.agents import AgentRun, AgentSession, Harness
@@ -116,6 +116,7 @@ def delete_harness(harness_id: str, session: Session = Depends(get_session)) -> 
     session.exec(sa_update(AgentSession).where(col(AgentSession.harness_id) == harness.id).values(harness_id=None))
     session.exec(sa_delete(Harness).where(col(Harness.id) == harness.id))
     session.commit()
+    forget_session(harness_id)
     pool.refresh()
 
 

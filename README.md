@@ -105,9 +105,11 @@ The task view's agent panel has its own **model** picker beside the harness
 picker, so a single run can answer with a different model without changing the
 harness. Its choices are the ones the harness's ACP session offers; the server
 holds one session open for the default harness from startup
-(`AGENTIC_WARM_HARNESS_SESSION`), so the list arrives in one request. A run's
-choice applies to that run only; leaving the picker on its default uses the
-harness's own model.
+(`AGENTIC_WARM_HARNESS_SESSION`), so the list arrives in one request. The session
+is recorded against the harness and resumed when the API starts again, so a
+restart reuses it instead of leaving another unused session in the agent's own
+store. A run's choice applies to that run only; leaving the picker on its default
+uses the harness's own model.
 
 ## Quickstart
 

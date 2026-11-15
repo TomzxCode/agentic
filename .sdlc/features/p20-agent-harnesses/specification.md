@@ -11,6 +11,7 @@ revision: 1
 A `harness` table row describes one coding agent: how to spawn it over ACP (command, args, env), how to resume one of its sessions in a terminal (`resume_command`), which model to ask it for (`model`), and where its own default model is configured (`default_model_source`).
 `agents/harnesses.py` seeds the built-in presets, picks and protects the single default (guarded by the `harness_default_seeded` setting), resolves a harness for a run, checks availability on PATH, and reads a harness's config file for its default model.
 `agents/pool.py` holds one warm ACP session for the default harness, started in the API lifespan, for introspection only (the model picker); it is gated by `AGENTIC_WARM_HARNESS_SESSION`.
+The session id is recorded per harness and resumed when the API starts again, so restarts reuse it instead of opening a new session in the agent's store.
 `agents/runner.py` applies the model to a run's own session with the ACP `session/set_config_option` request and records what answered.
 `routers/harnesses.py` exposes CRUD, availability, the default model display, and the per-harness models endpoint.
 The Settings page edits harnesses, the task view's run panel picks harness and model per run, and the CLI offers `agentic harness` commands.
@@ -107,7 +108,7 @@ Error codes shared across endpoints:
 | 422 | Invalid payload (FastAPI validation) |
 
 Every write refreshes the pool, so a changed harness is picked up by the warm session loop within seconds (idle poll 15 s, wake on refresh).
-`GET /api/harnesses/{harness_id}/models` answers from the held session (`live: true`) when it matches, else from a short-lived session cached for 600 s keyed by the harness fingerprint, else reports the reason in `error` with an empty list.
+`GET /api/harnesses/{harness_id}/models` answers from the held session (`live: true`) when it matches. A harness with no held session is opened on the first ask and held; its session id is recorded under the non-overridable setting `harness_warm_session:<harness id>`, together with the fingerprint and working directory it was opened for, and the next API start resumes it (`session/resume`, or `session/load` for a harness that lacks resume) instead of calling `session/new`. A changed harness or working directory, or a session the harness no longer has, opens a new session and records it. A harness that cannot be asked reports the reason in `error` with an empty list.
 
 ## Sequences
 
@@ -124,10 +125,14 @@ sequenceDiagram
     RH->>P: models(harness)
     alt the pool holds this harness's session
         P-->>RH: choices + current (live=true)
-    else another harness
-        P->>H: spawn, initialize, new_session
+    else no held session, a recorded one for this harness
+        P->>H: spawn, initialize, session/resume (or session/load)
         H-->>P: session model options
-        P-->>RH: choices (live=false, cached 600 s)
+        P-->>RH: choices (live=true)
+    else no usable recorded session
+        P->>H: spawn, initialize, new_session, record the session id
+        H-->>P: session model options
+        P-->>RH: choices (live=true)
     else the harness cannot be asked
         P-->>RH: empty list + error
     end
@@ -171,8 +176,9 @@ sequenceDiagram
 | Model application | ACP `session/set_config_option` on the `model` option | `opencode acp` rejects `--model` as an unknown flag, so a flag would break startup; the config option is the protocol-native way |
 | Model choices source | A live ACP session | The list exists only on a session; there is no offline registry |
 | Warm session | One held session for the default harness, in the API process | Answers the picker in one request instead of spawning per load; runs are untouched, so a run survives an API restart |
-| On-demand reads | Short-lived session cached 600 s by fingerprint | A non-default harness lists its models without being pooled forever |
-| Fingerprint | id, command, args, model, env | A changed harness invalidates the held session, because the session was built from the old values |
+| Session reuse across restarts | Record the session id per harness in a non-overridable setting, resume it on the next start | A harness session is a real session in the agent's store, so opening one per API start fills that store with sessions nobody used; resuming keeps one |
+| On-demand reads | Open and hold a session on a non-default harness's first ask | The list exists only on a session, and holding it means a later ask spawns nothing |
+| Fingerprint | id, command, args, model, env (plus the working directory it was opened in) | A changed harness invalidates the held session, because the session was built from the old values |
 | Default selection | Picked once, guarded by a setting row | Seeding must add presets on upgrade without ever overriding a deliberate default |
 | Default model display | Read the harness's config file, display only | Says what a model-less run would get without spawning the harness (about 1.7 s over ACP); never selects |
 | Seed strategy | Insert missing presets, never overwrite | Custom edits survive upgrades; resume commands and model sources are backfilled onto old rows |
@@ -182,6 +188,7 @@ sequenceDiagram
 1. The model picker is only as complete as the harness's reporting; a harness that hides its model option shows an empty picker and runs use its default.
 2. The default model display reads the user-level config only, so a project config in a run's working directory can make a run use a different model than the display shows.
 3. The warm session keeps one harness process alive while the API runs; a harness that leaks on session close leaves that cleanup to the harness.
+4. The recorded session id lives in the shared setting table, so two API processes on one database resume the same introspection session; if the harness refuses the second resume, that process opens and records a new one.
 
 ## Out of Scope
 

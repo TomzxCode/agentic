@@ -415,7 +415,7 @@ The full schema with types, constraints, and indexes lives in [`schema.dbml`](sc
 | Persistence | Tables, engine, and in-place migrations | SQLite, SQLModel/SQLAlchemy |
 | Run queue and worker | Durable queue for agent runs: the API enqueues a job keyed by the run id, the worker executes one run per job, and startup reconciliation fails runs left behind | SAQ (`jobs.py`), `agentic-server worker` |
 | ACP client | Spawn a harness, normalize its updates, auto-approve permissions | `agent-client-protocol`, asyncio |
-| Warm ACP session pool | Hold one ACP session for the default harness from startup, so the model picker lists models without spawning a harness per request | `agents/pool.py` (gated by `AGENTIC_WARM_HARNESS_SESSION`) |
+| Warm ACP session pool | Hold one ACP session for the default harness from startup, resume that recorded session on the next start, so the model picker lists models without spawning a harness per request or leaving a new session behind per restart | `agents/pool.py` (gated by `AGENTIC_WARM_HARNESS_SESSION`) |
 | In-process event bus | Publish run and task events to SSE subscribers | asyncio queues |
 | Scheduled tasks | User-defined shell commands fired on a cron schedule, each execution recorded with its exit code and output tail | `schedules.py`, `routers/schedules.py` |
 | Execution graphs | Named DAGs of agent runs, Agentic commands, shell scripts, form nodes, and trigger nodes (schedule or webhook event), fired on demand, by a schedule node, or by a webhook event; the executor walks the DAG in the API process and pauses on forms until answered | `graphs.py`, `routers/graphs.py` |
