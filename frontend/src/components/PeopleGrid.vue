@@ -80,6 +80,8 @@ watch(
 </script>
 
 <template>
+  <!-- Column virtualization is off: these grids hold a dozen narrow columns at most, so it buys
+  nothing, and it drops most cells where the viewport width cannot be measured (jsdom tests). -->
   <ag-grid-vue
     class="repo-grid"
     :theme="gridTheme"
@@ -90,6 +92,7 @@ watch(
     :row-data="rows"
     :get-row-id="getRowId"
     :animate-rows="false"
+    :suppress-column-virtualisation="true"
     :enable-filter-handlers="true"
     dom-layout="normal"
     @grid-ready="onGridReady"
