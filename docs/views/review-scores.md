@@ -6,7 +6,7 @@
 
 A single review report says how one pull request did.
 It does not show whether the code you send for review is improving, whether one repository is consistently harder, or whether one author's pull requests keep scoring below the rest.
-This page turns the score every review step writes into its report marker into one daily series per rubric, then lets you narrow the series by repository and author.
+This page turns the score every review step writes into its report marker into one daily series per rubric, then lets you narrow the series by repository, author, and day range.
 
 ## How to use it
 
@@ -41,11 +41,12 @@ A rubric with no scored review is left out rather than drawn as a flat zero.
 | ------------------ | ------------------------------------------------------------------------------------------------------------- |
 | `All repositories` | A multi-select with a `Filter…` box and `Select all` / `Deselect all`. Nothing chosen means every repository. |
 | `All authors`      | The same multi-select over the pull request authors.                                                          |
-| `Clear filters`    | Appears once a repository or author is chosen and resets both.                                                |
+| `All time`         | The day range: `All time` (default), `Last 7d`, `Last 30d`, or `Last 90d`. A preset ends at the latest scored day, so a store with no recent reviews still shows a window. |
+| `Clear filters`    | Appears once a repository, author, or range is chosen and resets all of them.                                 |
 
 Chosen repositories and authors appear in a `Selected` section above each picker's list, where tapping one removes it.
 The list below offers only values not chosen yet.
-Both choices are remembered on this device under `agentic.reviewScoreFilters`, so leaving and returning keeps them.
+The choices are remembered on this device under `agentic.reviewScoreFilters`, so leaving and returning keeps them, and the chosen range is remembered the same way.
 A repository or author that disappears from the store after a refresh is dropped from the selection.
 
 ### Reading a chart
@@ -66,7 +67,7 @@ There is no `agentic` command for this page.
 | Read the scored runs | none | `GET /api/reviews/scores` |
 
 The skills' own `~/.agents/scripts/review_scores.py` reads the same markers and prints daily aggregates per skill on the command line, with `--date`, `--days`, `--skill`, `--repo`, and `--json`.
-This page adds the per-repository and per-author filters and the per-rubric charts.
+This page adds the per-repository, per-author, and day-range filters and the per-rubric charts.
 
 ## Related
 

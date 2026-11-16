@@ -3,7 +3,9 @@ import {
   authorOptions,
   dailyRubricSeries,
   filterRuns,
+  filterRunsByRange,
   formatScore,
+  rangeAnchor,
   repositoryOptions,
   runsSummary,
   scoreTone
@@ -53,6 +55,22 @@ describe('reviewScores', () => {
     expect(filterRuns(runs, { authors: ['bob'] })).toHaveLength(1)
     expect(filterRuns(runs, { repositories: ['acme/api'], authors: ['alice'] })).toEqual([])
     expect(filterRuns(runs)).toHaveLength(runs.length)
+  })
+
+  it('keeps the runs in a range that ends at the latest day', () => {
+    expect(rangeAnchor(runs)).toBe('2026-11-02')
+    expect(rangeAnchor([])).toBe('')
+    expect(filterRunsByRange(runs, { days: '2', end: '2026-11-02' })).toHaveLength(runs.length)
+    expect(
+      filterRunsByRange([...runs, run({ reviewed_at: '2026-10-01T10:00:00Z' })], {
+        days: '2',
+        end: '2026-11-02'
+      })
+    ).toHaveLength(runs.length)
+    expect(filterRunsByRange(runs, { days: '1', end: '2026-11-02' })).toHaveLength(1)
+    // An empty or unusable range keeps everything rather than hiding the page.
+    expect(filterRunsByRange(runs, { days: 'all', end: '2026-11-02' })).toHaveLength(runs.length)
+    expect(filterRunsByRange(runs, { days: '7' })).toHaveLength(runs.length)
   })
 
   it('offers the repositories and authors with their run counts', () => {

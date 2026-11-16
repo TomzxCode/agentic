@@ -9,7 +9,9 @@ import {
   dailyRubricSeries,
   dayLabel,
   filterRuns,
+  filterRunsByRange,
   formatScore,
+  rangeAnchor,
   repositoryOptions,
   RUBRIC_GROUPS,
   runsSummary,
@@ -24,18 +26,31 @@ const report = ref({ root: null, rubrics: [], runs: [] })
 const loading = ref(true)
 const error = ref(false)
 
-// The selected repositories and authors are per-device view preferences, like
-// the review queue's filters, so leaving and returning keeps them.
+// The selected repositories, authors, and day range are per-device view
+// preferences, like the review queue's filters, so leaving and returning keeps
+// them.
 const FILTERS_KEY = 'agentic.reviewScoreFilters'
 
+// Each range is the number of days ending at the latest scored day; `all` keeps
+// the whole store. The count is stored as a string because the selection comes
+// from a button rather than a number field.
+const ALL_RANGE = 'all'
+const RANGES = [
+  { value: ALL_RANGE, label: 'All time' },
+  { value: '7', label: 'Last 7d' },
+  { value: '30', label: 'Last 30d' },
+  { value: '90', label: 'Last 90d' }
+]
+
 function readStoredFilters() {
-  const defaults = { repositories: [], authors: [] }
+  const defaults = { repositories: [], authors: [], range: ALL_RANGE }
   try {
     const stored = JSON.parse(localStorage.getItem(FILTERS_KEY) || 'null')
     if (!stored || typeof stored !== 'object') return defaults
     return {
       repositories: Array.isArray(stored.repositories) ? stored.repositories.map(String) : [],
-      authors: Array.isArray(stored.authors) ? stored.authors.map(String) : []
+      authors: Array.isArray(stored.authors) ? stored.authors.map(String) : [],
+      range: RANGES.some((entry) => entry.value === String(stored.range)) ? String(stored.range) : ALL_RANGE
     }
   } catch {
     // Storage can be blocked (private mode), and a stored value can be corrupt.
@@ -46,14 +61,19 @@ function readStoredFilters() {
 const storedFilters = readStoredFilters()
 const repositoryFilter = ref(storedFilters.repositories)
 const authorFilter = ref(storedFilters.authors)
+const rangeFilter = ref(storedFilters.range)
 
 watch(
-  [repositoryFilter, authorFilter],
+  [repositoryFilter, authorFilter, rangeFilter],
   () => {
     try {
       localStorage.setItem(
         FILTERS_KEY,
-        JSON.stringify({ repositories: repositoryFilter.value, authors: authorFilter.value })
+        JSON.stringify({
+          repositories: repositoryFilter.value,
+          authors: authorFilter.value,
+          range: rangeFilter.value
+        })
       )
     } catch {
       // Not fatal: the filters still apply for this session.
@@ -76,10 +96,15 @@ const authorChoices = computed(() =>
 )
 
 const filteredRuns = computed(() =>
-  filterRuns(runs.value, { repositories: repositoryFilter.value, authors: authorFilter.value })
+  filterRunsByRange(filterRuns(runs.value, { repositories: repositoryFilter.value, authors: authorFilter.value }), {
+    days: rangeFilter.value,
+    end: rangeAnchor(runs.value)
+  })
 )
 const summary = computed(() => runsSummary(filteredRuns.value))
 const series = computed(() => dailyRubricSeries(filteredRuns.value))
+const rangeActive = computed(() => rangeFilter.value !== ALL_RANGE)
+const rangeScope = computed(() => (rangeActive.value ? ` for the last ${rangeFilter.value} days` : ''))
 const groups = computed(() =>
   RUBRIC_GROUPS.map((group) => ({
     group,
@@ -99,6 +124,11 @@ function filterTitle(kind) {
 function clearFilters() {
   repositoryFilter.value = []
   authorFilter.value = []
+  rangeFilter.value = ALL_RANGE
+}
+
+function hasFilters() {
+  return Boolean(repositoryFilter.value.length || authorFilter.value.length || rangeActive.value)
 }
 
 async function load() {
@@ -168,9 +198,19 @@ onMounted(load)
         placeholder="All authors"
         :title="filterTitle('authors')"
       />
-      <button v-if="repositoryFilter.length || authorFilter.length" class="btn sm ghost" @click="clearFilters">
-        Clear filters
-      </button>
+      <div class="pill-group" role="group" aria-label="Score range">
+        <button
+          v-for="entry in RANGES"
+          :key="entry.value"
+          type="button"
+          :class="{ active: rangeFilter === entry.value }"
+          :aria-pressed="rangeFilter === entry.value"
+          @click="rangeFilter = entry.value"
+        >
+          {{ entry.label }}
+        </button>
+      </div>
+      <button v-if="hasFilters()" class="btn sm ghost" @click="clearFilters">Clear filters</button>
     </div>
 
     <div v-if="loading && !runs.length" class="empty"><span class="spinner" aria-hidden="true"></span></div>
@@ -187,11 +227,15 @@ onMounted(load)
 
     <div v-else-if="!filteredRuns.length" class="empty">
       <p v-if="repositoryFilter.length && authorFilter.length">
-        No scores match {{ repositoryFilter.join(', ') }} by {{ authorFilter.join(', ') }}.
+        No scores match {{ repositoryFilter.join(', ') }} by {{ authorFilter.join(', ') }}{{ rangeScope }}.
       </p>
-      <p v-else-if="repositoryFilter.length">No scores in {{ repositoryFilter.join(', ') }}.</p>
-      <p v-else>No scores by {{ authorFilter.join(', ') }}.</p>
-      <button class="btn sm ghost" @click="clearFilters">Clear filters</button>
+      <p v-else-if="repositoryFilter.length">No scores in {{ repositoryFilter.join(', ') }}{{ rangeScope }}.</p>
+      <p v-else-if="authorFilter.length">No scores by {{ authorFilter.join(', ') }}{{ rangeScope }}.</p>
+      <p v-else>No scores{{ rangeScope }}.</p>
+      <button v-if="rangeActive" class="btn sm ghost" @click="rangeFilter = ALL_RANGE">Show all time</button>
+      <button v-if="repositoryFilter.length || authorFilter.length" class="btn sm ghost" @click="clearFilters">
+        Clear filters
+      </button>
     </div>
 
     <template v-else>

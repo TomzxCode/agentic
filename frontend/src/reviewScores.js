@@ -103,6 +103,34 @@ export function filterRuns(runs, { repositories = [], authors = [] } = {}) {
   })
 }
 
+// The latest day with a run, which is where a relative range ends. Anchoring to
+// the record rather than today means a quiet store still shows its own window
+// instead of an empty page.
+export function rangeAnchor(runs) {
+  const days = (runs || []).map(runDay).filter(Boolean).sort()
+  return days[days.length - 1] || ''
+}
+
+// The runs inside the last `days` days ending at `end`. An empty range keeps
+// every run, and an unknown end keeps every run too, since a range it cannot
+// place has nothing to narrow.
+export function filterRunsByRange(runs, { days = null, end = '' } = {}) {
+  const span = Number(days)
+  if (!span || span <= 0 || !end) return runs || []
+  const start = shiftDays(end, -(span - 1))
+  return (runs || []).filter((run) => {
+    const day = runDay(run)
+    return Boolean(day) && day >= start && day <= end
+  })
+}
+
+function shiftDays(day, amount) {
+  const parsed = new Date(`${day}T00:00:00Z`)
+  if (Number.isNaN(parsed.getTime())) return day
+  parsed.setUTCDate(parsed.getUTCDate() + amount)
+  return parsed.toISOString().slice(0, 10)
+}
+
 // The repositories in the runs, with their run counts, for the filter's
 // options. Sorted by name so the list does not move as runs arrive.
 export function repositoryOptions(runs) {

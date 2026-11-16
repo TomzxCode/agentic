@@ -81,6 +81,44 @@ describe('ReviewScoresView', () => {
     expect(localStorage.getItem('agentic.reviewScoreFilters')).toContain('bob')
   })
 
+  it('narrows the charts to the selected range', async () => {
+    mocks.scores.mockResolvedValue({
+      ...report,
+      runs: [
+        run({ reviewed_at: '2026-11-02T10:00:00Z' }),
+        run({ step: 'validate-pr', score: 0.25, reviewed_at: '2026-10-01T10:00:00Z' })
+      ]
+    })
+    const wrapper = mount(ReviewScoresView)
+    await flushPromises()
+
+    expect(wrapper.findAll('.score-card')).toHaveLength(2)
+
+    const preset = wrapper.findAll('.pill-group button').find((button) => button.text() === 'Last 7d')
+    await preset.trigger('click')
+    await flushPromises()
+
+    expect(wrapper.findAll('.score-card')).toHaveLength(1)
+    expect(wrapper.text()).toContain('1 scored review')
+    expect(localStorage.getItem('agentic.reviewScoreFilters')).toContain('"range":"7"')
+  })
+
+  it('restores a range stored on this device', async () => {
+    localStorage.setItem('agentic.reviewScoreFilters', JSON.stringify({ repositories: [], authors: [], range: '7' }))
+    mocks.scores.mockResolvedValue({
+      ...report,
+      runs: [
+        run({ reviewed_at: '2026-11-02T10:00:00Z' }),
+        run({ step: 'validate-pr', score: 0.25, reviewed_at: '2026-10-01T10:00:00Z' })
+      ]
+    })
+    const wrapper = mount(ReviewScoresView)
+    await flushPromises()
+
+    expect(wrapper.get('.pill-group button.active').text()).toBe('Last 7d')
+    expect(wrapper.findAll('.score-card')).toHaveLength(1)
+  })
+
   it('tells the reader how to create the first score', async () => {
     mocks.scores.mockResolvedValue({ ...report, runs: [] })
     const wrapper = mount(ReviewScoresView)
