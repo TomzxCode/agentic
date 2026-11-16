@@ -825,6 +825,10 @@ def _pull_row(record: dict[str, Any], repository: str, login: str = "") -> dict[
         "url": record.get("url") or "",
         "draft": bool(record.get("isDraft")),
         "state": str(record.get("state") or "").upper(),
+        # The pull request's own branch and the one it targets: a base branch
+        # that is another pull request's head branch makes the two a stack.
+        "base_branch": str(record.get("baseRefName") or ""),
+        "head_branch": str(record.get("headRefName") or ""),
         "created_at": record.get("createdAt"),
         "ready_for_review_at": _ready_for_review_at(record),
         "updated_at": record.get("updatedAt"),

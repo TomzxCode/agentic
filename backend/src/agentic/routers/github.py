@@ -117,6 +117,10 @@ def get_task_links(task_id: str, session: Session = Depends(get_session)) -> Git
                 "url": item.url or "",
                 "state": str(meta.get("state") or "").upper(),
                 "draft": bool(meta.get("is_draft")),
+                # The stored item may predate the branch fields; a row without
+                # them still lists, it just cannot show a stack.
+                "base_branch": str(meta.get("base_branch") or ""),
+                "head_branch": str(meta.get("head_branch") or ""),
             }
         )
 

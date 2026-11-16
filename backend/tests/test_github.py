@@ -575,6 +575,8 @@ def test_task_links_endpoint_reads_each_linked_item_state(monkeypatch):
             "state": "OPEN",
             "isDraft": False,
             "author": {"login": "alice"},
+            "baseRefName": "main",
+            "headRefName": "agentic/the-thing-1234",
             "reviewDecision": "APPROVED",
             "reviews": [{"author": {"login": "bob"}, "state": "APPROVED"}],
             "reviewRequests": [{"type": "User", "login": "carol"}, {"type": "Team", "name": "platform"}],
@@ -619,6 +621,10 @@ def test_task_links_endpoint_reads_each_linked_item_state(monkeypatch):
         row = links["pulls"][0]
         assert row["number"] == 2
         assert row["state"] == "OPEN"
+        # The branches let the list tell a stacked pull request from one based on
+        # the trunk.
+        assert row["base_branch"] == "main"
+        assert row["head_branch"] == "agentic/the-thing-1234"
         assert row["requested_users"] == ["carol"]
         assert row["requested_teams"] == ["platform"]
         assert row["mergeable"] is True

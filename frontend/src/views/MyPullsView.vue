@@ -351,6 +351,7 @@ onMounted(load)
               <thead>
                 <tr>
                   <th>PR</th>
+                  <th>Blocker</th>
                   <th>Status</th>
                   <th>Review</th>
                   <th>Reviewers</th>
@@ -359,7 +360,6 @@ onMounted(load)
                   <th>Conflicts</th>
                   <th>Issue</th>
                   <th>Description</th>
-                  <th>Blocker</th>
                   <th>Updated</th>
                 </tr>
               </thead>
@@ -426,6 +426,11 @@ onMounted(load)
                       :title="`Open task: ${task.title}`"
                     />
                   </td>
+                  <td data-label="Blocker">
+                    <span class="badge" :class="blockerTone(pull)" :title="readyToMergeTitle(pull)">{{
+                      blockerLabel(pull)
+                    }}</span>
+                  </td>
                   <td data-label="Status">
                     <span class="badge" :class="pullStatusClass(pull)">{{ pullStatusLabel(pull) }}</span>
                   </td>
@@ -465,11 +470,6 @@ onMounted(load)
                   <td data-label="Description">
                     <span class="badge" :class="descriptionTone(pull)" :title="descriptionTitle(pull)">{{
                       descriptionLabel(pull)
-                    }}</span>
-                  </td>
-                  <td data-label="Blocker">
-                    <span class="badge" :class="blockerTone(pull)" :title="readyToMergeTitle(pull)">{{
-                      blockerLabel(pull)
                     }}</span>
                   </td>
                   <td class="faint" data-label="Updated">

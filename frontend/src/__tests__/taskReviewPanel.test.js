@@ -693,6 +693,7 @@ describe('TaskReviewPanel', () => {
     // The list is the My PRs table, stating every fact the page asks for.
     expect(wrapper.findAll('.task-link-table th').map((cell) => cell.text())).toEqual([
       'PR',
+      'Blocker',
       'Status',
       'Review',
       'Reviewers',
@@ -701,7 +702,6 @@ describe('TaskReviewPanel', () => {
       'Conflicts',
       'Issue',
       'Description',
-      'Blocker',
       'Updated'
     ])
     const links = wrapper.findAll('.task-link-row')
@@ -709,6 +709,7 @@ describe('TaskReviewPanel', () => {
     // The mobile cards hide the header, so every state cell carries its own
     // column name.
     expect(links[0].findAll('td[data-label]').map((cell) => cell.attributes('data-label'))).toEqual([
+      'Blocker',
       'Status',
       'Review',
       'Reviewers',
@@ -717,7 +718,6 @@ describe('TaskReviewPanel', () => {
       'Conflicts',
       'Issue',
       'Description',
-      'Blocker',
       'Updated'
     ])
     expect(links[0].text()).toContain('Passing')
@@ -740,6 +740,83 @@ describe('TaskReviewPanel', () => {
 
     await links[0].trigger('click')
     expect(mocks.routerPush).toHaveBeenCalledWith({ query: { view: 'pr', item: 'acme/api/42' } })
+  })
+
+  it('draws a stacked list as connected branches, tip first', async () => {
+    const associations = [42, 43, 44].map((number) => ({
+      id: `a${number}`,
+      item: {
+        id: `i${number}`,
+        source: 'github',
+        kind: 'pull_request',
+        url: `https://github.com/acme/api/pull/${number}`,
+        title: `PR ${number}`,
+        content: '',
+        metadata_json: {}
+      }
+    }))
+    const stacked = { ...task, associations }
+    mocks.taskLinks.mockResolvedValue({
+      issues: [],
+      pulls: [
+        {
+          repository: 'acme/api',
+          number: 42,
+          title: 'PR 42',
+          url: 'https://github.com/acme/api/pull/42',
+          state: 'OPEN',
+          head_branch: 'one',
+          base_branch: 'main'
+        },
+        {
+          repository: 'acme/api',
+          number: 43,
+          title: 'PR 43',
+          url: 'https://github.com/acme/api/pull/43',
+          state: 'OPEN',
+          head_branch: 'two',
+          base_branch: 'one'
+        },
+        {
+          repository: 'acme/api',
+          number: 44,
+          title: 'PR 44',
+          url: 'https://github.com/acme/api/pull/44',
+          state: 'OPEN',
+          head_branch: 'three',
+          base_branch: 'two'
+        }
+      ]
+    })
+    mocks.routeQuery = { view: 'pr' }
+
+    const wrapper = mount(TaskReviewPanel, { props: { task: stacked }, ...stub })
+    await flushPromises()
+
+    // The stack gutter leads the table without a visible header, and the stack
+    // reads top-down.
+    const head = wrapper.findAll('.task-link-table th')[0]
+    expect(head.text()).toBe('')
+    expect(head.attributes('aria-label')).toBe('Stack')
+    const rows = wrapper.findAll('.task-link-row')
+    expect(rows.map((row) => row.find('.my-pulls-number').text())).toEqual(['#44', '#43', '#42'])
+    // The branches are reference detail: the column draws only the graph and the
+    // row's tooltip names the branch and the one it targets.
+    expect(rows[0].find('.task-stack-cell').text()).toBe('')
+    expect(rows[0].find('.task-stack-cell').attributes('title')).toBe('three → two')
+    expect(rows[2].find('.task-stack-cell').attributes('title')).toBe('one → main, the bottom of the stack')
+    // The tip joins the row below it, the middle joins both ways, and the bottom
+    // is hollow and ends the rail.
+    expect(rows[0].find('.task-stack-rail-above').exists()).toBe(false)
+    expect(rows[0].find('.task-stack-rail-below').exists()).toBe(true)
+    expect(rows[1].find('.task-stack-rail-above').exists()).toBe(true)
+    expect(rows[1].find('.task-stack-rail-below').exists()).toBe(true)
+    expect(rows[2].find('.task-stack-rail-above').exists()).toBe(true)
+    expect(rows[2].find('.task-stack-rail-below').exists()).toBe(false)
+    expect(rows[2].find('.task-stack-node-root').exists()).toBe(true)
+    // Selecting a row still opens that pull request in the task.
+    await rows[0].trigger('click')
+    expect(mocks.routerPush).toHaveBeenCalledWith({ query: { view: 'pr', item: 'acme/api/44' } })
   })
 
   it('shows a message when the task links no pull request', async () => {

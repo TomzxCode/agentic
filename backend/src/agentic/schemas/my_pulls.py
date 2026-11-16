@@ -30,6 +30,11 @@ class MyPullRead(BaseModel):
     # OPEN / MERGED / CLOSED. A draft is an open pull request flagged by `draft`.
     state: str = ""
     draft: bool = False
+    # The branch the pull request merges into, and the branch it comes from, so a
+    # reader can tell a stacked pull request (its base is another pull request's
+    # head) from one based on the trunk. Empty when the read could not tell.
+    base_branch: str = ""
+    head_branch: str = ""
     created_at: str | None = None
     # When the pull request was last marked ready for review, from ghx's
     # timeline; None when it was opened ready (fall back to created_at).

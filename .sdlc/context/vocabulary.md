@@ -46,6 +46,7 @@
 | Person alias | An identifier for a person (a handle such as a GitHub login or Slack user id, or an email), used to de-duplicate people across sources. |
 | Process view | The SDLC process read as a production line: tasks move between stations, and the view reports inventory, cumulative flow, aging WIP, efficiency, forecast, and outcomes. |
 | Provenance | The client (web, cli, or api) and actor (human or agent) declared in headers on each mutating request, stamped on records such as timeline events and the operations log. |
+| Pull request stack | Two or more pull requests linked to one task where one pull request's base branch is another's head branch in the same repository, so the top one lands on the bottom one instead of on the trunk. |
 | Repository | A local git checkout registered with the app, from which worktrees are created. |
 | Repository group | A named set of repositories that tells a task's agent which checkouts may be relevant. |
 | Requester | A person recorded as having asked for a task, a link set separate from the people the task involves. |

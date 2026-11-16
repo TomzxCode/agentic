@@ -409,6 +409,106 @@
   margin-bottom: 8px;
 }
 
+/* A task's stacked pull requests: a narrow gutter draws the rail that joins a
+   pull request to the one it sits on, the way git log draws a branch. It carries
+   no visible header, since it names nothing; the column appears only when the
+   list has a stack, so its widths shift the My PRs table's by one column. The
+   branch names are not printed either, since the list navigates by pull request;
+   the row's tooltip carries them. */
+.task-link-table.has-stacks th:nth-child(1) {
+  width: 2%;
+}
+.task-link-table.has-stacks th:nth-child(2) {
+  width: 24%;
+}
+.task-link-table.has-stacks th:nth-child(3) {
+  width: 8%;
+}
+.task-link-table.has-stacks th:nth-child(4) {
+  width: 6%;
+}
+.task-link-table.has-stacks th:nth-child(5) {
+  width: 9%;
+}
+.task-link-table.has-stacks th:nth-child(6) {
+  width: 10%;
+}
+.task-link-table.has-stacks th:nth-child(7) {
+  width: 9%;
+}
+.task-link-table.has-stacks th:nth-child(8) {
+  width: 7%;
+}
+.task-link-table.has-stacks th:nth-child(9) {
+  width: 7%;
+}
+.task-link-table.has-stacks th:nth-child(10) {
+  width: 6%;
+}
+.task-link-table.has-stacks th:nth-child(11) {
+  width: 7%;
+}
+.task-link-table.has-stacks th:nth-child(12) {
+  width: 5%;
+}
+.task-link-table .task-stack-cell {
+  position: relative;
+  /* The row's tooltip names the branch and the one it targets. */
+  cursor: help;
+}
+/* The rail and the node sit in the middle of the narrow column, clear of the
+   rank's coloured edge at the row's left. */
+.task-stack-rail {
+  position: absolute;
+  left: 50%;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--faint);
+}
+/* The rail reaches past the cell's edges so it crosses the row borders and the
+   adjacent rows' rails meet. */
+.task-stack-rail-above {
+  top: -1px;
+  bottom: 50%;
+}
+.task-stack-rail-below {
+  top: 50%;
+  bottom: -1px;
+}
+.task-stack-node {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 10px;
+  height: 10px;
+  margin: -5px 0 0 -5px;
+  border-radius: 50%;
+  background: var(--faint);
+}
+/* A node in a stack reads in the link colour; the stack's bottom is hollow, so
+   the trunk it merges into reads as the end of the rail. */
+.task-stack-node-stacked {
+  background: var(--accent);
+}
+.task-stack-node-root {
+  border: 2px solid var(--accent);
+  background: var(--bg-1);
+}
+/* On a phone the list is cards, where a rail joins nothing: the column drops out
+   rather than leaving a lone dot. The hidden cell still counts for nth-child, so
+   the reviewers keep the line of their own they have without the column. */
+@media (max-width: 760px) {
+  .task-link-table .task-stack-cell {
+    display: none;
+  }
+  .task-link-table.has-stacks td:nth-child(5) {
+    flex: 0 1 auto;
+  }
+  .task-link-table.has-stacks td:nth-child(6) {
+    flex: 1 1 100%;
+  }
+}
+
 /* The list of GitHub issues a task links, above the selected issue's panel. It
    appears only when the task links more than one, and each row names the item
    and its current state. */

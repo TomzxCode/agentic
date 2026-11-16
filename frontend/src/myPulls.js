@@ -251,11 +251,12 @@ export function readyToMergeTitle(pull) {
 // GitHub's review decision: APPROVED once the reviews the branch requires are
 // in, CHANGES_REQUESTED when someone asked for changes, REVIEW_REQUIRED while a
 // required review is still missing. A pull request GitHub decided nothing about
-// carries no decision at all.
+// carries no decision at all. The labels read under the Review column, so the
+// required-decision label leaves out the column's own word.
 export const REVIEW_LABELS = {
   APPROVED: 'Approved',
   CHANGES_REQUESTED: 'Changes requested',
-  REVIEW_REQUIRED: 'Review required'
+  REVIEW_REQUIRED: 'Required'
 }
 export const REVIEW_TONES = { APPROVED: 'ok', CHANGES_REQUESTED: 'danger', REVIEW_REQUIRED: 'warn' }
 
@@ -281,7 +282,7 @@ export const CI_FILTERS = [
 export const REVIEW_FILTERS = [
   { value: '', label: 'Any' },
   { value: 'CHANGES_REQUESTED', label: 'Changes requested' },
-  { value: 'REVIEW_REQUIRED', label: 'Review required' },
+  { value: 'REVIEW_REQUIRED', label: 'Required' },
   { value: 'APPROVED', label: 'Approved' },
   { value: 'none', label: 'No review' }
 ]
@@ -395,6 +396,102 @@ export function sortPulls(pulls) {
     const rank = attentionRank(a) - attentionRank(b)
     if (rank !== 0) return rank
     return String(b.updated_at || '').localeCompare(String(a.updated_at || ''))
+  })
+}
+
+// The repository a pull request belongs to, lowercased so a branch resolves only
+// inside its own repository and a casing difference never splits a stack.
+function stackRepository(pull) {
+  const named = pull?.repository || [pull?.owner, pull?.repo].filter(Boolean).join('/')
+  return String(named || '').toLowerCase()
+}
+
+// The pull requests one stack each, tip first and trunk-based last, with the
+// rails a branch column draws. A pull request stacks on another when its base
+// branch is that pull request's head branch in the same repository. A list with
+// no stacks comes back in the order given, each row marked as unstacked.
+//
+// Each entry carries the pull request (`item`) and what the graph column needs:
+// `branch` and `base` (its own refs), `connectedAbove`/`connectedBelow` (the row
+// directly above or below is its child or its parent, so the rail joins them),
+// `root` (the bottom of a stack, whose base is the trunk), and `stacked`
+// (whether the pull request belongs to a stack at all).
+export function pullStacks(pulls) {
+  const list = [...(pulls || [])]
+  const order = new Map(list.map((pull, position) => [pull, position]))
+  // The head branch each pull request publishes, per repository.
+  const heads = new Map()
+  for (const pull of list) {
+    const head = String(pull.head_branch || '')
+    if (head) heads.set(`${stackRepository(pull)}#${head}`, pull)
+  }
+  // The pull request each one sits on, when its base is another listed head.
+  const parentOf = new Map()
+  for (const pull of list) {
+    const base = String(pull.base_branch || '')
+    if (!base) continue
+    const parent = heads.get(`${stackRepository(pull)}#${base}`)
+    if (parent && parent !== pull) parentOf.set(pull, parent)
+  }
+  // A cycle would make the walks below never end, so every edge on a loop is
+  // dropped and the pull requests it joined read as unstacked.
+  for (const pull of [...parentOf.keys()]) {
+    const path = []
+    let cursor = pull
+    while (cursor && !path.includes(cursor)) {
+      path.push(cursor)
+      cursor = parentOf.get(cursor)
+    }
+    if (cursor) {
+      for (const member of path.slice(path.indexOf(cursor))) parentOf.delete(member)
+    }
+  }
+  const childrenOf = new Map()
+  for (const [pull, parent] of parentOf) {
+    const children = childrenOf.get(parent) || []
+    children.push(pull)
+    childrenOf.set(parent, children)
+  }
+  // How far a pull request sits above the bottom of its stack.
+  const depthOf = (pull) => {
+    let depth = 0
+    let cursor = parentOf.get(pull)
+    const seen = new Set([pull])
+    while (cursor && !seen.has(cursor)) {
+      seen.add(cursor)
+      depth += 1
+      cursor = parentOf.get(cursor)
+    }
+    return depth
+  }
+  // Every stack as one group, keyed at its bottom pull request, then ordered by
+  // where the group first appeared and top-down inside it so the tip leads.
+  const groups = new Map()
+  for (const pull of list) {
+    let top = pull
+    const seen = new Set([pull])
+    while (parentOf.has(top) && !seen.has(parentOf.get(top))) {
+      top = parentOf.get(top)
+      seen.add(top)
+    }
+    const group = groups.get(top) || []
+    group.push(pull)
+    groups.set(top, group)
+  }
+  const ordered = [...groups.values()]
+    .sort((a, b) => Math.min(...a.map((pull) => order.get(pull))) - Math.min(...b.map((pull) => order.get(pull))))
+    .flatMap((group) => [...group].sort((a, b) => depthOf(b) - depthOf(a) || order.get(a) - order.get(b)))
+  return ordered.map((pull, position) => {
+    const parent = parentOf.get(pull) || null
+    return {
+      item: pull,
+      branch: String(pull.head_branch || ''),
+      base: String(pull.base_branch || ''),
+      connectedAbove: position > 0 && parentOf.get(ordered[position - 1]) === pull,
+      connectedBelow: position < ordered.length - 1 && parent === ordered[position + 1],
+      root: !parent && (childrenOf.get(pull) || []).length > 0,
+      stacked: parentOf.has(pull) || (childrenOf.get(pull) || []).length > 0
+    }
   })
 }
 

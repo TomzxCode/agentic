@@ -18,6 +18,7 @@ import {
   blockerTone,
   pullStatusClass,
   pullStatusLabel,
+  pullStacks,
   readyToMergeTitle,
   reviewLabel,
   reviewerPrefix,
@@ -110,14 +111,33 @@ function conflictsTitle(entry) {
 function personLinkFor(login) {
   return personLink(store.people, login)
 }
+
+// The pull requests in stack order, each row carrying the graph the branch
+// column draws. A stack exists only when one listed pull request's base branch
+// is another's head branch, so a task's list without one keeps its columns and
+// order exactly as before.
+const stackRows = computed(() => pullStacks(props.items).map((row) => ({ ...row.item, stack: row })))
+
+const hasStacks = computed(() => stackRows.value.some((entry) => entry.stack.stacked))
+
+// What the branch column says about one row: the branch, the branch it targets,
+// and, at the bottom of a stack, that it carries the whole stack.
+function stackTitle(entry) {
+  const branch = entry.stack.branch
+  const base = entry.stack.base || 'the trunk'
+  if (!branch) return 'The branch could not be read'
+  return entry.stack.root ? `${branch} → ${base}, the bottom of the stack` : `${branch} → ${base}`
+}
 </script>
 
 <template>
   <div v-if="kind === 'pr'" class="my-pulls-table-wrap task-link-table-wrap">
-    <table class="my-pulls-table task-link-table">
+    <table class="my-pulls-table task-link-table" :class="{ 'has-stacks': hasStacks }">
       <thead>
         <tr>
+          <th v-if="hasStacks" class="task-stack-head" aria-label="Stack"></th>
           <th>PR</th>
+          <th>Blocker</th>
           <th>Status</th>
           <th>Review</th>
           <th>Reviewers</th>
@@ -126,13 +146,12 @@ function personLinkFor(login) {
           <th>Conflicts</th>
           <th>Issue</th>
           <th>Description</th>
-          <th>Blocker</th>
           <th>Updated</th>
         </tr>
       </thead>
       <tbody>
         <tr
-          v-for="entry in items"
+          v-for="entry in stackRows"
           :key="entry.key"
           class="task-link-row"
           :class="[`attention-rank-${attentionState(entry).rank}`, { active: isSelected(entry) }]"
@@ -144,8 +163,36 @@ function personLinkFor(login) {
           @keydown.enter="navigate(entry)"
           @keydown.space.prevent="navigate(entry)"
         >
+          <td v-if="hasStacks" class="task-stack-cell" :title="stackTitle(entry)">
+            <!-- The rank's coloured edge rides on the first cell, so it stays at
+                 the row's left edge whether or not the stack column exists. -->
+            <span
+              class="my-pulls-attention"
+              role="img"
+              :title="attentionState(entry).label"
+              :aria-label="attentionState(entry).label"
+            ></span>
+            <span
+              v-if="entry.stack.connectedAbove"
+              class="task-stack-rail task-stack-rail-above"
+              aria-hidden="true"
+            ></span>
+            <span
+              v-if="entry.stack.connectedBelow"
+              class="task-stack-rail task-stack-rail-below"
+              aria-hidden="true"
+            ></span>
+            <!-- The rail and the node are the whole cell: the branch names are
+                 reference detail, so the row's tooltip carries them. -->
+            <span
+              class="task-stack-node"
+              :class="{ 'task-stack-node-stacked': entry.stack.stacked, 'task-stack-node-root': entry.stack.root }"
+              aria-hidden="true"
+            ></span>
+          </td>
           <td class="my-pulls-pr-cell">
             <span
+              v-if="!hasStacks"
               class="my-pulls-attention"
               role="img"
               :title="attentionState(entry).label"
@@ -154,6 +201,11 @@ function personLinkFor(login) {
             <span class="my-pulls-number">#{{ entry.number }}</span>
             <span class="my-pulls-repository faint" :title="repositoryName(entry)">{{ repositoryName(entry) }}</span>
             <span class="my-pulls-title" :title="entry.title">{{ entry.title || 'Untitled' }}</span>
+          </td>
+          <td data-label="Blocker">
+            <span class="badge" :class="blockerTone(entry)" :title="readyToMergeTitle(entry)">{{
+              blockerLabel(entry)
+            }}</span>
           </td>
           <td data-label="Status">
             <span class="badge" :class="pullStatusClass(entry)">{{ pullStatusLabel(entry) }}</span>
@@ -197,11 +249,6 @@ function personLinkFor(login) {
           <td data-label="Description">
             <span class="badge" :class="descriptionTone(entry)" :title="descriptionTitle(entry)">{{
               descriptionLabel(entry)
-            }}</span>
-          </td>
-          <td data-label="Blocker">
-            <span class="badge" :class="blockerTone(entry)" :title="readyToMergeTitle(entry)">{{
-              blockerLabel(entry)
             }}</span>
           </td>
           <td class="faint" data-label="Updated">

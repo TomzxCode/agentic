@@ -93,26 +93,26 @@
 }
 /* The PR column carries the number, repository, and title, so it takes the
    room the state columns do not need. The columns follow the row's facts:
-   status, review decision, reviewers, checks, open comments, conflicts, linked
-   issue, description freshness, merge readiness, and when the pull request
+   merge readiness, status, review decision, reviewers, checks, open comments,
+   conflicts, linked issue, description freshness, and when the pull request
    last changed. */
 .my-pulls-table th:nth-child(1) {
   width: 23%;
 }
 .my-pulls-table th:nth-child(2) {
-  width: 6%;
+  width: 8%;
 }
 .my-pulls-table th:nth-child(3) {
-  width: 10%;
+  width: 6%;
 }
 .my-pulls-table th:nth-child(4) {
-  width: 11%;
+  width: 10%;
 }
 .my-pulls-table th:nth-child(5) {
-  width: 9%;
+  width: 11%;
 }
 .my-pulls-table th:nth-child(6) {
-  width: 7%;
+  width: 9%;
 }
 .my-pulls-table th:nth-child(7) {
   width: 7%;
@@ -124,7 +124,7 @@
   width: 7%;
 }
 .my-pulls-table th:nth-child(10) {
-  width: 8%;
+  width: 7%;
 }
 .my-pulls-table th:nth-child(11) {
   width: 5%;
@@ -221,12 +221,16 @@
   flex: none;
 }
 /* The repository reads as one token after the number; it truncates rather than
-   pushing the title off the row. */
+   pushing the title off the row. The owner says less than the repository, so the
+   name keeps its end visible and the ellipsis takes the start (`…/agentic`);
+   `direction: rtl` moves the ellipsis, and the text stays in logical order. */
 .my-pulls-repository {
   flex: 0 1 auto;
   min-width: 0;
   max-width: 40%;
   overflow: hidden;
+  direction: rtl;
+  text-align: left;
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 12px;
@@ -487,7 +491,7 @@ a.my-pulls-check-name:hover {
     flex: 1 1 100%;
   }
   /* The approvers take a line of their own so they can wrap. */
-  .my-pulls-table td:nth-child(4) {
+  .my-pulls-table td:nth-child(5) {
     flex: 1 1 100%;
   }
   .my-pulls-approvers {

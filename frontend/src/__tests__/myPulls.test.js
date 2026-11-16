@@ -42,6 +42,7 @@ import {
   PULL_GROUPINGS,
   pullCounts,
   pullFilterCounts,
+  pullStacks,
   blockerLabel,
   blockerTone,
   pullStatus,
@@ -204,7 +205,7 @@ describe('my pulls helpers', () => {
     expect(ciLabel(pull())).toBe('Passing')
     expect(ciLabel(pull({ ci: 'none' }))).toBe('No checks')
     expect(ciTone(pull({ ci: 'failure' }))).toBe('danger')
-    expect(reviewLabel(pull())).toBe('Review required')
+    expect(reviewLabel(pull())).toBe('Required')
     expect(reviewLabel(pull({ review_decision: 'CHANGES_REQUESTED' }))).toBe('Changes requested')
     expect(reviewLabel(pull({ review_decision: '' }))).toBe('No review')
     expect(reviewTone(pull({ review_decision: 'APPROVED' }))).toBe('ok')
@@ -352,12 +353,7 @@ describe('grouping', () => {
       ],
       'review'
     )
-    expect(review.map((group) => group.label)).toEqual([
-      'Changes requested',
-      'Review required',
-      'Approved',
-      'No review'
-    ])
+    expect(review.map((group) => group.label)).toEqual(['Changes requested', 'Required', 'Approved', 'No review'])
   })
 
   it('drops the states the list has none of', () => {
@@ -403,6 +399,63 @@ describe('filtering', () => {
   })
 })
 
+describe('pull stacks', () => {
+  it('keeps a list with no stack in the order given', () => {
+    const first = pull({ number: 1, head_branch: 'one', base_branch: 'main' })
+    const second = pull({ number: 2, head_branch: 'two', base_branch: 'main' })
+    const rows = pullStacks([first, second])
+    expect(rows.map((row) => row.item)).toEqual([first, second])
+    expect(rows.every((row) => !row.stacked)).toBe(true)
+    expect(rows.every((row) => !row.connectedAbove && !row.connectedBelow)).toBe(true)
+  })
+
+  it('orders a stack tip first and joins each row to the one it sits on', () => {
+    const bottom = pull({ number: 1, head_branch: 'one', base_branch: 'main' })
+    const middle = pull({ number: 2, head_branch: 'two', base_branch: 'one' })
+    const tip = pull({ number: 3, head_branch: 'three', base_branch: 'two' })
+    const rows = pullStacks([bottom, middle, tip])
+    expect(rows.map((row) => row.item)).toEqual([tip, middle, bottom])
+    expect(rows.map((row) => row.root)).toEqual([false, false, true])
+    expect(rows.map((row) => row.connectedAbove)).toEqual([false, true, true])
+    expect(rows.map((row) => row.connectedBelow)).toEqual([true, true, false])
+    expect(rows.every((row) => row.stacked)).toBe(true)
+    // Every row still carries the refs the column names.
+    expect(rows[0].branch).toBe('three')
+    expect(rows[2].base).toBe('main')
+  })
+
+  it('keeps the list order between stacks and never stacks across repositories', () => {
+    const solo = pull({ number: 1, head_branch: 'solo', base_branch: 'main' })
+    const bottom = pull({ number: 2, head_branch: 'one', base_branch: 'main' })
+    const tip = pull({ number: 3, head_branch: 'two', base_branch: 'one' })
+    const elsewhere = pull({
+      repository: 'TomzxCode/other',
+      number: 4,
+      head_branch: 'two',
+      base_branch: 'one'
+    })
+    const rows = pullStacks([bottom, solo, tip, elsewhere])
+    expect(rows.map((row) => row.item.number)).toEqual([3, 2, 1, 4])
+    // The other repository's branch is not the one the stack names.
+    expect(rows[3].stacked).toBe(false)
+  })
+
+  it('treats a base branch no listed pull request publishes as the trunk', () => {
+    const rows = pullStacks([pull({ number: 5, head_branch: 'lonely', base_branch: 'release/1.0' })])
+    expect(rows[0].stacked).toBe(false)
+    expect(rows[0].root).toBe(false)
+    expect(rows[0].base).toBe('release/1.0')
+  })
+
+  it('does not loop on a cycle', () => {
+    const a = pull({ number: 1, head_branch: 'a', base_branch: 'b' })
+    const b = pull({ number: 2, head_branch: 'b', base_branch: 'a' })
+    const rows = pullStacks([a, b])
+    expect(rows).toHaveLength(2)
+    expect(rows.every((row) => !row.stacked)).toBe(true)
+  })
+})
+
 describe('MyPullsView', () => {
   it('renders each pull request with its state', async () => {
     mocks.list.mockResolvedValue(
@@ -442,6 +495,7 @@ describe('MyPullsView', () => {
 
     expect(wrapper.findAll('.my-pulls-table th').map((cell) => cell.text())).toEqual([
       'PR',
+      'Blocker',
       'Status',
       'Review',
       'Reviewers',
@@ -450,13 +504,13 @@ describe('MyPullsView', () => {
       'Conflicts',
       'Issue',
       'Description',
-      'Blocker',
       'Updated'
     ])
     // The mobile cards hide the header, so every state cell carries its own
     // column name.
     const firstRow = wrapper.findAll('.my-pulls-table tbody tr')[0]
     expect(firstRow.findAll('td[data-label]').map((cell) => cell.attributes('data-label'))).toEqual([
+      'Blocker',
       'Status',
       'Review',
       'Reviewers',
@@ -465,7 +519,6 @@ describe('MyPullsView', () => {
       'Conflicts',
       'Issue',
       'Description',
-      'Blocker',
       'Updated'
     ])
     expect(wrapper.text()).toContain('2 open')
