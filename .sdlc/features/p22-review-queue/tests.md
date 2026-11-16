@@ -16,16 +16,17 @@ The review skills themselves and their report format are out of scope; tests bui
 |---|---|
 | `backend/tests/test_review_scan.py` (14 tests) | Duration parsing including the off spellings, repository policy resolution, the two searches merged with requested winning and excluded authors dropped, one failing search tolerated, both searches failing returns None, replace-set storage preserving `first_seen_at` and refreshing `ready_for_review_at`, a failed scan keeping the stored set, the scan endpoints and the queue union, the per-repository policy PATCH, and a manual scan recording a ghx failure |
 | `backend/tests/test_review_queue.py` (20 tests) | Store collection with markers and the view cache, the view cache's review line reading as a review decision, in-progress markers shown and ignored for other commits, a running step with no report yet, a marker matched against ghx's newer head, staleness of a step behind the newest commit, `reviewed_at` as the newest report, a commitless alias still reporting its verdict, the bare repository layout, the chain gating in `determine_stale_steps`, the red/yellow/green readiness signal, the queue endpoint, the tracked-item merge, task ids riding along (and absent when the item has no tasks), the task-scoped queue (populated and empty), live fields from ghx, and concurrent lookups |
-| `backend/tests/test_reviews.py` (8 tests) | Directory resolution with different owner casing, the bare-repo fallback, listing reports newest first with skill and commit tags, report-name splitting, path-traversal rejection, truncation of a large report, and the item reviews endpoints |
+| `backend/tests/test_reviews.py` (10 tests) | Directory resolution with different owner casing, the bare-repo fallback, listing reports newest first with skill and commit tags, report-name splitting, path-traversal rejection, truncation of a large report, the item reviews endpoints, and the approval endpoint's success, cached-field drop, rejection, and malformed repository |
+| `backend/tests/test_github.py` (4 write tests) | The `gh pr review --approve` command with and without a review comment, `ghx pr comment` with its body, and each write returning gh's or ghx's failure reason (or a missing CLI) instead of a silent failure, plus the comment endpoint's trimming, empty body, wrong URL kind, and 502 |
 | `backend/tests/test_review_findings.py` (12 tests) | Severity ordering across state files, entries without a severity skipped, an empty list without a review directory, tolerant reading of an invalid YAML file, the findings endpoint, a recorded decision read back, a line-preserving single-entry write, decision replacement, an all-or-nothing batch with a missing finding, the decisions endpoint, a state file named after its full skill name, and a decision written into that file |
 
 ## Frontend tests
 
 | File | Coverage |
 |---|---|
-| `frontend/src/__tests__/reviewQueue.test.js` (42 cases) | The ReviewsView page: empty states, rows grouped by repository with their step state, running-step spinners, person and repository links, scan-found and already-reviewed and already-approved marks, opening a report from a step cell, and the import action |
+| `frontend/src/__tests__/reviewQueue.test.js` (47 cases) | The ReviewsView page: empty states, rows grouped by repository with their step state, running-step spinners, person and repository links, scan-found and already-reviewed and already-approved marks, opening a report from a step cell, the import action, and approving a pull request with the confirmation, cancellation, ineligible rows, an unreadable state, and a rejected write |
 | `frontend/src/__tests__/reviews.test.js` (44 cases) | The queue helpers: grouping report files by commit, review labels, marker stripping, verdict labels and tones, and the filter and sorting helpers the view composes |
-| `frontend/src/__tests__/taskReviewPanel.test.js` (12 cases) | The task's PR panel: rows for linked pull requests, the stored fallback when GitHub cannot be read, opening step reports, the findings list inline, sending findings to an agent, and keeping the agent panel when the queue cannot be read |
+| `frontend/src/__tests__/taskReviewPanel.test.js` (16 cases) | The task's PR panel: rows for linked pull requests, the stored fallback when GitHub cannot be read, opening step reports, the findings list inline, sending findings to an agent, keeping the agent panel when the queue cannot be read, and the header's comment and approve actions including their eligibility and failures |
 | `frontend/src/__tests__/reviewFindings.test.js` (10 cases) | Finding identity keys, severity grouping, the source list and its labels, the default selection rule (open must and should, recorded decisions winning), and prompt building |
 | `frontend/src/__tests__/shareFindingsModal.test.js` (6 cases) | Reading findings and sending them, importing a task first, the no-findings message, recording skip on uncheck, select-all recording include, and filtering the list by source (including `None`) without changing the selection or the send action |
 | `frontend/src/__tests__/settingsReviewScan.test.js` (2 cases) | Saving the review SLO and the review nudge SLO on blur |
@@ -44,6 +45,9 @@ The review skills themselves and their report format are out of scope; tests bui
 | State file that is not valid YAML | Read tolerantly, findings kept | `test_review_findings.py` |
 | Decision batch with one unknown finding | 404, nothing written | `test_review_findings.py` |
 | Store directory under a differently cased owner or repo | Still resolved | `test_reviews.py`, `test_review_queue.py` |
+| gh missing, unauthenticated, or the user's own PR on approval | 502 with gh's reason, row left unapproved | `test_github.py`, `test_reviews.py`, `reviewQueue.test.js` |
+| Approval of a draft, closed, merged, or approved PR | No Approve control is shown | `reviewQueue.test.js`, `taskReviewPanel.test.js` |
+| Comment write fails | ghx's reason is reported, the dialog stays open, nothing is posted | `taskReviewPanel.test.js`, `test_github.py` |
 
 ## Test Infrastructure
 
@@ -79,6 +83,7 @@ The review skills themselves and their report format are out of scope; tests bui
 | FR-24 | `test_review_queue.py`: past-SLO fields; `reviewQueue.test.js`: row highlight, edge tooltip, and header count |
 | FR-22 | `reviewFindings.test.js`, `shareFindingsModal.test.js`, `taskReviewPanel.test.js` |
 | FR-23 | `settingsReviewScan.test.js` |
+| FR-26 | `test_github.py`: gh command and failure; `test_reviews.py`: endpoint and rejection; `reviewQueue.test.js`: confirmation, cancel, ineligible rows, rejected write; `taskReviewPanel.test.js`: the same approval from the PR view |
 | NFR-1 | `test_review_queue.py`: concurrent lookups, cache behavior |
 | NFR-2 | `test_review_queue.py`: ghx failure fallback; `test_review_scan.py`: failed scan |
 | NFR-3 | `test_reviews.py`: traversal rejection |

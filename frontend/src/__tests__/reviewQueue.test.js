@@ -6,12 +6,13 @@ enableAutoUnmount(afterEach)
 const mocks = vi.hoisted(() => ({
   queue: vi.fn(),
   report: vi.fn(),
-  createTask: vi.fn()
+  createTask: vi.fn(),
+  approve: vi.fn()
 }))
 
 vi.mock('../api', () => ({
   api: {
-    reviews: { queue: mocks.queue, report: mocks.report },
+    reviews: { queue: mocks.queue, report: mocks.report, approve: mocks.approve },
     tasks: { create: mocks.createTask }
   }
 }))
@@ -515,6 +516,108 @@ describe('ReviewsView', () => {
     expect(mocks.createTask).toHaveBeenCalledWith({ github_url: 'https://github.com/TomzxCode/agentic/pull/42' })
     expect(wrapper.get('a[href="/task/t2?view=pr"]').text()).toBe('📝')
     expect(wrapper.find('.review-task-new').exists()).toBe(false)
+  })
+
+  it('approves an open pull request from the queue after a confirmation', async () => {
+    mocks.queue.mockResolvedValue({ root: null, counts: { total: 1 }, prs: [pr({ readiness: 'green' })] })
+    mocks.approve.mockResolvedValue({ number: 42, repository: 'TomzxCode/agentic', approved: true })
+
+    const wrapper = mount(ReviewsView, stub)
+    await flushPromises()
+
+    const button = wrapper.get('.review-approve')
+    expect(button.attributes('title')).toBe('Approve PR #42 on GitHub')
+    await button.trigger('click')
+
+    const dialog = wrapper.get('[role="dialog"]')
+    expect(dialog.text()).toContain('TomzxCode/agentic#42')
+    await dialog.get('textarea').setValue('Ship it')
+    await dialog
+      .findAll('button')
+      .find((entry) => entry.text() === 'Approve')
+      .trigger('click')
+    await flushPromises()
+
+    expect(mocks.approve).toHaveBeenCalledWith('TomzxCode/agentic', 42, 'Ship it')
+    expect(store.toast).toMatchObject({ message: 'Approved TomzxCode/agentic#42', isError: false })
+    expect(wrapper.find('[role="dialog"]').exists()).toBe(false)
+    expect(wrapper.find('.review-approve').exists()).toBe(false)
+    expect(wrapper.get('.review-approved-by-me').attributes('title')).toBe('You approved this pull request')
+    // GitHub's own review decision is left alone: another required review can
+    // still be missing, so the row does not claim the PR is approved.
+    expect(wrapper.find('.review-approved').exists()).toBe(false)
+  })
+
+  it('leaves the pull request unapproved when the dialog is cancelled', async () => {
+    mocks.queue.mockResolvedValue({ root: null, counts: { total: 1 }, prs: [pr()] })
+
+    const wrapper = mount(ReviewsView, stub)
+    await flushPromises()
+
+    await wrapper.get('.review-approve').trigger('click')
+    await wrapper
+      .get('[role="dialog"]')
+      .findAll('button')
+      .find((entry) => entry.text() === 'Cancel')
+      .trigger('click')
+    await flushPromises()
+
+    expect(mocks.approve).not.toHaveBeenCalled()
+    expect(wrapper.find('[role="dialog"]').exists()).toBe(false)
+    expect(wrapper.find('.review-approve').exists()).toBe(true)
+  })
+
+  it('offers approval when the pull request state could not be read', async () => {
+    mocks.queue.mockResolvedValue({ root: null, counts: { total: 1 }, prs: [pr({ state: '' })] })
+
+    const wrapper = mount(ReviewsView, stub)
+    await flushPromises()
+
+    // The queue treats a row whose state could not be read as open.
+    expect(wrapper.find('.review-approve').exists()).toBe(true)
+  })
+
+  it('does not offer approval for a draft, a closed, or an already-approved pull request', async () => {
+    // The approved filter hides approved rows by default, so show them.
+    localStorage.setItem('agentic.reviewQueueFilters', JSON.stringify({ approvedFilter: 'all' }))
+    mocks.queue.mockResolvedValue({
+      root: null,
+      counts: { total: 3 },
+      prs: [
+        pr({ number: 1, draft: true }),
+        pr({ number: 2, state: 'MERGED' }),
+        pr({ number: 3, review_decision: 'APPROVED' })
+      ]
+    })
+
+    const wrapper = mount(ReviewsView, stub)
+    await flushPromises()
+
+    expect(wrapper.find('a[href="https://github.com/TomzxCode/agentic/pull/3"]').exists()).toBe(true)
+    expect(wrapper.find('.review-approve').exists()).toBe(false)
+  })
+
+  it('keeps the dialog open and reports the error when GitHub rejects the approval', async () => {
+    mocks.queue.mockResolvedValue({ root: null, counts: { total: 1 }, prs: [pr()] })
+    mocks.approve.mockRejectedValue(new Error('Can not approve your own pull request'))
+
+    const wrapper = mount(ReviewsView, stub)
+    await flushPromises()
+
+    await wrapper.get('.review-approve').trigger('click')
+    await wrapper
+      .get('[role="dialog"]')
+      .findAll('button')
+      .find((entry) => entry.text() === 'Approve')
+      .trigger('click')
+    await flushPromises()
+
+    expect(store.toast).toMatchObject({
+      message: 'Can not approve your own pull request',
+      isError: true
+    })
+    expect(wrapper.find('[role="dialog"]').exists()).toBe(true)
+    expect(wrapper.find('.review-approved-by-me').exists()).toBe(false)
   })
 
   it('shows only open pull requests by default, with a count per status', async () => {

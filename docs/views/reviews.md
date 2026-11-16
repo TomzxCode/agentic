@@ -83,6 +83,7 @@ A pull request that touches no surface shows a dash, and a surface with no repor
 | Control | What it does |
 | --- | --- |
 | `➕` | Imports the pull request into a new task, like the repository view's `New task`. It becomes `📝` once a task is linked, and opens the task in its PR view. |
+| `✓` | Approves an open, non-draft pull request on GitHub with an approving review, after a confirmation that takes an optional review comment. It is not shown on a draft, a closed or merged pull request, or one GitHub already approved. It becomes a session mark once approved; the row keeps GitHub's own review decision, which can stay unapproved while another required review is missing. |
 | `Share` | Opens the findings selector: pick the must, should, and may findings, then `Send to agent` starts a run on the task with a generated prompt. The app posts nothing to GitHub; the skill does. |
 | `Refresh` | Re-reads the store and re-asks GitHub, bypassing the ghx metadata cache. |
 
@@ -103,6 +104,7 @@ There is no `agentic` command for this page: it is a reader over files a skill w
 | Read one report | none | `GET /api/reviews/report/{number}/{name}?repository=owner/name` |
 | Read the findings | none | `GET /api/reviews/findings/{number}?repository=owner/name` |
 | Record include or skip | none | `POST /api/reviews/findings/{number}/decisions` |
+| Approve a pull request on GitHub | none | `POST /api/reviews/{number}/approve` |
 | The scan's state | none | `GET /api/reviews/scan` |
 | Run the scan now | none | `POST /api/reviews/scan` |
 | Import a pull request into a task | `agentic task create --github-url <url>` | `POST /api/tasks` |

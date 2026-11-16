@@ -34,6 +34,7 @@ Out of scope: real network calls to GitHub or Slack, and the cycle-time reads th
 | TC-44 | A repository that ghx cannot list is left out of the rows while the others return; every repository failing reports unreachable | test_my_pulls.py |
 | TC-45 | A registered repository's GitHub remote resolves to `owner/name`, with case-insensitive deduplication and non-GitHub remotes left out | test_my_pulls.py |
 | TC-46 | The typed `pr.list` path passes the author filter; `cache.refresh` carries `force: false` for a delta and the requested `type`; `repo.list` answers the cache listing; `pr.checks` answers the checks read | test_services_shell_rpc.py |
+| TC-47 | `ghx pr comment` posts a top-level comment with the body, a failed write returns ghx's reason, and the comment endpoint trims the body, rejects an empty body or a non-pull-request URL with 400, and answers 502 when the CLI cannot post | test_github.py |
 | TC-16 | Reviewer parsing keeps each reviewer once, keeps the latest decisive state over a later comment, keeps the last review time, marks a re-requested reviewer PENDING, and skips teams | test_item_github_reviewers.py |
 | TC-17 | My PRs page helpers: labels, attention ranking and the state named for each of the seven ranks, sorting, search, counts, groupings, filter matching, and the per-rank edge with its tooltip | frontend `myPulls.test.js` |
 | TC-18 | `layoutGraph` layers by longest path, stacks independent nodes, drops undrawn edges, and sizes the canvas; `edgePath`; `wrapTitle` | frontend `graph.test.js` |
@@ -97,6 +98,7 @@ Out of scope: real network calls to GitHub or Slack, and the cycle-time reads th
 | FR-13 | TC-27 |
 | FR-14 | TC-36, TC-37, TC-38, TC-39, TC-40 |
 | FR-15 | TC-41, TC-42 |
+| FR-16 | TC-47; `taskReviewPanel.test.js`: commenting from the PR view, a failed comment keeping the dialog open |
 | NFR-1 | TC-19, TC-20, TC-31 |
 | NFR-2 | TC-13, TC-14, TC-36, TC-37 |
 | NFR-3 | TC-23 |

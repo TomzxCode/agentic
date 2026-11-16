@@ -193,6 +193,46 @@
   border-color: var(--accent);
   text-decoration: none;
 }
+/* The approve control is a GitHub write, so it reads as a small action beside
+   the tool links rather than another external link. */
+.review-pr-cell .review-approve {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  flex: none;
+  padding: 0 7px;
+  border: 1px solid var(--ok);
+  border-radius: 999px;
+  background: none;
+  color: var(--ok);
+  font: inherit;
+  font-size: 10px;
+  line-height: 1.6;
+  cursor: pointer;
+}
+.review-pr-cell .review-approve:hover {
+  background: var(--bg-2);
+}
+.review-pr-cell .review-approve:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+/* The mark left in place of the control once this session approved the PR. */
+.review-approved-by-me {
+  flex: none;
+  color: var(--ok);
+  font-size: 12px;
+  line-height: 1;
+}
+.pr-action-form {
+  display: block;
+  margin: 10px 0;
+}
+.pr-action-form .faint {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 12px;
+}
 /* The draft badge sits after the number, with a little air. */
 .review-pr-cell .badge {
   flex: none;

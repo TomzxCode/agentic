@@ -329,11 +329,53 @@ def fetch_github_pull_reviewers(owner: str, repo: str, number: object) -> list[d
     return result.reviewers if result is not None else None
 
 
+def approve_github_pull_request(owner: str, repo: str, number: object, body: str = "") -> str | None:
+    """Approve a pull request with `gh`. None on success, otherwise the error.
+
+    ghx reads from its cache and has no direct approve command, so this write
+    goes through `gh` like issue creation does. GitHub still decides the pull
+    request's review decision: an approval from the user does not make it
+    APPROVED while another required review is missing.
+    """
+    cmd = ["gh", "pr", "review", str(number), "--repo", f"{owner}/{repo}", "--approve"]
+    if body.strip():
+        cmd += ["--body", body]
+    result = shell.run_cli_raw(cmd)
+    if result is None:
+        log.info("github pull approve failed", error="gh is not installed")
+        return "gh is not installed"
+    if result.returncode != 0:
+        error = result.stderr.strip() or "gh could not approve the pull request"
+        log.info("github pull approve failed", pr=(owner, repo, int(number)), error=error)
+        return error
+    return None
+
+
+def comment_github_pull_request(owner: str, repo: str, number: object, body: str) -> str | None:
+    """Add a top-level comment to a pull request with `ghx`. None on success.
+
+    ghx writes the comment and keeps it in its own cache, so the conversation
+    reads the same in the app's ghx view. A comment that could not be posted
+    returns the reason instead of reading as a silent success.
+    """
+    result = shell.run_cli_raw(
+        ["ghx", "pr", "comment", str(number), "--repo", f"{owner}/{repo}", "--body", body],
+    )
+    if result is None:
+        log.info("github pull comment failed", error="ghx is not installed")
+        return "ghx is not installed"
+    if result.returncode != 0:
+        error = result.stderr.strip() or "ghx could not comment on the pull request"
+        log.info("github pull comment failed", pr=(owner, repo, int(number)), error=error)
+        return error
+    return None
+
+
 def create_github_issue(owner: str, repo: str, title: str, body: str = "") -> dict[str, Any] | None:
     """Create an issue in a repository with `gh`. None on failure.
 
-    ghx has no issue-create command, so creating one is the single GitHub write
-    that goes through `gh` instead. `gh issue create` prints the new issue's URL.
+    ghx has no issue-create command, so creating one goes through `gh` instead.
+    `gh issue create` prints the new issue's URL.
     """
     result = shell.run_cli_raw(
         ["gh", "issue", "create", "--repo", f"{owner}/{repo}", "--title", title, "--body", body],

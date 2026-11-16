@@ -152,6 +152,16 @@ def _apply_github(pr: dict[str, Any], metadata: dict[str, Any]) -> None:
         pr["in_progress"] = in_progress_steps(Path(str(pr["store_dir"])), head)
 
 
+def forget_github_metadata(owner: str, name: str, number: object) -> None:
+    """Drop a pull request's cached ghx fields.
+
+    After a write that changes what GitHub reports about the pull request (an
+    approval), the next queue read re-reads it instead of reusing a value cached
+    before the write.
+    """
+    _metadata_cache.pop((str(owner).lower(), str(name).lower(), int(number)), None)
+
+
 def _fetch_pr_metadata(owner: str, name: str, number: int) -> dict[str, Any] | None:
     """One pull request's GitHub fields, or None when the lookup failed."""
     try:

@@ -76,3 +76,17 @@ class GithubPullPokeRequest(BaseModel):
     url: str
     title: str = ""
     login: str
+
+
+class GithubPullCommentRequest(BaseModel):
+    """Ask the API to leave a top-level comment on a pull request, by URL."""
+
+    url: str
+    body: str
+
+
+class GithubPullComment(BaseModel):
+    """The pull request the app just commented on."""
+
+    url: str
+    commented: bool = True

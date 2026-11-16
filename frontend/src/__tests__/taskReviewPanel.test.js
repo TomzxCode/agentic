@@ -12,6 +12,8 @@ const mocks = vi.hoisted(() => ({
   githubIssue: vi.fn(),
   taskLinks: vi.fn(),
   pullReviewers: vi.fn(),
+  commentPull: vi.fn(),
+  approve: vi.fn(),
   feedbackList: vi.fn(),
   setFeedbackDecision: vi.fn(),
   routeQuery: {},
@@ -20,8 +22,13 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('../api', () => ({
   api: {
-    github: { issue: mocks.githubIssue, taskLinks: mocks.taskLinks, pullReviewers: mocks.pullReviewers },
-    reviews: { task: mocks.taskReviews, report: mocks.report, findings: mocks.findings },
+    github: {
+      issue: mocks.githubIssue,
+      taskLinks: mocks.taskLinks,
+      pullReviewers: mocks.pullReviewers,
+      commentPull: mocks.commentPull
+    },
+    reviews: { task: mocks.taskReviews, report: mocks.report, findings: mocks.findings, approve: mocks.approve },
     runs: { create: mocks.createRun },
     feedback: { list: mocks.feedbackList, setDecision: mocks.setFeedbackDecision }
   }
@@ -188,6 +195,99 @@ describe('TaskReviewPanel', () => {
     // The reviewed commit and the review step's verdict are shown.
     expect(wrapper.get('.task-pr-reviewed a').text()).toBe('abc1234')
     expect(wrapper.text()).toContain('Review')
+  })
+
+  it('leaves a comment on the pull request from the header', async () => {
+    mocks.commentPull.mockResolvedValue({ url: 'https://github.com/acme/api/pull/42', commented: true })
+    const wrapper = mount(TaskReviewPanel, { props: { task }, ...stub })
+    await flushPromises()
+
+    await wrapper
+      .findAll('button')
+      .find((button) => button.text() === 'Comment')
+      .trigger('click')
+    const dialog = wrapper.get('[role="dialog"]')
+    expect(dialog.text()).toContain('acme/api#42')
+    await dialog.get('textarea').setValue('Looks good to me')
+    await dialog
+      .findAll('button')
+      .find((button) => button.text() === 'Comment')
+      .trigger('click')
+    await flushPromises()
+
+    expect(mocks.commentPull).toHaveBeenCalledWith({
+      url: 'https://github.com/acme/api/pull/42',
+      body: 'Looks good to me'
+    })
+    expect(store.toast).toMatchObject({ message: 'Comment posted', isError: false })
+    expect(wrapper.find('[role="dialog"]').exists()).toBe(false)
+  })
+
+  it('approves the pull request from the header', async () => {
+    mocks.approve.mockResolvedValue({ number: 42, repository: 'acme/api', approved: true })
+    const wrapper = mount(TaskReviewPanel, { props: { task }, ...stub })
+    await flushPromises()
+
+    await wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('Approve'))
+      .trigger('click')
+    const dialog = wrapper.get('[role="dialog"]')
+    await dialog.get('textarea').setValue('Ship it')
+    await dialog
+      .findAll('button')
+      .find((button) => button.text() === 'Approve')
+      .trigger('click')
+    await flushPromises()
+
+    expect(mocks.approve).toHaveBeenCalledWith('acme/api', 42, 'Ship it')
+    expect(store.toast).toMatchObject({ message: 'Approved acme/api#42', isError: false })
+    expect(wrapper.find('[role="dialog"]').exists()).toBe(false)
+    expect(wrapper.get('.task-pr-approved').text()).toBe('Approved')
+  })
+
+  it('offers approval only on an open, non-draft pull request GitHub has not approved', async () => {
+    mocks.taskReviews.mockResolvedValue({
+      root: null,
+      counts: { total: 3 },
+      prs: [pr({ draft: true })]
+    })
+    const wrapper = mount(TaskReviewPanel, { props: { task }, ...stub })
+    await flushPromises()
+
+    expect(wrapper.findAll('button').some((button) => button.text().includes('Approve'))).toBe(false)
+
+    wrapper.unmount()
+    mocks.taskReviews.mockResolvedValue({
+      root: null,
+      counts: { total: 3 },
+      prs: [pr({ review_decision: 'APPROVED' })]
+    })
+    const approved = mount(TaskReviewPanel, { props: { task }, ...stub })
+    await flushPromises()
+
+    expect(approved.findAll('button').some((button) => button.text().includes('Approve'))).toBe(false)
+  })
+
+  it('says so when the comment could not be posted', async () => {
+    mocks.commentPull.mockRejectedValue(new Error('ghx is not installed'))
+    const wrapper = mount(TaskReviewPanel, { props: { task }, ...stub })
+    await flushPromises()
+
+    await wrapper
+      .findAll('button')
+      .find((button) => button.text() === 'Comment')
+      .trigger('click')
+    const dialog = wrapper.get('[role="dialog"]')
+    await dialog.get('textarea').setValue('Looks good')
+    await dialog
+      .findAll('button')
+      .find((button) => button.text() === 'Comment')
+      .trigger('click')
+    await flushPromises()
+
+    expect(store.toast).toMatchObject({ message: 'ghx is not installed', isError: true })
+    expect(wrapper.find('[role="dialog"]').exists()).toBe(true)
   })
 
   it('shows a spinner for a review step that is running', async () => {

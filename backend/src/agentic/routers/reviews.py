@@ -15,7 +15,7 @@ from ..inbox import review_slo_overdue
 from ..models.base import utcnow
 from ..models.items import Association, SourceItem
 from ..review_findings import DECISIONS, collect_findings, record_decisions
-from ..review_queue import collect_review_prs, enrich_from_github
+from ..review_queue import collect_review_prs, enrich_from_github, forget_github_metadata
 from ..review_scan import (
     ReviewRequest,
     configured_review_slo,
@@ -28,6 +28,8 @@ from ..review_store import STEPS
 from ..reviews import read_report
 from ..schemas.items import (
     ItemReviewContent,
+    ReviewApproveRead,
+    ReviewApproveRequest,
     ReviewFindingRead,
     ReviewFindingsDecisions,
     ReviewPrRead,
@@ -37,6 +39,7 @@ from ..schemas.items import (
     ReviewScoresRead,
     ReviewStepRead,
 )
+from ..services.github import approve_github_pull_request
 from ..services.parsing import parse_github
 
 router = APIRouter(prefix="/api/reviews", tags=["reviews"])
@@ -366,6 +369,27 @@ def record_review_finding_decisions(number: int, payload: ReviewFindingsDecision
         titles = ", ".join(f"{item['step']}: {item['title']}" for item in missing)
         raise HTTPException(status_code=404, detail=f"Finding not found: {titles}")
     return [ReviewFindingRead(**finding) for finding in collect_findings(owner, repo, number)]
+
+
+@router.post("/{number}/approve", response_model=ReviewApproveRead)
+def approve_review(number: int, payload: ReviewApproveRequest) -> ReviewApproveRead:
+    """Approve a pull request on GitHub, from the queue.
+
+    The write goes through ``gh``, which submits an approving review as the
+    configured login; ``body`` becomes the review's comment. GitHub may still
+    report the pull request as needing reviews, so the row's review decision is
+    not changed here: the app drops the pull request's cached metadata so the
+    next queue read asks again. A write that failed (gh missing, not
+    authenticated, the user's own pull request) answers 502 with gh's reason.
+    """
+    owner, _, repo = payload.repository.partition("/")
+    if not owner or not repo:
+        raise HTTPException(status_code=400, detail="repository must be owner/name")
+    error = approve_github_pull_request(owner, repo, number, payload.body)
+    if error is not None:
+        raise HTTPException(status_code=502, detail=f"Could not approve the pull request: {error}")
+    forget_github_metadata(owner, repo, number)
+    return ReviewApproveRead(number=number, repository=payload.repository)
 
 
 @router.get("/report/{number}/{name:path}", response_model=ItemReviewContent)

@@ -51,11 +51,16 @@ The reports live under `AGENTIC_SDLC_DIR` (`~/.sdlc` by default), at `{owner}/{r
    A surface the diff did not touch leaves no token and is not counted as stale.
 6. Click a cell to open that step's report.
    The PR view (a task's PR mode or the pull request page) shows a `Description` / `Review` / `Reports` / `Feedback` switch under the pull request's title: `Reports` lists one tab per step that wrote a report, and clicking a step cell there opens it in that pane; `Feedback` lists the analyzed reviewer comments for that pull request, with the same decision cards as the PR feedback page.
+The PR view's header also carries `Comment` and `✓ Approve`: `Comment` posts a top-level comment on the pull request, and `✓ Approve` submits an approving review after a confirmation that takes an optional review comment, the same approval the review queue offers from a row.
 7. Use the row's **📝** to open the linked task in its PR view, or **➕** to import the pull request into a new task, the same as the repository view's **New task**.
-8. Use **Share** to pick the must/should/may findings the skills recorded and hand the selection to an agent run on the task, whose skills post them inline on the pull request (one review comment per finding, on the file and line it is about).
+8. Use **✓** on an open, non-draft pull request to approve it on GitHub without leaving the queue.
+   A confirmation takes an optional review comment; the app submits an approving review as you.
+   The row then keeps a **✓** for the session.
+   This does not merge the pull request, and GitHub's own review decision can still read unapproved while another required review is missing.
+9. Use **Share** to pick the must/should/may findings the skills recorded and hand the selection to an agent run on the task, whose skills post them inline on the pull request (one review comment per finding, on the file and line it is about).
    Each check or uncheck writes your decision (`include` or `skip`) onto that finding in its skill's state file, so the selection is still there when you come back.
-   The app itself posts nothing to GitHub.
-9. Click **Refresh** to re-read the store and bypass the short cache of the pull request field lookups.
+   For the shared findings, the app itself posts nothing to GitHub; the skill does.
+10. Click **Refresh** to re-read the store and bypass the short cache of the pull request field lookups.
 
 ## Where the pull requests come from
 

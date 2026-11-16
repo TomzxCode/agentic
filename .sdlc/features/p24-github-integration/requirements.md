@@ -40,6 +40,7 @@ Importing GitHub issues and pull requests as source items is a separate feature 
 | FR-13 | Should | The system shall poke one reviewer of a pull request item by Slack DM through the people directory, explaining what is missing when the login or a Slack id cannot be resolved. |
 | FR-14 | Should | The system shall list one pull request's individual checks on demand, failing first, when its CI badge's popover opens, each carrying its name, state, description, and detail URL, and report why when the read could not run instead of reading as a pull request with no checks. |
 | FR-15 | Should | The system shall link each My PRs row to the app's PR page, to the pull request on GitHub, and to the local ghx web UI when configured (the external links before the number), to each task the pull request's stored item is associated with, and shall link each GitHub repository in the repository list's own Links column to GitHub and to the ghx web UI when configured. |
+| FR-16 | Should | The pull request view shall leave a top-level comment on the pull request through `ghx`, trim the body, reject an empty body or a non-pull-request URL with 400, and answer 502 with `ghx`'s reason when the write fails. |
 
 ## Non-Functional Requirements
 
@@ -345,6 +346,26 @@ Importing GitHub issues and pull requests as source items is a separate feature 
       Given a registered repository with a GitHub remote and a configured ghx URL
       Then its Links cell offers ghx and gh links
       And a repository whose remote is not GitHub offers neither
+    ```
+
+- [ ] **FR-16**
+
+    ```gherkin
+    @FR-16
+    Scenario: Comment from the pull request view
+      Given a pull request open in its app page
+      When the user writes a comment and submits it
+      Then ghx posts the comment as a top-level comment on the pull request
+      And the dialog closes and the app confirms it was posted
+
+    @FR-16
+    Scenario: A comment that cannot be posted
+      Given an empty body or a URL that is not a pull request
+      When the client asks POST /api/github/pull/comment
+      Then the response is 400 before any CLI runs
+      Given ghx is missing or not authenticated
+      Then the response is 502 with ghx's reason
+      And the dialog stays open so the user can retry
     ```
 
 - [ ] **NFR-1**

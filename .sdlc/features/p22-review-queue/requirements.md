@@ -49,6 +49,7 @@ The scan's `ready_for_review_at` (falling back to `first_seen_at`) also feeds th
 | FR-23 | Should | The Review requests section shall edit the review SLO durations, show the scan's last pass, and offer a Scan now button; the GitHub section shall edit the app-wide default and the per-repository policies. |
 | FR-24 | Should | A row the review SLO considers overdue shall carry the wait and the SLO, and the SPA shall highlight that row with a tint and a colored edge whose tooltip names the wait and SLO, plus a count in the header. |
 | FR-25 | Must | Each stored scan row shall record whether the pending review request is the user's (`me`), one of their teams' (`team`), or both, read from the pull request's pending review requests; a request GitHub could not report, and a row the scan did not find, read as personal. |
+| FR-26 | Must | The web app shall approve an open, non-draft pull request on GitHub from its queue row or the pull request view, after a confirmation that accepts an optional review comment, mark the approval for the session without changing GitHub's own review decision, offer no approval on a draft, closed, merged, or already-approved pull request, and answer 502 with GitHub's reason when the write fails. |
 
 ## Non-Functional Requirements
 
@@ -56,7 +57,7 @@ The scan's `ready_for_review_at` (falling back to `first_seen_at`) also feeds th
 |---|---|---|---|
 | NFR-1 | Must | Performance | GitHub metadata lookups shall be cached in process (300 s on success, 60 s on failure) and fetched concurrently, and a task-scoped read shall enrich only that task's pull requests. |
 | NFR-2 | Must | Resilience | A failed ghx lookup or a failed scan leaves the queue renderable from the store's snapshot; no failure empties the queue. |
-| NFR-3 | Must | Security | Report reads resolve inside the PR directory only, and the app posts nothing to GitHub: decisions and findings travel through files and agent runs. |
+| NFR-3 | Must | Security | Report reads resolve inside the PR directory only. The app's only GitHub writes are the approval and the comment the user asks for; decisions and findings otherwise travel through files and agent runs. |
 | NFR-4 | Must | Data integrity | A stored scan row is unique per (repository, number); `first_seen_at` survives every scan, and `ready_for_review_at` is re-read from the timeline, so the review SLO keeps the true wait even when a row is re-added. |
 | NFR-5 | Should | Usability | The queue, its filters, and the findings modal stay usable at phone widths, and filter choices persist in localStorage rather than in settings. |
 
@@ -359,6 +360,23 @@ The scan's `ready_for_review_at` (falling back to `first_seen_at`) also feeds th
       Then its scope is me
     ```
 
+- [ ] **FR-26**
+
+    ```gherkin
+    @FR-26
+    Scenario: Approve from the queue
+      Given an open pull request that is not a draft and not already approved
+      When the user opens the row's Approve control, optionally writes a comment, and confirms
+      Then gh submits an approving review for that pull request
+      And the row marks it approved for the session without claiming GitHub approved it
+      Given the same pull request open in the pull request view
+      Then its header offers the same approval
+      Given a draft, closed, merged, or already-approved pull request
+      Then neither place offers an Approve control
+      Given gh missing, unauthenticated, or the user's own pull request
+      Then the app reports GitHub's reason and leaves the row unapproved
+    ```
+
 - [ ] **NFR-1**
 
     ```gherkin
@@ -383,10 +401,14 @@ The scan's `ready_for_review_at` (falling back to `first_seen_at`) also feeds th
 
     ```gherkin
     @NFR-3
-    Scenario: Nothing is posted to GitHub
-      Given any queue or findings action
+    Scenario: Only the requested writes reach GitHub
+      Given a queue action other than Approve, or a PR view action other than Approve or Comment
       When it completes
-      Then no write reached GitHub; the only writes are decisions into local state files
+      Then no write reached GitHub
+      Given the user confirms an approval
+      Then exactly that approving review reached GitHub
+      Given the user submits a comment
+      Then exactly that comment reached GitHub
     ```
 
 - [ ] **NFR-4**

@@ -246,6 +246,22 @@ class ReviewFindingsDecisions(BaseModel):
     decisions: list[ReviewFindingDecision] = []
 
 
+class ReviewApproveRequest(BaseModel):
+    """Approve one pull request on GitHub, addressed by repository."""
+
+    repository: str
+    # An optional review comment to submit with the approval.
+    body: str = ""
+
+
+class ReviewApproveRead(BaseModel):
+    """The pull request the app just approved on GitHub."""
+
+    number: int
+    repository: str
+    approved: bool = True
+
+
 class ReviewInProgressRead(BaseModel):
     """A review step that is running for a pull request's head right now.
 

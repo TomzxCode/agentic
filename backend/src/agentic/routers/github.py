@@ -14,6 +14,8 @@ from ..review_auto_poke import next_poke_at
 from ..schemas.github import (
     GithubIssue,
     GithubIssueCreate,
+    GithubPullComment,
+    GithubPullCommentRequest,
     GithubPullPokeRequest,
     GithubRepoListing,
     GithubTaskIssue,
@@ -22,6 +24,7 @@ from ..schemas.github import (
 from ..schemas.items import ItemGithubReviewer, ItemGithubReviewers, ItemPoke
 from ..schemas.my_pulls import MyPullRead
 from ..services.github import (
+    comment_github_pull_request,
     create_github_issue,
     fetch_github_issue,
     fetch_github_pull_reviewers_with_record,
@@ -165,6 +168,24 @@ def get_pull_request_reviewers(url: str, session: Session = Depends(get_session)
         reviewers=[ItemGithubReviewer.model_validate(review) for review in result.reviewers],
         next_poke_at=next_poke_at(session, pull),
     )
+
+
+@router.post("/pull/comment", response_model=GithubPullComment)
+def comment_on_pull_request(payload: GithubPullCommentRequest) -> GithubPullComment:
+    """Leave a top-level comment on a pull request, addressed by URL (ghx).
+
+    The write goes through ghx, which keeps the new comment in its own cache. An
+    empty body is rejected before any CLI runs, and a write that failed answers
+    502 with ghx's reason rather than reading as posted.
+    """
+    owner, repo, number = _pull_request_fields(payload.url)
+    body = payload.body.strip()
+    if not body:
+        raise HTTPException(status_code=400, detail="A comment body is required")
+    error = comment_github_pull_request(owner, repo, number, body)
+    if error is not None:
+        raise HTTPException(status_code=502, detail=f"Could not comment on the pull request: {error}")
+    return GithubPullComment(url=payload.url)
 
 
 @router.post("/pull/poke", response_model=ItemPoke)

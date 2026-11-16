@@ -75,6 +75,7 @@ The normative contract is in [`api.yaml`](api.yaml) once written; the table belo
 | GET | /api/github/issues | List a repository's issues (repository_id or owner/repo, state, limit) |
 | POST | /api/github/issues | Create an issue from a title and body (gh) |
 | GET | /api/github/repository | List every issue and PR, all states by default, from ghx's cache (never refreshing it); syncs stored items |
+| POST | /api/github/pull/comment | Leave a top-level comment on a pull request by URL (ghx) |
 | GET | /api/my-pulls | The configured login's open pull requests across the registered GitHub repositories; `refresh=true` bypasses the cache |
 | GET | /api/my-pulls/checks | One pull request's individual checks, failing first, read on demand for the CI badge's popover (`refresh=true` bypasses the 30-second cache) |
 | POST | /api/my-pulls/poke | DM a pull request's named reviewers on Slack |

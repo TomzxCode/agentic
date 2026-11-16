@@ -25,6 +25,7 @@ import AgentPanel from './AgentPanel.vue'
 import FeedbackCard from './FeedbackCard.vue'
 import FindingsSelector from './FindingsSelector.vue'
 import GithubItemPanel from './GithubItemPanel.vue'
+import PullApproveModal from './PullApproveModal.vue'
 import TaskGithubLinks from './TaskGithubLinks.vue'
 
 // The task's pull-request mode: for each PR the task is linked to (or a single
@@ -266,6 +267,102 @@ function prKey(pr) {
   return `${pr.owner}/${pr.repo}#${pr.number}`
 }
 
+// The write actions on a pull request: approve it on GitHub, or leave a
+// top-level comment. A task may link several pull requests, so each action
+// addresses the one whose panel it belongs to.
+const approvingKey = ref('')
+// The pull requests approved in this session. GitHub's review decision stays
+// what GitHub reports, so this session's mark rides beside it.
+const approvedKeys = ref(new Set())
+const approveTarget = ref(null)
+const commenting = ref(false)
+const commentTarget = ref(null)
+const commentBody = ref('')
+
+// The pull request's GitHub state, from the review row when it has one and the
+// stored item otherwise. The queue treats a state it could not read as open.
+function prState(pr, row) {
+  const meta = pr.item?.metadata_json || {}
+  return String(row?.state || meta.state || '').toUpperCase()
+}
+
+function prDraft(pr, row) {
+  if (row) return Boolean(row.draft)
+  return Boolean(pr.item?.metadata_json?.is_draft)
+}
+
+function prApproved(pr, row) {
+  const meta = pr.item?.metadata_json || {}
+  return String(row?.review_decision || meta.review_decision || '').toUpperCase() === 'APPROVED'
+}
+
+// Approving is offered on an open, non-draft pull request GitHub has not
+// already approved, and not one approved earlier in this session.
+function canApprove(pr, row) {
+  const state = prState(pr, row)
+  return (
+    (state === 'OPEN' || state === '') &&
+    !prDraft(pr, row) &&
+    !prApproved(pr, row) &&
+    !approvedKeys.value.has(prKey(pr))
+  )
+}
+
+function startApprove(pr) {
+  if (approvingKey.value) return
+  approveTarget.value = { repository: `${pr.owner}/${pr.repo}`, number: pr.number, title: pr.title }
+}
+
+function cancelApprove() {
+  if (!approvingKey.value) approveTarget.value = null
+}
+
+async function confirmApprove(body = '') {
+  const target = approveTarget.value
+  if (!target || approvingKey.value) return
+  approvingKey.value = `${target.repository}#${target.number}`
+  try {
+    await api.reviews.approve(target.repository, target.number, body)
+    approvedKeys.value.add(`${target.repository}#${target.number}`)
+    store.notify(`Approved ${target.repository}#${target.number}`)
+    approveTarget.value = null
+  } catch (e) {
+    store.notify(e.message, true)
+  } finally {
+    approvingKey.value = ''
+  }
+}
+
+function startComment(pr) {
+  if (commenting.value) return
+  commentTarget.value = pr
+  commentBody.value = ''
+}
+
+function cancelComment() {
+  if (commenting.value) return
+  commentTarget.value = null
+  commentBody.value = ''
+}
+
+// Post the comment through ghx, which keeps it in its own cache too.
+async function confirmComment() {
+  const pr = commentTarget.value
+  const body = commentBody.value.trim()
+  if (!pr || !body || commenting.value) return
+  commenting.value = true
+  try {
+    await api.github.commentPull({ url: pr.url, body })
+    store.notify('Comment posted')
+    commentTarget.value = null
+    commentBody.value = ''
+  } catch (e) {
+    store.notify(e.message, true)
+  } finally {
+    commenting.value = false
+  }
+}
+
 // A panel with neither review reports nor feedback has no panes at all and
 // shows the description, as it did before the tabs existed.
 function hasTabs(pr, row) {
@@ -451,6 +548,30 @@ watch(signature, async () => {
         <span v-if="row && READINESS_LIGHTS[row.readiness]" class="task-pr-readiness" :title="readinessTitle(row)">{{
           READINESS_LIGHTS[row.readiness]
         }}</span>
+        <button
+          class="btn sm ghost"
+          :disabled="commenting"
+          title="Leave a comment on this pull request"
+          @click="startComment(pr)"
+        >
+          Comment
+        </button>
+        <button
+          v-if="canApprove(pr, row)"
+          class="btn sm ghost"
+          :disabled="approvingKey === prKey(pr)"
+          title="Approve this pull request on GitHub"
+          @click="startApprove(pr)"
+        >
+          <span v-if="approvingKey === prKey(pr)" class="spinner" aria-hidden="true"></span>
+          <template v-else>✓ Approve</template>
+        </button>
+        <span
+          v-else-if="approvedKeys.has(prKey(pr))"
+          class="badge st-open task-pr-approved"
+          title="You approved this pull request"
+          >Approved</span
+        >
         <button class="btn sm ghost" :disabled="loading" title="Re-read the store and GitHub" @click="refresh()">
           Refresh
         </button>
@@ -703,6 +824,34 @@ watch(signature, async () => {
     </GithubItemPanel>
 
     <div v-if="!items.length" class="empty">This task is not linked to a pull request.</div>
+
+    <PullApproveModal
+      :target="approveTarget"
+      :approving="!!approvingKey"
+      @confirm="confirmApprove"
+      @cancel="cancelApprove"
+    />
+
+    <div v-if="commentTarget" class="modal-backdrop" @click.self="cancelComment">
+      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="pull-comment-title">
+        <h2 id="pull-comment-title" style="margin-top: 0">Comment on pull request</h2>
+        <p class="faint">
+          {{ commentTarget.owner }}/{{ commentTarget.repo }}#{{ commentTarget.number }}
+          <span v-if="commentTarget.title">{{ commentTarget.title }}</span>
+        </p>
+        <label class="pr-action-form">
+          <span class="faint">Comment</span>
+          <textarea v-model="commentBody" class="textarea" rows="5" placeholder="Write a comment on the pull request" />
+        </label>
+        <div class="row" style="justify-content: flex-end; gap: 8px">
+          <button class="btn sm ghost" :disabled="commenting" @click="cancelComment">Cancel</button>
+          <button class="btn sm" :disabled="commenting || !commentBody.trim()" @click="confirmComment">
+            <span v-if="commenting" class="spinner" aria-hidden="true"></span>
+            Comment
+          </button>
+        </div>
+      </div>
+    </div>
 
     <AgentPanel
       ref="agentPanel"

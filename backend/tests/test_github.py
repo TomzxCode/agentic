@@ -411,6 +411,121 @@ def test_create_github_issue_none_on_failure(monkeypatch):
     assert github.create_github_issue("o", "r", "T") is None
 
 
+def test_approve_github_pull_request(monkeypatch):
+    seen: dict = {}
+
+    def fake_run(cmd, **kwargs):
+        seen["cmd"] = cmd
+        return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+
+    monkeypatch.setattr(shell.shutil, "which", lambda name: "/usr/bin/gh")
+    monkeypatch.setattr(shell.subprocess, "run", fake_run)
+
+    assert github.approve_github_pull_request("o", "r", 12) is None
+    assert seen["cmd"] == ["gh", "pr", "review", "12", "--repo", "o/r", "--approve"]
+
+    # A review comment rides along only when one was given.
+    assert github.approve_github_pull_request("o", "r", 12, "Looks good") is None
+    assert seen["cmd"] == [
+        "gh",
+        "pr",
+        "review",
+        "12",
+        "--repo",
+        "o/r",
+        "--approve",
+        "--body",
+        "Looks good",
+    ]
+
+
+def test_approve_github_pull_request_reports_the_failure(monkeypatch):
+    monkeypatch.setattr(shell.shutil, "which", lambda name: "/usr/bin/gh")
+    monkeypatch.setattr(
+        shell.subprocess,
+        "run",
+        lambda cmd, **kwargs: subprocess.CompletedProcess(
+            cmd, 1, stdout="", stderr="Can not approve your own pull request\n"
+        ),
+    )
+    assert github.approve_github_pull_request("o", "r", 12) == "Can not approve your own pull request"
+
+    # gh missing altogether.
+    monkeypatch.setattr(shell.shutil, "which", lambda name: None)
+    assert github.approve_github_pull_request("o", "r", 12) == "gh is not installed"
+
+
+def test_comment_github_pull_request(monkeypatch):
+    seen: dict = {}
+
+    def fake_run(cmd, **kwargs):
+        seen["cmd"] = cmd
+        return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+
+    monkeypatch.setattr(shell.shutil, "which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr(shell.subprocess, "run", fake_run)
+
+    assert github.comment_github_pull_request("o", "r", 12, "Looks good") is None
+    assert seen["cmd"] == ["ghx", "pr", "comment", "12", "--repo", "o/r", "--body", "Looks good"]
+
+
+def test_comment_github_pull_request_reports_the_failure(monkeypatch):
+    monkeypatch.setattr(shell.shutil, "which", lambda name: "/usr/bin/ghx")
+    monkeypatch.setattr(
+        shell.subprocess,
+        "run",
+        lambda cmd, **kwargs: subprocess.CompletedProcess(cmd, 1, stdout="", stderr="not authenticated\n"),
+    )
+    assert github.comment_github_pull_request("o", "r", 12, "Looks good") == "not authenticated"
+
+    # ghx missing altogether.
+    monkeypatch.setattr(shell.shutil, "which", lambda name: None)
+    assert github.comment_github_pull_request("o", "r", 12, "Looks good") == "ghx is not installed"
+
+
+def test_comment_pull_request_endpoint(monkeypatch):
+    from agentic.routers import github as github_router
+
+    seen: dict = {}
+
+    def fake_comment(owner, repo, number, body):
+        seen.update(owner=owner, repo=repo, number=number, body=body)
+        return None
+
+    monkeypatch.setattr(github_router, "comment_github_pull_request", fake_comment)
+    with TestClient(app) as client:
+        res = client.post(
+            "/api/github/pull/comment",
+            json={"url": "https://github.com/o/r/pull/12", "body": "  Looks good  "},
+        )
+        assert res.status_code == 200
+        assert res.json() == {"url": "https://github.com/o/r/pull/12", "commented": True}
+        # The body is trimmed before it reaches the CLI.
+        assert seen == {"owner": "o", "repo": "r", "number": "12", "body": "Looks good"}
+
+        empty = client.post("/api/github/pull/comment", json={"url": "https://github.com/o/r/pull/12", "body": " "})
+        assert empty.status_code == 400
+
+        # Not a pull request URL.
+        assert (
+            client.post(
+                "/api/github/pull/comment",
+                json={"url": "https://github.com/o/r/issues/12", "body": "hi"},
+            ).status_code
+            == 400
+        )
+
+        monkeypatch.setattr(
+            github_router, "comment_github_pull_request", lambda *args, **kwargs: "ghx is not installed"
+        )
+        failed = client.post(
+            "/api/github/pull/comment",
+            json={"url": "https://github.com/o/r/pull/12", "body": "hi"},
+        )
+        assert failed.status_code == 502
+        assert "ghx is not installed" in failed.json()["detail"]
+
+
 def test_create_issue_endpoint(monkeypatch):
     from agentic.routers import github as github_router
 

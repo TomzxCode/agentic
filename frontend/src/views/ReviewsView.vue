@@ -45,6 +45,7 @@ import {
 import { store, timeAgo, formatDateTime } from '../store'
 import { ghxItemUrl } from '../toolLinks'
 import { parseRemote, personLink } from '../repositories/parse'
+import PullApproveModal from '../components/PullApproveModal.vue'
 import SearchSelect from '../components/SearchSelect.vue'
 
 // The review queue: every pull request with review reports in the user-global
@@ -57,6 +58,14 @@ const loading = ref(true)
 const error = ref(false)
 // The PR whose task is being created, so its button shows a spinner.
 const creatingKey = ref('')
+// The PR whose approval is being submitted, so its control shows a spinner.
+const approvingKey = ref('')
+// The pull requests approved in this session. GitHub's review decision stays
+// what GitHub reports: an approval does not turn it into APPROVED while another
+// required review is missing, so the row carries this session's mark beside it.
+const approvedKeys = ref(new Set())
+// The PR awaiting confirmation in the approve dialog.
+const approveTarget = ref(null)
 
 // The filters: a PR's status (open by default, so the queue shows the pull
 // requests still awaiting a review), whether the review is requested from the
@@ -358,6 +367,44 @@ async function createTaskFrom(pr) {
     store.notify(e.message, true)
   } finally {
     creatingKey.value = ''
+  }
+}
+
+// Whether the queue can approve the pull request directly: it is open (or its
+// state could not be read, which the queue treats as open), not a draft, not
+// already approved on GitHub, and the user has not approved it in this session
+// yet.
+function canApprove(pr) {
+  const state = String(pr.state || '').toUpperCase()
+  return (state === 'OPEN' || state === '') && !pr.draft && !isApproved(pr) && !approvedKeys.value.has(prKey(pr))
+}
+
+// Open the confirmation dialog for a pull request. Approving is a GitHub write,
+// so it takes one deliberate confirmation and can carry a review comment.
+function startApprove(pr) {
+  if (!canApprove(pr) || approvingKey.value) return
+  approveTarget.value = pr
+}
+
+function cancelApprove() {
+  if (approvingKey.value) return
+  approveTarget.value = null
+}
+
+// Submit the approving review, then keep the row marked for this session.
+async function confirmApprove(body = '') {
+  const pr = approveTarget.value
+  if (!pr || approvingKey.value) return
+  approvingKey.value = prKey(pr)
+  try {
+    await api.reviews.approve(pr.repository, pr.number, body)
+    approvedKeys.value.add(prKey(pr))
+    store.notify(`Approved ${pr.repository}#${pr.number}`)
+    approveTarget.value = null
+  } catch (e) {
+    store.notify(e.message, true)
+  } finally {
+    approvingKey.value = ''
   }
 }
 
@@ -727,6 +774,25 @@ onMounted(load)
                       title="Open on GitHub"
                       >gh</a
                     >
+                    <button
+                      v-if="canApprove(pr)"
+                      class="review-approve"
+                      :disabled="approvingKey === prKey(pr)"
+                      :title="`Approve PR #${pr.number} on GitHub`"
+                      :aria-label="`Approve PR #${pr.number} on GitHub`"
+                      @click="startApprove(pr)"
+                    >
+                      <span v-if="approvingKey === prKey(pr)" class="spinner" aria-hidden="true"></span>
+                      <span v-else aria-hidden="true">✓</span>
+                    </button>
+                    <span
+                      v-else-if="approvedKeys.has(prKey(pr))"
+                      class="review-approved-by-me"
+                      role="img"
+                      title="You approved this pull request"
+                      aria-label="You approved this pull request"
+                      >✓</span
+                    >
                     <span
                       class="review-readiness"
                       role="img"
@@ -908,6 +974,13 @@ onMounted(load)
         </div>
       </section>
     </template>
+
+    <PullApproveModal
+      :target="approveTarget"
+      :approving="!!approvingKey"
+      @confirm="confirmApprove"
+      @cancel="cancelApprove"
+    />
 
     <div v-if="openPr" class="modal-backdrop" @click.self="closeReport">
       <div class="modal review-modal">

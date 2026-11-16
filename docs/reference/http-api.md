@@ -133,6 +133,7 @@ A manual item has no template and always applies.
 | `GET` | `/api/reviews/task/{task_id}` | The same rows, scoped to the pull requests a task is linked to. |
 | `GET` | `/api/reviews/findings/{number}` | The must/should/may findings the review skills recorded, by `repository` (`owner/name`). |
 | `POST` | `/api/reviews/findings/{number}/decisions` | Record the reviewer's `include`/`skip` decision on each named finding in its skill's state file; returns the updated findings. |
+| `POST` | `/api/reviews/{number}/approve` | Approve a pull request on GitHub with an optional review comment (`repository` is `owner/name`); 502 when `gh` could not submit it. |
 | `GET` | `/api/reviews/report/{number}/{name}` | Read one review report, by `repository` (`owner/name`) and its path. |
 | `GET` | `/api/reviews/scores` | Every scored review run in the store, with the 0-1 score, its rubric (step), repository, author, and review time. |
 | `GET` | `/api/reviews/scan` | The review scan's last pass and how many pull requests it holds. |
@@ -237,6 +238,7 @@ Both inbound routes answer `202` with the stored event id, its type, and one del
 | `POST` | `/api/github/issues` | Create an issue from a title and body. |
 | `GET` | `/api/github/issue` | One issue by URL. |
 | `GET` | `/api/github/pull/reviewers` | A pull request's reviewers, read from its `?url=` the way the item read does, plus `next_poke_at` when the review auto-poke schedule has a next round. Backs the standalone pull request page, which has no stored item to address. |
+| `POST` | `/api/github/pull/comment` | Leave a top-level comment on a pull request, addressed by URL. The body is `{"url": "...", "body": "..."}`; an empty body answers 400 and a write `ghx` could not post answers 502. |
 | `POST` | `/api/github/pull/poke` | Send a reviewer a Slack DM asking for their review, addressed by URL. The body is `{"url": "...", "title": "...", "login": "<github login>"}`. |
 | `GET` | `/api/github/repository` | A repository's issues and pull requests (via `ghx`), all states by default, read from ghx's cache. The cache is refreshed by a background job, never by this endpoint, so it never waits on a delta fetch. |
 | `GET` | `/api/slack/users` | Name the Slack user ids given (via `slackx`), fetching an uncached user from Slack. |

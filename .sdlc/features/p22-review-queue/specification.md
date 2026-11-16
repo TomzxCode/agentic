@@ -1,7 +1,7 @@
 ---
 title: "Pull-request review queue"
 status: done
-revision: 1
+revision: 2
 ---
 
 # Specification: Pull-request review queue
@@ -9,9 +9,9 @@ revision: 1
 ## Overview
 
 `review_store.py` reads the report store into one row per pull request, `review_scan.py` asks GitHub on a cadence and keeps the found set in the `reviewrequest` table, `review_queue.py` overlays ghx metadata behind a short cache, and `review_findings.py` reads and updates the skills' findings-state files.
-`reviews.py` resolves report directories and serves report content, `routers/reviews.py` exposes the queue, scan, findings, and report endpoints, and `routers/settings.py` and the repository router validate the scan settings.
+`reviews.py` resolves report directories and serves report content, `routers/reviews.py` exposes the queue, scan, findings, report, and approval endpoints, and `routers/settings.py` and the repository router validate the scan settings.
 `main.py` keeps the ghx caches current, and `ghx_cache.py` runs the scan after each successful cache refresh; the settings router also offers a manual run.
-The SPA serves the queue at `/reviews` (`ReviewsView.vue`), the same panels inside a task (`TaskReviewPanel.vue`), the findings selector and share modal (`FindingsSelector.vue`, `ShareFindingsModal.vue`), and the settings sections (`SettingsReviewScan.vue` for the cadence and SLOs, `SettingsGithub.vue` for the repository policies).
+The SPA serves the queue at `/reviews` (`ReviewsView.vue`), the same panels inside a task (`TaskReviewPanel.vue`), the shared approval confirmation (`PullApproveModal.vue`), the findings selector and share modal (`FindingsSelector.vue`, `ShareFindingsModal.vue`), and the settings sections (`SettingsReviewScan.vue` for the cadence and SLOs, `SettingsGithub.vue` for the repository policies).
 
 ## Architecture
 
@@ -130,6 +130,7 @@ Scan semantics:
 | POST | /api/reviews/scan | Run the scan now, without waiting for the next cache refresh |
 | GET | /api/reviews/findings/{number} | One PR's must/should/may findings (`?repository=owner/name`) |
 | POST | /api/reviews/findings/{number}/decisions | Record include/skip decisions in one all-or-nothing write |
+| POST | /api/reviews/{number}/approve | Approve a pull request on GitHub, with an optional review comment (`repository` in the body) |
 | GET | /api/reviews/report/{number}/{name} | One report's Markdown by relative path (`?repository=owner/name`) |
 | PATCH | /api/settings | Validates and stores review_scan_default, review_slo, review_nudge_slo |
 | PATCH | /api/repositories/{id} | Accepts a per-repository review_scan policy |
@@ -138,9 +139,10 @@ Error codes:
 
 | Status | Condition |
 |---|---|
-| 400 | A finding decision outside include or skip |
+| 400 | A finding decision outside include or skip, or an approval whose repository is not owner/name |
 | 404 | Unknown task, finding, or report |
 | 422 | A malformed review_scan_default, review_slo, or review_nudge_slo |
+| 502 | An approval `gh` could not submit (missing, unauthenticated, or a rejected review) |
 
 `GET /api/reviews` returns `root` (the store path), `generated_at`, `counts` (total, ready, blocked), and `prs`.
 Each row carries the PR identity and live fields (repository, number, title, url, author, state, draft, created_at, labels, review_decision, head_branch, base_branch, last_comment_at, last_comment_by), the review state (head_commit, reviewed_at, steps, in_progress, stale_steps, reviewed_steps, readiness, status), the scan scope (request_source, review_scope), the review SLO mark (slo_wait_seconds, slo_seconds), and the links (item_id, task_ids, store_dir).
@@ -199,6 +201,22 @@ sequenceDiagram
     API-->>C: updated findings
 ```
 
+### Approve a pull request
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant C as Client / SPA
+    participant API as reviews router
+    participant GH as gh
+    participant RQ as review_queue
+    C->>API: POST /{n}/approve {repository, body}
+    API->>GH: gh pr review {n} --repo owner/name --approve [--body]
+    GH-->>API: exit status, stderr on failure
+    API->>RQ: forget_github_metadata (drop the row's cached fields)
+    API-->>C: approved, or 502 with gh's reason
+```
+
 ## Technical Decisions
 
 | Decision | Choice | Rationale |
@@ -211,6 +229,7 @@ sequenceDiagram
 | Scan rows | Replace-set upsert preserving `first_seen_at`, refreshing `ready_for_review_at` | The set mirrors GitHub, while the review SLO (p18) needs the pull request's ready-for-review time |
 | Findings decisions | Written back into the skill's state file, line-preserving | One source of truth both sides read; real files are not always valid YAML, so they are edited per line rather than re-serialized |
 | Decision batch | All or nothing with one shared timestamp | A select-all cannot half-land or stamp twice |
+| Approval | `gh pr review --approve` from a queue row or the PR view, then drop the row's cached ghx fields; GitHub's review decision is left alone | ghx reads from its cache and has no direct approve, and an approval from the user does not make the PR APPROVED while another required review is missing |
 | Notifications recovery | Not ported | Needs the notifications API plus a batched GraphQL drop check, and the plain searches never surface those pull requests |
 | Settings section | Review requests owns the SLO durations and the manual scan; GitHub owns the repository policies | Each section holds the settings for its own subject |
 

@@ -265,6 +265,9 @@ export const api = {
     // updated list comes back.
     decide: (repository, number, decisions) =>
       request(`/reviews/findings/${number}/decisions`, { method: 'POST', body: { repository, decisions } }),
+    // Approve one pull request on GitHub, with an optional review comment.
+    approve: (repository, number, body = '') =>
+      request(`/reviews/${number}/approve`, { method: 'POST', body: { repository, body } }),
     // One PR's report, addressed by "owner/name" and its path in the store.
     report: (repository, number, name) =>
       request(
@@ -466,6 +469,8 @@ export const api = {
     // A pull request's reviewers, for the standalone PR view (which has no
     // stored item to address), and the Slack poke that asks one for a review.
     pullReviewers: (url) => request(`/github/pull/reviewers?${new URLSearchParams({ url }).toString()}`),
+    // Leave a top-level comment on a pull request, from the PR view.
+    commentPull: (body) => request('/github/pull/comment', { method: 'POST', body }),
     pokePull: (body) => request('/github/pull/poke', { method: 'POST', body })
   },
 

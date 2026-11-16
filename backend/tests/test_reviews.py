@@ -7,6 +7,7 @@ from fastapi.testclient import TestClient
 from agentic.config import settings
 from agentic.main import app
 from agentic.reviews import list_report_files, read_report, report_identity, review_dir
+from agentic.routers import reviews as reviews_router
 
 
 def _write_reports(root, owner, repo, number):
@@ -148,3 +149,46 @@ def test_item_reviews_endpoints(tmp_path, monkeypatch):
 
         client.delete(f"/api/items/{item['id']}")
         client.delete(f"/api/items/{issue['id']}")
+
+
+def test_approve_pull_request_endpoint(monkeypatch):
+    calls: dict = {}
+    forgotten: dict = {}
+
+    def fake_approve(owner, repo, number, body=""):
+        calls.update(owner=owner, repo=repo, number=number, body=body)
+        return None
+
+    monkeypatch.setattr(reviews_router, "approve_github_pull_request", fake_approve)
+    monkeypatch.setattr(
+        reviews_router,
+        "forget_github_metadata",
+        lambda owner, repo, number: forgotten.update(key=(owner, repo, number)),
+    )
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/reviews/12/approve", json={"repository": "TomzxCode/agentic", "body": "Looks good"}
+        )
+
+    assert response.status_code == 200
+    assert response.json() == {"number": 12, "repository": "TomzxCode/agentic", "approved": True}
+    assert calls == {"owner": "TomzxCode", "repo": "agentic", "number": 12, "body": "Looks good"}
+    # The row's cached GitHub fields are dropped so the next read asks again.
+    assert forgotten["key"] == ("TomzxCode", "agentic", 12)
+
+
+def test_approve_pull_request_endpoint_reports_failures(monkeypatch):
+    monkeypatch.setattr(
+        reviews_router,
+        "approve_github_pull_request",
+        lambda *args, **kwargs: "Can not approve your own pull request",
+    )
+
+    with TestClient(app) as client:
+        rejected = client.post("/api/reviews/12/approve", json={"repository": "TomzxCode/agentic"})
+        assert rejected.status_code == 502
+        assert "Can not approve your own pull request" in rejected.json()["detail"]
+
+        # A repository has to name an owner and a name.
+        assert client.post("/api/reviews/12/approve", json={"repository": "agentic"}).status_code == 400
