@@ -30,7 +30,7 @@ dev = [
     "pytest-asyncio>=1.4.1.post1",
     "pytest-cov>=7.1.0",
     "pytest-xdist>=3.8.0",
-    "ruff>=0.17.1",
+    "ruff>=0.17.5",
     "ty>=0.0.101",
     "zensical>=0.1.1",
 ]
