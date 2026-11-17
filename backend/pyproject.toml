@@ -16,7 +16,7 @@ dependencies = [
     "python-multipart>=0.0.9",
     "cyclopts>=5.4.1",
     "saq[sqlite]",
-    "scalar-fastapi>=1.9.1",
+    "scalar-fastapi>=1.9.3",
     "croniter>=6.2.4",
     "tzlocal>=5.4.5",
     "pyyaml>=6.0.3",
