@@ -152,7 +152,7 @@ def _apply_github(pr: dict[str, Any], metadata: dict[str, Any]) -> None:
         pr["in_progress"] = in_progress_steps(Path(str(pr["store_dir"])), head)
 
 
-def forget_github_metadata(owner: str, name: str, number: object) -> None:
+def forget_github_metadata(owner: str, name: str, number: int | str) -> None:
     """Drop a pull request's cached ghx fields.
 
     After a write that changes what GitHub reports about the pull request (an

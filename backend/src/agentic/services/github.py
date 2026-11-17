@@ -329,7 +329,7 @@ def fetch_github_pull_reviewers(owner: str, repo: str, number: object) -> list[d
     return result.reviewers if result is not None else None
 
 
-def approve_github_pull_request(owner: str, repo: str, number: object, body: str = "") -> str | None:
+def approve_github_pull_request(owner: str, repo: str, number: int | str, body: str = "") -> str | None:
     """Approve a pull request with `gh`. None on success, otherwise the error.
 
     ghx reads from its cache and has no direct approve command, so this write
@@ -351,7 +351,7 @@ def approve_github_pull_request(owner: str, repo: str, number: object, body: str
     return None
 
 
-def comment_github_pull_request(owner: str, repo: str, number: object, body: str) -> str | None:
+def comment_github_pull_request(owner: str, repo: str, number: int | str, body: str) -> str | None:
     """Add a top-level comment to a pull request with `ghx`. None on success.
 
     ghx writes the comment and keeps it in its own cache, so the conversation
