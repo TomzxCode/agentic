@@ -176,8 +176,8 @@ importers:
         specifier: ^36.3.0
         version: 36.3.0(vue@3.5.45)
       croner:
-        specifier: ^11.0.0
-        version: 11.0.0
+        specifier: ^11.0.1
+        version: 11.0.1
       dompurify:
         specifier: ^3.4.18
         version: 3.4.18
@@ -1595,8 +1595,8 @@ packages:
     resolution: {integrity: sha512-XGpFGbMLHwSt74YLTKho7Ib242qi6O8MSX+sRokV4oz7iKXvQWGYZthjIhjRGMxjzVkAubBO512dKGYcefmX3Q==}
     engines: {node: '>=6.4.0'}
 
-  croner@11.0.0:
-    resolution: {integrity: sha512-T17ADjdttrVToyzLpLq9Xb9xzcMwpQ/M3Qs9szhh0MVNTbv6NWQ9OFYa2qlzPYXFMn+uoDlnW1IpIv6cAvFtyA==}
+  croner@11.0.1:
+    resolution: {integrity: sha512-/fmHcoczPy5cMcmJ6ex7J7LAwb545V1dNmRrdDGP3hwStg/06IYP56YgBySCSdWGDz2PJYQyDukaR8b8R5o2HA==}
     engines: {node: '>=18.0'}
 
   cross-spawn@7.0.6:
@@ -4523,7 +4523,7 @@ snapshots:
     dependencies:
       browserslist: 4.29.3
 
-  croner@11.0.0: {}
+  croner@11.0.1: {}
 
   cross-spawn@7.0.6:
     dependencies:
