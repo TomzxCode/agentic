@@ -13,7 +13,7 @@ dependencies = [
     "structlog>=24.1",
     "pydantic-settings>=2.16.3",
     "sse-starlette>=3.7.0",
-    "python-multipart>=0.0.9",
+    "python-multipart>=0.0.33",
     "cyclopts>=5.5.0",
     "saq[sqlite]",
     "scalar-fastapi>=1.9.3",
