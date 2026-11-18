@@ -307,9 +307,10 @@ last comment, reviewed commit, and the time of its last review event, then a
 column per review step (Behavior, Risk, Adversarial, Coverage, Validate, Verify,
 Review) and one shared Surfaces column for the conditional CLI, SDK, API, and
 database reviews.
-Each cell shows the step's verdict, in red when its report does not cover the
-newest reviewed commit, and opens the report when clicked. A step that is
-running right now shows a spinner until it writes its report. A merge-readiness light
+Each cell is tinted by the step's verdict (green pass, red fail, amber needs a
+decision, blue informational), carries no verdict text, and opens the report when
+clicked. A step that is running right now shows a spinner until it writes its
+report. A merge-readiness light
 beside each PR number summarizes the signals: green when the PR could be
 approved automatically, yellow when something still needs attention, red when a
 verdict blocks approval. The page mirrors the `review_requested_prs` script's

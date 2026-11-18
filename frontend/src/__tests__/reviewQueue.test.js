@@ -411,6 +411,47 @@ describe('ReviewsView', () => {
     expect(wrapper.html()).not.toContain('step&quot;:&quot;review-pr')
   })
 
+  it('colours a step cell by its verdict and keeps the cell free of text', async () => {
+    mocks.queue.mockResolvedValue({
+      root: null,
+      counts: { total: 1 },
+      prs: [
+        pr({
+          steps: {
+            'review-pr': step({ verdict: 'pass' }),
+            'validate-pr': step({ step: 'validate-pr', verdict: 'fail', report: 'validate-pr.abc1234.md' }),
+            'verify-pr': step({ step: 'verify-pr', verdict: 'decide', report: 'verify-pr.abc1234.md' }),
+            'analyze-test-coverage': step({
+              step: 'analyze-test-coverage',
+              verdict: 'informational',
+              report: 'analyze-test-coverage.abc1234.md'
+            })
+          }
+        })
+      ]
+    })
+
+    const wrapper = mount(ReviewsView, stub)
+    await flushPromises()
+
+    const cell = (label) =>
+      wrapper
+        .findAll('.review-col-step .review-step')
+        .find((entry) => entry.attributes('title').startsWith(label))
+        .element.closest('td')
+
+    expect(cell('Review').classList).toContain('review-cell-ok')
+    expect(cell('Review').textContent.trim()).toBe('')
+    expect(cell('Validate').classList).toContain('review-cell-danger')
+    expect(cell('Validate').textContent.trim()).toBe('')
+    expect(cell('Verify').classList).toContain('review-cell-warn')
+    expect(cell('Verify').textContent.trim()).toBe('')
+    expect(cell('Coverage').classList).toContain('review-cell-info')
+    expect(cell('Coverage').textContent.trim()).toBe('')
+    // No verdict marks or words are left in the step columns.
+    expect(wrapper.find('.review-col-step .review-verdict').exists()).toBe(false)
+  })
+
   it('shows the adversarial review and folds the surface reviews into one column', async () => {
     mocks.queue.mockResolvedValue({
       root: null,
@@ -451,12 +492,18 @@ describe('ReviewsView', () => {
     const adversarial = wrapper
       .findAll('.review-col-step .review-step')
       .find((cell) => cell.attributes('title').startsWith('Adversarial'))
-    expect(adversarial.text()).toContain('❌')
+    expect(adversarial.text()).toBe('')
+    expect(adversarial.element.closest('td').classList).toContain('review-cell-danger')
     expect(adversarial.attributes('title')).toContain('2 reproduced')
 
     // One token per surface that has a report, in CLI, SDK, API, DB order.
+    // Each token carries its own verdict as a tint, since one cell can hold
+    // several surfaces with different results.
     const surfaces = wrapper.findAll('.review-surface')
-    expect(surfaces.map((entry) => entry.text())).toEqual(['API❌', 'DB✅'])
+    expect(surfaces.map((entry) => entry.get('.review-surface-label').text())).toEqual(['API', 'DB'])
+    expect(surfaces[0].find('.review-verdict').exists()).toBe(false)
+    expect(surfaces[0].classes()).toContain('review-cell-danger')
+    expect(surfaces[1].classes()).toContain('review-cell-ok')
 
     await surfaces[0].get('button').trigger('click')
     await flushPromises()

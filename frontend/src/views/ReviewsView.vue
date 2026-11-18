@@ -39,7 +39,6 @@ import {
   stripReportMarker,
   SURFACE_STEPS,
   surfaceSteps,
-  verdictLabel,
   verdictTone
 } from '../reviews'
 import { store, timeAgo, formatDateTime } from '../store'
@@ -510,6 +509,14 @@ function surfaceRunningTitle(pr, entry) {
   return runningTitle(pr, entry.key)
 }
 
+// The tint a cell takes for its step's verdict: the result reads from the
+// colour rather than a mark. A report without a verdict keeps the plain
+// background.
+function verdictCell(verdict) {
+  const tone = verdictTone(verdict)
+  return tone ? `review-cell-${tone}` : ''
+}
+
 async function openReport(pr, step) {
   if (!step?.report) return
   openPr.value = pr
@@ -876,7 +883,12 @@ onMounted(load)
                   <span v-else class="faint">—</span>
                 </td>
 
-                <td v-for="column in QUEUE_STEPS" :key="column.key" class="review-col-step">
+                <td
+                  v-for="column in QUEUE_STEPS"
+                  :key="column.key"
+                  class="review-col-step"
+                  :class="stepFor(pr, column.key) ? verdictCell(stepFor(pr, column.key).verdict) : ''"
+                >
                   <span
                     v-if="runningStep(pr, column.key)"
                     class="review-step-running"
@@ -903,11 +915,6 @@ onMounted(load)
                         }}</span
                       >
                       <span
-                        v-if="stepFor(pr, column.key).verdict"
-                        :class="`tone-${verdictTone(stepFor(pr, column.key).verdict)}`"
-                        >{{ stepFor(pr, column.key).verdict }}</span
-                      >
-                      <span
                         v-if="stepFor(pr, column.key).stale && stepFor(pr, column.key).commit"
                         class="review-stale"
                         >{{ shortCommit(stepFor(pr, column.key).commit) }}</span
@@ -919,13 +926,7 @@ onMounted(load)
                       :title="stepTitle(pr, column.key, stepFor(pr, column.key))"
                       @click="openReport(pr, stepFor(pr, column.key))"
                     >
-                      <span
-                        v-if="stepFor(pr, column.key).verdict"
-                        class="review-verdict"
-                        :class="`tone-${verdictTone(stepFor(pr, column.key).verdict)}`"
-                        >{{ verdictLabel(stepFor(pr, column.key).verdict) }}</span
-                      >
-                      <span v-else class="faint">local</span>
+                      <span v-if="!stepFor(pr, column.key).verdict" class="faint">local</span>
                       <span
                         v-if="stepFor(pr, column.key).stale && stepFor(pr, column.key).commit"
                         class="review-stale"
@@ -937,7 +938,12 @@ onMounted(load)
                 </td>
                 <td class="review-col-step">
                   <template v-if="surfaceSteps(pr).length">
-                    <span v-for="entry in surfaceSteps(pr)" :key="entry.key" class="review-surface">
+                    <span
+                      v-for="entry in surfaceSteps(pr)"
+                      :key="entry.key"
+                      class="review-surface"
+                      :class="verdictCell(entry.step?.verdict)"
+                    >
                       <span
                         v-if="runningStep(pr, entry.key)"
                         class="review-step-running"
@@ -953,13 +959,7 @@ onMounted(load)
                         @click="openReport(pr, entry.step)"
                       >
                         <span class="review-surface-label">{{ entry.label }}</span>
-                        <span
-                          v-if="entry.step.verdict"
-                          class="review-verdict"
-                          :class="`tone-${verdictTone(entry.step.verdict)}`"
-                          >{{ verdictLabel(entry.step.verdict) }}</span
-                        >
-                        <span v-else class="faint">·</span>
+                        <span v-if="!entry.step.verdict" class="faint">·</span>
                         <span v-if="entry.step.stale && entry.step.commit" class="review-stale">{{
                           shortCommit(entry.step.commit)
                         }}</span>

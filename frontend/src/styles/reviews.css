@@ -118,23 +118,53 @@
   border-top: 1px solid var(--border);
 }
 .review-table tbody tr:hover td {
-  background: var(--bg-2);
+  background-color: var(--bg-2);
 }
 /* A row past the review SLO reads as a whole, not only from its badge: a warm
    tint across every cell and a warn edge down the first one. The tint survives
    hover, a shade stronger, so the row keeps saying what it is under the
    pointer. */
 .review-table tbody tr.review-past-slo-row td {
-  background: color-mix(in srgb, var(--warn) 10%, transparent);
+  background-color: color-mix(in srgb, var(--warn) 10%, transparent);
 }
 .review-table tbody tr.review-past-slo-row:hover td {
-  background: color-mix(in srgb, var(--warn) 16%, var(--bg-2));
+  background-color: color-mix(in srgb, var(--warn) 16%, var(--bg-2));
 }
 /* The review-step columns (Behavior -> Review) center their header and cell so
-   the verdict marks line up down the column. The header rule carries the table
+   the verdicts line up down the column. The header rule carries the table
    class so it beats the generic left-aligned `.review-table th`. */
 .review-col-step {
   text-align: center;
+}
+/* A step's result is the colour of its cell: green for a pass, red for a fail,
+   amber for a verdict that still wants a decision, and blue for an
+   informational one. The tint is a background image so it layers over the
+   row's own background (the past-SLO tint) and survives hover. The cell
+   carries no verdict text; its tooltip names the verdict. */
+.review-cell-ok,
+.review-cell-warn,
+.review-cell-danger,
+.review-cell-info {
+  background-image: linear-gradient(var(--cell-tint), var(--cell-tint));
+}
+.review-cell-ok {
+  --cell-tint: color-mix(in srgb, var(--ok) 20%, transparent);
+}
+.review-cell-warn {
+  --cell-tint: color-mix(in srgb, var(--warn) 20%, transparent);
+}
+.review-cell-danger {
+  --cell-tint: color-mix(in srgb, var(--danger) 20%, transparent);
+}
+.review-cell-info {
+  --cell-tint: color-mix(in srgb, var(--accent-2) 20%, transparent);
+}
+/* A verdict-only step cell has no text to size its button, so the button fills
+   the cell and the whole coloured area stays clickable. */
+.review-table td.review-col-step > .review-step {
+  width: 100%;
+  min-width: 24px;
+  min-height: 18px;
 }
 /* The last review time reads as one line ("YYYY-MM-DD HH:MM"); its column is
    sized to hold it without wrapping. */
@@ -311,11 +341,19 @@
   border-color: var(--border);
   background: var(--bg-2);
 }
+/* In the queue, a hovered step only draws its border: a background would cover
+   the cell's verdict tint. */
+.review-table .review-step:hover {
+  background: none;
+}
 /* The Surfaces column folds the conditional surface reviews into one cell: a
-   compact token per surface that ran, each opening its own report. */
+   compact token per surface that ran, each opening its own report. The token
+   carries its verdict as its own tint, since one cell can hold several
+   surfaces with different results. */
 .review-surface {
   display: inline-flex;
   align-items: center;
+  border-radius: 4px;
 }
 .review-surface .review-step {
   gap: 1px;

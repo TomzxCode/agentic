@@ -67,14 +67,15 @@ The light reads the reviewed commits, not the head commit.
 
 The columns are **Behavior**, **Risk**, **Adversarial**, **Coverage**, **Validate**, **Verify**, and **Review**, one per review step, followed by **Surfaces** for the conditional surface reviews.
 
-A cell shows the step's verdict, or a mark when the report carries one; the adversarial verdict marks are `holds` ✅, `unproven` ⚠️, and `breaks` ❌, and its tooltip also names how many failures it reproduced.
+A cell is tinted by the step's verdict: green for a pass (or a held adversarial review), red for a fail (or a reproduced break), amber for a verdict that still needs a decision (`decide`, `investigate`, `partial`, `unproven`), and blue for `informational`.
+The cell carries no verdict text; its tooltip names the verdict and, for the adversarial review, how many failures it reproduced.
 A report that does not cover the newest reviewed commit shows the commit it does cover underneath, in red.
 A step that is running now shows a spinner with the time it started, even before it has written a report.
 A step with no report shows a dash.
 Click any cell to read that report; a large one is truncated with a note (`Showing the first part of a large report.`).
 
 The surface reviews are conditional: one only runs when the diff touches its surface.
-The **Surfaces** cell therefore carries one compact token per surface that ran (**CLI**, **SDK**, **API**, **DB**), each with its verdict mark and opening its own report when clicked.
+The **Surfaces** cell therefore carries one compact token per surface that ran (**CLI**, **SDK**, **API**, **DB**), its label on a tint for its verdict, and opens its own report when clicked, since one cell can hold surfaces with different results.
 A report that does not cover the newest reviewed commit shows its short commit in red after the token.
 A pull request that touches no surface shows a dash, and a surface with no report is never counted as stale.
 
