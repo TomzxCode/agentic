@@ -499,11 +499,11 @@ describe('MyPullsView', () => {
       'Status',
       'Review',
       'Reviewers',
-      'Checks',
-      'Comments',
-      'Conflicts',
-      'Issue',
       'Description',
+      'Issue',
+      'Checks',
+      'Conflicts',
+      'Comments',
       'Updated'
     ])
     // The mobile cards hide the header, so every state cell carries its own
@@ -514,11 +514,11 @@ describe('MyPullsView', () => {
       'Status',
       'Review',
       'Reviewers',
-      'Checks',
-      'Comments',
-      'Conflicts',
-      'Issue',
       'Description',
+      'Issue',
+      'Checks',
+      'Conflicts',
+      'Comments',
       'Updated'
     ])
     expect(wrapper.text()).toContain('2 open')

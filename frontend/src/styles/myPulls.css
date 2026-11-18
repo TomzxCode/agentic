@@ -93,8 +93,8 @@
 }
 /* The PR column carries the number, repository, and title, so it takes the
    room the state columns do not need. The columns follow the row's facts:
-   merge readiness, status, review decision, reviewers, checks, open comments,
-   conflicts, linked issue, description freshness, and when the pull request
+   merge readiness, status, review decision, reviewers, description freshness,
+   linked issue, checks, conflicts, open comments, and when the pull request
    last changed. */
 .my-pulls-table th:nth-child(1) {
   width: 23%;

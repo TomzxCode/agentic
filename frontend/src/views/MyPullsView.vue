@@ -355,11 +355,11 @@ onMounted(load)
                   <th>Status</th>
                   <th>Review</th>
                   <th>Reviewers</th>
-                  <th>Checks</th>
-                  <th>Comments</th>
-                  <th>Conflicts</th>
-                  <th>Issue</th>
                   <th>Description</th>
+                  <th>Issue</th>
+                  <th>Checks</th>
+                  <th>Conflicts</th>
+                  <th>Comments</th>
                   <th>Updated</th>
                 </tr>
               </thead>
@@ -453,24 +453,24 @@ onMounted(load)
                     </template>
                     <span v-else class="faint">{{ reviewerEmptyLabel(pull) }}</span>
                   </td>
-                  <td data-label="Checks">
-                    <PullChecksPopover :pull="pull" />
+                  <td data-label="Description">
+                    <span class="badge" :class="descriptionTone(pull)" :title="descriptionTitle(pull)">{{
+                      descriptionLabel(pull)
+                    }}</span>
                   </td>
-                  <td class="my-pulls-threads" data-label="Comments" :title="threadTitle(pull)">
-                    <span :class="{ 'my-pulls-threads-open': pull.open_threads > 0 }"
-                      >{{ pull.open_threads }} open</span
-                    >
-                  </td>
-                  <td data-label="Conflicts" :class="conflictsTone(pull)">{{ conflictsLabel(pull) }}</td>
                   <td data-label="Issue">
                     <span class="badge" :class="linkedIssueTone(pull)" :title="linkedIssueTitle(pull)">{{
                       linkedIssueLabel(pull)
                     }}</span>
                   </td>
-                  <td data-label="Description">
-                    <span class="badge" :class="descriptionTone(pull)" :title="descriptionTitle(pull)">{{
-                      descriptionLabel(pull)
-                    }}</span>
+                  <td data-label="Checks">
+                    <PullChecksPopover :pull="pull" />
+                  </td>
+                  <td data-label="Conflicts" :class="conflictsTone(pull)">{{ conflictsLabel(pull) }}</td>
+                  <td class="my-pulls-threads" data-label="Comments" :title="threadTitle(pull)">
+                    <span :class="{ 'my-pulls-threads-open': pull.open_threads > 0 }"
+                      >{{ pull.open_threads }} open</span
+                    >
                   </td>
                   <td class="faint" data-label="Updated">
                     <span v-if="pull.updated_at" class="mono" :title="formatDateTime(pull.updated_at)">{{

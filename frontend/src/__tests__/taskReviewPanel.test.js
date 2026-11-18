@@ -697,11 +697,11 @@ describe('TaskReviewPanel', () => {
       'Status',
       'Review',
       'Reviewers',
-      'Checks',
-      'Comments',
-      'Conflicts',
-      'Issue',
       'Description',
+      'Issue',
+      'Checks',
+      'Conflicts',
+      'Comments',
       'Updated'
     ])
     const links = wrapper.findAll('.task-link-row')
@@ -713,11 +713,11 @@ describe('TaskReviewPanel', () => {
       'Status',
       'Review',
       'Reviewers',
-      'Checks',
-      'Comments',
-      'Conflicts',
-      'Issue',
       'Description',
+      'Issue',
+      'Checks',
+      'Conflicts',
+      'Comments',
       'Updated'
     ])
     expect(links[0].text()).toContain('Passing')

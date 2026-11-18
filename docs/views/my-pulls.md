@@ -8,7 +8,7 @@
 
 Your own pull requests fail quietly: CI goes red, a reviewer asks for changes, a thread stays unanswered.
 Checking each one on GitHub costs a tab per pull request.
-This page answers "which of mine are moving, and which need a nudge" with one row per pull request, carrying its status, review decision, individual reviewers, check rollup, open comment count, merge conflicts, linked issue, description freshness, and merge readiness.
+This page answers "which of mine are moving, and which need a nudge" with one row per pull request, carrying its status, review decision, individual reviewers, description freshness, linked issue, check rollup, merge conflicts, open comment count, and merge readiness.
 
 The list is read-only over GitHub: `ghx` reads each registered GitHub repository, nothing is stored, so a merged pull request leaves on the next refresh.
 `ghx` caches the mergeability, the issues a description closes, the description's last edit time, and the head commit time on each pull request, so the Conflicts, Issue, Description, and Blocker columns come from the same cached listing. A row cached before those fields existed shows a dash for them and falls back to the pull request's other signals for `Blocker` (an approval, green checks, and no open comments).
@@ -32,11 +32,11 @@ The table has one row per pull request:
 | Status | `Open`, `Draft`, `Merged`, or `Closed`. The list reads open pull requests, so a row here reads `Open` or `Draft`. |
 | Review | The review decision: approved, changes requested, review required, or no review. |
 | Reviewers | The individual logins a review is still requested from, each a person link, prefixed `waiting on`; when nobody is left to review, the approvers read as `approved by`; a team-only request reads `team only`, and no reviewer at all reads `none`. A merged or closed pull request never says `waiting on`: it names only its approvers, because it no longer waits on anyone. |
-| Checks | The check rollup: passing, failing, running, or no checks. Click it to list the pull request's individual checks, failing first. |
-| Comments | `N open`, with a tooltip giving how many of the review threads are still open. |
-| Conflicts | `none` when the branches merge cleanly, `conflicts` when they do not, and a dash when GitHub's mergeability could not be read. |
-| Issue | The issue the description closes: `#12` for one, `N issues` for several, or `none` when it closes nothing. The tooltip lists every number. A dash means GitHub could not be read. |
 | Description | `up to date` when the description is non-empty and was written or edited after the latest commit, `stale` when a commit came later, and `missing` when the pull request has no description. A dash means GitHub could not be read. |
+| Issue | The issue the description closes: `#12` for one, `N issues` for several, or `none` when it closes nothing. The tooltip lists every number. A dash means GitHub could not be read. |
+| Checks | The check rollup: passing, failing, running, or no checks. Click it to list the pull request's individual checks, failing first. |
+| Conflicts | `none` when the branches merge cleanly, `conflicts` when they do not, and a dash when GitHub's mergeability could not be read. |
+| Comments | `N open`, with a tooltip giving how many of the review threads are still open. |
 | Blocker | `none` when nothing blocks the merge (including an already merged pull request); otherwise the first blocker. What the author can act on comes first: `checks failing` or `checks pending`, then `comments open`, then `needs review`, then `no reviewer`; `draft`, `closed`, `conflicts`, `behind`, and `hooks` outrank those, and `branch rules` covers a blocked merge none of them explains. The tooltip explains it (`Already merged` for a merged pull request). |
 | Updated | When the pull request last changed, relative, with the full time in a tooltip. |
 

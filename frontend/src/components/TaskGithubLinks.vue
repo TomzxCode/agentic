@@ -141,11 +141,11 @@ function stackTitle(entry) {
           <th>Status</th>
           <th>Review</th>
           <th>Reviewers</th>
-          <th>Checks</th>
-          <th>Comments</th>
-          <th>Conflicts</th>
-          <th>Issue</th>
           <th>Description</th>
+          <th>Issue</th>
+          <th>Checks</th>
+          <th>Conflicts</th>
+          <th>Comments</th>
           <th>Updated</th>
         </tr>
       </thead>
@@ -232,24 +232,24 @@ function stackTitle(entry) {
               reviewerEmptyLabel(entry)
             }}</span>
           </td>
-          <td data-label="Checks" @click.stop>
-            <PullChecksPopover :pull="entry" />
-          </td>
-          <td class="my-pulls-threads" data-label="Comments" :title="commentsTitle(entry)">
-            <span :class="{ 'my-pulls-threads-open': entry.open_threads > 0 }">{{ entry.open_threads || 0 }} open</span>
-          </td>
-          <td data-label="Conflicts" :class="conflictsTone(entry)" :title="conflictsTitle(entry)">
-            {{ conflictsLabel(entry) }}
+          <td data-label="Description">
+            <span class="badge" :class="descriptionTone(entry)" :title="descriptionTitle(entry)">{{
+              descriptionLabel(entry)
+            }}</span>
           </td>
           <td data-label="Issue">
             <span class="badge" :class="linkedIssueTone(entry)" :title="linkedIssueTitle(entry)">{{
               linkedIssueLabel(entry)
             }}</span>
           </td>
-          <td data-label="Description">
-            <span class="badge" :class="descriptionTone(entry)" :title="descriptionTitle(entry)">{{
-              descriptionLabel(entry)
-            }}</span>
+          <td data-label="Checks" @click.stop>
+            <PullChecksPopover :pull="entry" />
+          </td>
+          <td data-label="Conflicts" :class="conflictsTone(entry)" :title="conflictsTitle(entry)">
+            {{ conflictsLabel(entry) }}
+          </td>
+          <td class="my-pulls-threads" data-label="Comments" :title="commentsTitle(entry)">
+            <span :class="{ 'my-pulls-threads-open': entry.open_threads > 0 }">{{ entry.open_threads || 0 }} open</span>
           </td>
           <td class="faint" data-label="Updated">
             <span v-if="entry.updated_at" class="mono" :title="formatDateTime(entry.updated_at)">{{
