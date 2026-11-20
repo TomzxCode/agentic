@@ -167,8 +167,8 @@ importers:
   .:
     dependencies:
       '@xyflow/vue':
-        specifier: 2.0.0-next.0
-        version: 2.0.0-next.0(@vue/reactivity@3.5.45)(vue@3.5.45)
+        specifier: 2.0.1
+        version: 2.0.1(@vue/reactivity@3.5.45)(vue@3.5.45)
       ag-grid-community:
         specifier: ^36.3.0
         version: 36.3.0
@@ -1358,14 +1358,15 @@ packages:
     peerDependencies:
       vue: ^3.5.0
 
-  '@xyflow/system@0.0.76':
-    resolution: {integrity: sha512-hvwvnRS1B3REwVDlWexsq7YQaPZeG3/mKo1jv38UmnpWmxihp14bW6VtEOuHEwJX2FvzFw8k77LyKSk/wiZVNA==}
+  '@xyflow/system@1.0.0':
+    resolution: {integrity: sha512-mOeG0ZIkEUY5V5XQS+LE3QKlJqL7gu5ukqxAniuDDpfxtkA4uagOmBiWKh3w59wZ5nBC7ojBcNrBukM3hUJBKg==}
+    engines: {node: '>=20'}
 
-  '@xyflow/vue@2.0.0-next.0':
-    resolution: {integrity: sha512-4NhnQQDDW+tsfWGr134zJxHDfXjLNpC+pfzbhWpjCqAa/FF+n9dHrdMLEmdmGPJBEGlcqRQN3ps8F+T3IG213A==}
+  '@xyflow/vue@2.0.1':
+    resolution: {integrity: sha512-Zzj6jliUgRBaYoRn/csT1oZvMWH5ZQI1yDDK6nluiGiE4TIeZTyvmRNwDl3qaMohDoPqDG6xBnzThl6veR4Y3g==}
     peerDependencies:
-      '@vue/reactivity': ^3.5.0
-      vue: ^3.5.0
+      '@vue/reactivity': ^3.5.27
+      vue: ^3.5.27
 
   abbrev@5.0.0:
     resolution: {integrity: sha512-/XrFJgzQQQHpti1raDJC6m4ws6aNktmjBlhk8Fdlk7LwCEuDoieEJJY9OFHjfiFJFFRM2tK+Ky/IsfbbmlMu1w==}
@@ -4246,7 +4247,7 @@ snapshots:
     dependencies:
       vue: 3.5.45
 
-  '@xyflow/system@0.0.76':
+  '@xyflow/system@1.0.0':
     dependencies:
       '@types/d3-drag': 3.0.7
       '@types/d3-interpolate': 3.0.4
@@ -4258,11 +4259,11 @@ snapshots:
       d3-selection: 3.0.0
       d3-zoom: 3.0.0
 
-  '@xyflow/vue@2.0.0-next.0(@vue/reactivity@3.5.45)(vue@3.5.45)':
+  '@xyflow/vue@2.0.1(@vue/reactivity@3.5.45)(vue@3.5.45)':
     dependencies:
       '@vue/reactivity': 3.5.45
       '@vueuse/core': 14.4.0(vue@3.5.45)
-      '@xyflow/system': 0.0.76
+      '@xyflow/system': 1.0.0
       vue: 3.5.45
 
   abbrev@5.0.0: {}
