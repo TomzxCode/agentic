@@ -133,17 +133,20 @@ def test_build_series_for_returns_every_metric():
 
 
 def test_cycle_time_api_reads_github_and_buckets_it(monkeypatch, tmp_path):
+    # The route buckets against utcnow(), so the payload must sit inside a
+    # window that starts now - days: fixed dates fall out of it as time passes.
+    now = datetime.now(UTC)
     payload = {
         "issues": [
-            {"number": 1, "created_at": NOW - _hours(30), "closed_at": NOW - _hours(6)},
+            {"number": 1, "created_at": now - _hours(30), "closed_at": now - _hours(6)},
         ],
         "pulls": [
             {
                 "number": 2,
-                "created_at": NOW - _hours(20),
-                "merged_at": NOW - _hours(2),
-                "reviews": [{"author": "bob", "state": "APPROVED", "submitted_at": NOW - _hours(4)}],
-                "review_requests": [{"reviewer": "bob", "requested_at": NOW - _hours(10)}],
+                "created_at": now - _hours(20),
+                "merged_at": now - _hours(2),
+                "reviews": [{"author": "bob", "state": "APPROVED", "submitted_at": now - _hours(4)}],
+                "review_requests": [{"reviewer": "bob", "requested_at": now - _hours(10)}],
             }
         ],
     }
@@ -160,19 +163,24 @@ def test_cycle_time_api_reads_github_and_buckets_it(monkeypatch, tmp_path):
             "/api/repositories",
             json={"path": str(repo_path), "remote_url": "https://github.com/acme/api.git"},
         ).json()
-        report = client.get("/api/metrics/cycle-time", params={"repository_id": repository["id"], "days": 30}).json()
+        try:
+            report = client.get(
+                "/api/metrics/cycle-time", params={"repository_id": repository["id"], "days": 30}
+            ).json()
 
-        assert report["window_days"] == 30
-        assert len(report["repositories"]) == 1
-        entry = report["repositories"][0]
-        assert entry["full_name"] == "acme/api"
-        series = {item["metric"]: item for item in entry["series"]}
-        assert series[ISSUE_CLOSE]["median_hours"] == 24
-        assert series[REVIEW_WAIT]["median_hours"] == 6
-        assert series[REVIEW_TO_MERGE]["median_hours"] == 2
-        assert len(series[ISSUE_CLOSE]["buckets"]) > 0
-
-        assert client.delete(f"/api/repositories/{repository['id']}").status_code == 204
+            assert report["window_days"] == 30
+            assert len(report["repositories"]) == 1
+            entry = report["repositories"][0]
+            assert entry["full_name"] == "acme/api"
+            series = {item["metric"]: item for item in entry["series"]}
+            assert series[ISSUE_CLOSE]["median_hours"] == 24
+            assert series[REVIEW_WAIT]["median_hours"] == 6
+            assert series[REVIEW_TO_MERGE]["median_hours"] == 2
+            assert len(series[ISSUE_CLOSE]["buckets"]) > 0
+        finally:
+            # The suite shares one database per worker: the row must go even
+            # when an assertion above fails, or it leaks into later tests.
+            assert client.delete(f"/api/repositories/{repository['id']}").status_code == 204
 
 
 def test_cycle_time_api_rejects_a_repository_without_a_github_remote(tmp_path):
