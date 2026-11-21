@@ -33,6 +33,11 @@ const RouterLinkStub = { props: ['to'], template: '<a :href="to"><slot /></a>' }
 beforeEach(() => {
   vi.clearAllMocks()
   store.toast = null
+  // Vue Flow 2.x measures nodes through ResizeObserver before it renders edges,
+  // and jsdom has no layout: every element reports a zero size, so measurement
+  // never completes and edges never render. Give elements a size to measure.
+  vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(120)
+  vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(56)
 })
 
 describe('DependencyGraphView', () => {
