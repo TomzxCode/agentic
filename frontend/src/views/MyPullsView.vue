@@ -269,8 +269,7 @@ onMounted(load)
       </span>
     </div>
     <p v-if="report.login" class="faint my-pulls-root">
-      Open pull requests authored by <code>{{ report.login }}</code
-      >.
+      Open pull requests authored by <code>{{ report.login }}</code>.
     </p>
 
     <div v-if="error" class="panel">

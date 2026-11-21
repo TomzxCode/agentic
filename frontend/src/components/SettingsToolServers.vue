@@ -156,8 +156,7 @@ async function restart(tool) {
       The server starts <code>ghx serve</code> on a free port, listening on all interfaces, and stops it when it stops.
       The JSON-RPC endpoint uses a token the server generates, so there is no server URL or token to set.
       <template v-if="managedStatus('ghx') && !managedStatus('ghx').running">
-        It is not running; its next start will serve at <code>{{ webUrl('ghx') }}</code
-        >.
+        It is not running; its next start will serve at <code>{{ webUrl('ghx') }}</code>.
       </template>
       <template v-else-if="webUrl('ghx')">
         Its web UI is at <a :href="webUrl('ghx')" target="_blank" rel="noopener">{{ webUrl('ghx') }}</a> while the
@@ -222,8 +221,7 @@ async function restart(tool) {
       The server starts <code>slackx serve</code> on a free port, listening on all interfaces, and stops it when it
       stops. The JSON-RPC endpoint uses a token the server generates, so there is no server URL or token to set.
       <template v-if="managedStatus('slackx') && !managedStatus('slackx').running">
-        It is not running; its next start will serve at <code>{{ webUrl('slackx') }}</code
-        >.
+        It is not running; its next start will serve at <code>{{ webUrl('slackx') }}</code>.
       </template>
       <template v-else-if="webUrl('slackx')">
         Its web UI is at <a :href="webUrl('slackx')" target="_blank" rel="noopener">{{ webUrl('slackx') }}</a> while the

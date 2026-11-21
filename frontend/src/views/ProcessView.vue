@@ -271,8 +271,7 @@ function countLabel(n) {
         <template v-else>
           <p class="bottleneck-takeaway">
             An average completed trip ({{ formatCycleHours(cycle.mean_hours) }}) spends
-            <strong>{{ sharePercent(topShare) }}</strong> of its time in <strong>{{ topShare.label }}</strong
-            >.
+            <strong>{{ sharePercent(topShare) }}</strong> of its time in <strong>{{ topShare.label }}</strong>.
           </p>
           <div class="share-bar bottleneck-bar" role="img" aria-label="Share of cycle time per station">
             <span

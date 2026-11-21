@@ -225,24 +225,19 @@ onMounted(load)
     <template v-else>
       <div class="decisions-stats">
         <div class="stat">
-          <span class="n">{{ counts.total }}</span
-          ><span class="l">decisions</span>
+          <span class="n">{{ counts.total }}</span><span class="l">decisions</span>
         </div>
         <div class="stat">
-          <span class="n">{{ counts.people }}</span
-          ><span class="l">people</span>
+          <span class="n">{{ counts.people }}</span><span class="l">people</span>
         </div>
         <div class="stat yes">
-          <span class="n">{{ counts.supporters }}</span
-          ><span class="l">supporters</span>
+          <span class="n">{{ counts.supporters }}</span><span class="l">supporters</span>
         </div>
         <div class="stat no">
-          <span class="n">{{ counts.opponents }}</span
-          ><span class="l">opponents</span>
+          <span class="n">{{ counts.opponents }}</span><span class="l">opponents</span>
         </div>
         <div class="stat">
-          <span class="n">{{ data?.reports || 0 }}</span
-          ><span class="l">reports</span>
+          <span class="n">{{ data?.reports || 0 }}</span><span class="l">reports</span>
         </div>
       </div>
 
@@ -330,8 +325,8 @@ onMounted(load)
 
       <div v-if="!decisions.length" class="empty">
         <template v-if="data?.root">
-          No decisions reports found under <code>{{ data.root }}</code
-          >. Run <code>/extract-colleague-decisions</code> to write one under <code>decisions/YYYY/MM/DD.md</code>.
+          No decisions reports found under <code>{{ data.root }}</code>. Run
+          <code>/extract-colleague-decisions</code> to write one under <code>decisions/YYYY/MM/DD.md</code>.
         </template>
         <template v-else>
           No notes directory found. Set <code>AGENTIC_NOTES_DIR</code> (or <code>NOTES_DIR</code>) to the notes root
@@ -396,8 +391,7 @@ onMounted(load)
                       <span class="n">{{ entry.count }}</span>
                     </template>
                     <template v-else-if="entry.count">
-                      <span class="n">{{ entry.count }}</span
-                      ><span class="sub">{{ entry.pct }}%</span>
+                      <span class="n">{{ entry.count }}</span><span class="sub">{{ entry.pct }}%</span>
                     </template>
                     <template v-else>·</template>
                   </td>

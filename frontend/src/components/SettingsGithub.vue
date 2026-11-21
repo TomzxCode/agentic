@@ -182,8 +182,7 @@ async function saveDefault() {
       />
       <p class="faint" style="margin: 4px 0 0">
         <template v-if="detectedLogin">
-          Detected from <code>gh</code>: <code>{{ detectedLogin }}</code
-          >.
+          Detected from <code>gh</code>: <code>{{ detectedLogin }}</code>.
         </template>
         Leave blank to use that, or set a login to override it.
       </p>

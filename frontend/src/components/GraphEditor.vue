@@ -652,16 +652,15 @@ onBeforeUnmount(() => {
 
     <div v-if="armed" class="editor-armed" role="status">
       <span>
-        Connecting <strong>{{ armed.label }}</strong> from <strong>{{ armed.nodeTitle }}</strong
-        >. Tap an input or a form field, or tap the source again to cancel.
+        Connecting <strong>{{ armed.label }}</strong> from <strong>{{ armed.nodeTitle }}</strong>. Tap an input or a
+        form field, or tap the source again to cancel.
       </span>
       <button class="btn sm" @click="cancelConnect">Cancel</button>
     </div>
 
     <div v-else-if="selectedEdgeInfo" class="editor-armed" role="status">
       <span>
-        Connection <strong>{{ selectedEdgeInfo.source }}</strong> → <strong>{{ selectedEdgeInfo.target }}</strong
-        >.
+        Connection <strong>{{ selectedEdgeInfo.source }}</strong> → <strong>{{ selectedEdgeInfo.target }}</strong>.
       </span>
       <button class="btn sm danger" @click="deleteSelected">Remove</button>
     </div>
@@ -781,10 +780,8 @@ onBeforeUnmount(() => {
             <label for="node-prompt">Prompt</label>
             <textarea id="node-prompt" v-model="selectedNode.promptTemplate" class="textarea" rows="6"></textarea>
             <p class="faint" style="margin: 4px 0 0">
-              Reference an input as <code v-pre>{{ name }}</code
-              >, one value as <code v-pre>{{ name[0] }}</code
-              >, or a joined list as <code v-pre>{{ name.join(', ') }}</code
-              >.
+              Reference an input as <code v-pre>{{ name }}</code>, one value as <code v-pre>{{ name[0] }}</code>, or a
+              joined list as <code v-pre>{{ name.join(', ') }}</code>.
             </p>
           </div>
           <div v-else-if="selectedNode.kind === 'cli'" class="field">
@@ -799,8 +796,7 @@ onBeforeUnmount(() => {
             ></textarea>
             <p class="faint" style="margin: 4px 0 0">
               Runs <code>agentic --format json</code> plus this command line against this server; its stdout feeds
-              downstream inputs. Reference an input as <code v-pre>{{ name }}</code
-              >.
+              downstream inputs. Reference an input as <code v-pre>{{ name }}</code>.
             </p>
           </div>
           <div v-else class="field">
@@ -815,8 +811,7 @@ onBeforeUnmount(() => {
             ></textarea>
             <p class="faint" style="margin: 4px 0 0">
               Runs with <code>bash -c</code>; its combined stdout and stderr feeds downstream inputs. Reference an input
-              as <code v-pre>{{ name }}</code
-              >.
+              as <code v-pre>{{ name }}</code>.
             </p>
           </div>
 
@@ -1035,8 +1030,8 @@ onBeforeUnmount(() => {
       </aside>
       <aside v-else class="editor-inspector faint">
         <template v-if="selectedEdgeInfo">
-          Connection <strong>{{ selectedEdgeInfo.source }}</strong> → <strong>{{ selectedEdgeInfo.target }}</strong
-          >. Use Remove above to disconnect it.
+          Connection <strong>{{ selectedEdgeInfo.source }}</strong> → <strong>{{ selectedEdgeInfo.target }}</strong>.
+          Use Remove above to disconnect it.
         </template>
         <template v-else>
           Select a node to edit it. Connections run from an answer, a field value, or an event field into a named input,

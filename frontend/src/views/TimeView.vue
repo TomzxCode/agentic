@@ -207,20 +207,16 @@ onMounted(refresh)
     <template v-else>
       <div class="time-stats">
         <div class="stat">
-          <span class="n">{{ formatVisitDuration(report.duration_ms) }}</span
-          ><span class="l">tracked</span>
+          <span class="n">{{ formatVisitDuration(report.duration_ms) }}</span><span class="l">tracked</span>
         </div>
         <div class="stat">
-          <span class="n">{{ pages.length }}</span
-          ><span class="l">pages</span>
+          <span class="n">{{ pages.length }}</span><span class="l">pages</span>
         </div>
         <div class="stat">
-          <span class="n">{{ report.visits }}</span
-          ><span class="l">visits</span>
+          <span class="n">{{ report.visits }}</span><span class="l">visits</span>
         </div>
         <div class="stat time-stat-top">
-          <span class="n">{{ topPage ? topPage.label : '-' }}</span
-          ><span class="l">top page</span>
+          <span class="n">{{ topPage ? topPage.label : '-' }}</span><span class="l">top page</span>
         </div>
       </div>
 
