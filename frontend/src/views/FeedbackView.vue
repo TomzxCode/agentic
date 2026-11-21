@@ -191,24 +191,19 @@ onMounted(load)
     <template v-else>
       <div class="feedback-stats">
         <div class="stat">
-          <span class="n">{{ counts.pending }}</span
-          ><span class="l">pending</span>
+          <span class="n">{{ counts.pending }}</span><span class="l">pending</span>
         </div>
         <div class="stat implement">
-          <span class="n">{{ counts.implement }}</span
-          ><span class="l">implement</span>
+          <span class="n">{{ counts.implement }}</span><span class="l">implement</span>
         </div>
         <div class="stat decline">
-          <span class="n">{{ counts.decline }}</span
-          ><span class="l">decline</span>
+          <span class="n">{{ counts.decline }}</span><span class="l">decline</span>
         </div>
         <div class="stat defer">
-          <span class="n">{{ counts.defer }}</span
-          ><span class="l">defer</span>
+          <span class="n">{{ counts.defer }}</span><span class="l">defer</span>
         </div>
         <div class="stat torun">
-          <span class="n">{{ counts.to_run }}</span
-          ><span class="l">to run</span>
+          <span class="n">{{ counts.to_run }}</span><span class="l">to run</span>
         </div>
       </div>
 
@@ -243,8 +238,7 @@ onMounted(load)
             </div>
             <label v-for="(count, author) in authorCounts" :key="author" class="menu-item">
               <input type="checkbox" :checked="selectedAuthors.includes(author)" @change="toggleAuthor(author)" />
-              <span>{{ author }}</span
-              ><span class="menu-count">{{ count }}</span>
+              <span>{{ author }}</span><span class="menu-count">{{ count }}</span>
             </label>
           </div>
         </details>

@@ -908,8 +908,7 @@ onMounted(load)
                         v-if="stepFor(pr, column.key).risk"
                         class="review-risk"
                         :class="`tone-${riskTone(stepFor(pr, column.key).risk)}`"
-                        >{{ stepFor(pr, column.key).risk[0].toUpperCase() }}</span
-                      ><span class="faint"
+                        >{{ stepFor(pr, column.key).risk[0].toUpperCase() }}</span><span class="faint"
                         >/{{
                           stepFor(pr, column.key).confidence ? stepFor(pr, column.key).confidence[0].toUpperCase() : '—'
                         }}</span

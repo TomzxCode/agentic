@@ -682,8 +682,7 @@ watch(signature, async () => {
                         v-if="row.steps[column.key].risk"
                         class="review-risk"
                         :class="`tone-${riskTone(row.steps[column.key].risk)}`"
-                        >{{ row.steps[column.key].risk[0].toUpperCase() }}</span
-                      ><span class="faint"
+                        >{{ row.steps[column.key].risk[0].toUpperCase() }}</span><span class="faint"
                         >/{{
                           row.steps[column.key].confidence ? row.steps[column.key].confidence[0].toUpperCase() : '—'
                         }}</span
