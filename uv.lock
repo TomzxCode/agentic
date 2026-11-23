@@ -56,7 +56,7 @@ requires-dist = [
     { name = "python-multipart", specifier = ">=0.0.34" },
     { name = "pyyaml", specifier = ">=6.0.3" },
     { name = "saq", extras = ["sqlite"], git = "https://github.com/tomzxforks/saq?rev=dev" },
-    { name = "scalar-fastapi", specifier = ">=1.10.0" },
+    { name = "scalar-fastapi", specifier = ">=1.10.1" },
     { name = "sqlmodel", specifier = ">=0.0.50" },
     { name = "sse-starlette", specifier = ">=3.7.0" },
     { name = "structlog", specifier = ">=24.1" },
@@ -1326,16 +1326,16 @@ sqlite = [
 
 [[package]]
 name = "scalar-fastapi"
-version = "1.10.0"
+version = "1.10.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "fastapi" },
     { name = "pydantic" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/1d/b7/35cd502abed12f94c172dc8121458fa814abf4e395e946ca0c9ce6da5ed5/scalar_fastapi-1.10.0.tar.gz", hash = "sha256:9147e1e2378a9fb4e77fdf47f807bf19aa436f94611757e88eb6874fa8da59aa", size = 11342, upload-time = "2026-11-16T12:16:50.977Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/7b/3a/6c1dada2a2a110669a8b19642a32d79785124a4bd46158ca3babf85d72a0/scalar_fastapi-1.10.1.tar.gz", hash = "sha256:f44ae2c1c8f36360e7694e1774a52ad1e95779c0a6dbab4e94d90b950e82dfa6", size = 11453, upload-time = "2026-11-19T22:24:01.177Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/cc/68/45a1e89ae661163dafe8ba814caa1de38581aebe42a93b66540ffc6ff316/scalar_fastapi-1.10.0-py3-none-any.whl", hash = "sha256:d14fcf17f5d039dcfcf92ef1902cc6f34e547d716e4b346896b211250ae5e895", size = 8803, upload-time = "2026-11-16T12:16:49.662Z" },
+    { url = "https://files.pythonhosted.org/packages/50/9b/2aba1ca8e7daa0aa89d022eb5f9ccc55517ed5fe8550ecc30c9e800d9eed/scalar_fastapi-1.10.1-py3-none-any.whl", hash = "sha256:93d1708e1afbac081cb816391acad8b05d8433582159f799774c7c9a1a32f0e9", size = 8852, upload-time = "2026-11-19T22:24:00.106Z" },
 ]
 
 [[package]]
