@@ -20,7 +20,7 @@
     "format:check": "prettier --check ."
   },
   "dependencies": {
-    "@xyflow/vue": "2.0.1",
+    "@xyflow/vue": "2.0.2",
     "ag-grid-community": "^36.3.0",
     "ag-grid-vue3": "^36.3.0",
     "croner": "^11.0.1",
