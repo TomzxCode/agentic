@@ -19,7 +19,7 @@ dependencies = [
     "scalar-fastapi>=1.10.1",
     "croniter>=7.0.0",
     "tzlocal>=5.4.5",
-    "pyyaml>=6.0.3",
+    "pyyaml>=6.0.4",
 ]
 
 [project.scripts]
