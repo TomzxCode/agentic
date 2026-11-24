@@ -178,7 +178,7 @@ only expose this on a trusted network.
    To defer a task, set **Waiting on** to a person (with an optional **check
    back** date) or pick a **Snooze** date on its page: the task stays on the
    Tasks page but leaves the focus stack until the date passes, then rejoins it.
-   Waiting marks an open task blocked and names the person on its row; a snooze
+   Waiting marks an unfinished task blocked and names the person on its row; a snooze
    leaves the status alone.
    A task page also shows a **Checklist** panel. Checklists are defined in
    **Settings → Checklists**: each template has rules over the task's properties
@@ -230,7 +230,7 @@ reachable from the command palette even when its icon is hidden.
 The **Tasks in flight** page also lists the people linked to the current
 in-flight work, so you can narrow the list (and its status counts and upcoming
 deadlines) to a single person's tasks. The status badges at the top (Open,
-In progress, Blocked, Done) are filters: click one to show only the tasks in
+In progress, In review, Blocked, Done) are filters: click one to show only the tasks in
 that status, including Done, which the in-flight list otherwise hides; click it
 again to go back. The **Group by** control splits the list into sections by
 status, priority, person, tag, or repository; repository groups by the first
@@ -450,7 +450,7 @@ and their buttons.
 ## The stack
 
 The **Stack** page (`/stack`) is a focus queue: the task at the top is current
-and the rest are queued. Every task that is open, in progress, or blocked is on
+and the rest are queued. Every task that is open, in progress, in review, or blocked is on
 the stack automatically (a task that leaves those statuses leaves the stack), so
 you never add work by hand. A task waiting on a person, or snoozed until a date,
 is **parked**: it is still in flight but stays off the stack until its date

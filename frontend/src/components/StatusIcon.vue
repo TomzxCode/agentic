@@ -26,6 +26,16 @@ defineProps({
         stroke-linecap="round"
       />
       <path v-else-if="status === 'in_progress'" d="M5.5 4l6 4-6 4z" fill="currentColor" />
+      <g v-else-if="status === 'in_review'">
+        <path
+          d="M1.5 8s2.4-4 6.5-4 6.5 4 6.5 4-2.4 4-6.5 4S1.5 8 1.5 8z"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.5"
+          stroke-linejoin="round"
+        />
+        <circle cx="8" cy="8" r="2" fill="currentColor" />
+      </g>
       <path
         v-else-if="status === 'archived'"
         d="M4 8h8"

@@ -145,6 +145,9 @@
 .gantt-bar.st-in_progress {
   background: var(--accent-2);
 }
+.gantt-bar.st-in_review {
+  background: #b794f6;
+}
 .gantt-bar.st-blocked {
   background: var(--warn);
 }
@@ -293,6 +296,9 @@ button.gantt-marker::after {
 .dep-node.st-in_progress {
   border-color: var(--accent-2);
 }
+.dep-node.st-in_review {
+  border-color: #b794f6;
+}
 .dep-node.st-blocked {
   border-color: var(--warn);
 }
@@ -340,6 +346,9 @@ button.gantt-marker::after {
 }
 .dep-dot.st-in_progress {
   background: var(--accent-2);
+}
+.dep-dot.st-in_review {
+  background: #b794f6;
 }
 .dep-dot.st-blocked {
   background: var(--warn);

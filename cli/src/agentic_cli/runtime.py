@@ -19,7 +19,7 @@ CONTEXT: dict[str, Any] = {
     "actor": os.environ.get("AGENTIC_ACTOR", "human"),
 }
 
-TaskStatus = Literal["open", "in_progress", "blocked", "done", "archived"]
+TaskStatus = Literal["open", "in_progress", "in_review", "blocked", "done", "archived"]
 
 Source = Literal["slack", "github", "gdrive", "url", "note", "commit", "file"]
 

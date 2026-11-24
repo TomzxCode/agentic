@@ -26,7 +26,7 @@ It is also the page that drives the agent, so the prompt, the worktree, and the 
 | --- | --- |
 | Status, Priority | Pick a new value; it saves at once. |
 | Deadline | Pick a date and time. `Enter` confirms, `Esc` cancels, clicking away without a change cancels. |
-| Waiting on | Name the person you are waiting on and an optional check-back date. The task becomes `Blocked` and leaves the stack until the date passes or you clear the person. |
+| Waiting on | Name the person you are waiting on and an optional check-back date. An unfinished task becomes `Blocked` and leaves the stack until the date passes or you clear the person. |
 | Snooze | Park the task until a date without changing its status. It returns to the stack when the date passes. |
 | Tags | Type and press `Enter` or `,` to add; `Backspace` removes the last one. |
 | People | Link the people involved, including suggested people taken from the linked items' authors and commenters. |

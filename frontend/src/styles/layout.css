@@ -192,6 +192,9 @@
 .task-status.st-in_progress {
   color: var(--accent-2);
 }
+.task-status.st-in_review {
+  color: #b794f6;
+}
 .task-status.st-blocked {
   color: var(--warn);
 }

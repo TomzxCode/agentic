@@ -164,6 +164,7 @@ const linkedCount = computed(() => graph.value.edges.length)
     <div v-if="hasGraph" class="dep-legend" style="flex-shrink: 0">
       <span class="legend-item"><span class="dep-dot st-open"></span>open</span>
       <span class="legend-item"><span class="dep-dot st-in_progress"></span>in progress</span>
+      <span class="legend-item"><span class="dep-dot st-in_review"></span>in review</span>
       <span class="legend-item"><span class="dep-dot st-blocked"></span>blocked</span>
       <span class="legend-item"><span class="dep-dot st-done"></span>done</span>
       <span class="legend-item"><span class="dep-dot st-archived"></span>archived</span>

@@ -33,7 +33,7 @@ flowchart LR
 | id | string | PK, 12-hex | Generated id |
 | title | string | not null | Task title |
 | description | string | default "" | Free text |
-| status | enum | open, in_progress, blocked, done, archived | Lifecycle status |
+| status | enum | open, in_progress, in_review, blocked, done, archived | Lifecycle status |
 | priority | int | default 2 | 0 low, 1 medium, 2 high, 3 urgent |
 | tags | JSON | default [] | Labels |
 | group_id | string | FK repositorygroup, nullable | Repository group |

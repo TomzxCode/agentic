@@ -23,6 +23,7 @@ from agentic.process_flow import (
     stage_dwell,
     stage_flows,
     stage_inventory,
+    stage_of,
     stage_timeline,
     stage_wait_shares,
     touch_stats,
@@ -34,6 +35,10 @@ NOW = datetime(2026, 10, 25, 12, 0, 0, tzinfo=UTC)
 
 def task(id, created, status, title=""):
     return TaskRecord(id=id, created_at=created, status=status, title=title)
+
+
+def test_in_review_is_work_in_progress():
+    assert stage_of(task("a", NOW, "in_review")) == IN_PROGRESS
 
 
 def transition(task_id, at, from_stage, to_stage):

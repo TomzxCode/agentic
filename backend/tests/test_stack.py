@@ -183,13 +183,14 @@ def test_inflight_tasks_join_the_stack_automatically():
     with TestClient(app) as client:
         client.post("/api/tasks", json={"title": "Open task"})
         client.post("/api/tasks", json={"title": "In progress", "status": "in_progress"})
+        client.post("/api/tasks", json={"title": "In review", "status": "in_review"})
         client.post("/api/tasks", json={"title": "Blocked", "status": "blocked"})
         client.post("/api/tasks", json={"title": "Done task", "status": "done"})
         client.post("/api/tasks", json={"title": "Archived task", "status": "archived"})
 
         stack = client.get("/api/stack").json()
         titles = {entry["task"]["title"] for entry in stack}
-        assert titles == {"Open task", "In progress", "Blocked"}
+        assert titles == {"Open task", "In progress", "In review", "Blocked"}
         assert sum(1 for entry in stack if entry["is_current"]) == 1
 
         # A task that leaves the in-flight statuses leaves the stack on the
@@ -198,7 +199,7 @@ def test_inflight_tasks_join_the_stack_automatically():
         client.patch(f"/api/tasks/{open_task['task_id']}", json={"status": "done"})
         titles = {entry["task"]["title"] for entry in client.get("/api/stack").json()}
         assert "Open task" not in titles
-        assert titles == {"In progress", "Blocked"}
+        assert titles == {"In progress", "In review", "Blocked"}
 
 
 def test_new_inflight_task_joins_at_the_bottom():

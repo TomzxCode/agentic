@@ -18,6 +18,7 @@ def utcnow() -> datetime:
 class TaskStatus(StrEnum):
     open = "open"
     in_progress = "in_progress"
+    in_review = "in_review"
     blocked = "blocked"
     done = "done"
     archived = "archived"

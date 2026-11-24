@@ -21,7 +21,7 @@ Each node is the task's title, wrapped to three lines, and clicking it opens the
 Columns are layers: a task with no prerequisites sits in the first column, and a task that follows another sits one column to its right.
 Columns are centred vertically, and the whole graph scrolls sideways when it is wider than the page.
 
-The legend lists `open`, `in progress`, `blocked`, `done`, and `archived`, and states that arrows point from a task to the ones that follow it.
+The legend lists `open`, `in progress`, `in review`, `blocked`, `done`, and `archived`, and states that arrows point from a task to the ones that follow it.
 
 ### Controls
 

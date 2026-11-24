@@ -6,7 +6,7 @@ import StatusIcon from './StatusIcon.vue'
 // The editable status picker: the SearchSelect preset with the task statuses,
 // so every place a task's status can be changed in place (task rows, the
 // sidebar, the stack table, the gantt, the bulk bar) looks and behaves the same.
-const STATUS_VALUES = ['open', 'in_progress', 'blocked', 'done', 'archived']
+const STATUS_VALUES = ['open', 'in_progress', 'in_review', 'blocked', 'done', 'archived']
 const statusOptions = STATUS_VALUES.map((value) => ({
   value,
   label: statusLabel(value),

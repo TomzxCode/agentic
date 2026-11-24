@@ -25,6 +25,7 @@ describe('StatusIcon', () => {
       ['done', 'st-done'],
       ['blocked', 'st-blocked'],
       ['in_progress', 'st-in_progress'],
+      ['in_review', 'st-in_review'],
       ['archived', 'st-archived'],
       ['open', 'st-open']
     ]

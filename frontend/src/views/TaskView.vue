@@ -155,6 +155,12 @@ const STATUS_OPTIONS = [
     icon: StatusIcon,
     iconProps: { status: 'in_progress', label: 'in progress' }
   },
+  {
+    value: 'in_review',
+    label: 'in review',
+    icon: StatusIcon,
+    iconProps: { status: 'in_review', label: 'in review' }
+  },
   { value: 'blocked', label: 'blocked', icon: StatusIcon, iconProps: { status: 'blocked', label: 'blocked' } },
   { value: 'done', label: 'done', icon: StatusIcon, iconProps: { status: 'done', label: 'done' } },
   { value: 'archived', label: 'archived', icon: StatusIcon, iconProps: { status: 'archived', label: 'archived' } }

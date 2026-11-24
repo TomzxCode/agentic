@@ -17,7 +17,7 @@ export const TASK_GROUPINGS = [
 
 // Most urgent first, so the work that matters leads.
 const PRIORITY_ORDER = [3, 2, 1, 0]
-const STATUS_ORDER = ['open', 'in_progress', 'blocked', 'done', 'archived']
+const STATUS_ORDER = ['open', 'in_progress', 'in_review', 'blocked', 'done', 'archived']
 
 function addTask(buckets, key, label, task) {
   const bucket = buckets.get(key)

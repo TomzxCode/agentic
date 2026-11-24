@@ -11,7 +11,7 @@ You want one ordered queue of the work in flight, with the task you are on right
 ## Steps
 
 1. Open the **Stack** page (the `/stack` route).
-   Every task that is open, in progress, or blocked is on the stack automatically.
+   Every task that is open, in progress, in review, or blocked is on the stack automatically.
    You never add work by hand.
    A task waiting on a person, or snoozed until a date, is parked: it stays off the stack until the date passes and then returns, keeping its sessions and execution count.
 

@@ -50,6 +50,9 @@ STAGE_LABELS: dict[str, str] = {
 STATUS_TO_STAGE: dict[str, str] = {
     "open": BACKLOG,
     "in_progress": IN_PROGRESS,
+    # Review is still work in process: it shares the work station, so the line
+    # keeps one place where unfinished, unblocked work sits.
+    "in_review": IN_PROGRESS,
     "blocked": BLOCKED,
     "done": DONE,
     "archived": ARCHIVED,

@@ -30,6 +30,9 @@ def test_task_lifecycle():
         updated = client.patch(f"/api/tasks/{task_id}", json={"status": "in_progress"})
         assert updated.json()["status"] == "in_progress"
 
+        reviewed = client.patch(f"/api/tasks/{task_id}", json={"status": "in_review"})
+        assert reviewed.json()["status"] == "in_review"
+
         assert client.delete(f"/api/tasks/{task_id}").status_code == 204
         assert client.get(f"/api/tasks/{task_id}").status_code == 404
 

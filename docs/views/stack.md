@@ -8,7 +8,7 @@ The Stack at `/stack` is the focus queue: the task you are on right now on top, 
 
 A list sorted by recency does not tell you what to do next, and it does not survive a context switch.
 The Stack keeps one ordered queue of the work in flight, with the current task at position 0, and records how long each task has been current.
-You never add work by hand: every open, in-progress, or blocked task is on the stack, and a parked task leaves it until its date passes.
+You never add work by hand: every open, in-progress, in-review, or blocked task is on the stack, and a parked task leaves it until its date passes.
 
 ## How to use it
 

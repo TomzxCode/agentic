@@ -63,7 +63,7 @@ router = APIRouter(prefix="/api/tasks", tags=["tasks"])
 # Setting a waiting-on person marks an open task blocked, so "blocked" carries
 # who it waits on; clearing the person reopens it. An explicit status in the same
 # update wins, and a status the user chose deliberately is left alone.
-_WAITING_SOURCE_STATUSES = (TaskStatus.open, TaskStatus.in_progress)
+_WAITING_SOURCE_STATUSES = (TaskStatus.open, TaskStatus.in_progress, TaskStatus.in_review)
 
 
 def _waiting_person_id(value: str | None) -> str | None:
@@ -83,7 +83,7 @@ def _prepare_waiting(data: dict[str, Any], task: Task | None = None, explicit_st
     """Validate a waiting-on edit and keep the status and follow-up coherent.
 
     ``task`` is the row before the edit (None on create). Adding a person to an
-    open or in-progress task marks it blocked; removing the person clears the
+    open, in-progress, or in-review task marks it blocked; removing the person clears the
     follow-up date and reopens a blocked task. A status the request names
     explicitly wins over both rules.
     """

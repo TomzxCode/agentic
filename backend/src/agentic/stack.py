@@ -7,8 +7,8 @@ from which ``execution_count`` and ``duration`` are derived. Popping or removing
 an entry soft-deletes it, so the stack keeps a history.
 
 The stack is materialized from the in-flight tasks: every task that is open, in
-progress, or blocked and has never been on the stack joins it at the bottom, so
-you never have to add work by hand. A task you popped or removed keeps its
+progress, in review, or blocked and has never been on the stack joins it at the
+bottom, so you never have to add work by hand. A task you popped or removed keeps its
 soft-deleted entry and is not re-added until you push it again.
 """
 
@@ -27,7 +27,7 @@ from .models.tasks import StackEntry, Task, TaskSession
 
 # The statuses that belong on the stack. A task in any other status (done or
 # archived) is not in flight and does not belong on it.
-IN_FLIGHT_STATUSES = (TaskStatus.open, TaskStatus.in_progress, TaskStatus.blocked)
+IN_FLIGHT_STATUSES = (TaskStatus.open, TaskStatus.in_progress, TaskStatus.in_review, TaskStatus.blocked)
 
 
 class EntryStats(TypedDict):
@@ -189,7 +189,7 @@ def _soft_delete(session: Session, entry: StackEntry, now: datetime, reason: str
 def sync_stack(session: Session, now: datetime | None = None) -> list[StackEntry]:
     """Materialize the stack from the in-flight tasks.
 
-    Every task that is open, in progress, or blocked, is not parked, and has
+    Every task that is open, in progress, in review, or blocked, is not parked, and has
     never had a stack entry joins at the bottom. An entry leaves when its task
     is no longer in flight or becomes parked (waiting or snoozed). A task that
     was popped or removed keeps its (soft-deleted) entry and is not re-added;

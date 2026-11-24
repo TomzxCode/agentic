@@ -17,6 +17,10 @@
   color: var(--accent-2);
   border-color: #1e3a5f;
 }
+.badge.review {
+  color: #b794f6;
+  border-color: #4c3a6b;
+}
 .badge.warn {
   color: var(--warn);
   border-color: #5b4a1a;

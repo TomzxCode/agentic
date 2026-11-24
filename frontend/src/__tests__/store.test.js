@@ -19,6 +19,7 @@ describe('statusLabel', () => {
   it('maps every known status to a human label', () => {
     expect(statusLabel('open')).toBe('Open')
     expect(statusLabel('in_progress')).toBe('In progress')
+    expect(statusLabel('in_review')).toBe('In review')
     expect(statusLabel('blocked')).toBe('Blocked')
     expect(statusLabel('done')).toBe('Done')
     expect(statusLabel('archived')).toBe('Archived')
@@ -33,6 +34,7 @@ describe('statusClass', () => {
   it('returns the badge styling for each status', () => {
     expect(statusClass('open')).toBe('badge')
     expect(statusClass('in_progress')).toBe('badge run')
+    expect(statusClass('in_review')).toBe('badge review')
     expect(statusClass('blocked')).toBe('badge warn')
     expect(statusClass('done')).toBe('badge ok')
     expect(statusClass('archived')).toBe('badge')

@@ -166,6 +166,7 @@ export function statusLabel(status) {
     {
       open: 'Open',
       in_progress: 'In progress',
+      in_review: 'In review',
       blocked: 'Blocked',
       done: 'Done',
       archived: 'Archived'
@@ -178,6 +179,7 @@ export function statusClass(status) {
     {
       open: 'badge',
       in_progress: 'badge run',
+      in_review: 'badge review',
       blocked: 'badge warn',
       done: 'badge ok',
       archived: 'badge'

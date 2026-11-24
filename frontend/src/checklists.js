@@ -5,6 +5,7 @@
 export const CHECKLIST_STATUSES = [
   { value: 'open', label: 'Open' },
   { value: 'in_progress', label: 'In progress' },
+  { value: 'in_review', label: 'In review' },
   { value: 'blocked', label: 'Blocked' },
   { value: 'done', label: 'Done' },
   { value: 'archived', label: 'Archived' }

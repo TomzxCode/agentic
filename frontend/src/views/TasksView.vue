@@ -15,7 +15,7 @@ const matchesFilter = (p) =>
   (!store.tagFilter || taskHasTag(p, store.tagFilter)) && (!store.personFilter || taskHasPerson(p, store.personFilter))
 
 const counts = computed(() => {
-  const c = { open: 0, in_progress: 0, blocked: 0, done: 0, archived: 0 }
+  const c = { open: 0, in_progress: 0, in_review: 0, blocked: 0, done: 0, archived: 0 }
   for (const p of store.tasks.filter(matchesFilter)) c[p.status] = (c[p.status] || 0) + 1
   return c
 })
@@ -71,6 +71,7 @@ const upcomingDeadlines = computed(() => {
 const STATUS_BADGES = [
   { value: 'open', tone: '' },
   { value: 'in_progress', tone: 'run' },
+  { value: 'in_review', tone: 'review' },
   { value: 'blocked', tone: 'warn' },
   { value: 'done', tone: 'ok' },
   { value: 'archived', tone: '' }

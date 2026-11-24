@@ -71,10 +71,11 @@
 | Task dependency edge | A before/after edge between two tasks; the dependency graph must stay acyclic. |
 | Task relation | A symmetric link between two tasks that says they are related, with no ordering and no place in the dependency graph. |
 | Task session | A stretch of time a stack entry spent as the current task, with a start and an end; execution count and duration are derived from these. |
+| Task status | The lifecycle state of a task: open, in progress, in review, blocked, done, or archived. In review is unfinished work under review; it stays in flight (on the stack) and counts as in progress in the process view. |
 | Timeline event | A persisted record of a meaningful change to a task, shown as a chronological timeline. |
 | Tool transport | How the app reaches ghx or slackx: `cli` (shell out per call), `rpc` (the URL and token of an already-running serve mode), or `managed` (the server starts and stops the serve-mode process). |
 | Touchless | A change with no recorded human intervention; the numerator of the autonomy rate. |
-| Waiting on | The person a task waits on. Setting one marks an open task blocked, and parks the task until its follow-up date (or until the person is cleared when there is no follow-up date). |
+| Waiting on | The person a task waits on. Setting one marks an unfinished task blocked, and parks the task until its follow-up date (or until the person is cleared when there is no follow-up date). |
 | Warm session pool | The one warm ACP session of the default harness the API holds open from startup, so the model picker answers in a single request; it is best effort, and runs still spawn their own session. |
 | Worktree | An isolated `git worktree` created for a task from a registered repository. |
 | Yield | The share of accepted changes that survived the observation window without being reverted. One of the two primary factory metrics. |

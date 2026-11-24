@@ -100,10 +100,17 @@ describe('TasksView', () => {
     await flushPromises()
 
     const badges = wrapper.findAll('.status-badge')
-    expect(badges.map((b) => b.text())).toEqual(['Open 1', 'In progress 0', 'Blocked 1', 'Done 1', 'Archived 0'])
+    expect(badges.map((b) => b.text())).toEqual([
+      'Open 1',
+      'In progress 0',
+      'In review 0',
+      'Blocked 1',
+      'Done 1',
+      'Archived 0'
+    ])
 
     // Clicking "Blocked" narrows the list to blocked tasks and reads as active.
-    await badges[2].trigger('click')
+    await badges[3].trigger('click')
     expect(store.statusFilter).toBe('blocked')
     let rows = wrapper.findAll('.select-item').map((item) => item.text())
     expect(rows.some((text) => text.includes('Two'))).toBe(true)
@@ -118,7 +125,7 @@ describe('TasksView', () => {
     expect(rows.some((text) => text.includes('Three'))).toBe(false)
 
     // "Done" is normally hidden, so its badge is the only way to see those tasks.
-    await wrapper.findAll('.status-badge')[3].trigger('click')
+    await wrapper.findAll('.status-badge')[4].trigger('click')
     expect(store.statusFilter).toBe('done')
     rows = wrapper.findAll('.select-item').map((item) => item.text())
     expect(rows).toHaveLength(1)

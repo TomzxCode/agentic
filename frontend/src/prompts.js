@@ -40,7 +40,7 @@ export const PROMPT_VARIABLE_GROUPS = [
       { token: 'task_id', label: 'Task id', description: 'The task id' },
       { token: 'title', label: 'Title', description: 'The task title' },
       { token: 'description', label: 'Description', description: 'The task description' },
-      { token: 'status', label: 'Status', description: 'open, in progress, blocked, done, or archived' },
+      { token: 'status', label: 'Status', description: 'open, in progress, in review, blocked, done, or archived' },
       { token: 'priority', label: 'Priority', description: 'low, medium, high, or urgent' },
       { token: 'deadline', label: 'Deadline', description: 'The deadline in ISO 8601, empty when none' },
       { token: 'tags', label: 'Tags', description: 'The task tags, comma separated' },

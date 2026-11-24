@@ -21,7 +21,7 @@ Their status badges still count them, so you can pull either back into view in o
 | --- | --- |
 | Tag row | `All` plus one chip per tag in use, with its count. Only shown when at least one task carries a tag. |
 | Person row | `Anyone` plus one chip per person linked to an in-flight task, with their count. |
-| Status badges | `Open`, `In progress`, `Blocked`, `Done`, `Archived`, each with a count. This is the status filter. |
+| Status badges | `Open`, `In progress`, `In review`, `Blocked`, `Done`, `Archived`, each with a count. This is the status filter. |
 | `Group by` | Splits the list into sections. |
 | `Upcoming deadlines` | A `Within` window and the tasks due in it, overdue first. Hidden while a status filter is active. |
 | Bulk bar | Floats at the bottom of the page once you tick a row: `N selected`, `Set status…`, `Set priority…`, `Add tags…`, `Remove tags…`, `Apply`, `Clear`, `Delete`. |
