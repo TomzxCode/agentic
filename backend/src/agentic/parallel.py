@@ -18,7 +18,6 @@ from __future__ import annotations
 from collections.abc import Callable, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from contextvars import copy_context
-from typing import cast
 
 #: How many calls run at once. Small on purpose: each is a subprocess that
 #: talks to a network API, so a wider burst buys little over the wait and only
@@ -37,4 +36,4 @@ def run_parallel[T](calls: Sequence[Callable[[], T]], workers: int | None = None
         return [call() for call in calls]
     with ThreadPoolExecutor(max_workers=workers or min(len(calls), MAX_WORKERS)) as pool:
         futures = [pool.submit(copy_context().run, call) for call in calls]
-        return [cast(T, future.result()) for future in futures]
+        return [future.result() for future in futures]
