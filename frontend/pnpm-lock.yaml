@@ -167,8 +167,8 @@ importers:
   .:
     dependencies:
       '@xyflow/vue':
-        specifier: 2.0.2
-        version: 2.0.2(@vue/reactivity@3.5.46)(vue@3.5.46)
+        specifier: 2.0.3
+        version: 2.0.3(@vue/reactivity@3.5.46)(vue@3.5.46)
       ag-grid-community:
         specifier: ^36.3.0
         version: 36.3.0
@@ -1373,12 +1373,12 @@ packages:
     peerDependencies:
       vue: ^3.5.0
 
-  '@xyflow/system@1.0.0':
-    resolution: {integrity: sha512-mOeG0ZIkEUY5V5XQS+LE3QKlJqL7gu5ukqxAniuDDpfxtkA4uagOmBiWKh3w59wZ5nBC7ojBcNrBukM3hUJBKg==}
+  '@xyflow/system@1.0.1':
+    resolution: {integrity: sha512-0vMyv9EbnV9lNe15USaIbBxJVuLF2awbzZNT+foIOd59Mpc2rw04oaozoms1TaSetTa376aHl7mJ/YNKqIoqJA==}
     engines: {node: '>=20'}
 
-  '@xyflow/vue@2.0.2':
-    resolution: {integrity: sha512-zdEAETuN1frev1m3wxIfwGHUJ8qd5y/o91u1WMMDl+HEVJW/iWkoM+H0MBeDmJXbZTRDDnSxH+65qSbT5aKnSA==}
+  '@xyflow/vue@2.0.3':
+    resolution: {integrity: sha512-kkIgLB+ihI2UTibtbPhhnjP1Bai6bcGk+a055cX9u+2wREnqnOrdx2pvLHXPojdC4p8QqL1R7gKmFJiI6QHy6g==}
     peerDependencies:
       '@vue/reactivity': ^3.5.27
       vue: ^3.5.27
@@ -4298,7 +4298,7 @@ snapshots:
     dependencies:
       vue: 3.5.46
 
-  '@xyflow/system@1.0.0':
+  '@xyflow/system@1.0.1':
     dependencies:
       '@types/d3-drag': 3.0.7
       '@types/d3-interpolate': 3.0.4
@@ -4310,11 +4310,11 @@ snapshots:
       d3-selection: 3.0.0
       d3-zoom: 3.0.0
 
-  '@xyflow/vue@2.0.2(@vue/reactivity@3.5.46)(vue@3.5.46)':
+  '@xyflow/vue@2.0.3(@vue/reactivity@3.5.46)(vue@3.5.46)':
     dependencies:
       '@vue/reactivity': 3.5.46
       '@vueuse/core': 14.4.0(vue@3.5.46)
-      '@xyflow/system': 1.0.0
+      '@xyflow/system': 1.0.1
       vue: 3.5.46
 
   abbrev@5.0.0: {}
